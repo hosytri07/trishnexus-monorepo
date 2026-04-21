@@ -1,0 +1,39 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.egg-info/
+.pytest_cache/
+.venv/
+venv/
+env/
+.env
+.env.local
+
+# Node
+node_modules/
+npm-debug.log*
+dist/
+build/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Data / secrets
+*.db
+*.sqlite
+*.sqlite3
+firebase-adminsdk-*.json
+serviceAccountKey.json
+
+# Build artifacts
+design/.tokens-cache/

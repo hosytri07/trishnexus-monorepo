@@ -1,0 +1,23 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "trishdesign"
+version = "0.1.0"
+description = "TrishDesign — Engineer toolkit (estimate, structural templates, road damage, PDF extract, CAD lisp manager)."
+requires-python = ">=3.10"
+authors = [{ name = "Hồ Sỹ Trí", email = "hosytri77@gmail.com" }]
+
+dependencies = [
+  "trishteam-core",        # cài editable từ shared/trishteam_core
+  "openpyxl>=3.1",         # đọc Excel template kết cấu
+  "python-docx>=1.1",      # export báo cáo
+  "requests>=2.31",        # tải file từ Firebase Storage
+]
+
+[project.scripts]
+trishdesign = "trishdesign.app:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]

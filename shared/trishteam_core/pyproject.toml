@@ -1,0 +1,36 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "trishteam-core"
+version = "0.1.0"
+description = "Shared core for TrishNexus desktop apps (auth, ui, sync, widgets, utils, workers, store)."
+readme = "README.md"
+requires-python = ">=3.10"
+authors = [{ name = "Hồ Sỹ Trí", email = "hosytri77@gmail.com" }]
+license = { text = "Proprietary — TrishTeam internal" }
+keywords = ["pyqt6", "firebase", "trishteam", "desktop"]
+
+dependencies = [
+  "PyQt6>=6.6",
+  "requests>=2.31",
+  "keyring>=24.3",
+  "pyrebase4>=4.7.1",
+  "platformdirs>=4.2",
+  "pyotp>=2.9",
+]
+
+[project.optional-dependencies]
+dev = [
+  "pytest>=8.0",
+  "ruff>=0.3",
+  "mypy>=1.9",
+]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
