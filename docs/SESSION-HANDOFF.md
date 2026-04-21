@@ -6,6 +6,20 @@
 
 ---
 
+## 🚨 RULES BẮT BUỘC CHO CLAUDE
+
+### Khi bắt đầu session
+- Nếu user gõ `tiếp tục`, `tiếp tục từ handoff`, `pick up`, hoặc chỉ nói `tiếp tục` → đọc file này ngay, không hỏi gì thêm trước.
+- Tóm tắt 2-3 dòng cho user biết "đang ở bước nào" rồi mới đề xuất action tiếp theo.
+
+### Trước khi kết thúc session (QUAN TRỌNG)
+- Luôn update section **"Trạng thái hiện tại"** ở dưới trước khi user đóng chat.
+- Cụ thể: đánh dấu ✅ việc đã xong, cập nhật section "Đang dở — PICK UP TỪ ĐÂY", thêm file code quan trọng mới tạo.
+- Nếu user nói kiểu "xong hôm nay rồi" / "chốt" / "để mai làm tiếp" / "bấm END.bat" → trigger update handoff TRƯỚC khi chào tạm biệt.
+- Lý do: máy kia (nhà ↔ cơ quan) sẽ đọc file này khi mở chat mới — nếu handoff cũ, Claude sẽ làm trùng việc hoặc bỏ sót.
+
+---
+
 ## Trạng thái hiện tại (cuối session trước)
 
 ### Đã hoàn thành
