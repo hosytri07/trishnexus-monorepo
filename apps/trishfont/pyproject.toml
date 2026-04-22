@@ -7,7 +7,7 @@ name = "trishfont"
 version = "0.1.0"
 description = "TrishFont — Font library manager & preview tool (Vietnamese-friendly)."
 requires-python = ">=3.10"
-authors = [{ name = "Hồ Sỹ Trí", email = "hosytri77@gmail.com" }]
+authors = [{ name = "Hồ Sỹ Trí", email = "hosytri07@gmail.com" }]
 
 dependencies = [
   "trishteam-core",
@@ -18,3 +18,6 @@ trishfont = "trishfont.app:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]
+
+[tool.setuptools.package-data]
+trishfont = ["resources/*.png", "resources/*.ico"]

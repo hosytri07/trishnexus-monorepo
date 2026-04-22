@@ -4,7 +4,7 @@
 
 ## Context ngắn
 
-- **User**: Trí (hosytri07 / hosytri77@gmail.com), không phải developer. Giao tiếp tiếng Việt, ngắn gọn, tránh jargon.
+- **User**: Trí (hosytri07 / hosytri07@gmail.com), không phải developer. Giao tiếp tiếng Việt, ngắn gọn, tránh jargon.
 - **Workspace**: Monorepo trên USB tại `G:\4. Code\TrishNexus-New\trishnexus-monorepo`. User làm việc luân phiên giữa máy nhà và máy cơ quan.
 - **GitHub**: `hosytri07/trishnexus-monorepo`
 - **Website live**: trishteam-website (Vercel), domain chính thức `trishteam.io.vn` (mua TenTen, chưa cấu hình)

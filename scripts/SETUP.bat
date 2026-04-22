@@ -59,10 +59,10 @@ git --version
 echo.
 echo   [3/5] Cau hinh Git (ten + email + USB trust)...
 git config --global user.name "hosytri07"
-git config --global user.email "hosytri77@gmail.com"
+git config --global user.email "hosytri07@gmail.com"
 REM Fix "dubious ownership" khi repo nam tren USB (FAT/exFAT)
 git config --global --add safe.directory "*"
-echo   Da set: hosytri07 / hosytri77@gmail.com (+ trust USB)
+echo   Da set: hosytri07 / hosytri07@gmail.com (+ trust USB)
 
 echo.
 echo   [4/5] Tao moi truong Python (.venv) cho may nay...

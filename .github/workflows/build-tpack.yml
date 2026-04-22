@@ -1,0 +1,226 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# build-tpack.yml — CI build 1 app thành .tpack khi push tag <app-id>-v<version>
+# ─────────────────────────────────────────────────────────────────────────────
+#
+# Trigger:
+#   git tag trishfont-v1.0.0
+#   git push origin trishfont-v1.0.0
+#
+# Workflow:
+#   1. Parse tag → app_id + version.
+#   2. Verify apps/<app_id>/pyproject.toml tồn tại + version khớp tag.
+#   3. pip install cryptography + deps build (packaging/requirements-build.txt
+#      subset — chỉ cần để chạy build-app-tpack.py).
+#   4. python scripts/build-app-tpack.py <app_id>
+#      → dist/<app_id>-<version>.tpack
+#   5. Compute SHA256 + size.
+#   6. Tạo GitHub Release <app_id>-v<version> nếu chưa có; upload .tpack asset.
+#   7. Emit JSON entry để workflow update-apps-json.yml pick up
+#      (file dist/<app_id>-apps-json-entry.json — uploaded như release asset
+#      tên `apps-json-entry.json`).
+#
+# Chú ý:
+#   - Runner = ubuntu-latest (build .tpack chỉ là zip + py_compile, không cần
+#     Windows). Runtime build mới cần Windows (xem build-runtime.yml).
+#   - Python 3.11 bắt buộc (match target .pyc magic).
+#   - Không cần secrets ngoài GITHUB_TOKEN (builtin).
+#
+# ─────────────────────────────────────────────────────────────────────────────
+
+name: Build .tpack & Release
+
+on:
+  push:
+    tags:
+      # Match tag <app-id>-v<semver>, e.g. trishfont-v1.0.0, trishlibrary-v0.3.2
+      - 'trish*-v*'
+  workflow_dispatch:
+    inputs:
+      app_id:
+        description: 'App ID (e.g. trishfont)'
+        required: true
+        type: string
+      version:
+        description: 'Version (e.g. 1.0.0)'
+        required: true
+        type: string
+
+permissions:
+  contents: write   # cần để tạo/patch Release
+
+jobs:
+  build:
+    name: Build ${{ github.ref_name }}
+    runs-on: ubuntu-latest
+    outputs:
+      app_id: ${{ steps.parse.outputs.app_id }}
+      version: ${{ steps.parse.outputs.version }}
+      tpack_name: ${{ steps.build.outputs.tpack_name }}
+      sha256: ${{ steps.build.outputs.sha256 }}
+      size_bytes: ${{ steps.build.outputs.size_bytes }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Parse app_id + version
+        id: parse
+        shell: bash
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            APP_ID="${{ inputs.app_id }}"
+            VERSION="${{ inputs.version }}"
+          else
+            # Tag format: <app-id>-v<version>
+            TAG="${GITHUB_REF_NAME}"
+            APP_ID="${TAG%-v*}"
+            VERSION="${TAG#*-v}"
+          fi
+
+          if [ -z "$APP_ID" ] || [ -z "$VERSION" ]; then
+            echo "::error::Cannot parse app_id/version from ref '${GITHUB_REF_NAME}'"
+            exit 1
+          fi
+
+          # Skip runtime tag (handled by build-runtime.yml)
+          if [ "$APP_ID" = "runtime" ]; then
+            echo "::error::runtime-v* tag should be built by build-runtime.yml, not build-tpack.yml"
+            exit 1
+          fi
+
+          echo "app_id=${APP_ID}"   >> "$GITHUB_OUTPUT"
+          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
+          echo "📦 Building ${APP_ID} v${VERSION}"
+
+      - name: Verify app exists + version matches
+        shell: bash
+        env:
+          APP_ID: ${{ steps.parse.outputs.app_id }}
+          VERSION: ${{ steps.parse.outputs.version }}
+        run: |
+          APP_DIR="apps/${APP_ID}"
+
+          if [ ! -d "$APP_DIR" ]; then
+            echo "::error::App directory not found: ${APP_DIR}"
+            exit 1
+          fi
+
+          # Extract version từ pyproject.toml (tránh nested heredoc — gọi python -c)
+          PY_VERSION=$(python -c '
+          import os, sys, tomllib
+          p = os.path.join("apps", os.environ["APP_ID"], "pyproject.toml")
+          with open(p, "rb") as f:
+              data = tomllib.load(f)
+          print(data.get("project", {}).get("version", ""))
+          ')
+
+          if [ -z "$PY_VERSION" ]; then
+            echo "::error::Cannot read version from ${APP_DIR}/pyproject.toml"
+            exit 1
+          fi
+
+          if [ "$PY_VERSION" != "$VERSION" ]; then
+            echo "::error::Tag version '${VERSION}' does not match pyproject.toml version '${PY_VERSION}'"
+            exit 1
+          fi
+
+          echo "✅ ${APP_ID} v${VERSION} verified"
+
+      - name: Install build dependencies
+        shell: bash
+        run: |
+          python -m pip install --upgrade pip
+          # Cần cryptography để tier 3 encrypt
+          pip install "cryptography>=42.0,<47.0"
+          # Editable install trishteam_core (để script import crypto module)
+          pip install -e shared/trishteam_core
+
+      - name: Build .tpack
+        id: build
+        shell: bash
+        run: |
+          APP_ID="${{ steps.parse.outputs.app_id }}"
+          VERSION="${{ steps.parse.outputs.version }}"
+
+          python scripts/build-app-tpack.py "$APP_ID"
+
+          TPACK="dist/${APP_ID}-${VERSION}.tpack"
+          if [ ! -f "$TPACK" ]; then
+            echo "::error::.tpack not produced at ${TPACK}"
+            exit 1
+          fi
+
+          SHA=$(sha256sum "$TPACK" | awk '{print $1}')
+          SIZE=$(stat -c '%s' "$TPACK")
+
+          echo "tpack_name=$(basename $TPACK)" >> "$GITHUB_OUTPUT"
+          echo "sha256=${SHA}"                 >> "$GITHUB_OUTPUT"
+          echo "size_bytes=${SIZE}"            >> "$GITHUB_OUTPUT"
+
+          echo "✅ Built ${TPACK}"
+          echo "   size:   ${SIZE} bytes"
+          echo "   sha256: ${SHA}"
+
+      - name: Generate apps.json entry
+        id: entry
+        shell: bash
+        env:
+          APP_ID: ${{ steps.parse.outputs.app_id }}
+          VERSION: ${{ steps.parse.outputs.version }}
+          SHA256: ${{ steps.build.outputs.sha256 }}
+          SIZE_BYTES: ${{ steps.build.outputs.size_bytes }}
+          REPO: ${{ github.repository }}
+        run: |
+          mkdir -p dist
+          python scripts/ci/emit_apps_json_entry.py > dist/apps-json-entry.json
+          echo "✅ apps.json entry generated"
+          cat dist/apps-json-entry.json
+
+      - name: Create / update GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: ${{ steps.parse.outputs.app_id }} v${{ steps.parse.outputs.version }}
+          body: |
+            **${{ steps.parse.outputs.app_id }}** v${{ steps.parse.outputs.version }}
+
+            - File: `${{ steps.build.outputs.tpack_name }}`
+            - Size: ${{ steps.build.outputs.size_bytes }} bytes
+            - SHA256: `${{ steps.build.outputs.sha256 }}`
+
+            Install via TrishLauncher → tab "App Store".
+          files: |
+            dist/${{ steps.parse.outputs.app_id }}-${{ steps.parse.outputs.version }}.tpack
+            dist/apps-json-entry.json
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  # Trigger workflow update-apps-json.yml để patch apps.json registry
+  propagate:
+    name: Trigger apps.json update
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Dispatch update-apps-json workflow
+        uses: actions/github-script@v7
+        with:
+          script: |
+            await github.rest.actions.createWorkflowDispatch({
+              owner: context.repo.owner,
+              repo:  context.repo.repo,
+              workflow_id: 'update-apps-json.yml',
+              ref: 'main',
+              inputs: {
+                app_id:  '${{ needs.build.outputs.app_id }}',
+                version: '${{ needs.build.outputs.version }}',
+                sha256:  '${{ needs.build.outputs.sha256 }}',
+                size_bytes: '${{ needs.build.outputs.size_bytes }}',
+              },
+            });

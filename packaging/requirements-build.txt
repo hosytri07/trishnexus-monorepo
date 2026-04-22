@@ -1,0 +1,15 @@
+# Build-time requirements cho TrishTEAM Runtime (PyInstaller).
+# Chỉ cài trong virtualenv `build-env` — không phải runtime dependency.
+#
+# Target: Windows x64, Python 3.11.x (EXACT, để bytecode match các .tpack)
+
+# Core runtime deps (bundled vào PyInstaller)
+PyQt6>=6.7,<6.10
+requests>=2.31,<3.0
+platformdirs>=4.0,<5.0
+pywin32>=306
+cryptography>=42.0,<47.0  # AES-GCM cho load tier 3 data files (.enc)
+
+# Build tools
+pyinstaller>=6.0,<7.0
+tomli>=2.0  # Cho build-app-tpack.py (Python 3.10 only — 3.11 có tomllib built-in)

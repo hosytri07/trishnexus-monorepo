@@ -1,0 +1,19 @@
+# Output của build-pack.py — commit zip không cần thiết, GitHub Release giữ
+**/dist/
+*.zip
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Editor
+.vscode/
+.idea/
+*.swp

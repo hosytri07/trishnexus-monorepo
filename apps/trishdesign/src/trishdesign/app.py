@@ -9,11 +9,14 @@ hoặc sau khi `pip install -e .`:
 from __future__ import annotations
 
 import sys
+from pathlib import Path
 
+from PyQt6.QtGui import QIcon
 from PyQt6.QtWidgets import QApplication, QLabel, QVBoxLayout, QWidget
 
 from trishteam_core.ui import BaseWindow
 from trishteam_core.utils import get_logger, user_data_dir_for
+from trishteam_core.widgets import AppHeader
 
 from .modules.dashboard.view import DashboardView
 from .modules.library.view import LibraryView
@@ -22,7 +25,12 @@ from .modules.estimate.view import EstimateView
 
 
 APP_NAME = "TrishDesign"
+APP_VERSION = "v0.1.0"
 log = get_logger(APP_NAME, log_dir=user_data_dir_for(APP_NAME) / "logs")
+
+_RES_DIR = Path(__file__).resolve().parent / "resources"
+LOGO_PATH = _RES_DIR / "logo-64.png"
+ICO_PATH  = _RES_DIR / "app.ico"
 
 
 def _placeholder(text: str) -> QWidget:
@@ -37,8 +45,24 @@ def _placeholder(text: str) -> QWidget:
 def main() -> int:
     log.info("TrishDesign starting…")
     app = QApplication(sys.argv)
+
+    if ICO_PATH.is_file():
+        app.setWindowIcon(QIcon(str(ICO_PATH)))
+    elif LOGO_PATH.is_file():
+        app.setWindowIcon(QIcon(str(LOGO_PATH)))
+
     win = BaseWindow(title="TrishDesign — Engineer Toolkit")
     win.sidebar.set_title("TrishDesign")
+
+    header = AppHeader(
+        logo_path=LOGO_PATH if LOGO_PATH.is_file() else None,
+        app_name="Trish<b>Design</b>",
+        version=APP_VERSION,
+        show_update=False,
+        show_about=False,
+        name_is_html=True,
+    )
+    win.set_header(header)
 
     # ---- Module chính (Sprint 5-12) ----
     win.add_page("dashboard",        "Dashboard",       DashboardView(),         icon="🏠")

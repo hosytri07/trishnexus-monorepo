@@ -1,0 +1,56 @@
+# TrishFont — .tpack build config.
+# Script: scripts/build-app-tpack.py trishfont
+# Spec:   docs/PACKAGING.md
+
+[package]
+id = "trishfont"
+# Tier 1 = public utility (chỉ .pyc, không Cython/PyArmor).
+protection_tier = 1
+
+[manifest]
+name = "trishfont"
+display_name = "TrishFont"
+tagline = "Quản lý font chuyên nghiệp"
+description = "Quản lý, xem trước và cài đặt font Windows (.ttf/.otf/.ttc) + AutoCAD (.shx). Folder-aware grouping, font-pack sync từ GitHub."
+entry = "trishfont.app:main"
+
+[runtime]
+python = ">=3.11,<3.12"
+trishteam_core = ">=0.1.0,<1.0.0"
+
+[requires]
+platform = "windows"
+admin = true  # Cần admin để cài font vào C:\Windows\Fonts + AutoCAD Fonts
+
+# Danh sách shortcut sẽ tạo sau khi install.
+# Launcher dùng pywin32.winshell để tạo .lnk trên Desktop + Start Menu.
+[[shortcuts.windows]]
+name = "TrishFont"
+icon = "resources/app.ico"
+args = "launch trishfont"
+description = "Quản lý font chuyên nghiệp"
+
+# Permissions — khai báo để Launcher hiện UI "app này cần quyền gì" trước install.
+[permissions]
+fs_write = [
+  "%LOCALAPPDATA%/TrishTEAM/trishfont",
+  "C:\\Windows\\Fonts",
+  "C:\\Program Files\\Autodesk",
+]
+registry = [
+  "HKLM\\Software\\Microsoft\\Windows NT\\CurrentVersion\\Fonts",
+  "HKCU\\Software\\Microsoft\\Windows NT\\CurrentVersion\\Fonts",
+]
+network = [
+  "raw.githubusercontent.com",
+  "github.com",
+]
+
+# Font pack không bundle vào .tpack (sẽ rất nặng ~52MB).
+# TrishTEAM Runtime installer (NSIS) có option "Cài kèm Font pack cơ bản?"
+# → tick thì NSIS download 1 lần trong install step. Hoặc user mở app → tab
+# Cập nhật → tải manual. Giữ .tpack core <5MB.
+#
+# [[bundled_data_packs]]
+# id = "trishfont-origin"
+# version = "1.0.0"

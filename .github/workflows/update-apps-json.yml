@@ -1,0 +1,154 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# update-apps-json.yml — sau khi build-tpack.yml xong, workflow này:
+#   1. Checkout repo `trishnexus-launcher-registry` (branch main).
+#   2. Patch apps.json: cập nhật version/sha256/size_bytes/download.url cho app.
+#   3. Tạo PR (hoặc push trực tiếp, tuỳ secrets) để admin review + merge.
+#
+# Inputs (từ workflow_call hoặc workflow_dispatch):
+#   - app_id    (vd: trishfont)
+#   - version   (vd: 1.0.0)
+#   - sha256    (payload.tpack SHA-256, 64 hex)
+#   - size_bytes
+#
+# Secrets cần thiết:
+#   - REGISTRY_REPO_TOKEN  Personal Access Token có quyền `repo` trên
+#                          hosytri07/trishnexus-launcher-registry.
+#                          (GITHUB_TOKEN mặc định chỉ có quyền trong repo
+#                          hiện tại, không cross-repo được.)
+#
+# Chú ý:
+#   - Nếu chưa có REGISTRY_REPO_TOKEN, job sẽ chỉ in diff ra log và skip PR,
+#     không fail workflow chính (soft-fail).
+#
+# ─────────────────────────────────────────────────────────────────────────────
+
+name: Update launcher-registry apps.json
+
+on:
+  workflow_dispatch:
+    inputs:
+      app_id:
+        description: 'App ID (e.g. trishfont)'
+        required: true
+        type: string
+      version:
+        description: 'Version (e.g. 1.0.0)'
+        required: true
+        type: string
+      sha256:
+        description: 'Payload SHA-256 (64 hex)'
+        required: true
+        type: string
+      size_bytes:
+        description: '.tpack size in bytes'
+        required: true
+        type: string
+
+jobs:
+  update:
+    name: Patch apps.json
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check registry token availability
+        id: check
+        shell: bash
+        env:
+          REGISTRY_TOKEN: ${{ secrets.REGISTRY_REPO_TOKEN }}
+        run: |
+          if [ -z "$REGISTRY_TOKEN" ]; then
+            echo "has_token=false" >> "$GITHUB_OUTPUT"
+            echo "::warning::REGISTRY_REPO_TOKEN not set — sẽ chỉ preview diff, không tạo PR."
+          else
+            echo "has_token=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Checkout launcher-registry (with token)
+        if: steps.check.outputs.has_token == 'true'
+        uses: actions/checkout@v4
+        with:
+          repository: hosytri07/trishnexus-launcher-registry
+          token: ${{ secrets.REGISTRY_REPO_TOKEN }}
+          path: registry
+          ref: main
+
+      - name: Checkout launcher-registry (read-only preview)
+        if: steps.check.outputs.has_token == 'false'
+        uses: actions/checkout@v4
+        with:
+          repository: hosytri07/trishnexus-launcher-registry
+          path: registry
+          ref: main
+        continue-on-error: true
+
+      - name: Checkout trishnexus-monorepo scripts
+        # Cần scripts/ci/patch_apps_json.py — checkout vào thư mục riêng
+        uses: actions/checkout@v4
+        with:
+          path: monorepo
+          ref: main
+
+      - name: Patch apps.json
+        id: patch
+        shell: bash
+        env:
+          APP_ID:     ${{ inputs.app_id }}
+          VERSION:    ${{ inputs.version }}
+          SHA256:     ${{ inputs.sha256 }}
+          SIZE_BYTES: ${{ inputs.size_bytes }}
+          REPO:       ${{ github.repository }}
+          APPS_JSON:  registry/apps.json
+        run: |
+          if [ ! -f "$APPS_JSON" ]; then
+            echo "::warning::${APPS_JSON} not found — skip."
+            echo "patched=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          python monorepo/scripts/ci/patch_apps_json.py "$APPS_JSON"
+
+          cd registry
+          if git diff --quiet apps.json; then
+            echo "patched=false" >> "$GITHUB_OUTPUT"
+            echo "⚠️  apps.json không thay đổi (entry không tồn tại hoặc đã đúng)."
+          else
+            echo "patched=true" >> "$GITHUB_OUTPUT"
+            git diff apps.json
+          fi
+
+      - name: Create Pull Request on launcher-registry
+        if: steps.check.outputs.has_token == 'true' && steps.patch.outputs.patched == 'true'
+        uses: peter-evans/create-pull-request@v7
+        with:
+          token: ${{ secrets.REGISTRY_REPO_TOKEN }}
+          path: registry
+          branch: auto/update-${{ inputs.app_id }}-v${{ inputs.version }}
+          base: main
+          title: '${{ inputs.app_id }} → v${{ inputs.version }}'
+          commit-message: |
+            ${{ inputs.app_id }}: v${{ inputs.version }}
+
+            Auto-patched by trishnexus-monorepo CI (update-apps-json.yml).
+
+            - sha256: ${{ inputs.sha256 }}
+            - size:   ${{ inputs.size_bytes }} bytes
+          body: |
+            ## Auto-generated bởi CI
+
+            Source: [trishnexus-monorepo release ${{ inputs.app_id }}-v${{ inputs.version }}](https://github.com/${{ github.repository }}/releases/tag/${{ inputs.app_id }}-v${{ inputs.version }})
+
+            | Field | Value |
+            |---|---|
+            | App | `${{ inputs.app_id }}` |
+            | Version | `${{ inputs.version }}` |
+            | SHA256 | `${{ inputs.sha256 }}` |
+            | Size | ${{ inputs.size_bytes }} bytes |
+
+            Launcher sẽ pull entry mới khi user mở tab **App Store** + click **Làm mới**.
+
+            ---
+            _Merge sau khi đã smoke-test install trên máy local._
+          labels: |
+            auto
+            release
+          delete-branch: true

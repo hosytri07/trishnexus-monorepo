@@ -1,4 +1,4 @@
-"""HoverSidebar — sidebar 220px, click để chuyển trang, tự đánh dấu active."""
+"""HoverSidebar — sidebar compact (180px), click để chuyển trang."""
 
 from __future__ import annotations
 
@@ -7,27 +7,32 @@ from PyQt6.QtWidgets import QButtonGroup, QFrame, QPushButton, QVBoxLayout
 
 
 class HoverSidebar(QFrame):
-    """Emit navClicked(stack_index) khi user click nav item."""
+    """Emit navClicked(stack_index) khi user click nav item.
+
+    Width mặc định 180px (compact). App có thể override qua setFixedWidth().
+    """
 
     navClicked = pyqtSignal(int)
 
-    def __init__(self, parent=None) -> None:
+    def __init__(self, parent=None, *, width: int = 180) -> None:
         super().__init__(parent)
         self.setProperty("role", "sidebar")
-        self.setFixedWidth(220)
+        self.setFixedWidth(width)
 
         self._layout = QVBoxLayout(self)
-        self._layout.setContentsMargins(16, 24, 16, 16)
-        self._layout.setSpacing(4)
+        self._layout.setContentsMargins(8, 12, 8, 8)
+        self._layout.setSpacing(2)
 
-        # App title (app tự đặt bằng set_title)
+        # App title — nhỏ gọn hơn, không dùng button flat (tránh padding mặc định)
         self._title = QPushButton("TrishApp")
         self._title.setStyleSheet(
-            "QPushButton { font-weight: 700; font-size: 18px; padding: 8px 12px; }"
+            "QPushButton { font-weight: 700; font-size: 13px; padding: 6px 10px; "
+            "color: #F9FAFB; background: transparent; text-align: left; border: none; }"
         )
         self._title.setFlat(True)
+        self._title.setEnabled(False)   # không click vào title
         self._layout.addWidget(self._title)
-        self._layout.addSpacing(24)
+        self._layout.addSpacing(8)
 
         # Group để chỉ 1 nav active
         self._group = QButtonGroup(self)
@@ -41,7 +46,7 @@ class HoverSidebar(QFrame):
         self._title.setText(text)
 
     def add_item(self, key: str, label: str, stack_index: int, *, icon: str = "●") -> None:
-        btn = QPushButton(f"  {icon}   {label}")
+        btn = QPushButton(f"  {icon}  {label}")
         btn.setCheckable(True)
         btn.clicked.connect(lambda: self.navClicked.emit(stack_index))
 

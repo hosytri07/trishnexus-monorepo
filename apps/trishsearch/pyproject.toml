@@ -1,0 +1,24 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "trishsearch"
+version = "0.1.0"
+description = "TrishSearch — Tìm kiếm thông tin / file / note — local + cloud"
+requires-python = ">=3.10"
+authors = [{ name = "Hồ Sỹ Trí", email = "hosytri07@gmail.com" }]
+
+dependencies = [
+  "trishteam-core",
+  "PyQt6>=6.6",
+]
+
+[project.scripts]
+trishsearch = "trishsearch.app:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+trishsearch = ["resources/*.png", "resources/*.ico"]

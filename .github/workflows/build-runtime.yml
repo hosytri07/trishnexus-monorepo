@@ -1,0 +1,147 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# build-runtime.yml — CI build TrishTEAM Runtime (.exe installer) khi push
+# tag runtime-v<version>.
+# ─────────────────────────────────────────────────────────────────────────────
+#
+# Trigger:
+#   git tag runtime-v0.1.0
+#   git push origin runtime-v0.1.0
+#
+# Workflow:
+#   1. Runner = windows-latest (PyInstaller cần Windows).
+#   2. Python 3.11 — match .pyc bytecode của .tpack.
+#   3. pip install -r packaging/requirements-build.txt + editable core + launcher.
+#   4. pyinstaller --clean -y packaging/trishteam.spec
+#      → dist/TrishTEAM/TrishTEAM.exe + _internal/
+#   5. choco install nsis → makensis packaging/trishteam-installer.nsi
+#      → packaging/build/TrishTEAM-Setup-<version>.exe
+#   6. SHA256 + size → release assets.
+#
+# Prerequisites:
+#   - packaging/trishteam.spec (có sẵn)
+#   - packaging/trishteam-installer.nsi (có sẵn)
+#   - packaging/version-info.txt (có sẵn)
+#
+# ─────────────────────────────────────────────────────────────────────────────
+
+name: Build TrishTEAM Runtime
+
+on:
+  push:
+    tags:
+      - 'runtime-v*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Runtime version (e.g. 0.1.0)'
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Build TrishTEAM Runtime Setup
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Parse version
+        id: parse
+        shell: bash
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            VERSION="${{ inputs.version }}"
+          else
+            # Tag runtime-v<version>
+            VERSION="${GITHUB_REF_NAME#runtime-v}"
+          fi
+          if [ -z "$VERSION" ]; then
+            echo "::error::Cannot parse version"; exit 1
+          fi
+          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
+          echo "🛠  Building TrishTEAM Runtime v${VERSION}"
+
+      - name: Install Python build dependencies
+        shell: pwsh
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r packaging/requirements-build.txt
+          pip install -e shared/trishteam_core
+          pip install -e apps/trishlauncher
+
+      - name: Run PyInstaller
+        shell: pwsh
+        run: |
+          pyinstaller --clean -y packaging/trishteam.spec
+          if (-not (Test-Path "dist/TrishTEAM/TrishTEAM.exe")) {
+            throw "TrishTEAM.exe not produced"
+          }
+          Write-Host "✅ PyInstaller bundle ready"
+
+      - name: Install NSIS
+        shell: pwsh
+        run: |
+          choco install nsis --no-progress -y
+          # Verify makensis on PATH
+          $env:Path += ";C:\Program Files (x86)\NSIS"
+          makensis /VERSION
+
+      - name: Build NSIS installer
+        shell: pwsh
+        run: |
+          $env:Path += ";C:\Program Files (x86)\NSIS"
+          # Patch PRODUCT_VERSION trong .nsi khớp với tag (optional — .nsi có hardcode 0.1.0)
+          # Nếu muốn override: makensis /DPRODUCT_VERSION=${{ steps.parse.outputs.version }}
+          makensis `
+            /DPRODUCT_VERSION=${{ steps.parse.outputs.version }} `
+            packaging/trishteam-installer.nsi
+
+          $setup = "packaging/build/TrishTEAM-Setup-${{ steps.parse.outputs.version }}.exe"
+          if (-not (Test-Path $setup)) {
+            throw "Setup exe not produced at $setup"
+          }
+          Write-Host "✅ NSIS installer: $setup"
+
+      - name: Compute SHA256
+        id: hash
+        shell: pwsh
+        run: |
+          $setup = "packaging/build/TrishTEAM-Setup-${{ steps.parse.outputs.version }}.exe"
+          $sha   = (Get-FileHash $setup -Algorithm SHA256).Hash.ToLower()
+          $size  = (Get-Item $setup).Length
+          "sha256=$sha" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+          "size_bytes=$size" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+          Write-Host "sha256: $sha"
+          Write-Host "size:   $size bytes"
+
+      - name: Create / update GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: TrishTEAM Runtime v${{ steps.parse.outputs.version }}
+          body: |
+            **TrishTEAM Runtime** v${{ steps.parse.outputs.version }}
+
+            Cài Runtime **một lần** — sau đó các app (TrishFont, TrishLibrary, …) sẽ
+            tải và chạy qua Launcher.
+
+            - File: `TrishTEAM-Setup-${{ steps.parse.outputs.version }}.exe`
+            - Size: ${{ steps.hash.outputs.size_bytes }} bytes
+            - SHA256: `${{ steps.hash.outputs.sha256 }}`
+
+            Per-user install mặc định (không cần admin).
+          files: |
+            packaging/build/TrishTEAM-Setup-${{ steps.parse.outputs.version }}.exe
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

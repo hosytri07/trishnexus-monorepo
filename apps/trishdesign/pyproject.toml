@@ -7,7 +7,7 @@ name = "trishdesign"
 version = "0.1.0"
 description = "TrishDesign — Engineer toolkit (estimate, structural templates, road damage, PDF extract, CAD lisp manager)."
 requires-python = ">=3.10"
-authors = [{ name = "Hồ Sỹ Trí", email = "hosytri77@gmail.com" }]
+authors = [{ name = "Hồ Sỹ Trí", email = "hosytri07@gmail.com" }]
 
 dependencies = [
   "trishteam-core",        # cài editable từ shared/trishteam_core
@@ -21,3 +21,6 @@ trishdesign = "trishdesign.app:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]
+
+[tool.setuptools.package-data]
+trishdesign = ["resources/*.png", "resources/*.ico"]

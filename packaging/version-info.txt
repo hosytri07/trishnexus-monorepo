@@ -1,0 +1,35 @@
+# Windows PE version resource — embedded vào TrishTEAM.exe.
+#
+# PyInstaller đọc file này khi compile. Update version trước mỗi release.
+# Bump CẢ 4 số: filevers + prodvers + StringFileInfo.FileVersion + ProductVersion.
+
+VSVersionInfo(
+  ffi=FixedFileInfo(
+    filevers=(0, 1, 0, 0),
+    prodvers=(0, 1, 0, 0),
+    mask=0x3f,
+    flags=0x0,
+    OS=0x40004,
+    fileType=0x1,
+    subtype=0x0,
+    date=(0, 0),
+  ),
+  kids=[
+    StringFileInfo([
+      StringTable(
+        u'040904B0',
+        [
+          StringStruct(u'CompanyName',      u'TrishTEAM'),
+          StringStruct(u'FileDescription',  u'TrishTEAM Runtime — hub cho TrishNexus suite'),
+          StringStruct(u'FileVersion',      u'0.1.0.0'),
+          StringStruct(u'InternalName',     u'TrishTEAM'),
+          StringStruct(u'LegalCopyright',   u'© 2026 TrishTEAM. All rights reserved.'),
+          StringStruct(u'OriginalFilename', u'TrishTEAM.exe'),
+          StringStruct(u'ProductName',      u'TrishTEAM Runtime'),
+          StringStruct(u'ProductVersion',   u'0.1.0.0'),
+        ]
+      )
+    ]),
+    VarFileInfo([VarStruct(u'Translation', [1033, 1200])])
+  ]
+)

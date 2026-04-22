@@ -1,0 +1,15 @@
+# Placeholder — Git không track folder rỗng nên cần file này.
+# Bỏ file .ttf / .otf / .ttc / .shx thật vào đây (có thể chia subfolder tuỳ ý).
+#
+# Ví dụ:
+#   fonts/
+#   ├── Sans Serif/
+#   │   ├── Inter-Regular.ttf
+#   │   └── Roboto-Regular.ttf
+#   ├── Serif/
+#   │   └── Merriweather-Regular.ttf
+#   └── README.md   (nếu cần ghi chú license)
+#
+# Khi build, script sẽ scan recursive tất cả file trong fonts/ và zip lên.
+# Cấu trúc subfolder được giữ nguyên trong zip → TrishFont sẽ auto group
+# theo folder cha (Phase 2 feature).

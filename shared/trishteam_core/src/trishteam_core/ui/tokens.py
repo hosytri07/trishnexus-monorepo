@@ -1,7 +1,10 @@
 """AUTO-GENERATED from design/tokens.json — DO NOT EDIT BY HAND.
 
+v1.1 — Dark palette chỉnh theo reference apps (TrishFont v1.0, Trish Library 1.0):
+tone **warm dark** (nâu đen ấm) thay cho cool gray.
+
 Dùng module này trong PyQt6 để dựng QSS:
-    from trishteam_core.ui.tokens import COLOR, FONT, SPACE
+    from trishteam_core.ui.tokens import COLOR, FONT, SPACE, DARK
 """
 
 from types import SimpleNamespace
@@ -10,13 +13,21 @@ COLOR = SimpleNamespace(
     accent=SimpleNamespace(
         primary="#667EEA",
         secondary="#764BA2",
-        gradient="linear-gradient(135deg, #667EEA 0%, #764BA2 100%)"
+        gradient="linear-gradient(135deg, #667EEA 0%, #764BA2 100%)",
     ),
     semantic=SimpleNamespace(
         success="#10B981",
         warning="#F59E0B",
         danger="#EF4444",
-        info="#3B82F6"
+        info="#3B82F6",
+    ),
+    # Group colors dùng trong các app (font category, project type, …)
+    group=SimpleNamespace(
+        primary="#667EEA",   # Unicode / default
+        green="#10B981",     # VNI / success-like
+        amber="#F59E0B",     # TCVN3 / warning-like
+        cyan="#06B6D4",      # VietwareX / info-like
+        blue="#3B82F6",      # AutoCAD / info
     ),
     neutral=SimpleNamespace(
         n0="#FFFFFF",
@@ -30,91 +41,91 @@ COLOR = SimpleNamespace(
         n700="#374151",
         n800="#1F2937",
         n900="#111827",
-        n1000="#000000"
+        n1000="#000000",
     ),
     surface=SimpleNamespace(
         bg="#F9FAFB",
         card="#FFFFFF",
         muted="#F3F4F6",
-        overlay="rgba(17, 24, 39, 0.48)"
+        overlay="rgba(17, 24, 39, 0.48)",
     ),
     text=SimpleNamespace(
         primary="#111827",
         secondary="#4B5563",
         muted="#6B7280",
         inverse="#FFFFFF",
-        link="#667EEA"
+        link="#667EEA",
     ),
     border=SimpleNamespace(
         subtle="#E5E7EB",
         default="#D1D5DB",
         strong="#9CA3AF",
-        focus="#667EEA"
-    )
+        focus="#667EEA",
+    ),
 )
 
 FONT = SimpleNamespace(
     family=SimpleNamespace(
         display="Be Vietnam Pro",
-        body="DM Sans",
-        mono="JetBrains Mono"
+        body="Be Vietnam Pro",
+        mono="Consolas",
     ),
     size=SimpleNamespace(
-        xs="12px",
-        sm="14px",
-        base="16px",
-        lg="18px",
-        xl="20px",
-        n2xl="24px",
-        n3xl="30px",
-        n4xl="36px",
-        n5xl="48px"
+        xs="11px",
+        sm="12px",
+        base="13px",
+        lg="14px",
+        xl="16px",
+        n2xl="20px",
+        n3xl="24px",
+        n4xl="32px",
+        n5xl="40px",
     ),
     weight=SimpleNamespace(
         regular=400,
         medium=500,
         semibold=600,
-        bold=700
+        bold=700,
     ),
     lineHeight=SimpleNamespace(
         tight=1.25,
         snug=1.375,
         normal=1.5,
-        relaxed=1.625
-    )
+        relaxed=1.625,
+    ),
 )
 
 SPACE = SimpleNamespace(
     n0="0px",
     n1="4px",
-    n2="8px",
-    n3="12px",
-    n4="16px",
-    n5="20px",
-    n6="24px",
-    n8="32px",
-    n10="40px",
-    n12="48px",
-    n16="64px",
-    n20="80px"
+    n2="6px",
+    n3="8px",
+    n4="10px",
+    n5="14px",
+    n6="18px",
+    n8="24px",
+    n10="32px",
+    n12="40px",
+    n16="56px",
+    n20="72px",
 )
 
 RADIUS = SimpleNamespace(
     none="0px",
     sm="6px",
-    md="10px",
-    lg="14px",
-    xl="20px",
-    n2xl="28px",
-    full="9999px"
+    md="8px",
+    lg="12px",
+    xl="16px",
+    n2xl="20px",
+    full="9999px",
 )
 
 SHADOW = SimpleNamespace(
-    xs="0 1px 2px 0 rgba(0, 0, 0, 0.05)",
-    sm="0 1px 3px 0 rgba(0, 0, 0, 0.08), 0 1px 2px 0 rgba(0, 0, 0, 0.04)",
-    md="0 4px 6px -1px rgba(0, 0, 0, 0.08), 0 2px 4px -1px rgba(0, 0, 0, 0.04)",
-    lg="0 10px 15px -3px rgba(0, 0, 0, 0.08), 0 4px 6px -2px rgba(0, 0, 0, 0.04)",
-    xl="0 20px 25px -5px rgba(0, 0, 0, 0.10), 0 10px 10px -5px rgba(0, 0, 0, 0.04)"
+    xs="0 1px 2px 0 rgba(0, 0, 0, 0.2)",
+    sm="0 1px 3px 0 rgba(0, 0, 0, 0.3)",
+    md="0 4px 8px 0 rgba(0, 0, 0, 0.35)",
+    lg="0 8px 20px 0 rgba(0, 0, 0, 0.45)",
+    xl="0 20px 40px 0 rgba(0, 0, 0, 0.55)",
 )
 
 MOTION = SimpleNamespace(
@@ -122,40 +133,47 @@ MOTION = SimpleNamespace(
         instant="0ms",
         fast="150ms",
         normal="240ms",
-        slow="360ms"
+        slow="360ms",
     ),
     easing=SimpleNamespace(
         standard="cubic-bezier(0.2, 0, 0, 1)",
         emphasize="cubic-bezier(0.3, 0, 0, 1)",
-        bounce="cubic-bezier(0.68, -0.55, 0.27, 1.55)"
-    )
+        bounce="cubic-bezier(0.68, -0.55, 0.27, 1.55)",
+    ),
 )
 
 
-# ---------- DARK MODE overrides ----------
-# Các app desktop ưu tiên dark theme (giống Figma, Photoshop, IDEs).
-# Vẫn dùng chung accent/gradient/semantic từ COLOR ở trên → đồng bộ website.
-# Chỉ khác surface/text/border để ngược màu sáng.
+# ---------- DARK MODE (default cho 6 app desktop) ----------
+# Palette warm-dark, copy 1:1 từ reference TrishFont v1.0 (Hồ Sỹ Trí 2026):
+#   BG_DARK   #0f0e0c   — nền app
+#   BG_CARD   #1a1814   — card + topbar + footer
+#   BG_ROW    #1e1c18   — input/button secondary bg
+#   TEXT_MAIN #f5f2ed   — text chính (off-white ấm)
+#   TEXT_MUTED #a09890  — text phụ
+#
+# Border tokens dùng rgba dựng trên nền card để viền mềm, không cứng như
+# hex solid. QSS của Qt hỗ trợ rgba nên cứ để nguyên.
 DARK = SimpleNamespace(
     surface=SimpleNamespace(
-        bg="#0F1419",          # nền chính — đen xanh trầm
-        bg_elevated="#151B23", # title bar, toolbar
-        card="#1F2937",        # n800 — card nền
-        muted="#111827",       # n900 — input, nhóm item
-        hover="#263241",       # hover state
+        bg="#0f0e0c",            # body
+        bg_elevated="#1a1814",   # topbar / footer / card
+        card="#1a1814",
+        row="#1e1c18",           # toolbar row bg
+        muted="rgba(255,255,255,0.05)",   # input bg
+        hover="rgba(102,126,234,0.10)",   # accent tint hover
         overlay="rgba(0, 0, 0, 0.6)",
     ),
     text=SimpleNamespace(
-        primary="#F9FAFB",     # text chính — gần trắng
-        secondary="#D1D5DB",   # text phụ
-        muted="#9CA3AF",       # hint/placeholder
-        inverse="#111827",     # khi trên nền sáng (gradient button)
-        link="#8FA5FF",        # accent sáng hơn cho dark
+        primary="#f5f2ed",
+        secondary="#d4cec4",
+        muted="#a09890",
+        inverse="#ffffff",
+        link="#8FA5FF",
     ),
     border=SimpleNamespace(
-        subtle="#1F2937",      # viền rất nhạt
-        default="#374151",     # n700 — viền chính
-        strong="#4B5563",      # n600 — viền mạnh
-        focus="#667EEA",       # giữ accent
+        subtle="rgba(255,255,255,0.06)",
+        default="rgba(255,255,255,0.08)",
+        strong="rgba(255,255,255,0.12)",
+        focus="#667EEA",
     ),
 )

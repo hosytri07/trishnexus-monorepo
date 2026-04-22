@@ -1,0 +1,24 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "trishclean"
+version = "0.1.0"
+description = "TrishClean — Dọn file rác, .bak, junk, temp"
+requires-python = ">=3.10"
+authors = [{ name = "Hồ Sỹ Trí", email = "hosytri07@gmail.com" }]
+
+dependencies = [
+  "trishteam-core",
+  "PyQt6>=6.6",
+]
+
+[project.scripts]
+trishclean = "trishclean.app:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+trishclean = ["resources/*.png", "resources/*.ico"]

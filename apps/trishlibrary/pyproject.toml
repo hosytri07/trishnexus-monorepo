@@ -1,0 +1,24 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "trishlibrary"
+version = "0.1.0"
+description = "TrishLibrary — Quản lý thư viện file, link, ghi chú"
+requires-python = ">=3.10"
+authors = [{ name = "Hồ Sỹ Trí", email = "hosytri07@gmail.com" }]
+
+dependencies = [
+  "trishteam-core",
+  "PyQt6>=6.6",
+]
+
+[project.scripts]
+trishlibrary = "trishlibrary.app:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+trishlibrary = ["resources/*.png", "resources/*.ico"]

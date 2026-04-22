@@ -8,7 +8,7 @@ version = "0.1.0"
 description = "Shared core for TrishNexus desktop apps (auth, ui, sync, widgets, utils, workers, store)."
 readme = "README.md"
 requires-python = ">=3.10"
-authors = [{ name = "Hồ Sỹ Trí", email = "hosytri77@gmail.com" }]
+authors = [{ name = "Hồ Sỹ Trí", email = "hosytri07@gmail.com" }]
 license = { text = "Proprietary — TrishTeam internal" }
 keywords = ["pyqt6", "firebase", "trishteam", "desktop"]
 
@@ -19,6 +19,7 @@ dependencies = [
   "pyrebase4>=4.7.1",
   "platformdirs>=4.2",
   "pyotp>=2.9",
+  "cryptography>=42.0",
 ]
 
 [project.optional-dependencies]

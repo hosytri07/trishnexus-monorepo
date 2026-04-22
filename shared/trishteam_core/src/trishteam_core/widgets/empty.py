@@ -15,20 +15,44 @@ class EmptyState(QWidget):
         parent: QWidget | None = None,
     ) -> None:
         super().__init__(parent)
+        # Đảm bảo có không gian thoáng để center khi nằm trong scroll lớn
+        self.setMinimumHeight(280)
+
         layout = QVBoxLayout(self)
         layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        layout.setContentsMargins(20, 40, 20, 40)
+        layout.setSpacing(10)
 
-        icon_lbl = QLabel(icon)
-        icon_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        icon_lbl.setStyleSheet("font-size: 48px;")
-        layout.addWidget(icon_lbl)
+        self._icon_lbl = QLabel(icon)
+        self._icon_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        # Tone warm match palette TrishFont (text muted)
+        self._icon_lbl.setStyleSheet(
+            "font-size: 56px; color: #a09890; background: transparent;"
+        )
+        layout.addWidget(self._icon_lbl)
 
-        title_lbl = QLabel(title)
-        title_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        title_lbl.setStyleSheet("font-size: 18px; font-weight: 600;")
-        layout.addWidget(title_lbl)
+        self._title_lbl = QLabel(title)
+        self._title_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self._title_lbl.setStyleSheet(
+            "font-size: 16px; font-weight: 600; color: #f5f2ed; "
+            "background: transparent;"
+        )
+        layout.addWidget(self._title_lbl)
 
-        sub_lbl = QLabel(subtitle)
-        sub_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        sub_lbl.setStyleSheet("color: #9CA3AF;")
-        layout.addWidget(sub_lbl)
+        self._sub_lbl = QLabel(subtitle)
+        self._sub_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self._sub_lbl.setWordWrap(True)
+        self._sub_lbl.setStyleSheet(
+            "color: #a09890; font-size: 12px; background: transparent;"
+        )
+        layout.addWidget(self._sub_lbl)
+
+    # Setters để update từng phần sau khi tạo
+    def setIcon(self, icon: str) -> None:
+        self._icon_lbl.setText(icon)
+
+    def setTitle(self, title: str) -> None:
+        self._title_lbl.setText(title)
+
+    def setSubtitle(self, subtitle: str) -> None:
+        self._sub_lbl.setText(subtitle)

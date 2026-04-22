@@ -1,0 +1,8 @@
+{
+  "id": "vietnamese-essentials",
+  "name": "Tiếng Việt — Cơ bản",
+  "description": "Bộ font Unicode hỗ trợ đầy đủ dấu tiếng Việt — dùng hằng ngày cho văn bản, thuyết trình, thiết kế cơ bản.",
+  "version": "1.0.0",
+  "kind": "windows",
+  "tags": ["vietnamese", "unicode", "basic", "sans-serif", "serif"]
+}

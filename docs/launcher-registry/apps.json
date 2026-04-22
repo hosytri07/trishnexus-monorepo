@@ -1,0 +1,186 @@
+{
+  "schema_version": 2,
+  "updated_at": "2026-04-22T10:00:00Z",
+  "_comment": "Template apps.json — push lên repo trishnexus-launcher-registry/main/apps.json. URL fetcher xem trishlauncher/modules/registry/fetcher.py:REGISTRY_URL. TrishAdmin KHÔNG có trong public registry — chỉ phân phối qua kênh Admin/Dev riêng (admin-registry.json). Trường login_required = 'none' | 'user' | 'admin' | 'dev'.",
+  "ecosystem": {
+    "name": "TrishTEAM",
+    "tagline": "Hệ sinh thái ứng dụng cá nhân — gọn, nhanh, đồng bộ",
+    "logo_url": "https://raw.githubusercontent.com/hosytri07/trishnexus-launcher-registry/main/logos/TrishTEAM/icon-256.png",
+    "website": "https://trishteam.com"
+  },
+  "apps": [
+    {
+      "id": "trishfont",
+      "name": "TrishFont",
+      "tagline": "Quản lý, xem trước và cài đặt font chuyên nghiệp — folder-aware, hỗ trợ AutoCAD .shx",
+      "logo_url": "https://raw.githubusercontent.com/hosytri07/trishnexus-launcher-registry/main/logos/TrishFont/icon-256.png",
+      "version": "1.0.0",
+      "size_bytes": 25000000,
+      "status": "released",
+      "login_required": "none",
+      "platforms": ["windows_x64"],
+      "screenshots": [
+        "https://raw.githubusercontent.com/hosytri07/trishnexus-launcher-registry/main/screenshots/trishfont-1.png",
+        "https://raw.githubusercontent.com/hosytri07/trishnexus-launcher-registry/main/screenshots/trishfont-2.png"
+      ],
+      "changelog_url": "https://raw.githubusercontent.com/hosytri07/trishnexus-launcher-registry/main/changelogs/trishfont.md",
+      "download": {
+        "windows_x64": {
+          "url": "https://github.com/hosytri07/trishnexus/releases/download/trishfont-v1.0.0/TrishFont-Setup-1.0.0.exe",
+          "sha256": "REPLACE_WITH_REAL_SHA256_AFTER_BUILD",
+          "installer_args": ["/S"]
+        }
+      }
+    },
+    {
+      "id": "trishlauncher",
+      "name": "TrishLauncher",
+      "tagline": "Launcher tổng thể — giới thiệu và cài đặt toàn bộ hệ sinh thái (trừ TrishAdmin)",
+      "logo_url": "https://raw.githubusercontent.com/hosytri07/trishnexus-launcher-registry/main/logos/TrishLauncher/icon-256.png",
+      "version": "1.0.0",
+      "size_bytes": 22000000,
+      "status": "released",
+      "login_required": "none",
+      "platforms": ["windows_x64"],
+      "screenshots": [
+        "https://raw.githubusercontent.com/hosytri07/trishnexus-launcher-registry/main/screenshots/trishlauncher-1.png"
+      ],
+      "changelog_url": "https://raw.githubusercontent.com/hosytri07/trishnexus-launcher-registry/main/changelogs/trishlauncher.md",
+      "download": {
+        "windows_x64": {
+          "url": "https://github.com/hosytri07/trishnexus/releases/download/trishlauncher-v1.0.0/TrishLauncher-Setup-1.0.0.exe",
+          "sha256": "REPLACE_WITH_REAL_SHA256_AFTER_BUILD",
+          "installer_args": ["/S"]
+        }
+      }
+    },
+    {
+      "id": "trishdesign",
+      "name": "TrishDesign",
+      "tagline": "Khảo sát & Thiết kế — engineer toolkit (dự toán, kết cấu, CAD, ATGT, VN2000)",
+      "logo_url": "https://raw.githubusercontent.com/hosytri07/trishnexus-launcher-registry/main/logos/TrishDesign/icon-256.png",
+      "version": "0.1.0",
+      "size_bytes": 0,
+      "status": "coming_soon",
+      "login_required": "user",
+      "platforms": ["windows_x64"],
+      "screenshots": [],
+      "changelog_url": "",
+      "download": {
+        "windows_x64": { "url": "", "sha256": "", "installer_args": ["/S"] }
+      }
+    },
+    {
+      "id": "trishlibrary",
+      "name": "TrishLibrary",
+      "tagline": "Thư viện PDF / docx / link — local + cloud sync giữa desktop và website",
+      "logo_url": "https://raw.githubusercontent.com/hosytri07/trishnexus-launcher-registry/main/logos/TrishLibrary/icon-256.png",
+      "version": "0.1.0",
+      "size_bytes": 0,
+      "status": "coming_soon",
+      "login_required": "user",
+      "platforms": ["windows_x64"],
+      "screenshots": [],
+      "changelog_url": "",
+      "download": {
+        "windows_x64": { "url": "", "sha256": "", "installer_args": ["/S"] }
+      }
+    },
+    {
+      "id": "trishnote",
+      "name": "TrishNote",
+      "tagline": "Ghi chú dự án / deadline / cá nhân / học tập — sync desktop + website",
+      "logo_url": "https://raw.githubusercontent.com/hosytri07/trishnexus-launcher-registry/main/logos/TrishNote/icon-256.png",
+      "version": "0.1.0",
+      "size_bytes": 0,
+      "status": "coming_soon",
+      "login_required": "user",
+      "platforms": ["windows_x64"],
+      "screenshots": [],
+      "changelog_url": "",
+      "download": {
+        "windows_x64": { "url": "", "sha256": "", "installer_args": ["/S"] }
+      }
+    },
+    {
+      "id": "trishtype",
+      "name": "TrishType",
+      "tagline": "Trình soạn thảo mọi định dạng + PDF tools (merge / split / sign / watermark)",
+      "logo_url": "https://raw.githubusercontent.com/hosytri07/trishnexus-launcher-registry/main/logos/TrishType/icon-256.png",
+      "version": "0.1.0",
+      "size_bytes": 0,
+      "status": "coming_soon",
+      "login_required": "none",
+      "platforms": ["windows_x64"],
+      "screenshots": [],
+      "changelog_url": "",
+      "download": {
+        "windows_x64": { "url": "", "sha256": "", "installer_args": ["/S"] }
+      }
+    },
+    {
+      "id": "trishcheck",
+      "name": "TrishCheck",
+      "tagline": "Kiểm tra cấu hình máy so với yêu cầu phần mềm (AutoCAD, Revit, Photoshop…)",
+      "logo_url": "https://raw.githubusercontent.com/hosytri07/trishnexus-launcher-registry/main/logos/TrishCheck/icon-256.png",
+      "version": "0.1.0",
+      "size_bytes": 0,
+      "status": "coming_soon",
+      "login_required": "none",
+      "platforms": ["windows_x64"],
+      "screenshots": [],
+      "changelog_url": "",
+      "download": {
+        "windows_x64": { "url": "", "sha256": "", "installer_args": ["/S"] }
+      }
+    },
+    {
+      "id": "trishsearch",
+      "name": "TrishSearch",
+      "tagline": "Tìm kiếm thông tin / file / note — tích hợp local FTS5 + Firestore cloud",
+      "logo_url": "https://raw.githubusercontent.com/hosytri07/trishnexus-launcher-registry/main/logos/TrishSearch/icon-256.png",
+      "version": "0.1.0",
+      "size_bytes": 0,
+      "status": "coming_soon",
+      "login_required": "user",
+      "platforms": ["windows_x64"],
+      "screenshots": [],
+      "changelog_url": "",
+      "download": {
+        "windows_x64": { "url": "", "sha256": "", "installer_args": ["/S"] }
+      }
+    },
+    {
+      "id": "trishclean",
+      "name": "TrishClean",
+      "tagline": "Dọn file rác — .bak, .tmp, cache, Recycle Bin, log cũ (preview trước khi xoá)",
+      "logo_url": "https://raw.githubusercontent.com/hosytri07/trishnexus-launcher-registry/main/logos/TrishClean/icon-256.png",
+      "version": "0.1.0",
+      "size_bytes": 0,
+      "status": "coming_soon",
+      "login_required": "none",
+      "platforms": ["windows_x64"],
+      "screenshots": [],
+      "changelog_url": "",
+      "download": {
+        "windows_x64": { "url": "", "sha256": "", "installer_args": ["/S"] }
+      }
+    },
+    {
+      "id": "trishimage",
+      "name": "TrishImage",
+      "tagline": "Quản lý thư viện ảnh — folder / tag / EXIF / face grouping, local + cloud backup",
+      "logo_url": "https://raw.githubusercontent.com/hosytri07/trishnexus-launcher-registry/main/logos/TrishImage/icon-256.png",
+      "version": "0.1.0",
+      "size_bytes": 0,
+      "status": "coming_soon",
+      "login_required": "none",
+      "platforms": ["windows_x64"],
+      "screenshots": [],
+      "changelog_url": "",
+      "download": {
+        "windows_x64": { "url": "", "sha256": "", "installer_args": ["/S"] }
+      }
+    }
+  ]
+}
