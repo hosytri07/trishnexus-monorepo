@@ -20,110 +20,144 @@
 
 ---
 
-## Trạng thái hiện tại (cuối session trước)
+## Workflow đổi máy (Plan B — GitHub sync, đã chốt)
+
+**Quy trình mỗi máy:** `START.bat` → mở Cowork chat mới → gõ `tiếp tục` → làm việc → `END.bat`
+
+- Repo chính: Windows local (không USB). Path trên máy nhà: `C:\Users\TRI\Documents\Claude\Projects\TrishTEAM\trishnexus-monorepo\`
+- Đồng bộ qua GitHub: `hosytri07/trishnexus-monorepo`
+- **Máy cơ quan lần đầu (bootstrap):** mở PowerShell → `cd Documents\Claude\Projects` → `git clone https://github.com/hosytri07/trishnexus-monorepo.git TrishTEAM\trishnexus-monorepo` → chạy `SETUP.bat` 1 lần duy nhất. Từ đó dùng START/END bình thường.
+
+---
+
+## Trạng thái hiện tại (cuối session 2026-04-22 sáng — máy nhà)
 
 ### Đã hoàn thành
-- ✅ **Sprint 1 (website)**: `tokens.css` deployed lên production tại trishteam-website (Vercel). Accent color `#667EEA` live trên 11 trang HTML.
-- ✅ **Sprint 2 part 1 (monorepo scaffold)**: trishnexus-monorepo pushed lên GitHub tại `hosytri07/trishnexus-monorepo`. Commit author đã sửa thành hosytri07.
-- ✅ **shared/trishteam_core**: Package Python chung cho mọi desktop app. Đã install editable.
-- ✅ **apps/trishdesign**: App mới, chạy được với 14 sidebar items (smoke test pass).
-- ✅ **USB portability scripts** (scripts/START.bat, END.bat, SETUP.bat, README.txt): Cho phép user làm việc trên USB giữa 2 máy (nhà + cơ quan) chỉ bằng double-click.
-- ✅ **Migration sang USB**: User đã clone monorepo sang `G:\4. Code\TrishNexus-New\` và switch Cowork workspace về đây.
+- ✅ **Sprint 1 (website)**: `tokens.css` deployed Vercel, accent `#667EEA` live trên 11 trang.
+- ✅ **Monorepo scaffold + GitHub**: `hosytri07/trishnexus-monorepo` pushed.
+- ✅ **shared/trishteam_core**: package Python chung, editable install.
+- ✅ **apps/trishdesign**: scaffold xong, 14 sidebar items smoke test pass.
+- ✅ **USB/GitHub scripts**: START/END/SETUP.bat + README.txt (đã pivot từ USB sang GitHub sync).
+- ✅ **CLAUDE.md + handoff mechanism**: Magic phrase `tiếp tục` / `chốt` / `bấm END.bat` hoạt động.
+- ✅ **TrishFont refactor LOGIC xong** (session 2026-04-22):
+    - Bug freeze fix: PreviewView rewrite thành split view (QListWidget + QLabel preview), chỉ render 1 font/thời điểm.
+    - Curated folder scan: `FontRepository.scan_folder(path)` thay `scan_system()`, hỗ trợ .ttf/.otf/.ttc/.otc recursive.
+    - Settings module mới: `modules/settings/{models,paths,repository,__init__}.py` với MIGRATION_002_SETTINGS + key `font_library_path`.
+    - Path resolution 4 tầng: SQLite → env `TRISHFONT_FONT_DIR` → frozen exe `/fonts` → None (popup picker).
+    - Auto-scan khi startup nếu path đã lưu.
+    - App chạy được, **không freeze**, Tiếng Việt render tốt (Segoe UI global font).
+    - Dark theme sơ bộ với accent gradient `#667EEA → #764BA2` match website.
 
 ### Đang dở — PICK UP TỪ ĐÂY
-- 🔧 **TrishFont v0.1 đang buggy**: PreviewView hang app khi init vì tạo 500+ FontPreviewCard widgets cùng lúc cho tất cả system fonts.
-- 🔧 **Architecture cần đổi**: User yêu cầu scan từ curated folder (`G:\4. Code\Data Code\FontLibrary` trên máy nhà, sẽ copy sang `G:\4. Code\TrishNexus-New\FontLibrary\` trên USB) thay vì scan system fonts.
-- 🔧 **Font folder sẽ ship cùng .exe**: Sau này build PyInstaller → folder fonts đi kèm trong bundle. Path resolution cần tự chuyển dev ↔ prod.
+
+**🎨 UI Design System Sprint (ƯU TIÊN CAO — user vừa feedback mạnh)**
+
+User đã gửi 2 screenshot app cũ của họ làm **design reference bắt buộc** cho cả 6 app TrishNexus:
+1. **TrishFont v1.0.0 cũ** (screenshot attach trước) — có header logo ✨ + version + Admin dot, toolbar inline "Font: [path] [Quét lại] AutoCAD Fonts: [path] [Chọn]", bulk action "Chọn tất cả / Bỏ chọn / counter / ⚡ Cài đặt font đã chọn (gradient)", card groups có folder icon + tên accent + badge "4 file" + checkboxes, log panel đáy với monospace + màu xanh lá ghi "✓ Quét xong: 11 nhóm, 1716 file font".
+2. **Trish Library 1.0** (screenshot attach sau) — header mảnh, toolbar inline "📍 Đang xem: [input]  🔍 Tìm kiếm: [input] | Tất cả (*.*)", 2-column split (sidebar "Các Thư Viện Của Bạn" + file explorer bên phải với cột Name/Size/Type/Date/Ghi chú/Link QR), footer "💾 Lưu Thông tin (gradient)" + action bar đáy "Gần đây / Báo cáo-Xuất Excel / Cài đặt / Giới thiệu".
+
+**Phản hồi user:** *"tôi đã nói cái giao diện nó phải giống cái trước kể cả các app sau này... chỉnh lại sau này các app đều giống giao diện này ko phải chỉ đổi dark mode là xong"* + *"bạn đang vẽ các app nó quá xấu ko đạt mức kỳ vọng được của tôi"*.
+
+**Vấn đề hiện tại:** TrishFont chạy được logic nhưng UI mới chỉ dark mode basic, chưa match design language của 2 app ref. Cần rebuild UI toàn diện.
+
+### Việc cần làm (2 phase, tổng 2-3h)
+
+**Phase 1 — docs/design-spec.md (30 phút):**
+- Viết file `docs/design-spec.md` mô tả chi tiết:
+    - Palette (accent gradient, neutral dark scale, text, border) — đã có trong `design/tokens.json` + `DARK` namespace ở `trishteam_core/ui/tokens.py`.
+    - Typography (Segoe UI 10pt base, weights 400/500/600/700, monospace Cascadia Code cho log).
+    - Spacing scale + compact philosophy (không Material padding bloat).
+    - Widget spec từng thành phần:
+        - `AppHeader` — logo emoji + app name + version label + optional status dot (Admin/Cloud/Offline).
+        - `InlineToolbar` — row `[icon] Label: [QLineEdit stretch] [Button...]`, dùng cho path input, search.
+        - `ActionBar` — bulk select row `[☑ Chọn tất cả] [☐ Bỏ chọn] [counter "N file được chọn"] [spacer] [gradient CTA button]`.
+        - `CardGroup` — collapsible, header `[▶ folder_icon accent_name (N file) ☐Chọn tất cả N file trong nhóm]`, body là list items với checkbox + tên file.
+        - `LogPanel` — dark terminal block, header "📋 Nhật ký cài đặt" + "🗑 Xóa log" button, body QPlainTextEdit monospace với color-coded entries (✓ xanh lá, ⚠ vàng, ✗ đỏ).
+        - `FooterBar` — left `"TrishApp v1.0.0 · Brand tagline"`, right quick nav buttons ghost style.
+        - `SplitSidebar` (cho Library-style) — left panel với tree + "+Thêm" / "-Gỡ" button row, right panel list view.
+- Screenshot tham khảo mô tả bằng lời trong spec (user không gửi file ảnh lên repo, chỉ screenshot trong chat — mô tả kỹ).
+- User confirm spec trước khi Phase 2.
+
+**Phase 2 — build widgets + rebuild TrishFont (2h):**
+- Tạo file: `shared/trishteam_core/src/trishteam_core/widgets/{app_header,inline_toolbar,action_bar,card_group,log_panel,footer_bar,split_sidebar}.py`.
+- Export ở `widgets/__init__.py`.
+- Rewrite TrishFont views:
+    - `modules/library/view.py` — dùng InlineToolbar cho path + ActionBar cho bulk select; thay QTableWidget bằng CardGroup có folder structure (nhóm theo category hoặc subfolder).
+    - `modules/preview/view.py` — giữ split view nhưng dùng AppHeader component.
+    - App root: thêm AppHeader + FooterBar vào BaseWindow (hoặc override cho từng app).
+- `trishteam_core/ui/base_window.py` — có thể cần thêm slot cho header/footer.
+- Smoke test: chạy TrishFont → visual match ~80% với TrishFont v1.0.0 cũ.
+
+### 6 app kế thừa design language này (roadmap xa)
+TrishFont, TrishDesign, TrishLibrary, TrishVideo, TrishExcel, TrishPPT. Tất cả dùng chung `trishteam_core/widgets/` → sửa 1 nơi, 6 app đổi theo + đồng bộ với website `trishteam.io.vn`.
 
 ---
 
-## Việc cần làm tiếp (TrishFont Refactor)
-
-### Step 1: Rewrite PreviewView — tránh freeze
-- Bỏ grid layout với hàng trăm card
-- Dùng **split view**: left = QListWidget (font families), right = single QLabel preview với sample text
-- Chỉ render 1 font cùng lúc → không freeze
-- Sample text mặc định: `"Tiếng Việt: huyền, sắc, hỏi, ngã, nặng — 0123456789"`
-
-### Step 2: Đổi FontRepository.scan_system() → scan_folder(path)
-- File: `apps/trishfont/src/trishfont/modules/library/repository.py`
-- Dùng `QFontDatabase.addApplicationFont(file_path)` với từng .ttf/.otf trong folder (đệ quy)
-- Extract family name từ font file để save vào SQLite
-- Detect Vietnamese support qua `writingSystems(family)` như trước
-
-### Step 3: Add settings table + folder picker
-- Tạo migration `MIGRATION_002_SETTINGS`:
-  ```sql
-  CREATE TABLE IF NOT EXISTS settings (
-      key TEXT PRIMARY KEY,
-      value TEXT NOT NULL
-  );
-  ```
-- Key quan trọng: `font_library_path`
-- Path resolution priority:
-  1. SQLite `settings.font_library_path`
-  2. Env var `TRISHFONT_FONT_DIR`
-  3. Prod default: `Path(sys.executable).parent / "fonts"` (khi chạy từ .exe)
-  4. Dev default: `G:\4. Code\TrishNexus-New\FontLibrary` (relative-ish)
-- Nếu path chưa set → popup QFileDialog cho user chọn folder
-
-### Step 4: InstallView (module install) — vẫn giữ EmptyState placeholder cho v0.2
-
----
-
-## Cấu trúc project
+## Cấu trúc project (hiện tại sau pivot)
 
 ```
-G:\4. Code\TrishNexus-New\                  ← USB root (workspace folder của Cowork)
-├── trishnexus-monorepo/                    ← git repo chính
-│   ├── design/tokens.json                  ← nguồn sự thật design tokens
-│   ├── scripts/
-│   │   ├── gen-tokens.js                   ← regen tokens cho web + desktop
-│   │   ├── START.bat / END.bat / SETUP.bat ← USB workflow
-│   │   └── README.txt
-│   ├── shared/trishteam_core/              ← package Python dùng chung
-│   ├── apps/trishdesign/                   ← app đầu tiên (done scaffold)
-│   ├── apps/trishfont/                     ← app buggy cần refactor
-│   ├── website/assets/tokens.css           ← generated
-│   └── docs/SESSION-HANDOFF.md             ← file này
-└── FontLibrary/                            ← font curated của user (chưa có trên USB, cần copy)
-    ├── Sans/
-    ├── Serif/
-    ├── Mono/
-    └── Display/
+C:\Users\TRI\Documents\Claude\Projects\TrishTEAM\trishnexus-monorepo\
+├── CLAUDE.md
+├── docs/SESSION-HANDOFF.md             ← file này
+├── docs/design-spec.md                  ← CẦN TẠO (Phase 1)
+├── design/tokens.json                   ← source of truth
+├── scripts/
+│   ├── gen-tokens.js
+│   ├── START.bat / END.bat / SETUP.bat
+│   └── README.txt
+├── shared/trishteam_core/
+│   └── src/trishteam_core/
+│       ├── ui/{base_window,sidebar,theme,tokens}.py
+│       └── widgets/{card,empty,toast}.py  ← SẼ thêm 7 widget mới Phase 2
+├── apps/
+│   ├── trishdesign/                     ← scaffold xong
+│   └── trishfont/
+│       └── src/trishfont/
+│           ├── app.py
+│           └── modules/
+│               ├── library/{models,repository,view}.py    ← CẦN redesign UI Phase 2
+│               ├── preview/view.py                        ← CẦN redesign UI Phase 2
+│               ├── favorites/view.py
+│               ├── install/view.py
+│               └── settings/{models,paths,repository,__init__}.py  ← NEW, OK
+└── website/assets/tokens.css
 ```
 
-## Các file code quan trọng (đường dẫn relative từ monorepo root)
+## File code quan trọng (relative từ monorepo root)
 
-- `apps/trishfont/src/trishfont/app.py` — entry point, dùng `user_data_dir_for`, `Database`, `migrate` từ trishteam_core
-- `apps/trishfont/src/trishfont/modules/preview/view.py` — **FILE BUGGY, CẦN VIẾT LẠI**
-- `apps/trishfont/src/trishfont/modules/library/models.py` — có MIGRATION_001_FONTS schema + CATEGORY_KEYWORDS
-- `apps/trishfont/src/trishfont/modules/library/repository.py` — FontRepository, cần đổi scan_system → scan_folder
-- `apps/trishfont/src/trishfont/modules/library/view.py` — QTableWidget list, giữ đa số, chỉ đổi nút Scan → Pick folder
-- `apps/trishfont/src/trishfont/modules/favorites/view.py` — extends LibraryView, _only_favorite=True
-- `apps/trishfont/src/trishfont/modules/install/view.py` — placeholder EmptyState
+### Logic (đã stable, không đụng ở Phase 2)
+- `apps/trishfont/src/trishfont/modules/settings/*` — SettingsRepository + path resolver
+- `apps/trishfont/src/trishfont/modules/library/models.py` — MIGRATION_001_FONTS, Font dataclass
+- `apps/trishfont/src/trishfont/modules/library/repository.py` — FontRepository.scan_folder
 
-## API của trishteam_core (đã stable, dùng y nguyên)
+### UI (sẽ redesign Phase 2)
+- `shared/trishteam_core/src/trishteam_core/ui/theme.py` — QSS generator dark mode + Segoe UI global (đã basic, sẽ expand ở Phase 2)
+- `shared/trishteam_core/src/trishteam_core/ui/tokens.py` — có `COLOR` (light) + `DARK` namespaces
+- `shared/trishteam_core/src/trishteam_core/ui/base_window.py` — có thể cần slot cho AppHeader/FooterBar
+- `apps/trishfont/src/trishfont/modules/library/view.py` — rewrite theo design spec
+- `apps/trishfont/src/trishfont/modules/preview/view.py` — rewrite theo design spec
+
+## API của trishteam_core (stable, dùng y nguyên)
 
 - `trishteam_core.store.Database(path)` — SQLite wrapper, có `.conn`, `.transaction()`, `.close()`
-- `trishteam_core.store.migrate(db, [(version, sql_str), ...])` — apply migrations based on PRAGMA user_version
-- `trishteam_core.utils.user_data_dir_for(app_name)` — returns `platformdirs.user_data_dir(app, "TrishTeam")` as Path
-- `trishteam_core.utils.ensure_dir(path)` — mkdir -p
-- `trishteam_core.utils.get_logger(name, log_dir=)` — RotatingFileHandler logger
-- `trishteam_core.ui.BaseWindow(title=)` — main window với sidebar, có `.sidebar.set_title()`, `.add_page(key, label, widget, icon=)`
-- `trishteam_core.ui.apply_theme(app)` + `.build_qss()` — QSS generator
-- `trishteam_core.ui.HoverSidebar` — sidebar hover animation
-- `trishteam_core.widgets.Card`, `EmptyState`, `Toast`, `show_toast(widget, message)` — UI primitives
+- `trishteam_core.store.migrate(db, [(version, sql_str), ...])` — PRAGMA user_version
+- `trishteam_core.utils.user_data_dir_for(app_name)` — platformdirs Path
+- `trishteam_core.utils.get_logger(name, log_dir=)` — RotatingFileHandler
+- `trishteam_core.ui.BaseWindow(title=)` — main window
+- `trishteam_core.ui.apply_theme(app, dark=True)` — set Segoe UI + QSS dark
+- `trishteam_core.ui.build_qss(dark=True)` — QSS string
+- `trishteam_core.widgets.Card, EmptyState, Toast, show_toast(widget, message)`
 
 ## User preferences đã biết
 
 - Không phải developer, thích giải thích ngắn gọn tiếng Việt
-- Ghét phải gõ lệnh git dài → dùng .bat double-click
-- Làm việc ở 2 máy (nhà + cơ quan) qua USB — hiện tại Cowork trỏ vào USB tại `G:\4. Code\TrishNexus-New`
+- Ghét gõ lệnh git dài → dùng .bat double-click
+- Làm việc 2 máy (nhà + cơ quan) qua GitHub sync (đã pivot từ USB)
 - Font folder curated riêng, KHÔNG scan system fonts
-- Domain chính thức: `trishteam.io.vn` (đã mua ở TenTen, chưa cấu hình)
-- Ưu tiên làm việc từng bước nhỏ, confirm trước khi làm bước tiếp
+- Domain chính thức: `trishteam.io.vn` (TenTen, chưa cấu hình)
+- Ưu tiên làm từng bước nhỏ, confirm trước khi bước tiếp
 - Git config: name=`hosytri07`, email=`hosytri77@gmail.com`
+- **Design language:** dark mode + gradient tím-xanh + compact + emoji có màu. Tham khảo TrishFont v1.0.0 cũ + Trish Library 1.0 của user. Không chấp nhận UI xấu/Material bloat.
 
 ---
 
@@ -131,6 +165,4 @@ G:\4. Code\TrishNexus-New\                  ← USB root (workspace folder của
 
 Gợi ý câu mở đầu:
 
-> Chào Trí. Đã đọc handoff note xong — đang ở đoạn refactor TrishFont (PreviewView hang + đổi sang curated folder scan). Trước khi code, xác nhận 2 điều:
-> 1. Folder `FontLibrary` đã copy sang USB tại `G:\4. Code\TrishNexus-New\FontLibrary\` chưa?
-> 2. Bắt đầu từ Step 1 (rewrite PreviewView) luôn, hay muốn review kế hoạch trước?
+> Chào Trí. Đã đọc handoff — đang ở sprint UI Design System, session trước đã xong LOGIC của TrishFont (không freeze, scan curated folder OK, Tiếng Việt đẹp) nhưng UI còn cơ bản, chưa match design language của TrishFont v1.0.0 + Library 1.0 của Trí. Session này có 2 phase (30 phút + 2h). Bắt đầu Phase 1 luôn (viết design-spec.md) hay Trí muốn xem lại plan?

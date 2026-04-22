@@ -69,7 +69,7 @@ class LibraryView(QWidget):
         path_icon = QLabel("📁")
         path_row_layout.addWidget(path_icon)
         self.path_lbl = QLabel("(chưa chọn folder)")
-        self.path_lbl.setStyleSheet("color: #6b7280; font-size: 12px;")
+        self.path_lbl.setStyleSheet("color: #9CA3AF; font-size: 12px;")
         self.path_lbl.setWordWrap(True)
         path_row_layout.addWidget(self.path_lbl, stretch=1)
         root.addWidget(self.path_row)
@@ -128,11 +128,11 @@ class LibraryView(QWidget):
         p = resolve_font_library_path(self.settings)
         if p:
             self.path_lbl.setText(str(p))
-            self.path_lbl.setStyleSheet("color: #374151; font-size: 12px;")
+            self.path_lbl.setStyleSheet("color: #D1D5DB; font-size: 12px;")
             self.btn_rescan.setEnabled(True)
         else:
             self.path_lbl.setText("(chưa chọn folder)")
-            self.path_lbl.setStyleSheet("color: #6b7280; font-size: 12px; font-style: italic;")
+            self.path_lbl.setStyleSheet("color: #9CA3AF; font-size: 12px; font-style: italic;")
             self.btn_rescan.setEnabled(False)
 
     def _on_pick_folder(self) -> None:

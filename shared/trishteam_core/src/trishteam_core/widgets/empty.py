@@ -30,5 +30,5 @@ class EmptyState(QWidget):
 
         sub_lbl = QLabel(subtitle)
         sub_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        sub_lbl.setStyleSheet("color: #6B7280;")
+        sub_lbl.setStyleSheet("color: #9CA3AF;")
         layout.addWidget(sub_lbl)

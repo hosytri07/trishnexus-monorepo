@@ -130,3 +130,32 @@ MOTION = SimpleNamespace(
         bounce="cubic-bezier(0.68, -0.55, 0.27, 1.55)"
     )
 )
+
+
+# ---------- DARK MODE overrides ----------
+# Các app desktop ưu tiên dark theme (giống Figma, Photoshop, IDEs).
+# Vẫn dùng chung accent/gradient/semantic từ COLOR ở trên → đồng bộ website.
+# Chỉ khác surface/text/border để ngược màu sáng.
+DARK = SimpleNamespace(
+    surface=SimpleNamespace(
+        bg="#0F1419",          # nền chính — đen xanh trầm
+        bg_elevated="#151B23", # title bar, toolbar
+        card="#1F2937",        # n800 — card nền
+        muted="#111827",       # n900 — input, nhóm item
+        hover="#263241",       # hover state
+        overlay="rgba(0, 0, 0, 0.6)",
+    ),
+    text=SimpleNamespace(
+        primary="#F9FAFB",     # text chính — gần trắng
+        secondary="#D1D5DB",   # text phụ
+        muted="#9CA3AF",       # hint/placeholder
+        inverse="#111827",     # khi trên nền sáng (gradient button)
+        link="#8FA5FF",        # accent sáng hơn cho dark
+    ),
+    border=SimpleNamespace(
+        subtle="#1F2937",      # viền rất nhạt
+        default="#374151",     # n700 — viền chính
+        strong="#4B5563",      # n600 — viền mạnh
+        focus="#667EEA",       # giữ accent
+    ),
+)

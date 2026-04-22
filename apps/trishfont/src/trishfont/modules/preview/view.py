@@ -100,7 +100,7 @@ class PreviewView(QWidget):
 
         self.family_header = QLabel("")
         self.family_header.setStyleSheet(
-            "font-size: 13px; color: #6b7280; font-weight: 500;"
+            "font-size: 13px; color: #9CA3AF; font-weight: 500;"
         )
         preview_layout.addWidget(self.family_header)
 
@@ -113,7 +113,7 @@ class PreviewView(QWidget):
 
         self.sample_secondary = QLabel(DEFAULT_SECONDARY)
         self.sample_secondary.setWordWrap(True)
-        self.sample_secondary.setStyleSheet("color: #374151;")
+        self.sample_secondary.setStyleSheet("color: #D1D5DB;")
         self.sample_secondary.setAlignment(
             Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignLeft
         )
