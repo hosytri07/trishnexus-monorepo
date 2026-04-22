@@ -47,6 +47,7 @@ on:
 
 permissions:
   contents: write   # cần để tạo/patch Release
+  actions: write    # cần cho job `propagate` dispatch update-apps-json.yml
 
 jobs:
   build:
