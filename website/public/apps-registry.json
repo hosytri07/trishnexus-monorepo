@@ -1,0 +1,192 @@
+{
+  "schema_version": 2,
+  "updated_at": "2026-04-24",
+  "ecosystem": {
+    "name": "TrishTEAM",
+    "tagline": "Hệ sinh thái năng suất cá nhân",
+    "logo_url": "https://trishteam.io.vn/logo.svg",
+    "website": "https://trishteam.io.vn"
+  },
+  "apps": [
+    {
+      "id": "trishfont",
+      "name": "TrishFont",
+      "tagline": "Quản lý font tiếng Việt chuyên nghiệp",
+      "logo_url": "https://trishteam.io.vn/logos/trishfont.png",
+      "version": "2.0.0",
+      "size_bytes": 38000000,
+      "status": "coming_soon",
+      "login_required": "none",
+      "platforms": ["windows_x64", "macos_arm64"],
+      "screenshots": [],
+      "changelog_url": "https://trishteam.io.vn/apps/trishfont/changelog",
+      "download": {
+        "windows_x64": {
+          "url": "https://trishteam.io.vn/dl/trishfont-2.0.0-x64.msi",
+          "sha256": "",
+          "installer_args": ["/quiet"]
+        }
+      }
+    },
+    {
+      "id": "trishnote",
+      "name": "TrishNote",
+      "tagline": "Ghi chú + daily review + kanban",
+      "logo_url": "https://trishteam.io.vn/logos/trishnote.png",
+      "version": "2.0.0",
+      "size_bytes": 45000000,
+      "status": "coming_soon",
+      "login_required": "none",
+      "platforms": ["windows_x64", "macos_arm64", "linux_x64"],
+      "screenshots": [],
+      "changelog_url": "https://trishteam.io.vn/apps/trishnote/changelog",
+      "download": {
+        "windows_x64": {
+          "url": "https://trishteam.io.vn/dl/trishnote-2.0.0-x64.msi",
+          "sha256": "",
+          "installer_args": ["/quiet"]
+        }
+      }
+    },
+    {
+      "id": "trishclean",
+      "name": "TrishClean",
+      "tagline": "Dọn file/cache với undo 7 ngày",
+      "logo_url": "https://trishteam.io.vn/logos/trishclean.png",
+      "version": "2.0.0",
+      "size_bytes": 28000000,
+      "status": "coming_soon",
+      "login_required": "none",
+      "platforms": ["windows_x64"],
+      "screenshots": [],
+      "changelog_url": "",
+      "download": {
+        "windows_x64": {
+          "url": "https://trishteam.io.vn/dl/trishclean-2.0.0-x64.msi",
+          "sha256": "",
+          "installer_args": ["/quiet"]
+        }
+      }
+    },
+    {
+      "id": "trishcheck",
+      "name": "TrishCheck",
+      "tagline": "System info + benchmark máy",
+      "logo_url": "https://trishteam.io.vn/logos/trishcheck.png",
+      "version": "2.0.0",
+      "size_bytes": 22000000,
+      "status": "coming_soon",
+      "login_required": "none",
+      "platforms": ["windows_x64", "macos_arm64", "linux_x64"],
+      "screenshots": [],
+      "changelog_url": "",
+      "download": {
+        "windows_x64": {
+          "url": "https://trishteam.io.vn/dl/trishcheck-2.0.0-x64.msi",
+          "sha256": "",
+          "installer_args": ["/quiet"]
+        }
+      }
+    },
+    {
+      "id": "trishtype",
+      "name": "TrishType",
+      "tagline": "Text editor CRDT multi-caret",
+      "logo_url": "https://trishteam.io.vn/logos/trishtype.png",
+      "version": "2.0.0",
+      "size_bytes": 32000000,
+      "status": "coming_soon",
+      "login_required": "none",
+      "platforms": ["windows_x64", "macos_arm64"],
+      "screenshots": [],
+      "changelog_url": "",
+      "download": {
+        "windows_x64": {
+          "url": "https://trishteam.io.vn/dl/trishtype-2.0.0-x64.msi",
+          "sha256": "",
+          "installer_args": ["/quiet"]
+        }
+      }
+    },
+    {
+      "id": "trishimage",
+      "name": "TrishImage",
+      "tagline": "Tổ chức ảnh + event/face grouping",
+      "logo_url": "https://trishteam.io.vn/logos/trishimage.png",
+      "version": "2.0.0",
+      "size_bytes": 42000000,
+      "status": "coming_soon",
+      "login_required": "none",
+      "platforms": ["windows_x64", "macos_arm64"],
+      "screenshots": [],
+      "changelog_url": "",
+      "download": {
+        "windows_x64": {
+          "url": "https://trishteam.io.vn/dl/trishimage-2.0.0-x64.msi",
+          "sha256": "",
+          "installer_args": ["/quiet"]
+        }
+      }
+    },
+    {
+      "id": "trishlibrary",
+      "name": "TrishLibrary",
+      "tagline": "Thư viện PDF/epub + cite APA/IEEE",
+      "logo_url": "https://trishteam.io.vn/logos/trishlibrary.png",
+      "version": "2.0.0",
+      "size_bytes": 52000000,
+      "status": "coming_soon",
+      "login_required": "none",
+      "platforms": ["windows_x64", "macos_arm64"],
+      "screenshots": [],
+      "changelog_url": "",
+      "download": {
+        "windows_x64": {
+          "url": "https://trishteam.io.vn/dl/trishlibrary-2.0.0-x64.msi",
+          "sha256": "",
+          "installer_args": ["/quiet"]
+        }
+      }
+    },
+    {
+      "id": "trishsearch",
+      "name": "TrishSearch",
+      "tagline": "Full-text search BM25 offline",
+      "logo_url": "https://trishteam.io.vn/logos/trishsearch.png",
+      "version": "2.0.0",
+      "size_bytes": 42000000,
+      "status": "coming_soon",
+      "login_required": "none",
+      "platforms": ["windows_x64", "macos_arm64", "linux_x64"],
+      "screenshots": [],
+      "changelog_url": "",
+      "download": {
+        "windows_x64": {
+          "url": "https://trishteam.io.vn/dl/trishsearch-2.0.0-x64.msi",
+          "sha256": "",
+          "installer_args": ["/quiet"]
+        }
+      }
+    },
+    {
+      "id": "trishdesign",
+      "name": "TrishDesign",
+      "tagline": "Color palette WCAG + design tokens",
+      "logo_url": "https://trishteam.io.vn/logos/trishdesign.png",
+      "version": "2.0.0",
+      "size_bytes": 30000000,
+      "status": "coming_soon",
+      "login_required": "none",
+      "platforms": ["windows_x64", "macos_arm64"],
+      "screenshots": [],
+      "changelog_url": "",
+      "download": {
+        "windows_x64": {
+          "url": "https://trishteam.io.vn/dl/trishdesign-2.0.0-x64.msi",
+          "sha256": "",
+          "installer_args": ["/quiet"]
+        }
+      }
+    }
+  ]
+}

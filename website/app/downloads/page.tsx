@@ -1,9 +1,11 @@
 import Link from 'next/link';
-import { ArrowLeft, Download } from 'lucide-react';
+import { ArrowLeft } from 'lucide-react';
+import { DownloadCards } from './DownloadCards';
 
 export const metadata = {
   title: 'Tải TrishLauncher — TrishTEAM',
-  description: 'Tải TrishLauncher để cài + update 10 ứng dụng desktop của TrishTEAM.',
+  description:
+    'Tải TrishLauncher (miễn phí) để cài, cập nhật và khởi chạy 10 ứng dụng desktop của TrishTEAM. Hỗ trợ Windows, macOS, Linux.',
 };
 
 export default function DownloadsPage() {
@@ -28,22 +30,18 @@ export default function DownloadsPage() {
       >
         Tải TrishLauncher
       </h1>
-      <p className="text-lg mb-12" style={{ color: 'var(--color-text-secondary)' }}>
-        TrishLauncher là app chính — cài, update và mở 10 app còn lại. Link GitHub Release sẽ wire ở{' '}
-        <span style={{ color: 'var(--color-accent-primary)' }}>Phase 11.2</span>.
+      <p className="text-lg mb-4" style={{ color: 'var(--color-text-secondary)' }}>
+        TrishLauncher là cổng vào hệ sinh thái TrishTEAM — cài đặt, cập nhật và khởi chạy 10
+        ứng dụng desktop chỉ trong một giao diện. Miễn phí, không cần đăng nhập.
+      </p>
+      <p className="text-sm mb-10" style={{ color: 'var(--color-text-muted)' }}>
+        Phiên bản hiện tại:{' '}
+        <strong style={{ color: 'var(--color-text-primary)' }}>v2.0.0-1 (alpha)</strong> — chưa
+        code-sign, Windows Defender / SmartScreen có thể cảnh báo. Click{' '}
+        <em>More info → Run anyway</em> để tiếp tục.
       </p>
 
-      <div
-        className="border rounded-lg p-8 text-center"
-        style={{
-          borderColor: 'var(--color-border-subtle)',
-          background: 'var(--color-surface-card)',
-          color: 'var(--color-text-muted)',
-        }}
-      >
-        <Download size={32} className="mx-auto mb-3" style={{ opacity: 0.5 }} />
-        <p className="text-sm">🚧 Chưa có release. Phase 11.2 sẽ link tới GitHub Release mới nhất.</p>
-      </div>
+      <DownloadCards />
     </main>
   );
 }

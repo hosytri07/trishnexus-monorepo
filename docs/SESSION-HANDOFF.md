@@ -24,64 +24,161 @@
 
 **Quy trình mỗi máy:** `START.bat` → mở Cowork chat mới → gõ `tiếp tục` → làm việc → `END.bat`
 
-- Repo chính: Windows local (không USB). Path trên máy nhà: `C:\Users\ADMIN\Documents\Claude\Projects\TrishTEAM\trishnexus-monorepo\`
+- Repo chính: Windows local (không USB). Path trên máy nhà: `C:\Users\TRI\Documents\Claude\Projects\TrishTEAM\trishnexus-monorepo\`
 - Đồng bộ qua GitHub: `hosytri07/trishnexus-monorepo`
 - **Máy cơ quan lần đầu (bootstrap):** mở PowerShell → `cd Documents\Claude\Projects` → `git clone https://github.com/hosytri07/trishnexus-monorepo.git TrishTEAM\trishnexus-monorepo` → chạy `SETUP.bat` 1 lần duy nhất. Từ đó dùng START/END bình thường.
 
 ---
 
-## Trạng thái hiện tại (cuối session 2026-04-24 chiều — máy cơ quan, **Phase 14.0–14.5.5.c.1 done: monorepo rebuild + 10 Tauri app + TrishLauncher v1 launch detection**)
+## Trạng thái hiện tại (cuối session 2026-04-24 — máy nhà, **Phase 14.7.a/b/c/d done: Website /downloads + apps-registry.json public + CI release workflow**)
 
-### Ship session này (2026-04-24 — máy cơ quan)
+### Ship session này (2026-04-24 tối — máy cơ quan, tiếp theo sau 14.5.5.e)
 
-Khối lượng lớn, tóm tắt theo cụm. Chi tiết đầy đủ ở `docs/CHANGELOG.md` + `docs/ROADMAP.md`.
+**Phase 14.6.a — Registry loader** (shipped 2026-04-24):
 
-**Cụm 1 — Monorepo foundation (Phase 14.0–14.1):**
-- ✅ pnpm workspace + 4 shared TS package (`@trishteam/{core,ui,data,adapters}`) — ~75% code reuse giữa website/desktop/Zalo.
-- ✅ Vitest 1.6.1 + Next.js adapter (website dùng @trishteam/core cho apps/search/notes/qr).
+- ✅ **registry-loader.ts** (`apps-desktop/trishlauncher/src/registry-loader.ts`, ~132 dòng): Module fetch JSON registry từ URL user config. Export `loadRegistry(configUrl): Promise<RegistryLoadResult>` với shape `{ registry, source: 'seed'|'remote', fetchedAt, error }` — **không throw** để UI luôn render được.
+    - URL rỗng → seed luôn, không network.
+    - `fetchRemote` có `AbortController` timeout 8s + `Accept: application/json` header + `cache: 'no-cache'`.
+    - `isValidRegistry` runtime check: `schema_version === 2` + `apps` phải là array + `ecosystem` phải là object. Sai shape → ném lỗi `registry shape mismatch` → caller fallback seed.
+    - `resolveRegistryUrl(raw)`: nếu URL không kết thúc `.json` thì tự append `apps-registry.json` (convention CDN folder prefix).
+    - Log `console.warn` khi fail để dev debug nhưng không block user.
 
-**Cụm 2 — Rebuild 10 Tauri 2 desktop app (Phase 14.2–14.4):**
-- ✅ 10 app: trishlauncher, trishcheck, trishclean, trishfont, trishtype, trishimage, trishnote, trishlibrary, trishsearch, trishdesign.
-- ✅ Mỗi app có feature enhancement mới (không port code cũ): CPU benchmark SHA-256, staged delete undo 7 ngày, CRDT RGA text merge, pair AI font score, EXIF+face grouping, kanban 4 lane, cite APA/IEEE, BM25 full-text, WCAG contrast matrix.
+**Phase 14.6.b — Auto-update scheduler** (shipped 2026-04-24):
 
-**Cụm 3 — QA infrastructure (Phase 14.5.1–14.5.4.c):**
-- ✅ `pnpm qa:doctor` (49 check consistency 10 app), `pnpm qa:rust` (Rust audit 24 check), `pnpm qa:build-all` (matrix cargo check + vite build × 10).
-- ✅ Fix 3 Windows-specific bug QA script + 14 package.json workspace:* protocol + Rust borrow checker bug trong trishclean.
+- ✅ **update-scheduler.ts** (`apps-desktop/trishlauncher/src/update-scheduler.ts`, ~87 dòng): Module quản lý interval re-fetch dựa `settings.autoUpdateInterval`.
+    - `getLastFetchMs/setLastFetchMs`: persist epoch ms trong localStorage key `trishlauncher:registry:last_fetch_ms`.
+    - `shouldRefetch(interval)`: `'off'` → false, chưa fetch lần nào → true, khác → so sánh `Date.now() - last >= INTERVAL_MS[interval]` (daily = 24h, weekly = 7d).
+    - `startScheduler(interval, onDue) → cleanup`: fire `onDue()` ngay nếu overdue (không chờ tick đầu), rồi `setInterval(1h poll)` check định kỳ. Trả cleanup function để `useEffect` dọn khi unmount / interval đổi.
+    - `'off'` → trả no-op cleanup (không schedule).
+    - Note trong code: launcher không chạy 24/7, scheduler chỉ có hiệu lực trong lifecycle app mở — đủ cho use case bật mỗi sáng. Phase 14.6.e sẽ cân nhắc Rust background scheduler sau.
 
-**Cụm 4 — TrishLauncher v1 (Phase 14.5.5.a–14.5.5.c.1):**
-- ✅ 14.5.5.a: 9 app + icon 256×256 + white tile background cho dark theme contrast.
-- ✅ 14.5.5.b: App Detail Modal (features, metadata, platforms, changelog, CTA theo state).
-- ✅ 14.5.5.c: Launch detection — Rust `detect_install` probe path + `launch_path` spawn. Card hiện viền accent + badge "✓ Đã cài" + CTA "Mở" khi app tồn tại ở production install location.
-- ✅ 14.5.5.c.1 (fix sau feedback Trí): thêm token `%EXE_DIR%` để detect sibling binary trong `target-desktop/debug/` — dev mode verify được mà không false-positive production.
+- ✅ **App.tsx** wiring (`apps-desktop/trishlauncher/src/App.tsx`, ~360 dòng):
+    - Import `loadRegistry/RegistryLoadResult` + `startScheduler/setLastFetchMs`.
+    - State `[registryResult, setRegistryResult]` init với `{ registry: SEED_REGISTRY, source: 'seed', fetchedAt: null, error: null }`.
+    - `useEffect` phụ thuộc `settings.registryUrl`: `loadRegistry(url)` → `setRegistryResult(next)` + `setLastFetchMs(Date.now())` nếu remote OK.
+    - `useEffect` phụ thuộc `settings.autoUpdateInterval + settings.registryUrl`: `startScheduler(interval, () => loadRegistry(url).then(...))` → cleanup đúng cách khi interval đổi.
+    - Thay `SEED_REGISTRY.ecosystem.{tagline,website}` trong JSX bằng `registryResult.registry.ecosystem.*` → UI tự follow remote khi fetch thành công.
+    - Topbar sysbar hiện 2 pill status:
+        - `.sysbar-pill-ok` (xanh): "Bản mới nhất từ remote" kèm timestamp `new Date(fetchedAt).toLocaleTimeString()`.
+        - `.sysbar-pill-warn` (hổ phách): "Đang dùng bản seed" + tooltip error message nếu có (giúp user biết URL sai).
+
+**Phase 14.6.d — Fix status + replace launcher icon** (shipped 2026-04-24, cùng phiên):
+
+- ✅ **apps-seed.ts** (`apps-desktop/trishlauncher/src/apps-seed.ts`): Đổi TẤT CẢ 9 app từ `status: 'released'` / `'beta'` → `status: 'coming_soon'` vì chưa có binary thật trên CDN. Logic `cta.ts` sẵn có: status `coming_soon` → nút **"Sắp ra mắt"** (disabled) thay cho nút "Tải về" xanh dẫn tới URL 404. UI bây giờ đúng thực tế — không nói dối user. Khi nào Phase 14.7 upload binary app X lên CDN → đổi riêng app X về `'released'`.
+- ✅ **Icons launcher** (`apps-desktop/trishlauncher/src-tauri/icons/*`): Replace 6 file icon cũ (chữ "L" trắng nền xám, không đúng branding) bằng logo TrishLauncher thật (**T navy + rocket vàng + vuông vàng góc trên phải, nền trong suốt**). Source: `apps/trishlauncher/src/trishlauncher/resources/logos/trishlauncher.png` (256×256 RGBA, đã xóa background) → upscale Lanczos lên 1024×1024 → gen 6 file Tauri chuẩn qua Python PIL:
+    - `icon.png` 1024×1024 (219 KB)
+    - `128x128@2x.png` 256×256 (32 KB)
+    - `128x128.png` 128×128 (12 KB)
+    - `32x32.png` 32×32 (2 KB)
+    - `icon.ico` multi-size Windows 16/24/32/48/64/128/256 (59 KB)
+    - `icon.icns` macOS (466 KB)
+
+**Phase 14.6.c — Bundle config v2.0.0** (shipped 2026-04-24):
+
+- ✅ **tauri.conf.json** (`apps-desktop/trishlauncher/src-tauri/tauri.conf.json`, 91 dòng):
+    - Thêm `"label": "main"` cho window đầu tiên → Rust `get_webview_window("main")` trong tray code match explicit thay vì dựa default.
+    - `bundle.homepage: "https://trishteam.io.vn"` cho meta installer.
+    - `bundle.windows.nsis`: `installMode: "perMachine"` (installer hỏi UAC đúng chuẩn), `languages: ["English", "Vietnamese"]`, `displayLanguageSelector: true` (user chọn VN/EN khi chạy installer), `installerIcon: "icons/icon.ico"`.
+    - `bundle.windows.wix.language: ["en-US", "vi-VN"]` cho bản .msi song ngữ (dev tools enterprise).
+    - `bundle.linux.deb.depends: [libwebkit2gtk-4.1-0, libgtk-3-0, libayatana-appindicator3-1, librsvg2-2]` → `apt install` tự kéo runtime deps cần cho tray + SVG icon. `section: "utils"` cho đúng Debian category.
+    - `bundle.linux.appimage.bundleMediaFramework: false` → bỏ gstreamer khỏi AppImage (~80MB tiết kiệm, launcher không cần media).
+    - `bundle.macOS.minimumSystemVersion: "10.15"` + `dmg.windowSize: 660x400` cho UX install-drag.
+    - `plugins.updater.active: false` — **deferred Phase 17.2** khi có EV cert (không signed thì auto-update bị Windows SmartScreen block, không có value).
+
+**Phase 14.7.a/b/c — Website /downloads + registry public** (shipped 2026-04-24):
+
+- ✅ **Website location** (`website/`, không phải `apps/web/`): Next.js 14 App Router, pnpm workspace entry `website`. Đây là website công khai `trishteam.io.vn`.
+- ✅ **apps-registry.json** (`website/public/apps-registry.json`, 9 apps): Mirror đúng shape `SEED_REGISTRY` trong `apps-seed.ts`. `schema_version: 2`, `ecosystem.{name, tagline, logo_url, website}`, và 9 app đều `status: "coming_soon"`. Sau deploy Next.js, launcher fetch được ở `https://trishteam.io.vn/apps-registry.json` — khớp convention `resolveRegistryUrl()` trong registry-loader.
+- ✅ **page.tsx** (`website/app/downloads/page.tsx`, ~50 dòng): Server component, export `metadata` Next.js + import `DownloadCards`. Hiện title "Tải TrishLauncher", mô tả ecosystem, note version `v2.0.0-1 (alpha)` + cảnh báo SmartScreen.
+- ✅ **DownloadCards.tsx** (`website/app/downloads/DownloadCards.tsx`, ~220 dòng, `'use client'`): OS detect qua `navigator.userAgent` trong `useEffect` (tránh SSR hydration mismatch). 5 target: Windows .exe (available), Windows .msi (available), macOS .dmg / Linux .deb / Linux .AppImage (coming_soon). `releaseUrl()` template `https://github.com/hosytri07/trishnexus-monorepo/releases/download/launcher-v2.0.0-1/<file>`. UI: primary card "Phù hợp máy của bạn" ở trên + list "Các nền tảng khác" bên dưới + section PowerShell/shasum verify SHA256.
+
+**Phase 14.7.d — CI release workflow + hướng dẫn upload** (shipped 2026-04-24):
+
+- ✅ **.github/workflows/build-launcher.yml** (~160 dòng): Trigger `push tags launcher-v*` hoặc `workflow_dispatch`. Chạy `windows-latest`: `pnpm/action-setup@v4 (9.15.0)` → `actions/setup-node@v4 (node 20, cache pnpm)` → `dtolnay/rust-toolchain@stable` → `Swatinem/rust-cache@v2` (cache `apps-desktop/trishlauncher/src-tauri -> target`) → `pnpm install --frozen-lockfile` → `pnpm -r --filter './packages/*' build` → `pnpm tauri build`. Collect step tạo `SHA256SUMS.txt` gộp cả 3 file (nsis .exe + 2 msi en-US/vi-VN), expose sha256 + size primary cho release body. `softprops/action-gh-release@v2` upload 4 asset, `prerelease: true`.
+- ✅ **docs/RELEASE-LAUNCHER.md**: 2 phương án song song — (1) push tag + CI lo, (2) upload thủ công bản đã build local qua `gh release create` hoặc web UI. Bảng checksum 3 file đã verify kèm checklist sau publish + note bump version 3 chỗ (package.json + Cargo.toml + tauri.conf.json) + nhắc MSI yêu cầu numeric-only pre-release (`-1`, `-2`, `-3`...).
+- ✅ **docs/release-notes/launcher-v2.0.0-1.md**: Template release notes đầy đủ (điểm chính, bảng file + size + SHA256, đã biết, phase kế tiếp). Dùng làm `--notes-file` cho `gh release create` hoặc copy vào textarea GitHub web UI.
+- ✅ **src-tauri/target/release/bundle/SHA256SUMS.txt** (local, không commit): Generated sẵn từ 3 file đã build — chỉ cần upload kèm nếu đi phương án manual.
+
+Kích thước + checksum bản build hiện tại trên máy Trí:
+
+| File | Size | SHA256 |
+| --- | --- | --- |
+| `TrishLauncher_2.0.0-1_x64-setup.exe` | 5.3 MB | `d86089cd…f2b1f` |
+| `TrishLauncher_2.0.0-1_x64_en-US.msi` | 3.4 MB | `87503f93…d8196` |
+| `TrishLauncher_2.0.0-1_x64_vi-VN.msi` | 3.4 MB | `1038224a…4c3e` |
 
 ### Đang dở — PICK UP TỪ ĐÂY (session sau)
 
-**Phase 14.5.5.d — System tray** là target tiếp theo:
+**VIỆC ĐẦU TIÊN khi session mới mở:** Trí cần làm 2 việc thủ công, Claude không thể tự làm:
 
-1. Implement minimize-to-tray cho TrishLauncher: khi user X cửa sổ → hide thay vì quit, icon vẫn ở system tray.
-2. Quick-launch menu trong tray: right-click tray → list các app đã cài (từ `installMap` Phase 14.5.5.c) → click mở app.
-3. Tauri plugin cần dùng: `tauri-plugin-tray` (v2) hoặc built-in `TrayIconBuilder`.
-4. File cần sửa: `apps-desktop/trishlauncher/src-tauri/src/lib.rs` (setup tray + menu + event handler) + `tauri.conf.json` (thêm systemTray config nếu cần).
-5. UI detail: icon tray dùng `src-tauri/icons/32x32.png`, tooltip "TrishLauncher — 10 ứng dụng tiện ích".
+1. **Upload release lên GitHub** — chọn 1 trong 2 phương án (xem `docs/RELEASE-LAUNCHER.md`):
+   - **Phương án CI (khuyến nghị):** `git tag launcher-v2.0.0-1 && git push origin launcher-v2.0.0-1` → workflow `build-launcher.yml` tự build lại trên `windows-latest` và publish. Mất ~20-25 phút lần đầu.
+   - **Phương án manual:** Dùng `.exe` + `.msi` đã build sẵn trong `apps-desktop/trishlauncher/src-tauri/target/release/bundle/` + `SHA256SUMS.txt` đã gen → upload qua `gh release create launcher-v2.0.0-1 ...` hoặc web UI `github.com/hosytri07/trishnexus-monorepo/releases/new`. Nhanh, 5 phút. Release notes đã có sẵn ở `docs/release-notes/launcher-v2.0.0-1.md`.
+2. **Deploy website** để `https://trishteam.io.vn/downloads` live + `apps-registry.json` accessible. Hiện website Next.js 14 chưa rõ host (Vercel? Cloudflare Pages?) — cần confirm setup deploy hiện tại. Nếu chưa có, deploy Vercel là nhanh nhất (`vercel` CLI trong thư mục `website/`).
 
-**Phase 14.5.5.e — Settings modal** sau 14.5.5.d:
-- Theme toggle light/dark (persist localStorage).
-- Language VN/EN (i18n stub, VN only trước mắt).
-- Registry source URL (để đổi endpoint CDN nếu cần mirror).
-- Auto-update check interval (off / daily / weekly).
+Sau khi cả 2 xong, verify end-to-end:
 
-**Sau 14.5.5.e → Phase 14.6 — Release v2.0.0:**
-- Bundle installer .msi/.dmg/.deb cho cả 10 app + launcher.
-- Code-sign (phụ thuộc Phase 17.2 EV cert — có thể deferred).
-- Upload binary lên download CDN → launcher `detect_install` tự phát hiện chính xác.
+- Mở `https://trishteam.io.vn/downloads` bằng Windows → card Windows .exe hiện primary → click Tải về → file `.exe` tải về đúng 5.3 MB, mở chạy được installer.
+- `curl -sf https://trishteam.io.vn/apps-registry.json | jq '.apps | length'` → `9`.
+- Trong TrishLauncher đã cài: mở **Cài đặt** → nhập `https://trishteam.io.vn/apps-registry.json` → Lưu → sysbar pill chuyển "Bản mới nhất từ remote" + timestamp.
+
+### Đang dở phụ (optional, sẽ làm session sau)
+
+- **Phase 14.6.e — Rust background scheduler** (deferred): Cân nhắc chuyển update scheduler sang Rust side dùng `tokio::time::interval` để check cả khi app minimize tray. Hiện tại JS `setInterval` chỉ chạy khi webview alive — nhưng launcher thường mở xuyên phiên làm việc nên không critical.
+- **Phase 14.8 — macOS / Linux build** (khi có runner): Mở rộng `build-launcher.yml` thêm job `build-macos` (macos-14 arm64) và `build-linux` (ubuntu-22.04). Trên macOS cần `codesign` + notarize nếu muốn user không thấy Gatekeeper cảnh báo — defer đến khi có Apple Developer account. Linux `.deb` + `.AppImage` thẳng tiến, không cần sign.
+- **Phase 15.x — Ship app con đầu tiên**: TrishFont 2.0.0 Tauri (viết lại từ PyQt cũ) → khi release, đổi `status: 'coming_soon'` → `'released'` trong cả `apps-seed.ts` và `website/public/apps-registry.json`, thêm field `download.windows_x64.sha256` thật.
+- **Phase 17.2 — EV Code Signing**: Khi mua EV cert, bật `plugins.updater.active: true` + signed auto-update trong `tauri.conf.json`.
 
 ### Context quan trọng cho session sau
 
 - **Sandbox limitation:** pnpm NTFS symlink không resolve qua WSL → `tsc`/`cargo check` không chạy được trong sandbox Linux. Trí verify thực trên Windows 11 bằng `pnpm qa:all` + `pnpm tauri dev` per app.
-- **Repo path máy nhà:** `C:\Users\ADMIN\Documents\Claude\Projects\TrishTEAM\trishnexus-monorepo\` (theo convention CLAUDE.md).
-- **Nếu máy nhà chưa có monorepo:** chạy `SETUP.bat` 1 lần (check Git/Node/pnpm/Rust + pnpm install).
+- **Tauri version lock** (Cargo.lock): `tauri 2.10.3`, `tauri-runtime 2.10.1`, `tauri-runtime-wry 2.10.1`, `tauri-plugin-opener 2.5.3`. Đủ mới để hỗ trợ `show_menu_on_left_click` + `TrayIconBuilder::with_id` + `Submenu::with_items`.
+- **Repo path máy nhà:** `C:\Users\TRI\Documents\Claude\Projects\TrishTEAM\trishnexus-monorepo\` (theo convention CLAUDE.md).
+- **Nếu máy nhà chưa có monorepo:** chạy `SETUP.bat` 1 lần (check Git/Node/pnpm/Rust + pnpm install). Dung lượng sau SETUP: ~950MB (node_modules 623MB + .venv 295MB + code ~30MB). Sau `pnpm tauri dev` lần đầu target/ phình lên ~1.5GB thêm — bình thường, không đẩy git.
 - **Mỗi phiên:** bấm `START.bat` → pull + pnpm install tự động → mở Cowork chat mới → gõ `tiếp tục` → Claude đọc file này + pick up từ phần "Đang dở".
 - **Cuối phiên:** bấm `END.bat` → commit + push tự động.
+- **File tool cache issue (sandbox):** WSL 9P mount có thể đọc bản cache cũ của file khi Tauri app / Vite đang chạy. Nếu Claude grep không thấy content rồi `cat >>` append → duplicate. An toàn hơn: Read tool (đọc Windows path trực tiếp) để verify trước khi edit.
+
+---
+
+## Trạng thái cũ — Phase 14.5.5.e (archived 2026-04-24 tối)
+
+**Phase 14.5.5.e — Settings modal** (shipped 2026-04-24 tối):
+
+- ✅ **settings.ts** (`apps-desktop/trishlauncher/src/settings.ts`, 101 dòng): Schema `Settings { theme, language, registryUrl, autoUpdateInterval }` + `loadSettings/saveSettings` với localStorage key `trishlauncher:settings:v1`. Validator defensive cho mỗi enum field → corrupt value fall về default thay vì crash. Helper `applyTheme(mode)` set/remove `data-theme` attribute trên `document.documentElement`.
+- ✅ **i18n/index.ts** (`apps-desktop/trishlauncher/src/i18n/index.ts`, 94 dòng): Dictionary VN/EN inline + `t(key, lang)` + `makeT(lang)` factory. Fallback: miss EN → tra VI → literal key (dev bug dễ phát hiện). Dictionary cover topbar/footer/empty state/settings modal (25+ keys). Các label trong card + AppDetailModal tạm giữ Tiếng Việt — phase sau bù i18n full UI khi ổn định.
+- ✅ **components/SettingsModal.tsx** (`apps-desktop/trishlauncher/src/components/SettingsModal.tsx`, 185 dòng): Modal dùng pattern AppDetailModal (overlay click close + Esc + stopPropagation). 4 section: theme (radio 3 option), language (radio 2), registry URL (input), auto-update (select). Draft state local → `onSave(next)` mới commit. Preview language live trong modal (đổi VN ↔ EN label ngay khi chọn radio).
+- ✅ **styles.css** (`apps-desktop/trishlauncher/src/styles.css`):
+    - Thay `@media (prefers-color-scheme: dark) { :root {...} }` thành `:root:not([data-theme='light']) {...}` để không override khi user chọn light thủ công.
+    - Thêm `:root[data-theme='dark']` + `:root[data-theme='light']` để force theme.
+    - Classes mới: `.topbar-actions`, `.modal-dialog-settings`, `.modal-head-simple`, `.settings-section`, `.settings-radio-group`, `.settings-radio`, `.settings-radio-active`, `.settings-input`, `.settings-select`, `.settings-hint`.
+    - Thêm `.sysbar-pill`, `.sysbar-pill-ok` (xanh), `.sysbar-pill-warn` (hổ phách) cho badge remote/seed source (dùng tiếp trong 14.6.a).
+- ✅ **App.tsx** (`apps-desktop/trishlauncher/src/App.tsx`): Import `loadSettings/saveSettings/applyTheme/Settings` + `SettingsModal` + `makeT`. State `[settings, setSettings]` lazy init từ `loadSettings()`, `[settingsOpen]`. `tr = useMemo(() => makeT(settings.language), ...)`. `useEffect` apply theme mỗi khi `settings.theme` đổi. Topbar wrap 2 button trong `.topbar-actions` — button "Cài đặt" mới + "Mở website". Empty state + footer dùng `tr()` cho label. Render `<SettingsModal>` khi `settingsOpen`: onSave = applyTheme ngay → setSettings → saveSettings → đóng modal.
+
+---
+
+## Trạng thái cũ — Phase 14.5.5.d (archived 2026-04-24 tối)
+
+**Phase 14.5.5.d — System tray** (shipped 2026-04-24 chiều):
+
+- ✅ **Cargo.toml** (`apps-desktop/trishlauncher/src-tauri/Cargo.toml`): bật feature `tray-icon` cho `tauri = { version = "2.0", features = ["tray-icon"] }` → dùng `tauri::tray::TrayIconBuilder` + `tauri::menu::{Menu, MenuItem, PredefinedMenuItem, Submenu}` built-in, **không cần plugin ngoài**, **không cần `pnpm add`**.
+- ✅ **lib.rs** (`apps-desktop/trishlauncher/src-tauri/src/lib.rs`, ~400 dòng sau update):
+    - Thêm `struct QuickLaunchItem { id, label, path }` + `struct TrayState { quick_launch: Mutex<Vec<_>> }` shared state.
+    - Hàm `build_tray_menu(&AppHandle, &[QuickLaunchItem]) -> Result<Menu<Wry>>` dựng đầy đủ menu: `Mở TrishLauncher / Ẩn xuống tray / — / Mở nhanh app đã cài (submenu) / — / Thoát TrishLauncher`. Submenu rỗng khi list trống thay bằng 1 item disabled `(Chưa phát hiện app nào đã cài)` cho UX rõ ràng.
+    - Hàm `apply_tray_menu(&AppHandle, Menu)` rebuild menu trên tray `main` đang tồn tại.
+    - Command `update_tray_quick_launch(app, state, items: Vec<QuickLaunchItem>)`: lưu state + rebuild menu. Frontend gọi sau mỗi lần `detect_install` xong.
+    - Helper `focus_main_window(&AppHandle)`: unminimize + show + set_focus cho menu "Mở" và click tray trái.
+    - Helper `spawn_open(&str) -> io::Result<Child>`: cross-platform launch (Windows `cmd /c start`, macOS `open -a`, Linux `xdg-open`) — tái sử dụng cùng matrix với `launch_path` command mà không phải invoke ngược.
+    - `pub fn run()` mở rộng:
+        - `.manage(TrayState::default())` register state.
+        - `.invoke_handler(...)` thêm `update_tray_quick_launch`.
+        - `.setup(|app| { ... })` dựng `TrayIconBuilder::with_id("main")` với icon = `app.default_window_icon()`, tooltip `"TrishLauncher — 10 ứng dụng tiện ích"`, menu cơ bản (rỗng quick-launch), `.show_menu_on_left_click(false)`.
+        - `on_menu_event`: match `tray:show` / `tray:hide` / `tray:quit` / `tray:launch:<id>` — case cuối lookup path từ `TrayState.quick_launch` để spawn (không trust label, tránh injection).
+        - `on_tray_icon_event`: click trái → toggle window (visible = hide, hidden = show + focus).
+        - `.on_window_event(|window, event|)`: `WindowEvent::CloseRequested` cho window "main" → `window.hide() + api.prevent_close()` thay vì quit. User phải Thoát qua menu tray mới exit hẳn.
+    - **Gotcha đã fix sẵn:** `Menu::with_items` + `Submenu::with_items` cần `&[&dyn IsMenuItem<Wry>]`, array literal không tự coerce cross-type → explicit cast phần tử đầu `&show_i as &dyn tauri::menu::IsMenuItem<tauri::Wry>`, các phần tử sau auto-coerce theo element type của array.
+- ✅ **tauri-bridge.ts** (`src/tauri-bridge.ts`): export `interface QuickLaunchItem` + `updateTrayQuickLaunch(items)` — graceful degradation (no-op trong browser dev mode).
+- ✅ **App.tsx** (`src/App.tsx`): sau khi `detectInstall` xong trong useEffect → build `QuickLaunchItem[]` từ `results.filter(state === 'installed' && path)` (label lấy `compatApps.name`) → gọi `updateTrayQuickLaunch(items)`. Tray menu tự sync mỗi lần platform hoặc compat list thay đổi.
 
 ---
 
@@ -259,7 +356,7 @@ Khối lượng lớn, tóm tắt theo cụm. Chi tiết đầy đủ ở `docs/
 ### Đang dở — PICK UP TỪ ĐÂY (sau Phase 13.5)
 
 **🧪 Smoke test trên Windows — verify bug fix + 2 theme mới** (cần làm trước khi đụng code mới):
-1. `cd C:\Users\ADMIN\Documents\Claude\Projects\TrishTEAM\trishnexus-monorepo`
+1. `cd C:\Users\TRI\Documents\Claude\Projects\TrishTEAM\trishnexus-monorepo`
 2. `git pull` → `scripts\RUN-TRISHFONT.bat` (script tự dùng `.venv\Scripts\python.exe`, không dùng system Python vì system Python chưa cài gói `trishfont`).
 3. Click nút **"🎨 Giao diện"** ở AppHeader → menu giờ chỉ có **2 option**: `Tối (Dark)` và `Sáng (Light)`.
 4. **Kỳ vọng Phase 13.5:** click "Sáng (Light)" → **UI đổi sang light ngay lập tức** (bg trắng #f7f6f3, chữ đen #1a1814, accent tím xanh giữ nguyên). Click "Tối (Dark)" → quay về dark. Đây là bug trước đây không hoạt động (click không gì thay đổi).
@@ -337,7 +434,7 @@ Sau khi **đọc kỹ cả 2 file** (không phải đoán từ screenshot), tôi
 
 **🧪 Vẫn là Bước A: Smoke test trên Windows với code round 2**
 
-1. `cd C:\Users\ADMIN\Documents\Claude\Projects\TrishTEAM\trishnexus-monorepo`
+1. `cd C:\Users\TRI\Documents\Claude\Projects\TrishTEAM\trishnexus-monorepo`
 2. `git pull` (nếu từ máy kia) hoặc `scripts\RUN-TRISHFONT.bat`
 3. Kỳ vọng khi chạy `python -m trishfont.app`:
    - **Tone warm** (nâu đen ấm #0f0e0c), không còn lạnh xám.
@@ -482,7 +579,7 @@ TrishVideo/Excel/PPT đã loại khỏi scope — chưa có logo, chưa có nhu 
 ## Cấu trúc project (hiện tại sau pivot)
 
 ```
-C:\Users\ADMIN\Documents\Claude\Projects\TrishTEAM\trishnexus-monorepo\
+C:\Users\TRI\Documents\Claude\Projects\TrishTEAM\trishnexus-monorepo\
 ├── CLAUDE.md
 ├── docs/SESSION-HANDOFF.md             ← file này
 ├── docs/design-spec.md                  ← CẦN TẠO (Phase 1)

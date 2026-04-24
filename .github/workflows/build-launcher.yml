@@ -1,0 +1,177 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# build-launcher.yml — CI build TrishLauncher (Tauri 2) cho Windows khi push
+# tag `launcher-v<version>`.
+# ─────────────────────────────────────────────────────────────────────────────
+#
+# Trigger:
+#   git tag launcher-v2.0.0-1
+#   git push origin launcher-v2.0.0-1
+#
+# Workflow (windows-latest):
+#   1. Checkout + Setup pnpm 9 + Node 20 + Rust stable.
+#   2. pnpm install (monorepo full — launcher cần @trishteam/core|ui|adapters).
+#   3. pnpm -r --filter './packages/*' build → emit dist/ cho workspace deps.
+#   4. cd apps-desktop/trishlauncher && pnpm tauri build
+#      → src-tauri/target/release/bundle/{nsis,msi}/TrishLauncher_<ver>_x64*.{exe,msi}
+#   5. SHA256 + size → SHA256SUMS.txt.
+#   6. softprops/action-gh-release@v2 — upload lên release tương ứng tag.
+#
+# Lưu ý:
+#   - macOS/Linux chưa enable (cần runner tương ứng + chứng thực); mở sau.
+#   - Không code-sign (cost). Users sẽ thấy SmartScreen warning — đã ghi rõ
+#     trên /downloads page.
+#   - rust-cache giữ target/ giữa runs để build nhanh (~10-15 phút so với
+#     ~25 phút cold).
+#
+# ─────────────────────────────────────────────────────────────────────────────
+
+name: Build TrishLauncher
+
+on:
+  push:
+    tags:
+      - 'launcher-v*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Launcher version (e.g. 2.0.0-1)'
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  build-windows:
+    name: Build Windows installers (NSIS + MSI)
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Parse version
+        id: parse
+        shell: bash
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            VERSION="${{ inputs.version }}"
+          else
+            # Tag launcher-v<version>
+            VERSION="${GITHUB_REF_NAME#launcher-v}"
+          fi
+          if [ -z "$VERSION" ]; then
+            echo "::error::Cannot parse version"; exit 1
+          fi
+          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
+          echo "Building TrishLauncher v${VERSION}"
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.0
+
+      - name: Setup Node 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'pnpm'
+
+      - name: Setup Rust (stable)
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Rust cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: apps-desktop/trishlauncher/src-tauri -> target
+
+      - name: Install dependencies
+        shell: bash
+        run: pnpm install --frozen-lockfile
+
+      - name: Build shared packages
+        shell: bash
+        run: pnpm -r --filter './packages/*' build
+
+      - name: Build TrishLauncher (Tauri)
+        shell: bash
+        working-directory: apps-desktop/trishlauncher
+        run: pnpm tauri build
+
+      - name: Collect artifacts + SHA256
+        id: hash
+        shell: pwsh
+        working-directory: apps-desktop/trishlauncher/src-tauri/target/release/bundle
+        run: |
+          $version = "${{ steps.parse.outputs.version }}"
+          $outDir  = "$env:GITHUB_WORKSPACE/release-assets"
+          New-Item -ItemType Directory -Force -Path $outDir | Out-Null
+
+          # NSIS .exe + MSI en-US / vi-VN
+          $files = @(
+            "nsis/TrishLauncher_${version}_x64-setup.exe",
+            "msi/TrishLauncher_${version}_x64_en-US.msi",
+            "msi/TrishLauncher_${version}_x64_vi-VN.msi"
+          )
+
+          $sumsPath = "$outDir/SHA256SUMS.txt"
+          if (Test-Path $sumsPath) { Remove-Item $sumsPath }
+
+          foreach ($rel in $files) {
+            if (-not (Test-Path $rel)) {
+              Write-Host "::warning::Missing $rel (skipping)"
+              continue
+            }
+            $name = Split-Path $rel -Leaf
+            Copy-Item $rel "$outDir/$name"
+            $sha  = (Get-FileHash "$outDir/$name" -Algorithm SHA256).Hash.ToLower()
+            $size = (Get-Item "$outDir/$name").Length
+            "${sha}  ${name}" | Out-File -FilePath $sumsPath -Append -Encoding utf8
+            Write-Host "  $name  ($size bytes, sha256=$sha)"
+          }
+
+          # Expose primary NSIS sha256 + size cho release body
+          $primary = "$outDir/TrishLauncher_${version}_x64-setup.exe"
+          if (Test-Path $primary) {
+            $sha  = (Get-FileHash $primary -Algorithm SHA256).Hash.ToLower()
+            $size = (Get-Item $primary).Length
+            "sha256=$sha"      | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+            "size_bytes=$size" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+          }
+
+      - name: Create / update GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: TrishLauncher v${{ steps.parse.outputs.version }}
+          body: |
+            **TrishLauncher** v${{ steps.parse.outputs.version }} — desktop launcher cho hệ sinh thái TrishTEAM.
+
+            Miễn phí, không cần đăng nhập. Quản lý, cập nhật và khởi chạy 10 ứng dụng desktop trong một giao diện.
+
+            ## Windows
+
+            | File | Dùng cho |
+            | --- | --- |
+            | `TrishLauncher_${{ steps.parse.outputs.version }}_x64-setup.exe` | **Khuyến nghị** — NSIS installer, hỗ trợ chọn ngôn ngữ VN/EN |
+            | `TrishLauncher_${{ steps.parse.outputs.version }}_x64_en-US.msi` | Enterprise deploy (GPO / SCCM) — bản tiếng Anh |
+            | `TrishLauncher_${{ steps.parse.outputs.version }}_x64_vi-VN.msi` | Enterprise deploy — bản tiếng Việt |
+
+            **SHA256 (primary .exe):** `${{ steps.hash.outputs.sha256 }}`
+            **Size:** ${{ steps.hash.outputs.size_bytes }} bytes
+
+            > File chưa code-sign → Windows SmartScreen có thể cảnh báo. Bấm **More info → Run anyway**.
+            > Checksum đầy đủ trong `SHA256SUMS.txt`.
+
+            ## macOS / Linux
+
+            Đang chuẩn bị — xem [`/downloads`](https://trishteam.io.vn/downloads).
+          files: |
+            release-assets/TrishLauncher_${{ steps.parse.outputs.version }}_x64-setup.exe
+            release-assets/TrishLauncher_${{ steps.parse.outputs.version }}_x64_en-US.msi
+            release-assets/TrishLauncher_${{ steps.parse.outputs.version }}_x64_vi-VN.msi
+            release-assets/SHA256SUMS.txt
+          draft: false
+          prerelease: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

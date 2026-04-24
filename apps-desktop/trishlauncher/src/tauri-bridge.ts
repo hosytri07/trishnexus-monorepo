@@ -108,3 +108,34 @@ export async function launchPath(path: string): Promise<void> {
   }
   await invoke<string>('launch_path', { path });
 }
+
+// ============================================================
+// Phase 14.5.5.d — System tray quick-launch
+// ============================================================
+
+/**
+ * 1 item cho submenu tray Quick-launch. `id` để phân biệt khi user click
+ * menu, `label` hiển thị (giữ Tiếng Việt OK), `path` là resolved path từ
+ * detectInstall (chỉ gửi khi state = 'installed' + path non-null).
+ */
+export interface QuickLaunchItem {
+  id: string;
+  label: string;
+  path: string;
+}
+
+/**
+ * Gọi sau khi detectInstall xong để rebuild tray menu. Rust sẽ giữ list
+ * trong state + set lại menu của tray 'main'. Browser dev: no-op để không
+ * warn khi chạy `vite dev` thuần.
+ */
+export async function updateTrayQuickLaunch(
+  items: QuickLaunchItem[],
+): Promise<void> {
+  if (!isInTauri()) return;
+  try {
+    await invoke<void>('update_tray_quick_launch', { items });
+  } catch (err) {
+    console.warn('[trishlauncher] update_tray_quick_launch failed:', err);
+  }
+}

@@ -19,11 +19,23 @@ import {
   openExternal,
   detectInstall,
   launchPath,
+  updateTrayQuickLaunch,
   type SysInfo,
+  type QuickLaunchItem,
   FALLBACK_SYS_INFO,
 } from './tauri-bridge.js';
 import { LAUNCHER_ICON, iconFor } from './icons/index.js';
 import { AppDetailModal } from './components/AppDetailModal.js';
+import { SettingsModal } from './components/SettingsModal.js';
+import {
+  loadSettings,
+  saveSettings,
+  applyTheme,
+  type Settings,
+} from './settings.js';
+import { makeT } from './i18n/index.js';
+import { loadRegistry, type RegistryLoadResult } from './registry-loader.js';
+import { startScheduler, setLastFetchMs } from './update-scheduler.js';
 
 /**
  * Chuyển `sysinfo.arch` (x86_64, aarch64, …) sang Platform của core.
@@ -66,6 +78,64 @@ export function App(): JSX.Element {
     () => new Map(),
   );
 
+  // Phase 14.5.5.e — Settings state (theme/language/registry/autoUpdate).
+  // Lazy-init từ localStorage để tránh flash theme sai ở render đầu.
+  const [settings, setSettings] = useState<Settings>(() => loadSettings());
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const tr = useMemo(() => makeT(settings.language), [settings.language]);
+
+  // Phase 14.6.a — Registry state (seed ban đầu, fetch từ remote nếu
+  // settings.registryUrl set). null trong "error" nghĩa là chưa fetch
+  // hoặc đã OK. source='seed' khi URL rỗng hoặc fetch fail.
+  const [registryResult, setRegistryResult] = useState<RegistryLoadResult>(
+    () => ({
+      registry: SEED_REGISTRY,
+      source: 'seed',
+      fetchedAt: null,
+      error: null,
+    }),
+  );
+
+  // Apply theme mỗi khi settings.theme đổi (bao gồm lần mount đầu).
+  useEffect(() => {
+    applyTheme(settings.theme);
+  }, [settings.theme]);
+
+  // Load registry khi mount + mỗi khi registryUrl thay đổi (user Save
+  // Settings với URL mới → fetch lại ngay). Phase 14.6.b — ghi
+  // last_fetch_ms khi remote fetch thành công để scheduler biết skip.
+  useEffect(() => {
+    let cancelled = false;
+    void loadRegistry(settings.registryUrl).then((result) => {
+      if (cancelled) return;
+      setRegistryResult(result);
+      if (result.source === 'remote' && result.fetchedAt) {
+        setLastFetchMs(result.fetchedAt);
+      }
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [settings.registryUrl]);
+
+  // Phase 14.6.b — Auto-update scheduler. Off = no-op. Khi overdue →
+  // refetch + cập nhật state + ghi last_fetch_ms. Cleanup khi interval
+  // config đổi hoặc component unmount để tránh double schedule.
+  useEffect(() => {
+    // Không schedule khi URL rỗng (dùng seed, không có gì để refresh).
+    if (!settings.registryUrl.trim()) return;
+
+    const cleanup = startScheduler(settings.autoUpdateInterval, () => {
+      void loadRegistry(settings.registryUrl).then((result) => {
+        setRegistryResult(result);
+        if (result.source === 'remote' && result.fetchedAt) {
+          setLastFetchMs(result.fetchedAt);
+        }
+      });
+    });
+    return cleanup;
+  }, [settings.autoUpdateInterval, settings.registryUrl]);
+
   useEffect(() => {
     void getSysInfo().then(setSys);
     void getAppVersion().then(setVersion);
@@ -77,10 +147,11 @@ export function App(): JSX.Element {
    * Merge registry entry với APP_META (features/accent/release_date) để
    * modal hiển thị full metadata. Phase 14.5.5.a dùng `{}` → features
    * array rỗng; Phase 14.5.5.b wire META thật vào.
+   * Phase 14.6.a — registry có thể đến từ seed hoặc remote fetch.
    */
   const apps: AppForUi[] = useMemo(
-    () => mergeRegistry(SEED_REGISTRY, APP_META),
-    [],
+    () => mergeRegistry(registryResult.registry, APP_META),
+    [registryResult.registry],
   );
 
   const compatApps = useMemo(
@@ -103,6 +174,20 @@ export function App(): JSX.Element {
       const map = new Map<string, InstallDetection>();
       for (const r of results) map.set(r.id, r);
       setInstallMap(map);
+
+      // Phase 14.5.5.d — đẩy danh sách app đã cài lên tray để submenu
+      // Quick-launch có nội dung. Label dùng tên app từ compatApps
+      // (merge APP_META + registry). Chỉ push item có path thật để Rust
+      // không phải re-verify.
+      const nameById = new Map(compatApps.map((a) => [a.id, a.name]));
+      const quickItems: QuickLaunchItem[] = results
+        .filter((r) => r.state === 'installed' && r.path)
+        .map((r) => ({
+          id: r.id,
+          label: nameById.get(r.id) ?? r.id,
+          path: r.path as string,
+        }));
+      void updateTrayQuickLaunch(quickItems);
     });
     return () => {
       cancelled = true;
@@ -155,15 +240,25 @@ export function App(): JSX.Element {
           />
           <div>
             <strong>TrishLauncher</strong>
-            <div className="sub">{SEED_REGISTRY.ecosystem.tagline}</div>
+            <div className="sub">
+              {registryResult.registry.ecosystem.tagline}
+            </div>
           </div>
         </div>
-        <button
-          className="btn btn-ghost"
-          onClick={() => void openExternal('https://trishteam.io.vn')}
-        >
-          Mở website
-        </button>
+        <div className="topbar-actions">
+          <button
+            className="btn btn-ghost"
+            onClick={() => setSettingsOpen(true)}
+          >
+            {tr('topbar.settings')}
+          </button>
+          <button
+            className="btn btn-ghost"
+            onClick={() => void openExternal('https://trishteam.io.vn')}
+          >
+            {tr('topbar.website')}
+          </button>
+        </div>
       </header>
 
       <section className="sysbar">
@@ -177,13 +272,32 @@ export function App(): JSX.Element {
         <span className="sep">·</span>
         <span>{memGb} GB RAM</span>
         <span className="spacer" />
+        {registryResult.source === 'remote' && (
+          <span
+            className="sysbar-pill sysbar-pill-ok"
+            title={`Registry fetched at ${new Date(
+              registryResult.fetchedAt ?? 0,
+            ).toLocaleString()}`}
+          >
+            ● remote
+          </span>
+        )}
+        {registryResult.error && (
+          <span
+            className="sysbar-pill sysbar-pill-warn"
+            title={`Registry fetch fail, dùng seed: ${registryResult.error}`}
+          >
+            ⚠ seed fallback
+          </span>
+        )}
+        <span className="sep">·</span>
         <span className="muted">Launcher v{version}</span>
       </section>
 
       <main className="grid">
         {compatApps.length === 0 && (
           <div className="empty">
-            Chưa có ứng dụng nào tương thích với máy này ({platform}).
+            {tr('grid.empty')} ({platform}).
           </div>
         )}
         {compatApps.map((app) => (
@@ -199,9 +313,11 @@ export function App(): JSX.Element {
       </main>
 
       <footer className="foot">
-        <span>{apps.length} app trong ecosystem</span>
+        <span>
+          {apps.length} {tr('footer.apps_count')}
+        </span>
         <span className="muted">
-          © 2026 TrishTEAM · {SEED_REGISTRY.ecosystem.website}
+          © 2026 TrishTEAM · {registryResult.registry.ecosystem.website}
         </span>
       </footer>
 
@@ -217,6 +333,20 @@ export function App(): JSX.Element {
           }}
           onOpenExternal={(url) => {
             void openExternal(url);
+          }}
+        />
+      )}
+
+      {settingsOpen && (
+        <SettingsModal
+          initial={settings}
+          onClose={() => setSettingsOpen(false)}
+          onSave={(next) => {
+            // Apply theme ngay trước khi setState để tránh flash 1 frame.
+            applyTheme(next.theme);
+            setSettings(next);
+            saveSettings(next);
+            setSettingsOpen(false);
           }}
         />
       )}

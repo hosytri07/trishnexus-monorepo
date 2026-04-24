@@ -11,14 +11,34 @@
   --blue: #2563eb;
 }
 
+/* Phase 14.5.5.e — Theme override:
+   - `data-theme="dark"` FORCE dark bất kể OS preference.
+   - `data-theme="light"` FORCE light.
+   - Không có attribute → theo @media prefers-color-scheme (mode 'system'). */
 @media (prefers-color-scheme: dark) {
-  :root {
+  :root:not([data-theme='light']) {
     --bg: #0f1115;
     --surface: #161a21;
     --border: #262b33;
     --text: #f3f4f6;
     --muted: #9ca3af;
   }
+}
+
+:root[data-theme='dark'] {
+  --bg: #0f1115;
+  --surface: #161a21;
+  --border: #262b33;
+  --text: #f3f4f6;
+  --muted: #9ca3af;
+}
+
+:root[data-theme='light'] {
+  --bg: #fafafa;
+  --surface: #ffffff;
+  --border: #e5e7eb;
+  --text: #111827;
+  --muted: #6b7280;
 }
 
 * {
@@ -54,6 +74,13 @@ body {
 .brand {
   display: flex;
   gap: 12px;
+  align-items: center;
+}
+
+/* Phase 14.5.5.e — 2 button Cài đặt + Mở website trong topbar. */
+.topbar-actions {
+  display: flex;
+  gap: 8px;
   align-items: center;
 }
 
@@ -96,6 +123,25 @@ body {
 
 .sysbar .spacer {
   flex: 1;
+}
+
+/* Phase 14.6.a — Pill hiển thị nguồn registry (remote / seed fallback). */
+.sysbar-pill {
+  font-size: 11px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-weight: 500;
+  cursor: help;
+}
+
+.sysbar-pill-ok {
+  background: rgba(22, 163, 74, 0.12);
+  color: var(--accent);
+}
+
+.sysbar-pill-warn {
+  background: rgba(245, 158, 11, 0.14);
+  color: var(--amber);
 }
 
 .grid {
@@ -621,4 +667,89 @@ body {
   background: var(--bg);
   border-bottom-left-radius: 16px;
   border-bottom-right-radius: 16px;
+}
+
+/* ========== Phase 14.5.5.e — Settings modal ========== */
+
+/* Settings modal dùng pattern modal-* nhưng không có icon, max-width
+   hẹp hơn AppDetail + head đơn giản (không border accent). */
+.modal-dialog-settings {
+  max-width: 520px;
+}
+
+.modal-head-simple {
+  border-top: 1px solid var(--border);
+  padding: 20px 24px 12px;
+}
+
+.settings-section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+/* Radio group — các option layout flex row wrap, click cả label active. */
+.settings-radio-group {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.settings-radio {
+  flex: 1 1 auto;
+  min-width: 100px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 10px 14px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  cursor: pointer;
+  font-size: 13px;
+  background: var(--surface);
+  transition: border-color 0.12s ease, background 0.12s ease;
+}
+
+.settings-radio input[type='radio'] {
+  accent-color: var(--accent);
+  margin: 0;
+}
+
+.settings-radio:hover {
+  border-color: var(--accent);
+}
+
+.settings-radio-active {
+  border-color: var(--accent);
+  background: rgba(22, 163, 74, 0.08);
+  font-weight: 500;
+}
+
+/* Text input + select dùng chung size/padding để đồng nhất. */
+.settings-input,
+.settings-select {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface);
+  color: var(--text);
+  font-size: 13px;
+  font-family: inherit;
+  box-sizing: border-box;
+}
+
+.settings-input:focus,
+.settings-select:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(22, 163, 74, 0.15);
+}
+
+.settings-hint {
+  margin: 0;
+  font-size: 12px;
+  color: var(--muted);
+  line-height: 1.5;
 }
