@@ -1,0 +1,22 @@
+{
+  "name": "@trishteam/data",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Firebase client wrappers + Firestore collection paths + type-safe converters cho TrishTEAM. Dùng chung giữa website, desktop launcher (qua Tauri HTTP), Zalo Mini App.",
+  "type": "module",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@trishteam/core": "workspace:*"
+  },
+  "peerDependencies": {
+    "firebase": ">=10 <12"
+  },
+  "devDependencies": {
+    "firebase": "10.14.1",
+    "typescript": "5.4.5"
+  }
+}

@@ -1,0 +1,29 @@
+[package]
+name = "trishclean"
+version = "2.0.0-alpha.1"
+description = "TrishClean — disk cleanup với undo 7 ngày"
+authors = ["TrishTEAM <hosytri77@gmail.com>"]
+edition = "2021"
+rust-version = "1.77"
+
+[[bin]]
+name = "trishclean"
+path = "src/main.rs"
+
+[lib]
+name = "trishclean_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+path = "src/lib.rs"
+
+[build-dependencies]
+tauri-build = { version = "2.0", features = [] }
+
+[dependencies]
+tauri = { version = "2.0", features = [] }
+tauri-plugin-dialog = "2.0"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+walkdir = "2"
+
+[features]
+custom-protocol = ["tauri/custom-protocol"]

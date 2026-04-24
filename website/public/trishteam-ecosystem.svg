@@ -1,0 +1,73 @@
+<!--
+  TrishTEAM ecosystem logo — composite mark.
+  Concept: central hexagonal "TT" hub + 10 orbital satellite nodes
+  (each representing 1 app trong hệ sinh thái) + connecting lines.
+  Gradient emerald match theme Phase 11.5.10.
+  ViewBox 128×128 — tile tỉ lệ 1:1, scale tự nhiên theo parent size.
+-->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" fill="none" role="img" aria-label="TrishTEAM ecosystem" width="128" height="128">
+  <defs>
+    <linearGradient id="tt-bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#4ADE80"/>
+      <stop offset="100%" stop-color="#10B981"/>
+    </linearGradient>
+    <linearGradient id="tt-hub" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#ffffff" stop-opacity="0.95"/>
+      <stop offset="100%" stop-color="#d1fae5" stop-opacity="0.85"/>
+    </linearGradient>
+    <radialGradient id="tt-glow" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#ffffff" stop-opacity="0.35"/>
+      <stop offset="100%" stop-color="#ffffff" stop-opacity="0"/>
+    </radialGradient>
+    <filter id="tt-shadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur stdDeviation="2" />
+    </filter>
+  </defs>
+
+  <!-- Outer rounded square với gradient emerald -->
+  <rect x="4" y="4" width="120" height="120" rx="28" ry="28" fill="url(#tt-bg)"/>
+  <rect x="4" y="4" width="120" height="120" rx="28" ry="28" fill="url(#tt-glow)"/>
+
+  <!-- Subtle grid guide (đường cong orbit) -->
+  <g stroke="#ffffff" stroke-opacity="0.18" fill="none">
+    <circle cx="64" cy="64" r="40" stroke-width="1"/>
+    <circle cx="64" cy="64" r="26" stroke-width="0.75" stroke-dasharray="2 3"/>
+  </g>
+
+  <!-- 10 satellite nodes, phân bố đều quanh orbit r=40 -->
+  <g fill="#ffffff" fill-opacity="0.95">
+    <!-- 10 điểm theo góc 36° (360/10) -->
+    <circle cx="64"   cy="24"   r="4.5"/>  <!-- 0°   top -->
+    <circle cx="87.5" cy="31.6" r="4"/>    <!-- 36°  top-right -->
+    <circle cx="102.04" cy="51.5" r="4"/>  <!-- 72°  right-top -->
+    <circle cx="102.04" cy="76.5" r="4"/>  <!-- 108° right-bot -->
+    <circle cx="87.5" cy="96.4" r="4"/>    <!-- 144° bot-right -->
+    <circle cx="64"   cy="104"  r="4.5"/>  <!-- 180° bottom -->
+    <circle cx="40.5" cy="96.4" r="4"/>    <!-- 216° bot-left -->
+    <circle cx="25.96" cy="76.5" r="4"/>   <!-- 252° left-bot -->
+    <circle cx="25.96" cy="51.5" r="4"/>   <!-- 288° left-top -->
+    <circle cx="40.5" cy="31.6" r="4"/>    <!-- 324° top-left -->
+  </g>
+
+  <!-- Connection lines từ center đến mỗi node (subtle) -->
+  <g stroke="#ffffff" stroke-opacity="0.25" stroke-width="0.75" stroke-linecap="round">
+    <line x1="64" y1="64" x2="64"   y2="24"/>
+    <line x1="64" y1="64" x2="87.5" y2="31.6"/>
+    <line x1="64" y1="64" x2="102.04" y2="51.5"/>
+    <line x1="64" y1="64" x2="102.04" y2="76.5"/>
+    <line x1="64" y1="64" x2="87.5" y2="96.4"/>
+    <line x1="64" y1="64" x2="64"   y2="104"/>
+    <line x1="64" y1="64" x2="40.5" y2="96.4"/>
+    <line x1="64" y1="64" x2="25.96" y2="76.5"/>
+    <line x1="64" y1="64" x2="25.96" y2="51.5"/>
+    <line x1="64" y1="64" x2="40.5" y2="31.6"/>
+  </g>
+
+  <!-- Central hub: hexagon white + TT monogram -->
+  <polygon points="64,46 77,54 77,74 64,82 51,74 51,54" fill="url(#tt-hub)" stroke="#ffffff" stroke-width="1.5" stroke-opacity="0.5"/>
+  <text x="64" y="71" text-anchor="middle" font-family="'Be Vietnam Pro', 'Inter', sans-serif" font-size="14" font-weight="800" fill="#0f766e" letter-spacing="-0.5">TT</text>
+
+  <!-- Small accent dot ở góc (decoration) -->
+  <circle cx="110" cy="22" r="3" fill="#fbbf24" fill-opacity="0.85"/>
+  <circle cx="18" cy="106" r="2.5" fill="#38bdf8" fill-opacity="0.85"/>
+</svg>

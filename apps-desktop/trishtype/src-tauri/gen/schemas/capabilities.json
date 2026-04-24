@@ -1,0 +1,1 @@
+{"default":{"identifier":"default","description":"TrishType cần dialog (open/save .txt/.md) + fs.read/write để load và lưu file văn bản. Không cấp shell/http.","local":true,"windows":["main"],"permissions":["core:default","dialog:default","dialog:allow-open","dialog:allow-save","fs:default","fs:allow-read-file","fs:allow-write-file"]}}

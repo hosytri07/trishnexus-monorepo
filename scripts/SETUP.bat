@@ -30,21 +30,7 @@ echo.
 pause
 echo.
 
-echo   [1/5] Kiem tra Python...
-python --version >nul 2>&1
-if errorlevel 1 (
-    echo.
-    echo   [!] Chua cai Python.
-    echo       Tai tai: https://www.python.org/downloads/
-    echo       Luu y: tick "Add Python to PATH" khi cai.
-    echo.
-    pause
-    exit /b 1
-)
-python --version
-
-echo.
-echo   [2/5] Kiem tra Git...
+echo   [1/7] Kiem tra Git...
 git --version >nul 2>&1
 if errorlevel 1 (
     echo.
@@ -57,39 +43,86 @@ if errorlevel 1 (
 git --version
 
 echo.
-echo   [3/5] Cau hinh Git (ten + email + USB trust)...
+echo   [2/7] Cau hinh Git (ten + email + safe directory)...
 git config --global user.name "hosytri07"
 git config --global user.email "hosytri07@gmail.com"
-REM Fix "dubious ownership" khi repo nam tren USB (FAT/exFAT)
 git config --global --add safe.directory "*"
-echo   Da set: hosytri07 / hosytri07@gmail.com (+ trust USB)
+echo   Da set: hosytri07 / hosytri07@gmail.com
 
 echo.
-echo   [4/5] Tao moi truong Python (.venv) cho may nay...
-if exist .venv (
-    echo   .venv da ton tai - bo qua.
-) else (
-    python -m venv .venv
+echo   [3/7] Kiem tra Node.js (^>= 18 yeu cau cho monorepo Phase 14+)...
+node --version >nul 2>&1
+if errorlevel 1 (
+    echo.
+    echo   [!] Chua cai Node.js.
+    echo       Tai LTS moi nhat tai: https://nodejs.org/
+    echo       Luu y: tick "Add to PATH" khi cai.
+    echo.
+    pause
+    exit /b 1
+)
+node --version
+
+echo.
+echo   [4/7] Kiem tra pnpm...
+where pnpm >nul 2>&1
+if errorlevel 1 (
+    echo   Chua co pnpm - cai qua npm...
+    call npm install -g pnpm
     if errorlevel 1 (
         echo.
-        echo   [!] Tao .venv that bai. Hoi Claude.
+        echo   [!] Cai pnpm that bai. Thu chay PowerShell admin va lam lai.
         pause
         exit /b 1
     )
-    echo   Da tao .venv
+)
+pnpm --version
+
+echo.
+echo   [5/7] Kiem tra Rust (cho Tauri desktop app)...
+rustc --version >nul 2>&1
+if errorlevel 1 (
+    echo.
+    echo   [!] Chua cai Rust. Bat buoc cho desktop app (Tauri).
+    echo       Tai tai: https://www.rust-lang.org/tools/install
+    echo       Chay rustup-init.exe va chon default.
+    echo       (Neu khong can chay desktop app, co the skip - nhung website
+    echo        va pnpm qa vẫn chạy được.)
+    echo.
+    set /p "SKIP_RUST=  Bo qua Rust va tiep tuc? (y/N): "
+    if /i not "%SKIP_RUST%"=="y" (
+        pause
+        exit /b 1
+    )
+) else (
+    rustc --version
 )
 
 echo.
-echo   [5/5] Cai cac package Python (editable)...
-echo   (Qua trinh nay co the mat 1-2 phut, kien nhan nhe)
+echo   [6/7] Cai node_modules cho monorepo (pnpm install)...
+echo   (Lan dau co the mat 3-5 phut, tuy internet)
 echo.
-call .venv\Scripts\activate.bat
-pip install -e shared\trishteam_core
-if errorlevel 1 goto :err_pip
-pip install -e apps\trishdesign
-if errorlevel 1 goto :err_pip
-pip install -e apps\trishfont
-if errorlevel 1 goto :err_pip
+pnpm install
+if errorlevel 1 (
+    echo.
+    echo   [!] pnpm install that bai. Hoi Claude.
+    pause
+    exit /b 1
+)
+
+echo.
+echo   [7/7] Kiem tra Python (cho legacy app + QA script)...
+python --version >nul 2>&1
+if errorlevel 1 (
+    echo   (Khong co Python - bo qua. Se can neu muon chay script QA
+    echo    nhu gen-icons.py hoac dung legacy Qt app.)
+) else (
+    python --version
+    echo   Tao .venv cho Python deps neu chua co...
+    if not exist .venv (
+        python -m venv .venv
+    )
+)
 
 echo.
 echo  ============================================
@@ -97,17 +130,12 @@ echo     SETUP XONG!
 echo  ============================================
 echo.
 echo   Tu gio tren may nay:
-echo     - Moi sang  -^>  bam START.bat
-echo     - Moi toi   -^>  bam END.bat
+echo     - Moi sang  -^>  bam START.bat (tu pull + pnpm install)
+echo     - Moi toi   -^>  bam END.bat (commit + push)
+echo     - Mo chat moi -^> go: tiep tuc
 echo.
-echo   Lan dau push se co popup dang nhap GitHub
-echo   (trinh duyet tu mo). Dang nhap hosytri07.
+echo   Lan dau push se co popup dang nhap GitHub.
+echo   Dang nhap hosytri07.
 echo.
 pause
 exit /b 0
-
-:err_pip
-echo.
-echo   [!] pip install that bai. Hoi Claude.
-pause
-exit /b 1

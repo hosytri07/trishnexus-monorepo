@@ -1,0 +1,1 @@
+{"default":{"identifier":"default","description":"TrishDesign cần dialog (open/save design-token JSON) và opener (mở file export). Không fs plugin — IO qua std::fs trong Rust. Không shell, không http.","local":true,"windows":["main"],"permissions":["core:default","dialog:default","dialog:allow-open","dialog:allow-save","opener:default","opener:allow-open-path"]}}

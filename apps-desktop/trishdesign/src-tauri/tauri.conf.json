@@ -1,0 +1,50 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "TrishDesign",
+  "version": "2.0.0-alpha.1",
+  "identifier": "vn.trishteam.design",
+  "build": {
+    "beforeDevCommand": "pnpm dev",
+    "devUrl": "http://localhost:1438",
+    "beforeBuildCommand": "pnpm build",
+    "frontendDist": "../dist"
+  },
+  "app": {
+    "windows": [
+      {
+        "title": "TrishDesign — Color palette & design token",
+        "width": 1280,
+        "height": 840,
+        "minWidth": 960,
+        "minHeight": 560,
+        "resizable": true,
+        "center": true
+      }
+    ],
+    "security": {
+      "csp": "default-src 'self' ipc: http://ipc.localhost; img-src 'self' data: asset: http://asset.localhost; style-src 'self' 'unsafe-inline'; script-src 'self'"
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": [
+      "msi",
+      "nsis",
+      "dmg",
+      "deb",
+      "appimage"
+    ],
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.icns",
+      "icons/icon.ico"
+    ],
+    "category": "DeveloperTool",
+    "copyright": "© 2026 TrishTEAM",
+    "shortDescription": "Quản lý color palette + design token, AI gợi ý palette WCAG-compliant",
+    "longDescription": "TrishDesign — xây scale màu 50..950 theo chuẩn Tailwind, check contrast WCAG 2.1 (AA/AAA), build harmony complementary/triadic/analogous/tetradic, gợi ý palette hoàn chỉnh từ 1 hex base với target mode (light/dark/brand), export ra CSS custom properties, Tailwind config, Figma Tokens JSON, SCSS map. Alpha local; cross-device sync dời 14.4.4.b.",
+    "publisher": "TrishTEAM"
+  }
+}

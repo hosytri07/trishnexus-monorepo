@@ -32,6 +32,12 @@ dev = [
 [tool.setuptools.packages.find]
 where = ["src"]
 
+[tool.pytest.ini_options]
+# Thêm src/ vào PYTHONPATH để pytest import package chạy in-place,
+# không cần `pip install -e .` trước mỗi lần test.
+pythonpath = ["src"]
+testpaths = ["tests"]
+
 [tool.ruff]
 line-length = 100
 target-version = "py310"

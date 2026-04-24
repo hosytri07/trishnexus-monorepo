@@ -1,0 +1,1 @@
+{"default":{"identifier":"default","description":"Capabilities tối thiểu cho TrishLauncher — chỉ mở URL/file qua opener, đọc sysinfo. KHÔNG cấp fs write rộng.","local":true,"windows":["main"],"permissions":["core:default","opener:allow-open-url","opener:allow-open-path"]}}

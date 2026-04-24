@@ -1,0 +1,50 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "TrishClean",
+  "version": "2.0.0-alpha.1",
+  "identifier": "vn.trishteam.clean",
+  "build": {
+    "beforeDevCommand": "pnpm dev",
+    "devUrl": "http://localhost:1424",
+    "beforeBuildCommand": "pnpm build",
+    "frontendDist": "../dist"
+  },
+  "app": {
+    "windows": [
+      {
+        "title": "TrishClean — Dọn dẹp máy an toàn",
+        "width": 1000,
+        "height": 680,
+        "minWidth": 820,
+        "minHeight": 520,
+        "resizable": true,
+        "center": true
+      }
+    ],
+    "security": {
+      "csp": "default-src 'self' ipc: http://ipc.localhost; img-src 'self' data: asset: http://asset.localhost; style-src 'self' 'unsafe-inline'; script-src 'self'"
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": [
+      "msi",
+      "nsis",
+      "dmg",
+      "deb",
+      "appimage"
+    ],
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.icns",
+      "icons/icon.ico"
+    ],
+    "category": "Utility",
+    "copyright": "© 2026 TrishTEAM",
+    "shortDescription": "Dọn dẹp máy với undo 7 ngày",
+    "longDescription": "TrishClean quét cache, temp, download cũ và file trùng lặp. Không xoá thật ngay — file chuyển sang trash riêng, giữ 7 ngày trước khi xoá vĩnh viễn.",
+    "publisher": "TrishTEAM"
+  }
+}

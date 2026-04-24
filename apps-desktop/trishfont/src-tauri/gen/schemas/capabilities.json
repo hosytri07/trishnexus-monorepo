@@ -1,0 +1,1 @@
+{"default":{"identifier":"default","description":"TrishFont cần dialog (pick folder) + fs.read để load font bytes cho FontFace preview. Không cấp fs:write. Scope asset: cho CSS font-src.","local":true,"windows":["main"],"permissions":["core:default","dialog:default","dialog:allow-open","fs:default","fs:allow-read-file"]}}

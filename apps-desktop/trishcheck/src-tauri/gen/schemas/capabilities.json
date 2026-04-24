@@ -1,0 +1,1 @@
+{"default":{"identifier":"default","description":"TrishCheck chỉ cần core permissions — KHÔNG fs, KHÔNG shell, KHÔNG network ngoài IPC.","local":true,"windows":["main"],"permissions":["core:default"]}}

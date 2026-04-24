@@ -1,0 +1,11 @@
+node_modules/
+lib/
+coverage/
+*.log
+.firebase/
+.runtimeconfig.json
+.env
+.env.*
+# Firebase keys - NEVER commit
+serviceAccountKey*.json
+*-firebase-adminsdk-*.json

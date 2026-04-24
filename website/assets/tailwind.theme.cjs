@@ -1,0 +1,200 @@
+/* ======================================================================
+ * AUTO-GENERATED from design/tokens.v2.json — DO NOT EDIT BY HAND.
+ * Regen: python scripts/export-tokens.py
+ *
+ * Usage (tailwind.config.cjs):
+ *   const tokens = require('./assets/tailwind.theme.cjs');
+ *   module.exports = {
+ *     darkMode: 'class',
+ *     content: ['./app/**\/*.{ts,tsx}', './components/**\/*.{ts,tsx}'],
+ *     theme: { extend: tokens },
+ *   };
+ * ====================================================================== */
+
+module.exports = {
+  colors: {
+    accent: {
+      primary: '#4ADE80',
+      secondary: '#10B981',
+      gradient: 'linear-gradient(135deg, #4ADE80 0%, #10B981 100%)',
+      focus: '#4ADE80',
+    },
+    surface: {
+      bg: '#0f0e0c',
+      bg_elevated: '#1a1814',
+      card: '#1a1814',
+      row: '#1e1c18',
+      muted: 'rgba(255,255,255,0.05)',
+      hover: 'rgba(74,222,128,0.10)',
+      overlay: 'rgba(0,0,0,0.6)',
+    },
+    text: {
+      primary: '#f5f2ed',
+      secondary: '#d4cec4',
+      muted: '#a09890',
+      inverse: '#0f0e0c',
+      link: '#86efac',
+    },
+    border: {
+      subtle: 'rgba(255,255,255,0.06)',
+      default: 'rgba(255,255,255,0.08)',
+      strong: 'rgba(255,255,255,0.12)',
+      focus: '#4ADE80',
+    },
+    semantic: {
+      success: '#10B981',
+      warning: '#F59E0B',
+      danger: '#EF4444',
+      info: '#3B82F6',
+    },
+    group: {
+      primary: '#4ADE80',
+      green: '#10B981',
+      amber: '#F59E0B',
+      cyan: '#06B6D4',
+      blue: '#3B82F6',
+      purple: '#A78BFA',
+    },
+    dark: {
+      accent: {
+        primary: '#4ADE80',
+        secondary: '#10B981',
+        gradient: 'linear-gradient(135deg, #4ADE80 0%, #10B981 100%)',
+        focus: '#4ADE80',
+      },
+      surface: {
+        bg: '#0f0e0c',
+        bg_elevated: '#1a1814',
+        card: '#1a1814',
+        row: '#1e1c18',
+        muted: 'rgba(255,255,255,0.05)',
+        hover: 'rgba(74,222,128,0.10)',
+        overlay: 'rgba(0,0,0,0.6)',
+      },
+      text: {
+        primary: '#f5f2ed',
+        secondary: '#d4cec4',
+        muted: '#a09890',
+        inverse: '#0f0e0c',
+        link: '#86efac',
+      },
+      border: {
+        subtle: 'rgba(255,255,255,0.06)',
+        default: 'rgba(255,255,255,0.08)',
+        strong: 'rgba(255,255,255,0.12)',
+        focus: '#4ADE80',
+      },
+    },
+    light: {
+      accent: {
+        primary: '#059669',
+        secondary: '#047857',
+        gradient: 'linear-gradient(135deg, #059669 0%, #047857 100%)',
+        focus: '#059669',
+      },
+      surface: {
+        bg: '#f7f6f3',
+        bg_elevated: '#ffffff',
+        card: '#ffffff',
+        row: '#faf9f6',
+        muted: '#eeece7',
+        hover: 'rgba(5,150,105,0.08)',
+        overlay: 'rgba(15,14,12,0.48)',
+      },
+      text: {
+        primary: '#1a1814',
+        secondary: '#3c3833',
+        muted: '#78746e',
+        inverse: '#ffffff',
+        link: '#047857',
+      },
+      border: {
+        subtle: 'rgba(15,14,12,0.06)',
+        default: 'rgba(15,14,12,0.10)',
+        strong: 'rgba(15,14,12,0.18)',
+        focus: '#059669',
+      },
+    },
+  },
+  fontFamily: {
+    display: ['Be Vietnam Pro', 'sans-serif'],
+    body: ['Be Vietnam Pro', 'sans-serif'],
+    mono: ['JetBrains Mono', 'monospace'],
+  },
+  fontSize: {
+    xs: '11px',
+    sm: '12px',
+    base: '13px',
+    lg: '14px',
+    xl: '16px',
+    '2xl': '20px',
+    '3xl': '24px',
+    '4xl': '32px',
+    '5xl': '40px',
+  },
+  fontWeight: {
+    regular: 400,
+    medium: 500,
+    semibold: 600,
+    bold: 700,
+  },
+  lineHeight: {
+    tight: 1.25,
+    snug: 1.375,
+    normal: 1.5,
+    relaxed: 1.625,
+  },
+  spacing: {
+    '0': '0px',
+    '1': '4px',
+    '2': '6px',
+    '3': '8px',
+    '4': '10px',
+    '5': '14px',
+    '6': '18px',
+    '8': '24px',
+    '10': '32px',
+    '12': '40px',
+    '16': '56px',
+    '20': '72px',
+  },
+  borderRadius: {
+    none: '0px',
+    sm: '6px',
+    md: '8px',
+    lg: '12px',
+    xl: '16px',
+    '2xl': '20px',
+    full: '9999px',
+  },
+  boxShadow: {
+    xs: '0 1px 2px 0 rgba(0,0,0,0.20)',
+    sm: '0 1px 3px 0 rgba(0,0,0,0.30)',
+    md: '0 4px 8px 0 rgba(0,0,0,0.35)',
+    lg: '0 8px 20px 0 rgba(0,0,0,0.45)',
+    xl: '0 20px 40px 0 rgba(0,0,0,0.55)',
+    '2xl': '0 30px 60px 0 rgba(0,0,0,0.65)',
+  },
+  transitionDuration: {
+    instant: '0ms',
+    fast: '150ms',
+    normal: '240ms',
+    slow: '360ms',
+    slower: '500ms',
+  },
+  transitionTimingFunction: {
+    standard: 'cubic-bezier(0.2, 0, 0, 1)',
+    emphasize: 'cubic-bezier(0.3, 0, 0, 1)',
+    bounce: 'cubic-bezier(0.68, -0.55, 0.27, 1.55)',
+    linear: 'linear',
+  },
+  zIndex: {
+    base: '0',
+    dropdown: '100',
+    sticky: '200',
+    overlay: '300',
+    modal: '400',
+    toast: '500',
+    tooltip: '600',
+  },
+};

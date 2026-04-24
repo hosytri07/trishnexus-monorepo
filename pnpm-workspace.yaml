@@ -1,0 +1,28 @@
+# TrishTEAM monorepo — pnpm workspaces
+# Phase 14.0 (2026-04-23): đưa website + shared packages + (tương lai) 10
+# desktop app + Zalo Mini App vào chung một pnpm workspace để share code.
+
+packages:
+  # Website production (Next.js 14 App Router)
+  - 'website'
+
+  # Shared packages — domain logic, UI, data, platform adapters.
+  # Cấu trúc (sẽ populate dần):
+  #   packages/core     — Pure TS (không DOM, không React). Domain logic:
+  #                       apps catalog, search index, note model, QR codec.
+  #   packages/ui       — React component cross-platform (web + Zalo Mini App).
+  #                       Desktop app tự render bằng Qt/Tauri — re-use domain
+  #                       từ packages/core thay vì UI.
+  #   packages/data     — Firebase client/admin wrappers + Firestore
+  #                       collection paths + type-safe converters.
+  #   packages/adapters — Interface cho platform-specific: router, storage,
+  #                       navigation, notifications. Website implement bằng
+  #                       Next.js; Zalo bằng ZMP; Desktop bằng Tauri API.
+  - 'packages/*'
+
+  # Placeholder — Phase 14.2+ rebuild 10 desktop app ở đây (hoặc riêng repo
+  # nếu quyết định split sau). Thư mục chưa tồn tại, pnpm skip.
+  - 'apps-desktop/*'
+
+  # Placeholder — Phase 15 Zalo Mini App ecosystem.
+  - 'apps-zalo/*'

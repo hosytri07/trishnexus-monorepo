@@ -19,7 +19,7 @@ pip install "trishteam-core @ git+https://github.com/TrishTeam/trishnexus-monore
 
 | Submodule | Nội dung |
 |---|---|
-| `trishteam_core.auth` | Firebase login, token refresh, keyring storage |
+| `trishteam_core.auth` | Firebase login, token refresh, DPAPI/keyring storage, `session` singleton |
 | `trishteam_core.ui` | Base window, sidebar, theme, QSS generator, tokens |
 | `trishteam_core.sync` | SyncEngine, queue, conflict resolve |
 | `trishteam_core.widgets` | Card, Empty, Skeleton, Loader, Toast |
@@ -31,9 +31,13 @@ pip install "trishteam-core @ git+https://github.com/TrishTeam/trishnexus-monore
 
 ```python
 from trishteam_core.ui import BaseWindow, apply_theme
-from trishteam_core.auth import AuthManager
+from trishteam_core.auth import session
 from trishteam_core.store import Database
 
+session.init(api_key="AIza...")          # 1 lần ở main()
 app_window = BaseWindow(title="TrishDesign")
 apply_theme(app_window)
+
+if session.has_role("admin"):
+    app_window.enable_admin_menu()
 ```

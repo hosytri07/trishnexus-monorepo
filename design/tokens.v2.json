@@ -1,0 +1,221 @@
+{
+  "_meta": {
+    "name": "TrishTEAM Design Tokens v2 — 2-theme system (Dark + Light)",
+    "version": "2.1.0",
+    "description": "2 theme duy nhất: 'dark' (warm charcoal — default) và 'light' (off-white neutral). Chốt (2026-04-23 — Phase 13.5 simplify): bỏ 5 theme chỉ-để-khoe (midnight/aurora/sunset/ocean/forest/candy), giữ UX đơn giản. Rule: text phải tương phản rõ với background (WCAG AA trở lên) — dark mode text sáng trên nền tối ấm; light mode text tối trên nền trắng ngà. Typography/spacing/radius/shadow/motion/zIndex là theme-independent.",
+    "lastUpdated": "2026-04-23",
+    "roadmapRef": "docs/ROADMAP.md#phase-13--design-language-refresh-v2",
+    "compatibility": "Key 'trishwarm' giữ alias tới 'dark' (backward compat — persist file cũ user có thể chứa 'trishwarm'). Key 'candy' alias tới 'light'."
+  },
+
+  "default_theme": "dark",
+
+  "themes": {
+    "dark": {
+      "label": "Tối (Dark)",
+      "description": "Warm charcoal — tone nâu đen ấm, mặc định cho user Việt dân engineering. Text off-white ấm (#f5f2ed) trên nền tối (#0f0e0c) — WCAG AAA contrast.",
+      "mode": "dark",
+      "color": {
+        "accent": {
+          "primary":   "#667EEA",
+          "secondary": "#764BA2",
+          "gradient":  "linear-gradient(135deg, #667EEA 0%, #764BA2 100%)",
+          "focus":     "#667EEA"
+        },
+        "surface": {
+          "bg":          "#0f0e0c",
+          "bg_elevated": "#1a1814",
+          "card":        "#1a1814",
+          "row":         "#1e1c18",
+          "muted":       "rgba(255,255,255,0.05)",
+          "hover":       "rgba(102,126,234,0.10)",
+          "overlay":     "rgba(0,0,0,0.6)"
+        },
+        "text": {
+          "primary":   "#f5f2ed",
+          "secondary": "#d4cec4",
+          "muted":     "#a09890",
+          "inverse":   "#0f0e0c",
+          "link":      "#8FA5FF"
+        },
+        "border": {
+          "subtle":  "rgba(255,255,255,0.06)",
+          "default": "rgba(255,255,255,0.08)",
+          "strong":  "rgba(255,255,255,0.12)",
+          "focus":   "#667EEA"
+        }
+      }
+    },
+
+    "light": {
+      "label": "Sáng (Light)",
+      "description": "Off-white neutral — nền ngà (#f7f6f3), card trắng tinh (#ffffff), text charcoal đậm (#1a1814). Cùng hue warm với dark mode (inverse) nên logo + accent không bị lạc tone. WCAG AAA contrast cho text chính.",
+      "mode": "light",
+      "color": {
+        "accent": {
+          "primary":   "#667EEA",
+          "secondary": "#764BA2",
+          "gradient":  "linear-gradient(135deg, #667EEA 0%, #764BA2 100%)",
+          "focus":     "#667EEA"
+        },
+        "surface": {
+          "bg":          "#f7f6f3",
+          "bg_elevated": "#ffffff",
+          "card":        "#ffffff",
+          "row":         "#faf9f6",
+          "muted":       "#eeece7",
+          "hover":       "rgba(102,126,234,0.08)",
+          "overlay":     "rgba(15,14,12,0.48)"
+        },
+        "text": {
+          "primary":   "#1a1814",
+          "secondary": "#3c3833",
+          "muted":     "#78746e",
+          "inverse":   "#ffffff",
+          "link":      "#5163cf"
+        },
+        "border": {
+          "subtle":  "rgba(15,14,12,0.06)",
+          "default": "rgba(15,14,12,0.10)",
+          "strong":  "rgba(15,14,12,0.18)",
+          "focus":   "#667EEA"
+        }
+      }
+    }
+  },
+
+  "theme_aliases": {
+    "_comment": "Backward compat — persist file cũ có thể chứa 'trishwarm'/'candy'. theme_manager tự map sang 'dark'/'light'.",
+    "trishwarm": "dark",
+    "midnight":  "dark",
+    "aurora":    "dark",
+    "sunset":    "dark",
+    "ocean":     "dark",
+    "forest":    "dark",
+    "candy":     "light"
+  },
+
+  "semantic": {
+    "_comment": "Theme-independent — success/warning/danger/info colors giống nhau mọi theme.",
+    "success": "#10B981",
+    "warning": "#F59E0B",
+    "danger":  "#EF4444",
+    "info":    "#3B82F6"
+  },
+
+  "group": {
+    "_comment": "Group colors dùng cho font category, project type, v.v. Theme-independent.",
+    "primary": "#667EEA",
+    "green":   "#10B981",
+    "amber":   "#F59E0B",
+    "cyan":    "#06B6D4",
+    "blue":    "#3B82F6"
+  },
+
+  "font": {
+    "_comment": "Theme-independent — typography giống nhau mọi theme.",
+    "family": {
+      "display": "Be Vietnam Pro",
+      "body":    "Be Vietnam Pro",
+      "mono":    "JetBrains Mono"
+    },
+    "size": {
+      "xs":   "11px",
+      "sm":   "12px",
+      "base": "13px",
+      "lg":   "14px",
+      "xl":   "16px",
+      "2xl":  "20px",
+      "3xl":  "24px",
+      "4xl":  "32px",
+      "5xl":  "40px"
+    },
+    "weight": {
+      "regular":  400,
+      "medium":   500,
+      "semibold": 600,
+      "bold":     700
+    },
+    "lineHeight": {
+      "tight":   1.25,
+      "snug":    1.375,
+      "normal":  1.5,
+      "relaxed": 1.625
+    }
+  },
+
+  "space": {
+    "_comment": "Theme-independent — spacing scale dùng cho padding/margin/gap.",
+    "0":  "0px",
+    "1":  "4px",
+    "2":  "6px",
+    "3":  "8px",
+    "4":  "10px",
+    "5":  "14px",
+    "6":  "18px",
+    "8":  "24px",
+    "10": "32px",
+    "12": "40px",
+    "16": "56px",
+    "20": "72px"
+  },
+
+  "radius": {
+    "_comment": "Theme-independent — shape language nhất quán across themes.",
+    "none": "0px",
+    "sm":   "6px",
+    "md":   "8px",
+    "lg":   "12px",
+    "xl":   "16px",
+    "2xl":  "20px",
+    "full": "9999px"
+  },
+
+  "shadow": {
+    "_comment": "Dark-ready shadow — alpha cao vì nền tối cần contrast mạnh. Light theme cũng dùng được vì rgba(0,0,0,...) luôn darken.",
+    "xs": "0 1px 2px 0 rgba(0,0,0,0.20)",
+    "sm": "0 1px 3px 0 rgba(0,0,0,0.30)",
+    "md": "0 4px 8px 0 rgba(0,0,0,0.35)",
+    "lg": "0 8px 20px 0 rgba(0,0,0,0.45)",
+    "xl": "0 20px 40px 0 rgba(0,0,0,0.55)",
+    "2xl":"0 30px 60px 0 rgba(0,0,0,0.65)"
+  },
+
+  "motion": {
+    "_comment": "Theme-independent — animation timing nhất quán.",
+    "duration": {
+      "instant": "0ms",
+      "fast":    "150ms",
+      "normal":  "240ms",
+      "slow":    "360ms",
+      "slower":  "500ms"
+    },
+    "easing": {
+      "standard":  "cubic-bezier(0.2, 0, 0, 1)",
+      "emphasize": "cubic-bezier(0.3, 0, 0, 1)",
+      "bounce":    "cubic-bezier(0.68, -0.55, 0.27, 1.55)",
+      "linear":    "linear"
+    }
+  },
+
+  "zIndex": {
+    "_comment": "Layer stacking order — áp dụng cho cả web lẫn desktop modal.",
+    "base":     0,
+    "dropdown": 100,
+    "sticky":   200,
+    "overlay":  300,
+    "modal":    400,
+    "toast":    500,
+    "tooltip":  600
+  },
+
+  "icons": {
+    "_comment": "Icon library convention — xem Phase 13.2 task #68. Desktop dùng SVG từ shared/trishteam_core/icons/lucide/, Web dùng npm package lucide-react.",
+    "library": "lucide",
+    "source":  "https://lucide.dev",
+    "subset_location": "shared/trishteam_core/icons/lucide/",
+    "web_package":     "lucide-react",
+    "default_size":    "18px",
+    "default_stroke":  1.75
+  }
+}

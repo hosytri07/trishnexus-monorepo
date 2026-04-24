@@ -1,0 +1,15 @@
+{
+  "name": "@trishteam/adapters",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Platform abstraction interfaces cho TrishTEAM — mỗi host (Next.js, Tauri desktop, Zalo Mini App) implement những interface này để shared code chạy được mà không biết chi tiết platform.",
+  "type": "module",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "typescript": "5.4.5"
+  }
+}

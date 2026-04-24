@@ -45,13 +45,45 @@ if errorlevel 1 (
 )
 
 echo.
-echo   [2/2] Kiem tra file con dang do...
+echo   [2/3] Cai node_modules (pnpm install)...
+echo.
+REM Chi chay pnpm install neu co pnpm-workspace.yaml (monorepo Phase 14+)
+if exist pnpm-workspace.yaml (
+    where pnpm >nul 2>&1
+    if errorlevel 1 (
+        echo   [!] Chua cai pnpm. Chay SETUP.bat truoc.
+        pause
+        exit /b 1
+    )
+    pnpm install
+    if errorlevel 1 (
+        echo.
+        echo  --------------------------------------------
+        echo   [!] pnpm install that bai. Co the do:
+        echo       - Mat internet
+        echo       - Node version qua cu (can ^>= 18)
+        echo.
+        echo   Mo Cowork Desktop va nhan tin cho Claude de fix.
+        echo  --------------------------------------------
+        echo.
+        pause
+        exit /b 1
+    )
+) else (
+    echo   (Khong phai monorepo Node - bo qua)
+)
+
+echo.
+echo   [3/3] Kiem tra file con dang do...
 echo.
 git status --short
 echo.
 echo  ============================================
 echo     SAN SANG  --  Mo Cowork Desktop!
 echo  ============================================
+echo.
+echo   Mo chat moi -^> go: tiep tuc
+echo   Claude se doc docs/SESSION-HANDOFF.md va lam tiep.
 echo.
 echo   Cua so nay co the dong.
 echo.

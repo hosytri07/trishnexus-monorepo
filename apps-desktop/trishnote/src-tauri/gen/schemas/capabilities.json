@@ -1,0 +1,1 @@
+{"default":{"identifier":"default","description":"TrishNote chỉ cần dialog (export JSON nếu user muốn). Store mặc định ở %LocalAppData%/TrishTEAM — Rust tự tạo qua dirs crate, không cần fs plugin. Không shell, không http.","local":true,"windows":["main"],"permissions":["core:default","dialog:default","dialog:allow-open","dialog:allow-save"]}}

@@ -1,0 +1,32 @@
+{
+  "name": "@trishteam/trishdesign",
+  "version": "2.0.0-alpha.1",
+  "private": true,
+  "description": "TrishDesign — color palette + design token manager với AI enhancement tự sinh palette WCAG-compliant từ 1 màu base. Tauri 2 + @trishteam/core/design. Export CSS vars / Tailwind config / Figma Tokens / SCSS map.",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview",
+    "typecheck": "tsc --noEmit",
+    "tauri": "tauri",
+    "tauri:dev": "tauri dev",
+    "tauri:build": "tauri build"
+  },
+  "dependencies": {
+    "@trishteam/core": "workspace:*",
+    "@tauri-apps/api": "^2.0.0",
+    "@tauri-apps/plugin-dialog": "^2.0.0",
+    "@tauri-apps/plugin-opener": "^2.0.0",
+    "react": "18.3.1",
+    "react-dom": "18.3.1"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "^2.0.0",
+    "@types/react": "18.3.3",
+    "@types/react-dom": "18.3.0",
+    "@vitejs/plugin-react": "^4.3.1",
+    "typescript": "5.4.5",
+    "vite": "^5.4.0"
+  }
+}

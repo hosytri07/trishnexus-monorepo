@@ -1,0 +1,13 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "default",
+  "description": "TrishSearch cần dialog (pick notes.json / library.json / folder file text) và opener (mở file gốc bằng app mặc định OS). File IO hoàn toàn qua Rust std::fs — không cần fs plugin. Không shell, không http.",
+  "windows": ["main"],
+  "permissions": [
+    "core:default",
+    "dialog:default",
+    "dialog:allow-open",
+    "opener:default",
+    "opener:allow-open-path"
+  ]
+}

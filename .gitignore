@@ -37,3 +37,9 @@ serviceAccountKey.json
 
 # Build artifacts
 design/.tokens-cache/
+
+# Rust / Cargo
+target/
+target-desktop/
+*.rs.bk
+Cargo.lock.bk

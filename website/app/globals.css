@@ -1,0 +1,49 @@
+/*
+ * globals.css — TrishTEAM website.
+ * Import token CSS (auto-generated) TRƯỚC @tailwind để CSS vars sẵn sàng
+ * khi Tailwind base styles chạy.
+ */
+@import url('../assets/tokens.css');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/*
+ * === Font var bridge — Phase 11.1 ===
+ * tokens.css emit `--font-family-display: Be Vietnam Pro;` (literal name, không loaded
+ * qua CSS nên browser fallback về serif). layout.tsx load Be Vietnam Pro qua next/font
+ * và expose `var(--font-display)` là hashed family name đã loaded.
+ *
+ * Override token vars ở đây để chuyển hướng tới font đã loaded + fallback stack Việt.
+ * Tác dụng: mọi inline style `fontFamily: 'var(--font-family-display)'` ở bất kỳ page
+ * nào sẽ tự pick up Be Vietnam Pro, không phải sửa từng nơi.
+ */
+:root {
+  --font-family-display: var(--font-display), 'Segoe UI', system-ui, sans-serif;
+  --font-family-body: var(--font-display), 'Segoe UI', system-ui, sans-serif;
+  --font-family-mono: 'JetBrains Mono', ui-monospace, 'SF Mono', 'Consolas', monospace;
+}
+
+/* === Body defaults dùng tokens === */
+html,
+body {
+  background: var(--color-surface-bg);
+  color: var(--color-text-primary);
+  font-family: var(--font-family-body);
+  font-size: var(--font-size-base);
+  line-height: var(--font-lineHeight-normal);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Smooth theme transitions */
+html {
+  transition: background var(--motion-duration-normal) var(--motion-easing-standard);
+}
+
+/* Focus ring dùng accent */
+:focus-visible {
+  outline: 2px solid var(--color-border-focus);
+  outline-offset: 2px;
+}

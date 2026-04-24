@@ -1,0 +1,11 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "default",
+  "description": "TrishClean cần dialog (pick folder) + dialog.open cơ bản. Không cấp fs:write rộng — wrap qua command riêng để scope kỹ.",
+  "windows": ["main"],
+  "permissions": [
+    "core:default",
+    "dialog:default",
+    "dialog:allow-open"
+  ]
+}

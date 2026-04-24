@@ -1,0 +1,50 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "TrishLibrary",
+  "version": "2.0.0-alpha.1",
+  "identifier": "vn.trishteam.library",
+  "build": {
+    "beforeDevCommand": "pnpm dev",
+    "devUrl": "http://localhost:1434",
+    "beforeBuildCommand": "pnpm build",
+    "frontendDist": "../dist"
+  },
+  "app": {
+    "windows": [
+      {
+        "title": "TrishLibrary — Thư viện tài liệu + Tag AI + Cite",
+        "width": 1240,
+        "height": 820,
+        "minWidth": 960,
+        "minHeight": 560,
+        "resizable": true,
+        "center": true
+      }
+    ],
+    "security": {
+      "csp": "default-src 'self' ipc: http://ipc.localhost; img-src 'self' data: asset: http://asset.localhost; style-src 'self' 'unsafe-inline'; script-src 'self'"
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": [
+      "msi",
+      "nsis",
+      "dmg",
+      "deb",
+      "appimage"
+    ],
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.icns",
+      "icons/icon.ico"
+    ],
+    "category": "Productivity",
+    "copyright": "© 2026 TrishTEAM",
+    "shortDescription": "Thư viện tài liệu + tag auto-suggest + cite APA/IEEE (local alpha)",
+    "longDescription": "TrishLibrary — manage PDF/docx/epub library với tag auto-suggest (heuristic keyword + co-occurrence) + cite generator APA 7 / IEEE. Alpha lưu local JSON; OCR Tesseract ở 14.4.2.b, Firebase sync ở 14.4.2.c.",
+    "publisher": "TrishTEAM"
+  }
+}

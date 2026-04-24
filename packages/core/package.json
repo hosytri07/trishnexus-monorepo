@@ -1,0 +1,35 @@
+{
+  "name": "@trishteam/core",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Pure TypeScript domain logic cho TrishTEAM ecosystem — không phụ thuộc DOM/React/Node runtime cụ thể. Dùng được trên website, desktop (Tauri), Zalo Mini App, và server (Vercel functions).",
+  "type": "module",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts",
+    "./apps": "./src/apps/index.ts",
+    "./search": "./src/search/index.ts",
+    "./notes": "./src/notes/index.ts",
+    "./qr": "./src/qr/index.ts",
+    "./clean": "./src/clean/index.ts",
+    "./fonts": "./src/fonts/index.ts",
+    "./type": "./src/type/index.ts",
+    "./images": "./src/images/index.ts",
+    "./library": "./src/library/index.ts",
+    "./fulltext": "./src/fulltext/index.ts",
+    "./design": "./src/design/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "build": "tsc",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "coverage": "vitest run --coverage"
+  },
+  "devDependencies": {
+    "@vitest/coverage-v8": "^1.6.1",
+    "typescript": "5.4.5",
+    "vitest": "^1.6.1"
+  }
+}

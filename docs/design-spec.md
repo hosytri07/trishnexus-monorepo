@@ -1,114 +1,152 @@
-# TrishNexus Design Spec — Desktop UI
+# TrishTEAM Design Spec — Desktop + Agent Brief
 
-**Version:** 0.1 (draft, 2026-04-22)
-**Scope:** 7 app desktop của hệ sinh thái TrishTEAM — TrishFont, TrishLauncher, TrishDesign, TrishLibrary, TrishNote, TrishAdmin, TrishType.
-**Nguồn cảm hứng:** 2 app cũ của user (TrishFont v1.0.0 + Trish Library 1.0) — xem mô tả ở §7.
-**Nguồn tokens:** `design/tokens.json` (source of truth) → `shared/trishteam_core/ui/tokens.py` (auto-generated).
+**Version:** 2.0 (2026-04-23, Phase 13.6 — single source of truth sau khi merge `DESIGN.md`)
+**Scope:** 11 app desktop TrishTEAM (TrishLauncher / TrishFont / TrishDesign / TrishLibrary / TrishNote / TrishAdmin / TrishCheck / TrishSearch / TrishClean / TrishImage + placeholder 11) + website `trishteam.io.vn`.
+**Nguồn:**
+- **Source of truth:** `design/tokens.v2.json` (v2.1.0 — 2 theme `dark` + `light` + `theme_aliases` backward compat).
+- **QSS builder:** `shared/trishteam_core/ui/theme_registry.py` — `build_qss_from_theme(key)`.
+- **Runtime switcher:** `shared/trishteam_core/ui/theme_manager.py` — singleton `theme_manager` + signal `theme_changed(str)`.
+- **Inspiration:** 2 app Python cũ của user (`TrishFont_v1.py` + `TrishLibrary.py` trong `/mnt/uploads`).
+
+**Audience:** designer, AI agents (Claude Code / Copilot / Cursor), và dev mới vào team. Khi conflict giữa file này và code: **tokens.v2.json > theme_registry.py > file này**.
+
+**Changelog ngắn:**
+- `v2.0` (2026-04-23) — Phase 13.6. Merge `DESIGN.md` (agent brief) vào đây thành 1 file duy nhất. Rewrite palette section match warm-dark thật (bỏ cool-gray cũ v0.1). Rút 7 theme → 2 theme. Update list 11 app. Fix AppHeader 56px (không phải 48). LogPanel bỏ timestamp, dùng HTML emoji prefix.
+- `v0.1` (2026-04-22) — draft initial, cool-gray palette sai. **Archived — không dùng nữa.**
 
 ---
 
 ## 0. Triết lý
 
-1. **Compact, không "Material bloat".** Padding nhỏ, line-height chặt. Mỗi pixel phải có lý do. Lấy cảm hứng từ Figma / VS Code / Photoshop hơn là Material Design mặc định.
-2. **Dark-first.** App desktop luôn dark theme (giống IDE / design tool chuyên nghiệp). Light theme để dành, không ưu tiên.
-3. **Accent = gradient tím-xanh.** Một màu nhận diện duy nhất `#667EEA → #764BA2`. Dùng ở: CTA chính, selection, sidebar item active, focus border. Không rải ra nhiều nơi.
-4. **Emoji màu như icon.** Dùng emoji (✨ 📁 ⚡ ☑ 🗑 📋 ✓ ⚠ ✗) thay cho SVG icon set nặng. Giữ phong cách thân thiện của TrishFont v1.0.0 cũ.
-5. **Tiếng Việt first.** Font global = Segoe UI 10pt (render VN tốt trên Windows). Không bao giờ dùng font không hỗ trợ dấu.
-6. **Đồng bộ website.** Gradient, accent, semantic colors khớp `trishteam.io.vn` để user nhận ra ngay là cùng một thương hiệu.
+1. **Compact, không "Material bloat".** Padding nhỏ, line-height chặt. Lấy cảm hứng Figma / VS Code / Photoshop hơn Material Design. Mỗi pixel phải có lý do.
+2. **Warm-dark first, light phụ.** Tone nâu-đen ấm `#0f0e0c / #1a1814 / #1e1c18` — không chói mắt khi làm việc 8 tiếng. User Việt làm engineering nhìn code/bảng tính hàng giờ. Light mode là alternative cho ngoài trời / in ấn / user preference, **không phải design-first**.
+3. **Accent = gradient tím-xanh bất biến.** `#667EEA → #764BA2` ở cả dark + light. Dùng duy nhất cho: CTA chính, sidebar active, focus ring, selection. Không rải màu — giữ identity mạnh.
+4. **Tiếng Việt first.** Font primary **Be Vietnam Pro** (render VN không vỡ nét khi bold), fallback Segoe UI. KHÔNG dùng font không hỗ trợ dấu.
+5. **Lucide icons, không emoji cho icon chức năng.** Button / sidebar / toolbar dùng `qicon("settings")` từ `trishteam_core.icons`. Emoji chỉ dùng làm **prefix log message** (✅ ⚠ ❌ ℹ) + wordmark brand (`✨ TrishFont`).
+6. **Đồng bộ website.** Gradient + accent + semantic colors xuất sang `tokens.css` (CSS vars) + `tailwind.config.theme.mjs` để `trishteam.io.vn` dùng identical palette.
 
 ---
 
-## 1. Palette
+## 1. Palette — 2 theme
 
-### 1.1 Accent (dùng cho CTA, selection, focus)
+Hệ có **2 theme** (Phase 13.5 rút từ 7):
+
+| Key | Label VN | Mode | Default |
+|---|---|---|---|
+| `dark` | Tối (Dark) | dark | ✅ |
+| `light` | Sáng (Light) | light | — |
+
+**Legacy aliases (backward compat):** persist file cũ chứa `trishwarm` / `midnight` / `aurora` / `sunset` / `ocean` / `forest` auto-map sang `dark`; `candy` → `light`. User upgrade từ Phase 13.3/13.4 không crash. Alias table trong `design/tokens.v2.json#theme_aliases`.
+
+### 1.1 Accent — shared giữa 2 theme
+
 | Token | Hex | Dùng ở |
 |---|---|---|
-| `accent.primary` | `#667EEA` | Focus border, selection bg, link |
+| `accent.primary` | `#667EEA` | Focus border, selection bg, link, icon stroke |
 | `accent.secondary` | `#764BA2` | Gradient stop thứ 2 |
-| `accent.gradient` | `linear-gradient(135deg, #667EEA 0%, #764BA2 100%)` | CTA chính, sidebar active item, header emphasis |
+| `accent.gradient` | `linear-gradient(135deg, #667EEA 0%, #764BA2 100%)` | CTA chính, sidebar active, AppHeader emphasis |
 
-### 1.2 Dark surface (nền)
+### 1.2 Dark theme (default)
+
 | Token | Hex | Dùng ở |
 |---|---|---|
-| `DARK.surface.bg` | `#0F1419` | Nền chính toàn cửa sổ |
-| `DARK.surface.bg_elevated` | `#151B23` | Title bar, header, footer, sidebar |
-| `DARK.surface.card` | `#1F2937` | CardGroup body, nền các panel nổi |
-| `DARK.surface.muted` | `#111827` | QLineEdit, ô nhập, nhóm item nested |
-| `DARK.surface.hover` | `#263241` | Hover state cho button ghost / list item |
-| `DARK.surface.overlay` | `rgba(0,0,0,0.6)` | Modal backdrop |
+| `surface.bg` | `#0f0e0c` | Nền chính window (warm black) |
+| `surface.bg_elevated` | `#1a1814` | Card, dialog, header, sidebar (warm card) |
+| `surface.row` | `#1e1c18` | List row, nested group, input bg (warm row) |
+| `surface.muted` | rgba(255,255,255,0.05) | Input muted, disabled bg |
+| `surface.hover` | rgba(255,255,255,0.08) | Button ghost hover, row hover |
+| `text.primary` | `#f5f2ed` | Tiêu đề, body chính (warm off-white) |
+| `text.secondary` | `#d4cec4` | Subtitle, label |
+| `text.muted` | `#a09890` | Placeholder, version label, counter |
+| `border.default` | rgba(255,255,255,0.08) | Card edge, divider |
+| `border.subtle` | rgba(255,255,255,0.04) | Row separator |
+| `border.focus` | `#667EEA` | Focus ring 2px |
 
-### 1.3 Dark text
+### 1.3 Light theme
+
 | Token | Hex | Dùng ở |
 |---|---|---|
-| `DARK.text.primary` | `#F9FAFB` | Tiêu đề, text chính |
-| `DARK.text.secondary` | `#D1D5DB` | Label, text phụ |
-| `DARK.text.muted` | `#9CA3AF` | Placeholder, hint, counter, version label |
-| `DARK.text.inverse` | `#111827` | Text trên nền gradient sáng |
-| `DARK.text.link` | `#8FA5FF` | Link dark-mode-friendly |
+| `surface.bg` | `#f7f6f3` | Nền chính window (warm off-white) |
+| `surface.bg_elevated` | `#ffffff` | Card, dialog, header |
+| `surface.row` | `#f0eee9` | List row, nested group |
+| `surface.muted` | rgba(0,0,0,0.04) | Input muted |
+| `surface.hover` | rgba(0,0,0,0.06) | Button hover |
+| `text.primary` | `#1a1814` | Body text (warm charcoal) |
+| `text.secondary` | `#4a4540` | Subtitle |
+| `text.muted` | `#8a8280` | Placeholder, hint |
+| `border.default` | rgba(0,0,0,0.08) | Card edge |
+| `border.subtle` | rgba(0,0,0,0.04) | Row separator |
+| `border.focus` | `#667EEA` | Focus ring |
 
-### 1.4 Dark border
+**Contrast:** dark text/bg = ~15:1 (WCAG AAA), light text/bg = ~14:1 (WCAG AAA). Không giảm dưới 4.5:1 (AA minimum) cho bất kỳ text-on-surface pair nào.
+
+### 1.4 Semantic — theme-independent
+
 | Token | Hex | Dùng ở |
 |---|---|---|
-| `DARK.border.subtle` | `#1F2937` | Divider mảnh trong panel |
-| `DARK.border.default` | `#374151` | Viền card, input, button ghost |
-| `DARK.border.strong` | `#4B5563` | Viền nhấn, scrollbar handle |
-| `DARK.border.focus` | `#667EEA` | Border khi focus input |
+| `success` | `#10B981` | Log ✅, badge OK, progress done |
+| `warning` | `#F59E0B` | Log ⚠, badge pending |
+| `danger` | `#EF4444` | Log ❌, delete button, error border |
+| `info` | `#3B82F6` | Log ℹ, notification neutral |
 
-### 1.5 Semantic (trạng thái, dùng chung light/dark)
-| Token | Hex | Dùng ở |
+### 1.5 Group colors — theme-independent (CardGroup stripe)
+
+| Variant | Hex | Dùng cho |
 |---|---|---|
-| `success` | `#10B981` | Log ✓, badge OK, progress done |
-| `warning` | `#F59E0B` | Log ⚠, badge chưa cấu hình |
-| `danger` | `#EF4444` | Log ✗, delete button, error border |
-| `info` | `#3B82F6` | Log i, notification neutral |
+| `primary` | `#667EEA` | Unicode font group, default category |
+| `green` | `#10B981` | VNI, success category |
+| `amber` | `#F59E0B` | TCVN3, warning category |
+| `cyan` | `#06B6D4` | VietwareX, info category |
+| `blue` | `#3B82F6` | AutoCAD, technical category |
+| `danger` | `#EF4444` | Error, restricted category |
+
+**Quy tắc:** stripe color KHÔNG thay đổi khi đổi theme — user cần recognize nhóm file dù ở dark hay light.
 
 ---
 
 ## 2. Typography
 
-| Token | Value | Dùng ở |
-|---|---|---|
-| `FONT_STACK_BODY` | `"Segoe UI", "Be Vietnam Pro", "DM Sans", Arial, sans-serif` | Toàn bộ UI |
-| `FONT_STACK_MONO` | `"Cascadia Code", "JetBrains Mono", "Consolas", monospace` | LogPanel, code block, path display |
-| Global base size | **10pt** (PyQt setFont), tương đương ~13px | Mọi widget |
+- **Family:** Be Vietnam Pro (display + body — test VN bold OK), JetBrains Mono / Cascadia Code (mono). Global base: `QFont("Be Vietnam Pro", 10)` = ~13px, StyleHint `SansSerif` fallback.
+- **Scale (px):** 11 / 12 / **13 (base)** / 14 / 16 / 20 / 24 / 32 / 40.
+- **Weights:** 400 (regular) / 500 (medium) / 600 (semibold) / 700 (bold).
+- **Line-height:** 1.25 heading, 1.5 body, 1.625 long-form markdown.
+- **Brand wordmark:** `✨ Trish<b>Xxxx</b>` — emoji + nửa sau bold. Render HTML-aware qua `AppHeader(name_is_html=True)`.
 
-### 2.1 Role → size/weight (dùng class QFont property, không hardcode từng nơi)
+### 2.1 Roles (dùng QSS property `role` hoặc helper function)
 
-| Role | Size | Weight | Ghi chú |
+| Role | Size | Weight | Dùng ở |
 |---|---|---|---|
-| `app-title` | 13pt | 700 (bold) | AppHeader title, logo text |
-| `app-version` | 9pt | 400 | Version label cạnh title |
-| `h1` | 12pt | 700 | Section header trong panel lớn |
-| `h2` | 11pt | 600 | Sub-section, card group header |
-| `body` | 10pt | 400 | Default |
+| `app-title` | 13pt | 700 | AppHeader brand text |
+| `app-version` | 11px | 400 | Version label (muted) |
+| `h1` | 16pt | 700 | Section header panel lớn |
+| `h2` | 13pt | 600 | Card group header |
+| `body` | 10pt | 400 | Default text |
 | `body-emphasis` | 10pt | 600 | Label quan trọng, file count |
 | `caption` | 9pt | 400 | Footer, counter, hint |
 | `button` | 10pt | 600 | Button label |
 | `mono` | 9pt | 400 | Log entry, path display |
 
-**Quy tắc:** KHÔNG dùng font-size inline ở QSS hay widget. Tạo helper `apply_role(widget, "h1")` trong `trishteam_core/ui/typography.py` (sẽ thêm ở Phase 2).
+**Quy tắc:** KHÔNG hardcode `font-size: Npx` trong QSS widget code. Dùng token `FONT.size.*` từ `tokens.py` hoặc `setProperty("role", "...")` + QSS rule.
 
 ---
 
 ## 3. Spacing scale
 
-Dùng lại `SPACE` từ `tokens.py` — giữ compact:
-
 | Token | Value | Use case |
 |---|---|---|
 | `n1` | 4px | Gap nhỏ nhất (icon ↔ text) |
 | `n2` | 8px | Gap trong row (button ↔ button) |
-| `n3` | 12px | Padding button subtle, gap section ngắn |
-| `n4` | 16px | Padding card nội dung, gap chuẩn |
+| `n3` | 12px | Padding button subtle, section gap ngắn |
+| `n4` | 16px | Padding card, gap chuẩn |
 | `n5` | 20px | Padding button primary trái-phải |
-| `n6` | 24px | Margin giữa các khối lớn |
-| `n8` | 32px | Margin giữa section khác chức năng |
+| `n6` | 24px | Margin khối lớn |
+| `n8` | 32px | Margin section khác chức năng |
 
 **Quy tắc compact:**
-- Padding ngoài cùng window: `n4` (không `n6` trở lên).
-- Khoảng giữa label và input trong row: `n2`.
-- Khoảng giữa 2 row trong form: `n3`.
-- Button tối thiểu `min-height: 28px` (đã set trong theme.py), KHÔNG 40px kiểu Material.
+- Padding window ngoài cùng: `n4` (không `n6+`).
+- Khoảng label ↔ input trong row: `n2`.
+- Khoảng 2 row trong form: `n3`.
+- Button min-height **30px** (không 40px Material).
 
 ---
 
@@ -116,133 +154,107 @@ Dùng lại `SPACE` từ `tokens.py` — giữ compact:
 
 | Token | Value | Dùng ở |
 |---|---|---|
-| `RADIUS.sm` (6px) | Input, checkbox, badge nhỏ |
-| `RADIUS.md` (10px) | Button, sidebar item, toolbar |
-| `RADIUS.lg` (14px) | Card, panel, log block |
-| `RADIUS.xl` (20px) | Modal, AppHeader wrapper |
-| `SHADOW.sm` | Card mặc định |
-| `SHADOW.md` | Dropdown, popover |
-| `SHADOW.lg` | Modal, toast |
+| `radius.sm` | 6px | Input, checkbox, badge nhỏ |
+| `radius.md` | 10px | Button, sidebar item, toolbar |
+| `radius.lg` | 14px | Card, panel, log block |
+| `radius.xl` | 20px | Modal, AppHeader wrapper |
+| `radius.full` | 9999px | Pill badge, avatar |
 
-Dark theme: shadow nhẹ tay hơn, KHÔNG dùng shadow xl cho card (dark bg + shadow đen sẽ không thấy).
+**Shadow (dark-ready — alpha cao vì nền tối cần contrast):**
+
+| Token | Value | Dùng |
+|---|---|---|
+| `shadow.xs` | `0 1px 2px rgba(0,0,0,0.20)` | Button pressed |
+| `shadow.sm` | `0 1px 3px rgba(0,0,0,0.30)` | Card default, header |
+| `shadow.md` | `0 4px 8px rgba(0,0,0,0.35)` | Card hover, dropdown |
+| `shadow.lg` | `0 8px 20px rgba(0,0,0,0.45)` | Modal, toast |
+| `shadow.xl` | `0 20px 40px rgba(0,0,0,0.55)` | Overlay heavy |
+
+Trên light theme, alpha giảm (~0.08-0.20) — `theme_registry.build_qss_from_theme()` tự chọn.
 
 ---
 
 ## 5. Motion
 
-| Token | Duration | Dùng ở |
+| Token | Duration | Dùng |
 |---|---|---|
 | `fast` | 150ms | Hover, button press, checkbox toggle |
 | `normal` | 240ms | Panel slide, accordion expand |
 | `slow` | 360ms | Modal open/close, route transition |
 
-Easing: `standard cubic-bezier(0.2, 0, 0, 1)` cho 90% trường hợp. Bounce chỉ dùng cho toast.
+Easing: `standard cubic-bezier(0.2, 0, 0, 1)` cho 90% case. Bounce chỉ dùng cho toast.
 
 ---
 
-## 6. Widget spec (7 thành phần core)
+## 6. Widget spec — 9 thành phần core
 
-Mỗi widget nằm ở `shared/trishteam_core/src/trishteam_core/widgets/<name>.py` và export qua `widgets/__init__.py`. API Python đều dùng PyQt6.
+Code ở `shared/trishteam_core/src/trishteam_core/widgets/<name>.py`. Export qua `widgets/__init__.py`. Luôn ưu tiên widget trong đây — **không re-implement** ở app code.
 
 ### 6.1 `AppHeader`
-**Mục đích:** Thanh đầu mỗi app — logo + tên + version + 2 action ghost (Cập nhật, Giới thiệu). App public, không login → KHÔNG có status dot / Admin indicator.
 
-**Layout (trái → phải):**
-```
-[emoji_logo 18pt] [app_name — bold 13pt] [version — muted 9pt]  ────spacer────  [🔄 Cập nhật]  [ℹ Giới thiệu]
-```
+Thanh đầu mỗi app — logo + wordmark + version + action ghost. App public (không login) → KHÔNG có status dot / Admin indicator.
 
-**API:**
+**Layout:** `[logo 32×32 hoặc emoji ✨] [Trish<b>Xxx</b> 13pt bold] [v1.0.0 muted 11px] ── spacer ── [🔄 Cập nhật] [🎨 Giao diện] [ℹ Giới thiệu]`
+
+**API** (rút gọn — xem `app_header.py` docstring đầy đủ):
 ```python
 AppHeader(
     logo_emoji: str = "✨",
-    app_name: str = "TrishFont",
+    app_name: str = "TrishApp",
     version: str = "v1.0.0",
+    *,
+    logo_path: str | Path | None = None,   # PNG 32×32, ưu tiên hơn emoji
     show_update: bool = True,
     show_about: bool = True,
+    show_theme_picker: bool = True,         # Phase 13.3+
+    name_is_html: bool = False,             # để "Trish<b>Font</b>" render bold nửa sau
 )
-# Signals: updateRequested(), aboutRequested()
-# Slots: setUpdateAvailable(has_update: bool)  → khi có update, thêm dot cam cạnh icon 🔄
+# Signals: updateRequested(), aboutRequested(), themeChanged(str)
+# Slots: setUpdateAvailable(has_update: bool)
 ```
 
 **Spec visual:**
-- Background: `DARK.surface.bg_elevated` (#151B23)
-- Border-bottom: 1px `DARK.border.subtle`
-- Height: 48px (fixed)
-- Padding: 0 16px
-- `emoji_logo`: 18pt, có thể thêm glow gradient primary khi hover (optional Phase 3)
-- `app_name`: role `app-title`, color `text.primary`
-- `version`: role `app-version`, color `text.muted`, đứng sát `app_name`
-- Action button `🔄 Cập nhật` / `ℹ Giới thiệu`: variant `subtle` (nền trong, không border). Gap giữa 2 nút: `n2`.
-- Khi có update mới (`setUpdateAvailable(True)`): chèn 1 dot 6px màu `semantic.warning` (#F59E0B) ở góc trên phải của icon 🔄.
-
-**Behavior:**
-- Click `🔄 Cập nhật` → emit `updateRequested()`. App sẽ:
-  - Mở dialog `UpdateDialog` (Phase 2 sau) gồm 2 tab:
-    1. **Ứng dụng:** check GitHub release mới cho app.
-    2. **Dữ liệu font:** đồng bộ font packs mới (download từ cloud source / manual import từ folder).
-  - Mỗi tab có button `[Kiểm tra]` / `[Tải xuống]` / `[Cài đặt]`.
-- Click `ℹ Giới thiệu` → emit `aboutRequested()`. App sẽ mở dialog `AboutDialog` gồm:
-  - Logo + tên app + version
-  - Tác giả: **Trí (hosytri07)** · email hosytri07@gmail.com
-  - Website: **trishteam.io.vn**
-  - Hệ sinh thái TrishNexus: liệt kê 6 app + mô tả ngắn mỗi app (1 dòng).
-  - Copyright © 2026 TrishTeam.
-  - Button `[Đóng]`.
-
-**Reference:** TrishFont v1.0.0 cũ có status dot `Admin` — bản mới bỏ vì app public, không login. Thay bằng 2 nút ghost ở cùng vị trí.
-
----
+- Height: **56px** (fixed). Background `surface.bg_elevated`. Border-bottom `border.subtle`.
+- Padding: 0 × 16px. Layout spacing: 10px.
+- Logo image 32×32 scaled KeepAspectRatio + SmoothTransformation. Nếu không có `logo_path` → emoji 14pt.
+- Wordmark: `QFont("Be Vietnam Pro", 13, Bold)`, color `text.primary`. Render `Qt.TextFormat.RichText` nếu `name_is_html=True`.
+- Version: role `app-version`, color `#a09890` (muted warm), 11px.
+- Action buttons: `variant="ghost"`, height 30px, cursor pointer. Gap: 10px.
+- **"🎨 Giao diện" menu:** QMenu với 2 QAction exclusive-group — "Tối (Dark)" + "Sáng (Light)". Click → `theme_manager.set_theme(key, target=self.window())` (target **top-level QMainWindow**, KHÔNG phải QApplication — xem Gotcha §11.1). Broadcast stylesheet cho các top-level widget khác qua `QApplication.topLevelWidgets()`.
+- **Update pending:** `setUpdateAvailable(True)` → đổi text "🔄 Cập nhật mới •" + border `#F59E0B`.
 
 ### 6.2 `InlineToolbar`
-**Mục đích:** Row input + action, dùng cho path picker, search bar, filter.
 
-**Layout mẫu (TrishFont — Font folder picker):**
-```
-[📁] [Font:] [_________ path stretch _________] [Quét lại] [Chọn...]
-```
+Row input + action — path picker, search bar, filter.
 
-**Layout mẫu (Library — search):**
-```
-[📍 Đang xem:] [_______ path stretch _______]   [🔍 Tìm kiếm:] [______ stretch ______] [|] [Tất cả (*.*)  ▾]
-```
+**Layout:** `[📁] [Font:] [_____ path stretch _____] [Quét lại] [Chọn...]`
 
 **API:**
 ```python
 InlineToolbar(
-    fields: list[ToolbarField],  # mỗi field là icon + label + input/dropdown
-    actions: list[QPushButton],  # button bên phải
-    divider_before_last_field: bool = False,  # cho trường hợp Library
+    fields: list[ToolbarField],
+    actions: list[QPushButton],
+    divider_before_last_field: bool = False,
 )
 
 @dataclass
 class ToolbarField:
-    icon: str          # emoji "📁"
-    label: str         # "Font:"
-    widget: QWidget    # QLineEdit | QComboBox
+    icon: str                # emoji "📁"
+    label: str               # "Font:"
+    widget: QWidget          # QLineEdit | QComboBox
     stretch: int = 1
 ```
 
-**Spec visual:**
-- Background: `DARK.surface.bg_elevated`
-- Border-bottom: 1px `DARK.border.subtle`
-- Padding: 8px 12px
-- Gap giữa icon ↔ label: `n1` (4px)
-- Gap giữa label ↔ input: `n2` (8px)
-- Gap giữa field ↔ field: `n4` (16px)
-- Gap giữa field cuối ↔ action: `n3` (12px)
-- Action button: variant `ghost` (nền trong, viền mảnh), không gradient để không tranh focus với CTA chính.
-- `divider_before_last_field=True` → chèn `|` text muted trước field cuối (kiểu Library cũ tách "Đang xem" và "Tìm kiếm").
-
----
+**Visual:**
+- Background `surface.bg_elevated`. Border-bottom `border.subtle`.
+- Padding: 10 × 18px. Gap icon↔label 4px, label↔input 8px, field↔field 16px, field↔action 12px.
+- Action button `variant="ghost"` — không gradient (tránh tranh focus với CTA).
 
 ### 6.3 `ActionBar`
-**Mục đích:** Row action đáy panel — bulk select + CTA chính.
 
-**Layout:**
-```
-[☑ Chọn tất cả] [☐ Bỏ chọn] [Đã chọn: N file]  ────spacer────  [⚡ Cài đặt N font đã chọn (gradient)]
-```
+Row action đáy panel — bulk select + CTA chính.
+
+**Layout:** `[Chọn tất cả] [Bỏ chọn]  [Đã chọn: N file]  ── spacer ──  [⚡ Cài đặt N font đã chọn]`
 
 **API:**
 ```python
@@ -251,326 +263,280 @@ ActionBar(
     deselect_all_label: str = "Bỏ chọn",
     counter_template: str = "Đã chọn: {n} file",
     cta_label: str = "⚡ Cài đặt font đã chọn",
-    cta_icon: str = "⚡",
 )
 # Signals: selectAllRequested, deselectAllRequested, ctaClicked
-# Slots: setCounter(n: int), setCtaEnabled(enabled: bool)
+# Slots: setCounter(n), setCtaEnabled(enabled)
 ```
 
-**Spec visual:**
-- Background: `DARK.surface.bg_elevated`
-- Border-top: 1px `DARK.border.subtle`
-- Padding: 12px 16px
-- 2 nút select là checkbox styled (không phải button)
-- Counter: role `caption`, màu `text.muted`, update realtime khi user tick
-- CTA: QPushButton default (đã gradient sẵn trong theme.py). Disabled khi counter = 0 → màu `surface.muted` + text `text.muted`.
-
-**Reference:** TrishFont v1.0.0 cũ — nút "⚡ Cài đặt 123 font đã chọn" full gradient ở góc phải đáy panel.
-
----
+**Visual:**
+- Background `surface.bg_elevated`. Border-top `border.subtle`.
+- Padding: 10 × 16px.
+- 2 nút secondary (ghost + padding compact, không checkbox).
+- Counter: role `caption`, muted khi n=0, swap sang `accent.primary` bold khi n>0.
+- CTA: height 34px, gradient `accent.primary → accent.secondary`, disabled khi `counter=0` → bg `surface.muted` + text `text.muted`.
 
 ### 6.4 `CardGroup`
-**Mục đích:** Thay cho QTableWidget truyền thống — nhóm file theo folder/category, collapsible.
 
-**Layout (collapsed):**
-```
-[▶] [📁] [Tên nhóm — accent bold] [badge "4 file"]  ────spacer────  [☐ Chọn tất cả 4 file]
-```
+Nhóm file collapsible — thay QTableWidget truyền thống. Dùng cho font list, file list, category tree.
 
 **Layout (expanded):**
 ```
-[▼] [📁] [Tên nhóm — accent bold] [badge "4 file"]  ────spacer────  [☑ Chọn tất cả]
-    ├── [☑] filename_001.ttf
-    ├── [☐] filename_002.ttf
-    ├── [☑] filename_003.ttf
-    └── [☐] filename_004.ttf
+▼ 📁 AutoCAD Standard (4 file)                 [☑ Chọn tất cả 4 file]
+  ├─ ☐ iso.shx
+  ├─ ☐ romans.shx
+  ├─ ☑ simplex.shx
+  └─ ☐ complex.shx
 ```
 
 **API:**
 ```python
 CardGroup(
     name: str,
-    items: list[CardItem],      # file con
+    items: list[CardItem],
     icon: str = "📁",
+    stripe: str = "primary",    # primary|green|amber|cyan|blue|danger
     collapsed: bool = False,
 )
 
 @dataclass
 class CardItem:
     id: str
-    label: str              # tên file
+    label: str
     checked: bool = False
-    meta: str = ""          # size, type — phụ, nhỏ
-
+    meta: str = ""
 # Signals: itemToggled(id, checked), groupToggled(checked_all)
 ```
 
-**Spec visual:**
-- Container: QFrame role=`card` (đã có style trong theme.py). Background `surface.card`, border `border.subtle`, radius `lg`, padding `n4`.
-- Header row:
-    - Toggle arrow (`▶`/`▼`): QToolButton kiểu subtle, 16px.
-    - Icon folder: emoji 14pt.
-    - Name: role `h2`, color = `accent.primary` (#667EEA) — match TrishFont cũ.
-    - Badge: pill nhỏ, bg `surface.muted`, text `text.secondary`, padding 2px 8px, radius `full`, font `caption`.
-    - Checkbox "Chọn tất cả N": tri-state (unchecked / partial / checked).
-- Body (khi expanded):
-    - Indent 24px trái (thẳng hàng với icon).
-    - Mỗi row: checkbox + label + spacer + meta (muted).
-    - Row height: 28px.
-    - Hover: bg `surface.hover`.
-
-**Reference:** TrishFont v1.0.0 cũ — các nhóm "📁 AutoCAD Standard (4 file)", "📁 Vietnamese Serif (52 file)" với tên màu accent.
-
----
+**Visual:**
+- Container: `QFrame role="card"`, bg `surface.bg_elevated`, border-left **3px solid `group.<stripe>`**, radius `lg`, padding 12 × 14px.
+- Header: toggle arrow (▼/▶) màu stripe, icon 14pt, name **color stripe bold 12pt**, badge "N file" pill muted.
+- "Chọn tất cả N file" QCheckBox tristate (unchecked / partial / checked), color stripe.
+- HLine divider rgba(255,255,255,0.06) giữa header và body.
+- Body: indent 0, item dùng prefix `"  "` (2 spaces). Row height ~26px. Hover `surface.hover`.
 
 ### 6.5 `LogPanel`
-**Mục đích:** Terminal đen hiển thị log realtime — quét, cài đặt, lỗi.
+
+Terminal đáy panel — log realtime scan/install/error.
 
 **Layout:**
 ```
-╔═════════════════════════════════╗
-║ 📋 Nhật ký cài đặt    [🗑 Xóa log] ║  ← header
-╠═════════════════════════════════╣
-║ [10:23:04] ✓ Quét xong: 11 nhóm, 1716 file   ║
-║ [10:23:15] ⚡ Bắt đầu cài đặt 23 font...      ║  ← body monospace
-║ [10:23:17] ✓ Cài đặt: Roboto-Regular.ttf     ║
-║ [10:23:18] ⚠ Bỏ qua (đã tồn tại): Arial.ttf  ║
-║ [10:23:20] ✗ Lỗi: không có quyền ghi         ║
-╚═════════════════════════════════╝
+📋 Nhật ký cài đặt                                      [🗑 Xóa log]
+────────────────────────────────────────────────────────────────
+✅ Quét xong: 11 nhóm, 1716 file
+⚡ Bắt đầu cài đặt 23 font...
+✅ Cài đặt: Roboto-Regular.ttf
+⚠ Bỏ qua (đã tồn tại): Arial.ttf
+❌ Lỗi: không có quyền ghi
 ```
 
 **API:**
 ```python
-LogPanel(title: str = "Nhật ký", icon: str = "📋")
-
-# Methods
-log_info(msg: str)
-log_success(msg: str)   # prefix ✓, màu success
-log_warn(msg: str)      # prefix ⚠, màu warning
-log_error(msg: str)     # prefix ✗, màu danger
-clear()
+LogPanel(title: str = "Nhật ký", icon: str = "📋", show_timestamp: bool = False)
+# Methods: log_info, log_success, log_warn, log_error, log_separator, clear
+# Progress: set_progress(done, total) — optional QProgressBar
 ```
 
-**Spec visual:**
-- Header: height 32px, bg `surface.bg_elevated`, border-bottom `border.subtle`
-- Header title trái: icon + role `body-emphasis`
-- Header action phải: "🗑 Xóa log" — button variant `subtle`
-- Body: QPlainTextEdit, read-only
-    - Background: `#0A0F14` (tối hơn bg chính một chút cho cảm giác "terminal")
-    - Font: FONT_STACK_MONO 9pt
-    - Padding: 8px 12px
-    - Color per level:
-        - success `#10B981` (xanh lá)
-        - warning `#F59E0B` (vàng)
-        - danger `#EF4444` (đỏ)
-        - info `#D1D5DB` (secondary — xám sáng)
-    - Timestamp prefix `[HH:MM:SS]` màu `text.muted`
-- Auto-scroll xuống khi có log mới.
-- Radius bao ngoài: `RADIUS.md`, border `border.subtle` 1px.
-
-**Reference:** TrishFont v1.0.0 cũ — panel đáy với dòng "✓ Quét xong: 11 nhóm, 1716 file font" màu xanh lá monospace.
-
----
+**Visual:**
+- Widget: `QTextEdit` (read-only, HTML rich text) — KHÔNG phải QPlainTextEdit.
+- Body bg `surface.row` (slightly darker than card để feel terminal), font `FONT_STACK_MONO` 9pt, padding 8 × 12px, radius `md`, border `border.subtle` 1px.
+- Color per level (HTML span): `success #10B981` / `warning #F59E0B` / `danger #EF4444` / `info text.secondary`.
+- **KHÔNG auto-timestamp.** Prefix emoji do caller gắn (`log_success("✅ xong")`). `show_timestamp=True` là opt-in khi debug.
+- Auto-scroll xuống khi log mới.
 
 ### 6.6 `FooterBar`
-**Mục đích:** Thanh đáy app — branding trái + quick nav phải.
 
-**Layout:**
-```
-[TrishFont v1.0.0 · Công cụ quản lý font chuyên nghiệp]  ────spacer────  [Gần đây] [Báo cáo] [Cài đặt] [Giới thiệu]
-```
+Thanh đáy — branding trái + quick nav phải.
+
+**Layout:** `[TrishFont v1.0.0 · Công cụ quản lý font]  ── spacer ──  [Gần đây] [Cài đặt] [Giới thiệu]`
 
 **API:**
 ```python
 FooterBar(
     left_text: str = "TrishApp v1.0.0 · Tagline",
-    quick_nav: list[tuple[str, str]] = [],  # [(label, route_name)]
+    quick_nav: list[tuple[str, str]] = [],   # [(label, route_name)]
 )
-# Signals: navRequested(route_name: str)
+# Signals: navRequested(route_name)
 ```
 
-**Spec visual:**
-- Background: `DARK.surface.bg_elevated`
-- Border-top: 1px `DARK.border.subtle`
-- Height: 36px
-- Padding: 0 16px
-- `left_text`: role `caption`, color `text.muted`
-- Quick nav: button variant `subtle`, gap `n2` giữa nút
+**Visual:** Background `surface.bg_elevated`, border-top `border.subtle`, height 36px, padding 0×16px. Left text role `caption` color `text.muted` (có viền đen nhẹ quanh text để dễ đọc — Task #55). Quick nav button `variant="subtle"`, gap 8px.
 
-**Reference:** Trish Library 1.0 — đáy có "Gần đây · Báo cáo-Xuất Excel · Cài đặt · Giới thiệu".
+### 6.7 `SplitSidebar` / `HoverSidebar`
+
+Layout 2 cột — sidebar trái (tree) + content phải. Dùng cho Library/Design/Admin.
+
+**API:** `SplitSidebar(title, icon, items: list[SidebarItem], show_add_remove=True)` — signals `itemSelected/addRequested/removeRequested`. Access `.contentArea` để gắn layout phải.
+
+**Visual:** QSplitter horizontal. Sidebar width 200px (min 180, max 360), bg `surface.bg_elevated`. Tree item height 28px, hover `surface.hover`, selected = accent gradient pill.
+
+### 6.8 `AboutDialog` / `UpdateDialog`
+
+Modal chuẩn hoá ở `widgets/dialogs.py`.
+
+- **AboutDialog:** logo + tên app + version + tác giả (Trí, hosytri07@gmail.com) + website trishteam.io.vn + list 11 app eco-system + nút Đóng.
+- **UpdateDialog:** 2 tab (Ứng dụng / Dữ liệu font) — check GitHub release + download fontpacks. Button `[Kiểm tra]` / `[Tải xuống]` / `[Cài đặt]`.
+
+### 6.9 `BaseWindow`
+
+Container chính — wrap AppHeader + content + (optional) FooterBar. Subclass QMainWindow. `BaseWindow.__init__` tự gọi `apply_theme(self)` để set stylesheet lên QMainWindow (quan trọng cho theme switch — xem §11.1).
 
 ---
 
-### 6.7 `SplitSidebar`
-**Mục đích:** Layout 2 cột — sidebar trái (tree/list) + content panel phải. Dùng cho các app có navigation ngang hàng (Library, Design, Excel).
-
-**Layout:**
-```
-┌─────────────────┬────────────────────────────────────────────┐
-│ 📚 Thư viện     │                                            │
-│ ├ Font          │                                            │
-│ ├ Vector        │          [Content panel]                   │
-│ └ Ảnh           │                                            │
-│                 │                                            │
-│ [+ Thêm] [- Gỡ] │                                            │
-└─────────────────┴────────────────────────────────────────────┘
-```
-
-**API:**
-```python
-SplitSidebar(
-    title: str = "Các Thư Viện Của Bạn",
-    icon: str = "📚",
-    items: list[SidebarItem],
-    show_add_remove: bool = True,
-)
-
-@dataclass
-class SidebarItem:
-    id: str
-    label: str
-    icon: str = ""
-    children: list[SidebarItem] = field(default_factory=list)
-
-# Signals: itemSelected(id), addRequested(), removeRequested(id)
-# Access: .contentArea -> QWidget để bên app dùng setLayout()
-```
-
-**Spec visual:**
-- QSplitter horizontal, handle 1px `border.subtle`.
-- Sidebar width mặc định: 240px (min 180, max 360).
-- Sidebar bg: `surface.bg_elevated` (cùng role `sidebar` đã có QSS).
-- Title row: role `h2`, padding 12px 16px.
-- Tree items dùng QTreeWidget styled (borderless, row height 28, hover `surface.hover`, selected gradient).
-- Action row dưới: 2 button ghost nhỏ `[+ Thêm]` `[- Gỡ]`, gap `n2`.
-- Content area phải: `surface.bg` mặc định, padding 0 (để app tự quyết).
-
-**Reference:** Trish Library 1.0 — sidebar trái "Các Thư Viện Của Bạn" + file explorer phải.
-
----
-
-## 7. Mô tả 2 screenshot reference (user đã gửi trong chat, không attach vào repo)
-
-### 7.1 TrishFont v1.0.0 (app cũ user làm)
-
-**Từ trên xuống dưới:**
-
-1. **Header row:** `✨ TrishFont v1.0.0` bên trái + `[🔄 Cập nhật] [ℹ Giới thiệu]` bên phải. Nền tối, cao ~48px. (Bản cũ có dot `Admin` — **bản mới bỏ** vì app public, không login.)
-
-2. **InlineToolbar (path input):**
-   - `📁 Font: [D:\TRI\FONTS .........................] [Quét lại] [Chọn...]`
-   - `🎯 AutoCAD Fonts: [C:\Program Files\AutoCAD\Fonts ...] [Chọn]`
-   - 2 row, mỗi row 1 path + button ghost.
-
-3. **ActionBar (bulk select) nằm trên nội dung:**
-   - `[☑ Chọn tất cả] [☐ Bỏ chọn]   Đã chọn: 23 file     [⚡ Cài đặt 23 font đã chọn]` (nút gradient lớn).
-
-4. **Scroll area nội dung — nhiều CardGroup:**
-   - Mỗi nhóm là 1 card expandable:
-     - `▼ 📁 AutoCAD Standard (4 file)                        [☑ Chọn tất cả 4 file]`
-     - Tên nhóm "AutoCAD Standard" in **màu accent `#667EEA`**, bold.
-     - Body list 4 file mỗi dòng có checkbox đầu dòng.
-   - Các nhóm tiếp theo: `📁 Vietnamese Serif (52 file)`, `📁 Display Modern (18 file)` v.v.
-
-5. **LogPanel đáy:**
-   - Header: `📋 Nhật ký cài đặt` — bên phải `[🗑 Xóa log]`.
-   - Body monospace đen:
-     - `[10:22:15] ✓ Quét xong: 11 nhóm, 1716 file font` (xanh lá)
-     - `[10:23:04] ⚡ Bắt đầu cài đặt 23 font đã chọn...` (trắng)
-
-### 7.2 Trish Library 1.0 (app cũ user làm)
-
-**Từ trên xuống dưới:**
-
-1. **Header mảnh:** `📚 Trish Library 1.0  ·  1.0.0` (header thấp hơn TrishFont, không có status dot).
-
-2. **InlineToolbar (2 field cùng row):**
-   - `📍 Đang xem: [D:\Thư viện\Font Việt] | 🔍 Tìm kiếm: [_________]  [Tất cả (*.*)  ▾]`
-   - Divider `|` giữa 2 field.
-
-3. **Body = SplitSidebar:**
-   - **Trái (sidebar ~240px):** title `📚 Các Thư Viện Của Bạn`, list thư viện đã thêm. Đáy có 2 nút nhỏ `[+ Thêm]` `[- Gỡ]`.
-   - **Phải (content):** file explorer dạng bảng với các cột: `Name | Size | Type | Date | Ghi chú | Link QR`.
-   - Row trong bảng có hover subtle.
-
-4. **Footer action bar (trên FooterBar chính):**
-   - `💾 Lưu Thông tin` — button gradient lớn chính giữa đáy content area.
-
-5. **FooterBar cuối cùng:**
-   - `Trish Library 1.0 · Quản lý thư viện cá nhân`  —  `[Gần đây] [Báo cáo-Xuất Excel] [Cài đặt] [Giới thiệu]`
-
----
-
-## 8. Áp dụng cho TrishFont (layout đích Phase 2)
+## 7. Layout reference — TrishFont
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│ AppHeader:  ✨ TrishFont v1.0.0       [🔄 Cập nhật] [ℹ Giới thiệu]│
+│ AppHeader 56px: ✨ Trish**Font** v1.0.0  [🔄] [🎨] [ℹ]          │
 ├─────────────────────────────────────────────────────────────────┤
-│ InlineToolbar: 📁 Font: [.....path.....] [Quét lại] [Chọn...]   │
-│                🎯 AutoCAD: [.....path.....]           [Chọn]    │
+│ InlineToolbar: 📁 Font: [...] [Quét lại] [Chọn...]              │
+│                🎯 AutoCAD: [...] [Chọn]                         │
 ├─────────────────────────────────────────────────────────────────┤
-│ ActionBar:  ☑ Tất cả  ☐ Bỏ chọn   Đã chọn: 0   [⚡ Cài đặt]    │
+│ ActionBar: [Chọn tất cả] [Bỏ chọn]  Đã chọn: 0  [⚡ Cài đặt]    │
 ├─────────────────────────────────────────────────────────────────┤
 │                                                                 │
-│  ▼ 📁 AutoCAD Standard (4 file)        [☑ Chọn tất cả 4]        │
-│     ☐ iso.shx                                                   │
-│     ☐ romans.shx                                                │
-│     ...                                                         │
+│  ▼ 📁 AutoCAD Standard (4 file)     [☑ Chọn tất cả 4]           │
+│     ☐ iso.shx        ☐ romans.shx                              │
+│     ☑ simplex.shx    ☐ complex.shx                             │
 │                                                                 │
-│  ▶ 📁 Vietnamese Serif (52 file)       [☐ Chọn tất cả 52]       │
-│  ▶ 📁 Display Modern (18 file)         [☐ Chọn tất cả 18]       │
+│  ▶ 📁 Vietnamese Serif (52 file)    [☐ Chọn tất cả 52]          │
+│  ▶ 📁 Display Modern (18 file)      [☐ Chọn tất cả 18]          │
 │                                                                 │
 ├─────────────────────────────────────────────────────────────────┤
-│ LogPanel (180px):                                               │
+│ LogPanel 140px:                                                 │
 │   📋 Nhật ký cài đặt                              [🗑 Xóa log]  │
-│   [10:23:04] ✓ Quét xong: 11 nhóm, 1716 file font               │
+│   ✅ Quét xong: 11 nhóm, 1716 file                              │
 ├─────────────────────────────────────────────────────────────────┤
-│ FooterBar: TrishFont v1.0.0 · Quản lý font chuyên nghiệp        │
-│                           [Gần đây] [Cài đặt] [Giới thiệu]      │
+│ FooterBar 36px: TrishFont v1.0.0 · Quản lý font chuyên nghiệp  │
+│                               [Gần đây] [Cài đặt] [Giới thiệu]  │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
-Preview view (khi user chọn 1 font để xem) mở trong **split pane riêng hoặc tab mới**, không overlay lên layout này — giữ bản rewrite session trước (QListWidget + QLabel preview) nhưng wrap trong `AppHeader` + `FooterBar` để đồng nhất.
-
 ---
 
-## 9. Mapping token → QSS property (reference nhanh khi code)
+## 8. Token → QSS mapping (reference nhanh)
 
-| Context | Property | Token |
+| Context | CSS Property | Token path |
 |---|---|---|
-| Window bg | `background-color` | `DARK.surface.bg` |
-| Header/Footer/Toolbar bg | `background-color` | `DARK.surface.bg_elevated` |
-| Card bg | `background-color` | `DARK.surface.card` |
-| Input bg | `background-color` | `DARK.surface.muted` |
-| Hover bg | `background-color` | `DARK.surface.hover` |
-| Primary text | `color` | `DARK.text.primary` |
-| Secondary text | `color` | `DARK.text.secondary` |
-| Muted text | `color` | `DARK.text.muted` |
-| Card border | `border: 1px solid` | `DARK.border.subtle` |
-| Input border | `border: 1px solid` | `DARK.border.default` |
-| Focus border | `border: 2px solid` | `DARK.border.focus` |
-| Primary CTA bg | `background: qlineargradient(...)` | accent primary → secondary |
+| Window bg | `background-color` | `surface.bg` |
+| Header / Toolbar / Sidebar bg | `background-color` | `surface.bg_elevated` |
+| Input / Row bg | `background-color` | `surface.row` |
+| Hover bg | `background-color` | `surface.hover` |
+| Primary text | `color` | `text.primary` |
+| Secondary text | `color` | `text.secondary` |
+| Muted text | `color` | `text.muted` |
+| Card border | `border: 1px solid` | `border.default` |
+| Divider | `border-top: 1px solid` | `border.subtle` |
+| Focus ring | `border: 2px solid` | `border.focus` (= `accent.primary`) |
+| Primary CTA bg | `background: qlineargradient(...)` | `accent.primary → accent.secondary` |
 | Selection bg | `selection-background-color` | `accent.primary` |
-| Log success | `color` | `semantic.success` |
-| Log warning | `color` | `semantic.warning` |
-| Log danger | `color` | `semantic.danger` |
+| Log success / warn / error / info | `color` | `semantic.success/warning/danger/info` |
+| CardGroup stripe | `border-left: 3px solid` | `group.<variant>` |
 
 ---
 
-## 10. Non-goals (session này KHÔNG làm)
+## 9. Do's & Don'ts
 
-- Light theme — dời sau.
-- Animation framework riêng — dùng QPropertyAnimation từng chỗ khi cần.
-- Custom title bar (frameless window + drag) — Phase sau, giữ native title bar.
-- Icon SVG set — tiếp tục dùng emoji cho đến khi user muốn upgrade.
-- Responsive / mobile — TrishNexus là desktop-only.
+### Do
+
+- Luôn dùng token refs (`text.primary`, không hardcode `#f5f2ed`).
+- Giữ wordmark `Trish<b>Xxxx</b>` consistent ở mọi AppHeader.
+- Text tiếng Việt có dấu — đã test Be Vietnam Pro render OK, KHÔNG escape.
+- Error message tiếng Việt (UX), error code tiếng Anh (khớp Firebase/SDK).
+- Log prefix emoji, **không timestamp** (chiếm chỗ không cần).
+- Semantic colors (success/warning/danger/info) + group colors giữ nguyên cross-theme.
+- Khi thêm UI mới có conditional style → đọc `theme_manager.current` thay vì assume dark.
+
+### Don't
+
+- Đừng re-implement widget đã có trong `trishteam_core.widgets`.
+- Đừng hardcode hex color — vỡ khi đổi theme.
+- Đừng dùng Lucide-react trong desktop (chỉ website). Desktop dùng `from trishteam_core.icons import qicon`.
+- Đừng dùng emoji thay icon **chức năng** (button/toolbar) — Lucide. Emoji chỉ cho log prefix + brand wordmark.
+- Đừng force theme cho user — default là `dark`, để user tự đổi.
+- Đừng tạo màu mới ngoài palette — thêm vào `tokens.v2.json` + bump version.
+- Đừng set stylesheet lên `QApplication.instance()` khi BaseWindow đã set lên QMainWindow — widget-level priority cao hơn, stylesheet app-level sẽ bị ghi đè. Luôn target `self.window()` hoặc loop `topLevelWidgets()`.
 
 ---
 
-## 11. Checklist trước khi bước sang Phase 2
+## 10. Agent prompt guide (khi sinh UI mới)
 
-- [ ] User đọc spec, confirm palette + layout 2 app ref mô tả đúng.
-- [ ] User confirm 7 widget cover đủ nhu cầu (hoặc bổ sung thêm).
-- [ ] User confirm emoji-as-icon vẫn ổn (thay vì SVG set).
-- [ ] Sau confirm → tạo file widget khung (stub) + rewrite TrishFont views.
+Khi Claude / Copilot / Cursor sinh component hoặc page:
+
+1. **Đọc trước:** `design/tokens.v2.json` + file này. Nếu component đã tồn tại trong `trishteam_core.widgets` → **dùng lại**, không re-implement.
+2. **Tokens:** `from trishteam_core.ui.tokens import TOKENS` — không hardcode color. Nếu cần palette động: `from trishteam_core.ui import theme_registry; theme_registry.get_theme("dark")`.
+3. **Icons:** `from trishteam_core.icons import qicon` — truyền name Lucide (`"settings"`, `"download"`). KHÔNG dùng emoji cho icon button.
+4. **Brand:** AppHeader `app_name="Trish<b>Font</b>", name_is_html=True`.
+5. **Theme-aware:** conditional style đọc `theme_manager.current` — đừng assume dark.
+6. **Apply theme:** `theme_manager.set_theme(key, target=self.window())` — target top-level QMainWindow, broadcast qua `QApplication.topLevelWidgets()` cho sub-window.
+7. **Error copy:** tiếng Việt, ngắn, không prefix "Error:"/"Lỗi:" — context đủ.
+8. **Log:** `trishteam_core.utils.get_logger(__name__)` + Vietnamese messages + emoji prefix.
+9. **Acceptance:** `py_compile` + smoke test `python -m <app>.app` (headless dùng `QT_QPA_PLATFORM=offscreen` nếu CI).
+
+### Không làm
+
+- Không wildcard import `from PyQt6.QtCore import Qt, *`.
+- Không call `session.login_with_password()` trong GUI thread — dùng QThread.
+- Không persist credential ngoài `token_store` (DPAPI Windows / Fernet macOS-Linux).
+- Không reference `TrishType` (app không còn trong registry — xoá khỏi Phase 13).
+- Không reference 7 theme (`midnight/aurora/sunset/ocean/forest/candy`) — đã rút Phase 13.5. Nếu gặp persist file cũ, `theme_manager` auto resolve qua alias.
+
+---
+
+## 11. Gotcha — dev must-know
+
+### 11.1 QMainWindow stylesheet priority
+
+Qt rule: stylesheet set lên **widget** (QMainWindow, QDialog, ...) thắng stylesheet set lên **QApplication**. `BaseWindow.__init__` đã gọi `apply_theme(self)` set lên QMainWindow. Nếu muốn đổi theme runtime phải target chính widget đó (`self.window()`), không phải `QApplication.instance()`. Bug Phase 13.3-13.4 fail chính vì violation rule này — fix ở Phase 13.5.
+
+### 11.2 Theme alias là 1-way
+
+Alias chỉ map `legacy → canonical` (trishwarm → dark). Persist file luôn ghi canonical (`{"theme": "dark"}`). Đừng thử reverse lookup — 6 alias đều map về `dark` gây ambiguity.
+
+### 11.3 Stripe colors theme-independent
+
+CardGroup stripe (primary/green/amber/cyan/blue/danger) lấy từ `bundle.semantic.*` + `bundle.group.primary`, **không** từ `palette.accent`. Đổi theme dark↔light stripe không đổi — user cần recognize nhóm file.
+
+### 11.4 Lazy import `theme_manager` trong widget code
+
+Trong `app_header.py`, `_open_theme_menu()` lazy-import `theme_manager` để widget test được headless (không có PyQt6 libEGL). KHÔNG chuyển sang eager import ở top.
+
+### 11.5 WCAG contrast floor
+
+Khi thêm text/bg pair mới, kiểm tra contrast ratio. Floor: 4.5:1 (AA). Hiện dark + light đều ~14-15:1 (AAA). Không ship regression xuống AA dưới.
+
+### 11.6 Candy light không hardcode rgba white
+
+`theme.py` cũ dùng `rgba(255,255,255,0.05)` cho input bg — vô hình trên nền trắng light mode. Phase 13.4 fix bằng palette tokens (`surface.muted`, `surface.row`). Widget mới phải dùng token, KHÔNG hardcode.
+
+---
+
+## 12. Responsive
+
+- **Website:** Tailwind breakpoints (`sm` 640 / `md` 768 / `lg` 1024 / `xl` 1280 / `2xl` 1536). Mobile-first. Sidebar collapse ở `md-`.
+- **Desktop:** PyQt6 — resize handler dùng `QSplitter` cho main + sidebar. Min window 960×640. Không fullscreen kiosk mode Phase 1.
+- **Density:** comfortable default. Compact mode deferred — Phase ≥14.
+
+---
+
+## 13. Non-goals (Phase 13)
+
+- Custom title bar (frameless + drag) — deferred.
+- Animation framework riêng — dùng QPropertyAnimation ad-hoc khi cần.
+- Icon SVG set mở rộng beyond Lucide — giữ subset Lucide hiện có.
+- Mobile native app — website mobile-responsive đủ.
+- Thêm theme thứ 3 (sepia/high-contrast/pastel) — deferred. Nếu cần, thêm vào `tokens.v2.json#themes` + update list_themes, không break API.
+
+---
+
+## 14. Checklist cho Phase sau
+
+- [ ] Khi thêm app thứ 12+ — update list app ở §scope + AboutDialog list.
+- [ ] Khi đổi palette — bump `tokens.v2.json` version + run contrast check.
+- [ ] Khi thêm widget mới vào `trishteam_core.widgets` — document trong §6, add vào `widgets/__init__.py` export.
+- [ ] Khi đổi API widget đã có — thêm deprecation warning, giữ backward compat tối thiểu 1 Phase.
+- [ ] Khi thêm semantic/group color — update §1.4/1.5 + QSS builder + theme registry test.
+
+---
+
+## Appendix — Archived v0.1 cool-gray palette
+
+File cũ `v0.1 (2026-04-22)` dùng cool-gray `#0F1419 / #151B23 / #F9FAFB` — **sai**, đã thay thế bằng warm palette ở v2.0. Không tham chiếu nữa. Lý do đổi: user Trí feedback "tone lạnh xám không match TrishFont v1.0 cũ (warm brown-dark)" — Phase round-2 2026-04-22 tối, xem SESSION-HANDOFF.md.

@@ -1,0 +1,44 @@
+{
+  "name": "trishteam-website",
+  "version": "0.1.0",
+  "private": true,
+  "description": "TrishTEAM landing + portal — đồng bộ tokens v2 với desktop apps. Phase 11 (Task #71).",
+  "scripts": {
+    "dev": "cross-env NEXT_TELEMETRY_DISABLED=1 WATCHPACK_POLLING=true next dev",
+    "build": "cross-env NEXT_TELEMETRY_DISABLED=1 next build",
+    "start": "cross-env NEXT_TELEMETRY_DISABLED=1 next start",
+    "lint": "next lint",
+    "tokens:sync": "python ../scripts/export-tokens.py",
+    "tokens:check": "python ../scripts/export-tokens.py --check"
+  },
+  "dependencies": {
+    "@thesvg/react": "^2.1.5",
+    "@types/qrcode": "^1.5.6",
+    "clsx": "2.1.1",
+    "firebase": "^10.14.1",
+    "firebase-admin": "^12.7.0",
+    "fuse.js": "^7.3.0",
+    "lucide-react": "0.383.0",
+    "next": "14.2.5",
+    "qrcode": "^1.5.3",
+    "react": "18.3.1",
+    "react-dom": "18.3.1",
+    "server-only": "^0.0.1",
+    "tailwind-merge": "2.3.0"
+  },
+  "devDependencies": {
+    "@types/node": "20.14.2",
+    "@types/react": "18.3.3",
+    "@types/react-dom": "18.3.0",
+    "autoprefixer": "10.4.19",
+    "cross-env": "^7.0.3",
+    "eslint": "8.57.0",
+    "eslint-config-next": "14.2.5",
+    "postcss": "8.4.38",
+    "tailwindcss": "3.4.4",
+    "typescript": "5.4.5"
+  },
+  "engines": {
+    "node": ">=18.17.0"
+  }
+}

@@ -1,0 +1,63 @@
+# Umami self-host — Phase 16.6.
+# Deploy trên VPS (trỏ `analytics.trishteam.io.vn` A record vào public IP).
+# Yêu cầu: Docker 24+, docker compose v2.
+#
+# Khởi động:
+#   cp .env.example .env
+#   # sửa POSTGRES_PASSWORD + APP_SECRET + DATABASE_URL trùng với POSTGRES_*
+#   docker compose up -d
+#   # Mở http://localhost:3000 (qua Caddy reverse proxy sẽ là https)
+#   # Đăng nhập lần đầu: admin / umami → ĐỔI PASSWORD NGAY.
+#
+# Backup: pg_dumpall -U umami > backup.sql (cron daily).
+# Uptime: Umami container nhẹ (<100MB RAM), Postgres 256MB là đủ.
+
+version: '3.9'
+
+services:
+  umami:
+    image: ghcr.io/umami-software/umami:postgresql-latest
+    container_name: umami
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgresql://umami:${POSTGRES_PASSWORD}@postgres:5432/umami
+      DATABASE_TYPE: postgresql
+      APP_SECRET: ${APP_SECRET}
+      # Disable telemetry call home.
+      DISABLE_TELEMETRY: 'true'
+      # Tracker script endpoint — đặt cùng domain để tránh CORS.
+      TRACKER_SCRIPT_NAME: script
+    ports:
+      - '127.0.0.1:3100:3000' # bind localhost — dùng Caddy/nginx làm reverse proxy ra 443
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - umami-net
+
+  postgres:
+    image: postgres:15-alpine
+    container_name: umami-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: umami
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: umami
+    volumes:
+      - umami-pgdata:/var/lib/postgresql/data
+      # init.sql tạo bảng khi container chạy lần đầu — tự động bởi image.
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U umami -d umami']
+      interval: 10s
+      timeout: 5s
+      retries: 6
+    networks:
+      - umami-net
+
+networks:
+  umami-net:
+    driver: bridge
+
+volumes:
+  umami-pgdata:
+    driver: local

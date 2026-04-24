@@ -1,0 +1,26 @@
+{
+  "name": "@trishteam/ui",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Shared React components cho TrishTEAM — dùng ở website (Next.js) và Zalo Mini App. Desktop app render bằng Qt/Tauri, re-use @trishteam/core thay vì package này.",
+  "type": "module",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "peerDependencies": {
+    "react": ">=18",
+    "react-dom": ">=18"
+  },
+  "dependencies": {
+    "@trishteam/core": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/react": "18.3.3",
+    "@types/react-dom": "18.3.0",
+    "react": "18.3.1",
+    "react-dom": "18.3.1",
+    "typescript": "5.4.5"
+  }
+}

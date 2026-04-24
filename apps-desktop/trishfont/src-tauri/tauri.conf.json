@@ -1,0 +1,50 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "TrishFont",
+  "version": "2.0.0-alpha.1",
+  "identifier": "vn.trishteam.font",
+  "build": {
+    "beforeDevCommand": "pnpm dev",
+    "devUrl": "http://localhost:1426",
+    "beforeBuildCommand": "pnpm build",
+    "frontendDist": "../dist"
+  },
+  "app": {
+    "windows": [
+      {
+        "title": "TrishFont — Font manager",
+        "width": 1100,
+        "height": 720,
+        "minWidth": 900,
+        "minHeight": 560,
+        "resizable": true,
+        "center": true
+      }
+    ],
+    "security": {
+      "csp": "default-src 'self' ipc: http://ipc.localhost; img-src 'self' data: asset: http://asset.localhost; style-src 'self' 'unsafe-inline'; script-src 'self'; font-src 'self' data: asset: http://asset.localhost"
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": [
+      "msi",
+      "nsis",
+      "dmg",
+      "deb",
+      "appimage"
+    ],
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.icns",
+      "icons/icon.ico"
+    ],
+    "category": "DeveloperTool",
+    "copyright": "© 2026 TrishTEAM",
+    "shortDescription": "Font manager với pair AI",
+    "longDescription": "TrishFont quét folder font, classify personality (serif/sans/slab/mono/display/script), và đề xuất cặp heading+body hợp nhau — tối ưu cho tiếng Việt.",
+    "publisher": "TrishTEAM"
+  }
+}

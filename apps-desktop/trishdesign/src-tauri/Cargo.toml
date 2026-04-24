@@ -1,0 +1,30 @@
+[package]
+name = "trishdesign"
+version = "2.0.0-alpha.1"
+description = "TrishDesign — color palette + design token manager local alpha"
+authors = ["TrishTEAM <hosytri77@gmail.com>"]
+edition = "2021"
+rust-version = "1.77"
+
+[[bin]]
+name = "trishdesign"
+path = "src/main.rs"
+
+[lib]
+name = "trishdesign_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+path = "src/lib.rs"
+
+[build-dependencies]
+tauri-build = { version = "2.0", features = [] }
+
+[dependencies]
+tauri = { version = "2.0", features = [] }
+tauri-plugin-dialog = "2.0"
+tauri-plugin-opener = "2.0"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+dirs = "5"
+
+[features]
+custom-protocol = ["tauri/custom-protocol"]

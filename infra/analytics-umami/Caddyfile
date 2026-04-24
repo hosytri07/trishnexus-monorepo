@@ -1,0 +1,40 @@
+# Caddy reverse proxy cho Umami — Phase 16.6.
+# Đặt file này ở /etc/caddy/Caddyfile trên VPS, hoặc dùng caddy container.
+# Caddy tự xin SSL Let's Encrypt + redirect HTTP→HTTPS + HTTP/3.
+
+analytics.trishteam.io.vn {
+	encode zstd gzip
+
+	# Block path nhạy cảm (Umami admin) nếu muốn whitelist IP:
+	#   @adminOnly not remote_ip 1.2.3.4
+	#   respond @adminOnly "Forbidden" 403
+
+	reverse_proxy 127.0.0.1:3100 {
+		# Pass thông tin client thật cho Umami geo/IP anonymize.
+		header_up X-Real-IP {remote_host}
+		header_up X-Forwarded-For {remote_host}
+		header_up X-Forwarded-Proto {scheme}
+	}
+
+	# Cache tracker script 5 phút ở edge. Khi nâng cấp Umami container,
+	# CI chạy `caddy reload` để purge.
+	@script path /script.js
+	header @script Cache-Control "public, max-age=300"
+
+	header {
+		# CSP bổ sung — Umami dashboard tự serve; không nhúng từ bên khác.
+		X-Content-Type-Options "nosniff"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		# CORS cho tracker (chỉ mình trishteam.io.vn gọi).
+		Access-Control-Allow-Origin "https://trishteam.io.vn"
+	}
+
+	# Log JSON vào file → shipped về Loki sau (Phase 16.7).
+	log {
+		output file /var/log/caddy/analytics.log {
+			roll_size 100mb
+			roll_keep 7
+		}
+		format json
+	}
+}

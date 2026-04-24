@@ -24,6 +24,7 @@ Args:
     (no args)                 — mở GUI Launcher
     launcher                  — tương đương no args
     launch <app_id> [args]    — chạy app đã cài
+    handle-url <url>          — xử lý trishteam:// deep link (Windows protocol)
     uninstall <app_id>        — gỡ app
     apps                      — liệt kê app đã cài (JSON out)
     version                   — in TrishTEAM Runtime version
@@ -35,6 +36,7 @@ Exit codes:
     2   — app chưa cài / không tìm thấy
     3   — manifest hỏng / bytecode incompat
     4   — args sai
+    5   — deep link sai format / action không được support
 """
 
 from __future__ import annotations
@@ -205,6 +207,116 @@ def cmd_apps(argv: list[str]) -> int:
     return 0
 
 
+def cmd_handle_url(argv: list[str]) -> int:
+    """Xử lý deep link `trishteam://...` do Windows shell dispatch.
+
+    Được gọi bởi registry entry:
+        HKCU\\Software\\Classes\\trishteam\\shell\\open\\command
+        = "<exe>" handle-url "%1"
+
+    Flow:
+        1. Parse URL qua trishteam_core.auth.sso_handler.parse_deep_link_url
+        2. Theo kind, dispatch sang action handler:
+           - auth     → redeem oneshot → set session → mở Launcher GUI
+           - library  → mở TrishLibrary + scroll tới item
+           - note     → mở TrishNote + open editor
+           - install  → Launcher install flow
+           - admin    → mở TrishAdmin (nếu user role admin)
+        3. Nếu session chưa init hoặc user từ chối, mở Launcher GUI login dialog.
+
+    Return code:
+        0   — handle thành công
+        5   — URL sai scheme / kind / payload
+        1   — xử lý action fail (vd redeem token expired)
+    """
+    parser = argparse.ArgumentParser(prog="TrishTEAM handle-url")
+    parser.add_argument("url", help="trishteam://... URL do Windows shell pass vào")
+    ns = parser.parse_args(argv)
+
+    from trishteam_core.auth import sso_handler
+    from trishteam_core.auth.sso_handler import SSOError
+
+    try:
+        action = sso_handler.parse_deep_link_url(ns.url)
+    except SSOError as e:
+        _print_err(f"Deep link sai format ({e.code}): {e.message}")
+        return 5
+
+    if action.kind == "auth":
+        return _handle_auth_deeplink(action)
+    # Các kind còn lại: scaffold Phase 1.6+ — mở Launcher để user thao tác.
+    # Full implementation trong Phase 2 (library/note/admin deep nav).
+    if action.kind in {"library", "note", "install", "admin"}:
+        _print_err(
+            f"Deep link '{action.kind}' sẽ chuyển sang Launcher "
+            "(full dispatch trong Phase 2)."
+        )
+        return cmd_launcher([])
+
+    _print_err(f"Deep link kind không được support: '{action.kind}'")
+    return 5
+
+
+def _handle_auth_deeplink(action: Any) -> int:
+    """Redeem oneshot token → set session → mở Launcher.
+
+    Tách ra để test — không cần QApplication để test logic redeem.
+    Thực tế khi chạy production sẽ mở Launcher GUI sau khi redeem xong.
+    """
+    from trishteam_core.auth import sso_handler
+    from trishteam_core.auth.sso_handler import SSOError
+
+    token = action.params.get("token")
+    if not token:
+        _print_err("auth deep link thiếu query 'token'.")
+        return 5
+
+    cfg = _load_cloud_config()
+    if cfg is None:
+        _print_err("Chưa cấu hình Firebase — bỏ qua redeem, mở Launcher.")
+        return cmd_launcher([])
+
+    try:
+        user = sso_handler.redeem_oneshot_to_session(token, cfg)
+    except SSOError as e:
+        _print_err(f"Redeem oneshot fail ({e.code}): {e.message}")
+        # User vẫn có thể tự login qua LoginDialog → mở Launcher.
+        return cmd_launcher([])
+    except Exception as e:
+        _print_err(f"Redeem oneshot lỗi bất ngờ: {type(e).__name__}: {e}")
+        return 1
+
+    print(f"[TrishTEAM] SSO redeem OK — uid={user.uid} role={user.role}")
+    return cmd_launcher([])
+
+
+def _load_cloud_config():
+    """Đọc CloudConfig từ env vars (bootstrap phase — production sẽ đọc từ
+    <install_root>/config/firebase.json). Trả None nếu chưa cấu hình.
+
+    Env vars:
+        TRISHTEAM_FIREBASE_PROJECT_ID (bắt buộc)
+        TRISHTEAM_FIREBASE_API_KEY (bắt buộc để sign in sau redeem)
+        TRISHTEAM_FIREBASE_REGION (tuỳ chọn — default asia-southeast1)
+        TRISHTEAM_FUNCTIONS_EMULATOR (tuỳ chọn — dev override)
+    """
+    import os
+
+    from trishteam_core.auth.sso_handler import DEFAULT_REGION, CloudConfig
+
+    project_id = os.environ.get("TRISHTEAM_FIREBASE_PROJECT_ID", "").strip()
+    api_key = os.environ.get("TRISHTEAM_FIREBASE_API_KEY", "").strip()
+    if not project_id or not api_key:
+        return None
+
+    return CloudConfig(
+        project_id=project_id,
+        region=os.environ.get("TRISHTEAM_FIREBASE_REGION", DEFAULT_REGION),
+        api_key=api_key,
+        emulator_origin=os.environ.get("TRISHTEAM_FUNCTIONS_EMULATOR", ""),
+    )
+
+
 def cmd_version(argv: list[str]) -> int:
     print(f"{RUNTIME_NAME} {RUNTIME_VERSION}")
     print(f"  Python {sys.version.split()[0]}")
@@ -221,16 +333,17 @@ def cmd_help(argv: list[str]) -> int:
 
 
 COMMANDS = {
-    "launcher":  cmd_launcher,
-    "launch":    cmd_launch,
-    "uninstall": cmd_uninstall,
-    "apps":      cmd_apps,
-    "version":   cmd_version,
-    "--version": cmd_version,
-    "-v":        cmd_version,
-    "help":      cmd_help,
-    "--help":    cmd_help,
-    "-h":        cmd_help,
+    "launcher":   cmd_launcher,
+    "launch":     cmd_launch,
+    "handle-url": cmd_handle_url,
+    "uninstall":  cmd_uninstall,
+    "apps":       cmd_apps,
+    "version":    cmd_version,
+    "--version":  cmd_version,
+    "-v":         cmd_version,
+    "help":       cmd_help,
+    "--help":     cmd_help,
+    "-h":         cmd_help,
 }
 
 

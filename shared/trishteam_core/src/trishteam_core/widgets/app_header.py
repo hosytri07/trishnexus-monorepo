@@ -16,11 +16,12 @@ from __future__ import annotations
 from pathlib import Path
 
 from PyQt6.QtCore import Qt, pyqtSignal
-from PyQt6.QtGui import QFont, QPixmap
+from PyQt6.QtGui import QAction, QActionGroup, QFont, QPixmap
 from PyQt6.QtWidgets import (
     QFrame,
     QHBoxLayout,
     QLabel,
+    QMenu,
     QPushButton,
     QWidget,
 )
@@ -37,6 +38,7 @@ class AppHeader(QFrame):
 
     updateRequested = pyqtSignal()
     aboutRequested  = pyqtSignal()
+    themeChanged    = pyqtSignal(str)  # theme_key — emit khi user pick từ menu
 
     def __init__(
         self,
@@ -47,6 +49,7 @@ class AppHeader(QFrame):
         logo_path: str | Path | None = None,
         show_update: bool = True,
         show_about: bool = True,
+        show_theme_picker: bool = True,
         # Cho phép app wrap HTML trong name (vd "Trish<b>Font</b>")
         name_is_html: bool = False,
         parent: QWidget | None = None,
@@ -114,6 +117,9 @@ class AppHeader(QFrame):
         # --- Action buttons (ghost variant) ---
         self.btn_update: QPushButton | None = None
         self.btn_about: QPushButton | None = None
+        self.btn_theme: QPushButton | None = None
+        self._theme_menu: QMenu | None = None
+        self._theme_actions: dict[str, QAction] = {}
         self._update_available = False
 
         if show_update:
@@ -124,6 +130,15 @@ class AppHeader(QFrame):
             self.btn_update.setToolTip("Kiểm tra cập nhật ứng dụng và dữ liệu font mới")
             self.btn_update.clicked.connect(self.updateRequested.emit)
             layout.addWidget(self.btn_update)
+
+        if show_theme_picker:
+            self.btn_theme = QPushButton("🎨 Giao diện")
+            self.btn_theme.setProperty("variant", "ghost")
+            self.btn_theme.setCursor(Qt.CursorShape.PointingHandCursor)
+            self.btn_theme.setFixedHeight(30)
+            self.btn_theme.setToolTip("Đổi theme màu — áp dụng ngay, không restart")
+            self.btn_theme.clicked.connect(self._open_theme_menu)
+            layout.addWidget(self.btn_theme)
 
         if show_about:
             self.btn_about = QPushButton("ℹ Giới thiệu")
@@ -159,3 +174,83 @@ class AppHeader(QFrame):
 
     def setVersion(self, version: str) -> None:
         self.version_lbl.setText(version)
+
+    # ---------- Theme picker ----------
+
+    def _open_theme_menu(self) -> None:
+        """Lazy-build + show menu đổi theme. Import theme_manager muộn để
+        widget chạy được trong test env không có tokens.v2.json."""
+        if self.btn_theme is None:
+            return
+        try:
+            from trishteam_core.ui.theme_manager import theme_manager
+            from trishteam_core.ui.theme_registry import list_themes
+        except Exception:
+            return  # module fail → im lặng (không crash)
+
+        # Build menu lần đầu; các lần sau refresh check-state.
+        if self._theme_menu is None:
+            self._theme_menu = QMenu(self)
+            self._theme_menu.setProperty("role", "theme-menu")
+            group = QActionGroup(self._theme_menu)
+            group.setExclusive(True)
+            try:
+                entries = list_themes()
+            except Exception:
+                entries = []
+            for key, label in entries:
+                act = QAction(label, self._theme_menu)
+                act.setCheckable(True)
+                act.setData(key)
+                act.triggered.connect(lambda _=False, k=key: self._on_theme_picked(k))
+                group.addAction(act)
+                self._theme_menu.addAction(act)
+                self._theme_actions[key] = act
+
+        # Sync check state với current theme
+        try:
+            current = theme_manager.current
+        except Exception:
+            current = None
+        for key, act in self._theme_actions.items():
+            act.setChecked(key == current)
+
+        # Popup ngay dưới button
+        pos = self.btn_theme.mapToGlobal(self.btn_theme.rect().bottomLeft())
+        self._theme_menu.exec(pos)
+
+    def _on_theme_picked(self, key: str) -> None:
+        """User chọn theme trong menu → delegate cho ThemeManager + emit.
+
+        Phase 13.5 fix (2026-04-23): target = **top-level window** (self.window())
+        thay vì QApplication. QMainWindow đã có stylesheet riêng (set từ
+        BaseWindow.__init__ qua apply_theme) → ghi đè QApplication stylesheet.
+        Muốn đổi màu thật sự thì phải setStyleSheet lên chính QMainWindow đó.
+
+        Ngoài ra broadcast cho mọi top-level widget khác (nếu app có nhiều cửa
+        sổ đang mở) qua QApplication.topLevelWidgets().
+        """
+        try:
+            from trishteam_core.ui.theme_manager import theme_manager
+            from trishteam_core.ui import theme_registry
+            from PyQt6.QtWidgets import QApplication
+
+            # 1. Apply lên top-level window chứa header này (chắc chắn nhìn thấy)
+            top = self.window()
+            theme_manager.set_theme(key, target=top)
+
+            # 2. Broadcast cho mọi top-level window khác đang mở
+            #    (AboutDialog, UpdateDialog, các subwindow) — re-apply stylesheet
+            #    với qss hiện tại.
+            resolved = theme_registry.resolve_alias(key)
+            qss = theme_registry.build_qss_from_theme(resolved)
+            app = QApplication.instance()
+            if app is not None:
+                for w in app.topLevelWidgets():
+                    if w is top:
+                        continue  # đã apply ở bước 1
+                    if hasattr(w, "setStyleSheet"):
+                        w.setStyleSheet(qss)
+        except Exception:
+            pass  # user thấy menu đóng — không crash
+        self.themeChanged.emit(key)

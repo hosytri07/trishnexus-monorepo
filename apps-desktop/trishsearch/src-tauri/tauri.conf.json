@@ -1,0 +1,50 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "TrishSearch",
+  "version": "2.0.0-alpha.1",
+  "identifier": "vn.trishteam.search",
+  "build": {
+    "beforeDevCommand": "pnpm dev",
+    "devUrl": "http://localhost:1436",
+    "beforeBuildCommand": "pnpm build",
+    "frontendDist": "../dist"
+  },
+  "app": {
+    "windows": [
+      {
+        "title": "TrishSearch — Tìm kiếm full-text xuyên Ghi chú / Thư viện / File",
+        "width": 1240,
+        "height": 820,
+        "minWidth": 960,
+        "minHeight": 560,
+        "resizable": true,
+        "center": true
+      }
+    ],
+    "security": {
+      "csp": "default-src 'self' ipc: http://ipc.localhost; img-src 'self' data: asset: http://asset.localhost; style-src 'self' 'unsafe-inline'; script-src 'self'"
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": [
+      "msi",
+      "nsis",
+      "dmg",
+      "deb",
+      "appimage"
+    ],
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.icns",
+      "icons/icon.ico"
+    ],
+    "category": "Productivity",
+    "copyright": "© 2026 TrishTEAM",
+    "shortDescription": "Tìm kiếm full-text BM25 xuyên ghi chú + thư viện + file text (local alpha)",
+    "longDescription": "TrishSearch — index BM25 in-memory cho ghi chú (TrishNote), thư viện tài liệu (TrishLibrary) và file text rời (md/txt/html/rtf). Query DSL: AND ngầm, -phủ định, *prefix, \"cụm từ\", note:/library:/file: nguồn. Vietnamese fold + lite stem. Alpha chạy hoàn toàn local; Tantivy WASM cho index bền ở 14.4.3.b; Firebase cross-device ở 14.4.3.c.",
+    "publisher": "TrishTEAM"
+  }
+}

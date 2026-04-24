@@ -4,8 +4,9 @@ Phase 11. Website **trishteam.com** — marketing hub + cloud UI cho các app c�
 sync (Library / Note / Search / Admin). Share design token + logo + auth với
 desktop.
 
-> Stack: **Next.js 14 App Router** + Tailwind + shadcn/ui + Firebase SDK.
+> Stack: **Next.js 14 App Router** + Tailwind + shadcn/ui + **Lucide icons** + Firebase SDK.
 > Deploy: **Vercel**.
+> Design reference: Youwee (<https://github.com/vanloctech/youwee>) — cùng stack shadcn + Lucide, cùng theme-system 6+1. Xem [`ROADMAP.md` Phase 13](ROADMAP.md#phase-13--design-language-refresh-v2).
 
 ---
 
@@ -324,7 +325,9 @@ credentials, cùng project.
 ## 11. Checklist (exit criteria Phase 11)
 
 - [ ] Khởi tạo repo `trishteam-website/` (hoặc folder `website/` trong monorepo).
-- [ ] Setup Next.js 14 + Tailwind + shadcn/ui + Firebase SDK.
+- [ ] Setup Next.js 14 + Tailwind + shadcn/ui + Lucide icons + Firebase SDK.
+- [ ] Chạy `npx shadcn@latest init` + add Card/Button/Sheet/Dialog/Sonner/DropdownMenu.
+- [ ] Wire 2-theme system (dark default + light — Phase 13.5 rút từ 7) qua Tailwind `darkMode: class` + `data-theme` attribute. Giữ bảng `theme_aliases` từ `tokens.v2.json` để link cũ (trishwarm/midnight/aurora/...) không vỡ.
 - [ ] Export tokens script + CI step.
 - [ ] Landing page với 10 app grid + logo từ registry.
 - [ ] Từng `/apps/<id>` page với screenshots + changelog + download button

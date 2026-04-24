@@ -1,0 +1,37 @@
+{
+  "name": "trishnexus-monorepo",
+  "version": "1.0.0",
+  "private": true,
+  "description": "TrishTEAM ecosystem — website (Next.js) + 10 desktop apps + Zalo Mini App, shared domain logic qua packages/*.",
+  "engines": {
+    "node": ">=18.17.0",
+    "pnpm": ">=9.0.0"
+  },
+  "packageManager": "pnpm@9.15.0",
+  "scripts": {
+    "build:packages": "pnpm -r --filter './packages/*' build",
+    "typecheck": "pnpm -r typecheck",
+    "clean": "pnpm -r exec rm -rf dist node_modules/.cache",
+    "qa:doctor": "node scripts/qa/doctor.mjs",
+    "qa:doctor:quick": "node scripts/qa/doctor.mjs --quick",
+    "qa:rust": "node scripts/qa/rust-audit.mjs",
+    "qa:build-all": "node scripts/qa/build-all.mjs",
+    "qa:build-all:vite": "node scripts/qa/build-all.mjs --skip-cargo",
+    "qa:all": "node scripts/qa/doctor.mjs --quick && node scripts/qa/rust-audit.mjs"
+  },
+  "devDependencies": {
+    "typescript": "5.4.5"
+  },
+  "workspaces": [
+    "website",
+    "packages/*",
+    "apps-desktop/*",
+    "apps-zalo/*"
+  ],
+  "dependencies": {
+    "@tauri-apps/api": "^2.10.1",
+    "@tauri-apps/plugin-opener": "^2.5.3",
+    "@vitejs/plugin-react": "^4.7.0",
+    "vite": "^5.4.21"
+  }
+}

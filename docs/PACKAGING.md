@@ -349,8 +349,7 @@ từ Phase này**:
 ### 6.1 Firebase schema (single source of truth)
 
 Tất cả collection Firestore có counterpart SQLite table. Chi tiết trong
-[`docs/WEB-DESKTOP-PARITY.md`](WEB-DESKTOP-PARITY.md) (sẽ viết task #65). Sneak
-peek:
+[`docs/WEB-DESKTOP-PARITY.md`](WEB-DESKTOP-PARITY.md) §4. Sneak peek:
 
 ```
 Firestore collection      ←→      Desktop SQLite table
@@ -529,7 +528,7 @@ automation, chỉ dùng backup manual.
 7. **#62** — AES data encryption helper trong `trishteam_core.crypto`.
 8. **#63** — NSIS uninstaller đồng bộ Control Panel.
 9. **#64** ✅ — GitHub Actions CI build `.tpack` + auto-update apps.json (xem §6.6).
-10. **#65** — `WEB-DESKTOP-PARITY.md` spec chi tiết.
+10. **#65** ✅ — `WEB-DESKTOP-PARITY.md` spec chi tiết (xem [`WEB-DESKTOP-PARITY.md`](WEB-DESKTOP-PARITY.md)).
 
 Order đề xuất: 57 → 58 → 60 → 59 → 63 → 61 → 62 → 64 → 65. Lý do: build +
 verify `.tpack` trước khi dựng Runtime lớn, vì `.tpack` là đơn vị cơ bản phải
