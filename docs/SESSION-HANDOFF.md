@@ -30,7 +30,7 @@
 
 ---
 
-## Trạng thái hiện tại (cuối session 2026-04-24 — máy nhà, **Phase 14.7.a/b/c/d done: Website /downloads + apps-registry.json public + CI release workflow**)
+## Trạng thái hiện tại (cuối session 2026-04-25 — máy nhà, **Phase 14.7 FULL DONE: Release published + Website live tại https://trishteam.io.vn**)
 
 ### Ship session này (2026-04-24 tối — máy cơ quan, tiếp theo sau 14.5.5.e)
 
@@ -107,20 +107,42 @@ Kích thước + checksum bản build hiện tại trên máy Trí:
 | `TrishLauncher_2.0.0-1_x64_en-US.msi` | 3.4 MB | `87503f93…d8196` |
 | `TrishLauncher_2.0.0-1_x64_vi-VN.msi` | 3.4 MB | `1038224a…4c3e` |
 
+**Phase 14.7.e — Fix Vercel monorepo build** (shipped 2026-04-25):
+
+- ✅ **website/next.config.mjs**: Thêm 2 config bắt buộc cho Next.js 14 + pnpm workspace TS source exports:
+    - `transpilePackages: ['@trishteam/core', '@trishteam/ui', '@trishteam/adapters', '@trishteam/data']` — bắt Next.js SWC transpile TS source của 4 workspace packages (packages export `.ts` nguồn trực tiếp, không build dist).
+    - `webpack.resolve.extensionAlias: { '.js': ['.ts', '.tsx', '.js', '.jsx'], '.mjs': ['.mts', '.mjs'], '.cjs': ['.cts', '.cjs'] }` — map `.js` import trong TS source → file `.ts/.tsx` thực tế. Cần khi TS dùng `moduleResolution: NodeNext` với `"type": "module"` (TS source viết `export * from './types.js'` nhưng file thật là `types.ts`).
+    - Thiếu 1 trong 2 → Vercel build fail với `Module not found: Can't resolve './types.js'`.
+
+**Phase 14.7 — Release published + Website deployed** (shipped 2026-04-25):
+
+- ✅ **GitHub Release `launcher-v2.0.0-1`**: Published tại `https://github.com/hosytri07/trishnexus-monorepo/releases/tag/launcher-v2.0.0-1`. 4 asset: nsis `.exe` (5.3 MB) + 2 `.msi` en-US/vi-VN (3.4 MB each) + `SHA256SUMS.txt`. Prerelease flag. Dùng phương án manual (`gh release create`) thay vì CI vì build đã có sẵn local.
+- ✅ **Vercel project**: `hosytri07/trishnexus-monorepo` → Framework Next.js → Root Directory `website` → Install Command `cd .. && pnpm install --frozen-lockfile` → env var `ENABLE_EXPERIMENTAL_COREPACK=1` (bắt Vercel dùng pnpm 9.15.0 từ `packageManager` field thay vì default pnpm 6.35.1). Production deployment auto-trigger khi push `main`.
+- ✅ **Custom domain `trishteam.io.vn`**: Đăng ký tại Tenten.vn (expire 2027-04-21). NS đã trỏ về `ns-b1/b2/b3.tenten.vn`. DNS records:
+    - `A @ 216.198.79.1` (Vercel Anycast IP mới, thay `76.76.21.21` cũ)
+    - `CNAME www 1c03c3aef23280e2.vercel-dns-017.com`
+- ✅ **Live URLs** (verified 2026-04-25):
+    - `https://trishteam.io.vn` — landing page
+    - `https://www.trishteam.io.vn` — 307 redirect về root
+    - `https://trishteam.io.vn/downloads` — download cards (OS-detect, Windows .exe primary)
+    - `https://trishteam.io.vn/apps-registry.json` — registry JSON cho launcher fetch
+    - SSL cert auto-provisioned by Vercel (Let's Encrypt)
+
 ### Đang dở — PICK UP TỪ ĐÂY (session sau)
 
-**VIỆC ĐẦU TIÊN khi session mới mở:** Trí cần làm 2 việc thủ công, Claude không thể tự làm:
+**Phase 14.7 HOÀN TẤT.** Không còn việc dở từ Phase 14.7. Session mới nên pick up theo roadmap Phase 15.x:
 
-1. **Upload release lên GitHub** — chọn 1 trong 2 phương án (xem `docs/RELEASE-LAUNCHER.md`):
-   - **Phương án CI (khuyến nghị):** `git tag launcher-v2.0.0-1 && git push origin launcher-v2.0.0-1` → workflow `build-launcher.yml` tự build lại trên `windows-latest` và publish. Mất ~20-25 phút lần đầu.
-   - **Phương án manual:** Dùng `.exe` + `.msi` đã build sẵn trong `apps-desktop/trishlauncher/src-tauri/target/release/bundle/` + `SHA256SUMS.txt` đã gen → upload qua `gh release create launcher-v2.0.0-1 ...` hoặc web UI `github.com/hosytri07/trishnexus-monorepo/releases/new`. Nhanh, 5 phút. Release notes đã có sẵn ở `docs/release-notes/launcher-v2.0.0-1.md`.
-2. **Deploy website** để `https://trishteam.io.vn/downloads` live + `apps-registry.json` accessible. Hiện website Next.js 14 chưa rõ host (Vercel? Cloudflare Pages?) — cần confirm setup deploy hiện tại. Nếu chưa có, deploy Vercel là nhanh nhất (`vercel` CLI trong thư mục `website/`).
+**Ưu tiên 1 — Verify end-to-end launcher ↔ registry live:**
 
-Sau khi cả 2 xong, verify end-to-end:
+- Trên máy Windows, cài TrishLauncher từ `https://trishteam.io.vn/downloads` → mở **Cài đặt** → nhập registry URL `https://trishteam.io.vn/apps-registry.json` → Lưu → check sysbar pill chuyển từ "Đang dùng bản seed" (amber) → "Bản mới nhất từ remote" (xanh) kèm timestamp.
+- `curl -sf https://trishteam.io.vn/apps-registry.json | jq '.apps | length'` phải = `9`.
+- Nếu pill vẫn seed → check console log launcher (`Ctrl+Shift+I` nếu devtools enabled) hoặc network tab browser để xem fetch có CORS/404 không.
 
-- Mở `https://trishteam.io.vn/downloads` bằng Windows → card Windows .exe hiện primary → click Tải về → file `.exe` tải về đúng 5.3 MB, mở chạy được installer.
-- `curl -sf https://trishteam.io.vn/apps-registry.json | jq '.apps | length'` → `9`.
-- Trong TrishLauncher đã cài: mở **Cài đặt** → nhập `https://trishteam.io.vn/apps-registry.json` → Lưu → sysbar pill chuyển "Bản mới nhất từ remote" + timestamp.
+**Ưu tiên 2 — Phase 15.x: Ship app con đầu tiên (TrishFont 2.0.0 Tauri):**
+
+- TrishFont là app PyQt cũ nhất, đang được viết lại thành Tauri 2 (đồng nhất stack với TrishLauncher). Source cũ ở `apps/trishfont/`. Plan: tạo `apps-desktop/trishfont/` tương tự TrishLauncher → copy tokens v2 → wire Python engine qua sidecar hoặc port logic sang TS.
+- Khi ship: đổi `status: 'coming_soon'` → `'released'` trong cả `apps-desktop/trishlauncher/src/apps-seed.ts` **và** `website/public/apps-registry.json` (2 chỗ phải khớp), thêm `download.windows_x64.sha256` thật.
+- GitHub Release tag convention: `trishfont-v2.0.0-1` (khác launcher tag).
 
 ### Đang dở phụ (optional, sẽ làm session sau)
 

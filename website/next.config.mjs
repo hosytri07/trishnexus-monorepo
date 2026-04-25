@@ -15,6 +15,13 @@
  *     `.ts/.tsx` để resolve đúng file nguồn.
  *   Cả 2 cần thiết — thiếu cái nào Vercel build cũng fail với
  *   `Module not found: Can't resolve './types.js'`.
+ *
+ * Phase 14.7.f — CORS cho registry public:
+ *   `apps-registry.json` fetch cross-origin từ TrishLauncher desktop (Tauri
+ *   WebView2 origin `tauri://localhost` hoặc `https://tauri.localhost`) và
+ *   từ dev (`http://localhost:1420`). Browser block nếu response thiếu
+ *   `Access-Control-Allow-Origin`. Mở `*` cho file registry public — không
+ *   có data nhạy cảm, OK expose. Các route khác giữ default (same-origin).
  */
 /** @type {import('next').NextConfig} */
 const nextConfig = {
@@ -35,6 +42,21 @@ const nextConfig = {
       '.cjs': ['.cts', '.cjs'],
     };
     return config;
+  },
+  async headers() {
+    return [
+      {
+        // Public registry — TrishLauncher desktop fetch cross-origin.
+        source: '/apps-registry.json',
+        headers: [
+          { key: 'Access-Control-Allow-Origin', value: '*' },
+          { key: 'Access-Control-Allow-Methods', value: 'GET, OPTIONS' },
+          { key: 'Access-Control-Allow-Headers', value: 'Accept, Content-Type' },
+          // Cache 5 phút edge, browser revalidate qua etag.
+          { key: 'Cache-Control', value: 'public, max-age=0, s-maxage=300, stale-while-revalidate=86400' },
+        ],
+      },
+    ];
   },
   images: {
     // Phase 11.2 sẽ add firebasestorage.googleapis.com
