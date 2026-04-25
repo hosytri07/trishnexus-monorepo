@@ -30,7 +30,35 @@
 
 ---
 
-## Trạng thái hiện tại (cuối session 2026-04-25 — máy nhà, **Phase 15.0 FULL DONE: TrishCheck v2.0.0-1 published — 1/9 phần mềm đã phát hành**)
+## Trạng thái hiện tại (cuối session 2026-04-25 — máy nhà, **Phase 15.1 FULL DONE: TrishFont v2.0.0-1 published — 2/9 phần mềm đã phát hành**)
+
+### Ship session này (2026-04-25 tối — máy nhà, Phase 15.1)
+
+**TrishFont v2.0.0-1** — App con thứ 2 ship thành công. GitHub Release: `https://github.com/hosytri07/trishnexus-monorepo/releases/tag/trishfont-v2.0.0-1`.
+
+**Tóm tắt feature**: Quản lý font tiếng Việt + AutoCAD (.shx) + Fontpack TrishTEAM remote downloader. 3 tabs: Fontpack (default) / Cài thủ công / Font hệ thống. Cài system-wide vào `C:\Windows\Fonts` + HKLM (cần Administrator). AutoCAD .shx auto copy vào `C:\Program Files\Autodesk\AutoCAD <ver>\Fonts\`. Process log terminal-style fixed bottom. Settings có pack folder management + update check.
+
+**Phase 15.1.a-p — chi tiết** (commit `Phase 15.1.g: Release TrishFont v2.0.0-1`):
+
+- **15.1.a-f**: Setup base — Tauri 2 + React, scan_fonts/scan_system_fonts Rust commands, install_font (HKCU ban đầu), FontFace preview, i18n VN/EN (130+ keys), logo + 6 icons
+- **15.1.h-i**: FontPack feature — manifest fetch từ `trishnexus-fontpacks` repo, zip download + SHA256 verify + extract, file list selective install, AutoCAD detect_autocad_dirs (registry + Program Files scan)
+- **15.1.j**: UX polish — compact cards (perf 2000+ system fonts), tab order (Fontpack đầu tiên), color theme indigo/violet, delete pack
+- **15.1.k**: Fix file lock (read-then-write retry 3 × 150ms thay fs::copy), process log terminal-style với timestamp + level (ok/fail/info), compact system list, auto-install library
+- **15.1.l**: Sticky header + log layout + library compact + export selected (copy ra folder share)
+- **15.1.m**: Always-visible log + Export to folder picker + **System-wide install** (đổi từ HKCU sang HKLM, cần admin) + folder grouping cho pack file list
+- **15.1.n**: Window 1280×900, topbar redesign (admin badge thay scan buttons), folder select-all
+- **15.1.o**: Log fixed bottom toàn app (140px ~7 dòng), Settings có Pack folder section (path + size + Open/Clear) + Update check section (current + check button)
+- **15.1.p**: Bulk install button cho tab "Cài font thủ công" (`⬇ Cài đã tick` reuse exportSelection state). Fix `install.confirm_body` i18n (VN+EN) — đổi từ `%LOCALAPPDATA% + HKCU` về **`C:\Windows\Fonts` + HKLM + Administrator** đúng với hành vi thật
+
+**Kích thước + checksum bản trishfont-v2.0.0-1:**
+
+| File | Size | SHA256 |
+| --- | --- | --- |
+| `TrishFont_2.0.0-1_x64-setup.exe` | 3.26 MB | `1944c3a7c8…c830b3` |
+| `TrishFont_2.0.0-1_x64_en-US.msi` | 4.68 MB | `c4801b79f4…fa11b0` |
+| `TrishFont_2.0.0-1_x64_vi-VN.msi` | 4.68 MB | `2c10d12742…3a9240` |
+
+**Registry update**: `apps-registry.json` + `apps-seed.ts` set TrishFont `status: 'released'` + URL trỏ GitHub Release + SHA256 thật + size 3,420,160 bytes → Launcher footer **1/9 → 2/9 phần mềm đã phát hành** sau khi Vercel redeploy.
 
 ### Ship session này (2026-04-25 chiều/tối — máy nhà, Phase 15.0)
 
