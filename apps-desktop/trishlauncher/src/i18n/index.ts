@@ -16,7 +16,9 @@ type Dict = Record<string, string>;
 const VI: Dict = {
   'topbar.website': 'Mở website',
   'topbar.settings': 'Cài đặt',
-  'footer.apps_count': 'app trong ecosystem',
+  'sysbar.connected': 'Đã kết nối',
+  'sysbar.offline': 'Offline — dùng bản gốc',
+  'footer.apps_released': 'phần mềm đã phát hành',
   'grid.empty': 'Chưa có ứng dụng nào tương thích với máy này',
   'settings.title': 'Cài đặt',
   'settings.close': 'Đóng',
@@ -47,7 +49,9 @@ const VI: Dict = {
 const EN: Dict = {
   'topbar.website': 'Open website',
   'topbar.settings': 'Settings',
-  'footer.apps_count': 'apps in ecosystem',
+  'sysbar.connected': 'Connected',
+  'sysbar.offline': 'Offline — using bundled',
+  'footer.apps_released': 'apps released',
   'grid.empty': 'No compatible apps for this machine',
   'settings.title': 'Settings',
   'settings.close': 'Close',

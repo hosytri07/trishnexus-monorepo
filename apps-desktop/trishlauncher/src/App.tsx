@@ -121,10 +121,10 @@ export function App(): JSX.Element {
   // Phase 14.6.b — Auto-update scheduler. Off = no-op. Khi overdue →
   // refetch + cập nhật state + ghi last_fetch_ms. Cleanup khi interval
   // config đổi hoặc component unmount để tránh double schedule.
+  // Phase 14.7.g — Luôn schedule (dùng DEFAULT_REGISTRY_URL nếu user
+  // không override). startScheduler('off') trả no-op nên không cần
+  // early return.
   useEffect(() => {
-    // Không schedule khi URL rỗng (dùng seed, không có gì để refresh).
-    if (!settings.registryUrl.trim()) return;
-
     const cleanup = startScheduler(settings.autoUpdateInterval, () => {
       void loadRegistry(settings.registryUrl).then((result) => {
         setRegistryResult(result);
@@ -157,6 +157,15 @@ export function App(): JSX.Element {
   const compatApps = useMemo(
     () => filterByPlatform(apps, platform),
     [apps, platform],
+  );
+
+  // Phase 14.7.h — Footer hiển thị tiến độ "x/y phần mềm đã phát hành".
+  // Đếm app status='released' (loại bỏ 'beta', 'coming_soon'). Khi từng
+  // app launch lên CDN thật → đổi `apps-registry.json` field `status`
+  // → footer cập nhật ngay không cần ship lại launcher.
+  const releasedCount = useMemo(
+    () => apps.filter((a) => a.status === 'released').length,
+    [apps],
   );
 
   /**
@@ -279,15 +288,15 @@ export function App(): JSX.Element {
               registryResult.fetchedAt ?? 0,
             ).toLocaleString()}`}
           >
-            ● remote
+            ● {tr('sysbar.connected')}
           </span>
         )}
         {registryResult.error && (
           <span
             className="sysbar-pill sysbar-pill-warn"
-            title={`Registry fetch fail, dùng seed: ${registryResult.error}`}
+            title={`Registry fetch fail: ${registryResult.error}`}
           >
-            ⚠ seed fallback
+            ⚠ {tr('sysbar.offline')}
           </span>
         )}
         <span className="sep">·</span>
@@ -314,7 +323,7 @@ export function App(): JSX.Element {
 
       <footer className="foot">
         <span>
-          {apps.length} {tr('footer.apps_count')}
+          {releasedCount}/{apps.length} {tr('footer.apps_released')}
         </span>
         <span className="muted">
           © 2026 TrishTEAM · {registryResult.registry.ecosystem.website}

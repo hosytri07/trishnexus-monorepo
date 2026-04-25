@@ -28,6 +28,10 @@ serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 sysinfo = "0.30"
 tokio = { version = "1", features = ["rt-multi-thread", "macros"] }
+# Phase 14.7.g: Rust-side HTTP fetch cho registry — bypass WebView CORS/CSP/redirect
+# hoàn toàn. rustls-tls không cần OpenSSL (Windows build clean). webpki-roots
+# bundled trong rustls đủ verify Let's Encrypt cert của Vercel.
+reqwest = { version = "0.12", default-features = false, features = ["rustls-tls"] }
 
 [features]
 # Cho phép dev mode mở devtools.

@@ -57,6 +57,53 @@ fn app_version() -> &'static str {
 }
 
 // ============================================================
+// Phase 14.7.g — Rust-side registry fetch
+// ============================================================
+//
+// Tại sao fetch ở Rust thay vì frontend `fetch()`?
+// - WebView2 (Edge Chromium) enforce CORS strict cho cross-origin fetch.
+//   trishteam.io.vn (Vercel) không phải cùng origin với tauri://localhost
+//   → cần CORS header. Vercel set `Access-Control-Allow-Origin: *` qua
+//   next.config.mjs, nhưng vẫn có thể bị 307 redirect (canonicalization)
+//   không đính kèm CORS header → CORS check fail trên redirect.
+// - CSP `connect-src` cũng phải khớp domain — thêm khớp domain root vs
+//   wildcard subdomain dễ sai.
+// - Rust HTTP client không bị 2 ràng buộc đó: native HTTP, follow redirect
+//   tự nhiên, không CORS check. Fetch bao nhiêu domain cũng được không
+//   cần đụng CSP.
+//
+// Trade-off: thêm 1 dependency `reqwest` (~3MB binary) — chấp nhận được
+// vì registry fetch là core feature.
+
+/// Fetch URL trả body text. Timeout 10s. Status không 2xx → Err.
+/// Frontend nhận text rồi tự JSON.parse — separation of concerns
+/// (Rust không cần biết shape registry).
+#[tauri::command]
+async fn fetch_registry_text(url: String) -> Result<String, String> {
+    let client = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(10))
+        .user_agent(concat!("TrishLauncher/", env!("CARGO_PKG_VERSION")))
+        .build()
+        .map_err(|e| format!("client build failed: {e}"))?;
+
+    let resp = client
+        .get(&url)
+        .header("Accept", "application/json")
+        .send()
+        .await
+        .map_err(|e| format!("request failed: {e}"))?;
+
+    let status = resp.status();
+    if !status.is_success() {
+        return Err(format!("HTTP {} {}", status.as_u16(), status.canonical_reason().unwrap_or("")));
+    }
+
+    resp.text()
+        .await
+        .map_err(|e| format!("read body failed: {e}"))
+}
+
+// ============================================================
 // Phase 14.5.5.c — Launch detection
 // ============================================================
 
@@ -405,7 +452,8 @@ pub fn run() {
             app_version,
             detect_install,
             launch_path,
-            update_tray_quick_launch
+            update_tray_quick_launch,
+            fetch_registry_text
         ])
         .setup(|app| {
             // Build menu rỗng trước → sau detect_install frontend sẽ push

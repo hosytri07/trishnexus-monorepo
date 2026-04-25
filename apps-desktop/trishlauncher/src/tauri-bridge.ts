@@ -110,6 +110,30 @@ export async function launchPath(path: string): Promise<void> {
 }
 
 // ============================================================
+// Phase 14.7.g — Registry fetch (Rust-side, bypass WebView CORS/CSP)
+// ============================================================
+
+/**
+ * Fetch URL → trả body text. Rust dùng reqwest nên không bị browser
+ * CORS/CSP/redirect rules giới hạn. Frontend nhận text rồi tự
+ * JSON.parse / validate shape.
+ *
+ * Browser dev mode (pnpm dev không qua Tauri shell): fallback sang
+ * browser fetch — sẽ bị CORS nếu fetch cross-origin, nhưng dev này
+ * chỉ dùng để soi UI, registry sẽ fail-graceful về seed.
+ */
+export async function fetchRegistryText(url: string): Promise<string> {
+  if (!isInTauri()) {
+    const res = await fetch(url, { cache: 'no-store' });
+    if (!res.ok) {
+      throw new Error(`HTTP ${res.status} ${res.statusText}`);
+    }
+    return res.text();
+  }
+  return invoke<string>('fetch_registry_text', { url });
+}
+
+// ============================================================
 // Phase 14.5.5.d — System tray quick-launch
 // ============================================================
 

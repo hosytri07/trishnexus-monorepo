@@ -1,15 +1,19 @@
 /**
  * Phase 14.6.a — Registry loader.
  *
- * Fetch registry JSON từ URL config trong Settings. Fallback về
- * `SEED_REGISTRY` built-in khi:
- *  - URL rỗng / không set
- *  - Fetch fail (timeout, 4xx/5xx, CORS, offline)
- *  - JSON parse fail
- *  - Schema mismatch (schema_version != 2 hoặc `apps` không phải array)
+ * Fetch registry JSON cho launcher. Fallback về `SEED_REGISTRY` built-in khi:
+ *  - Fetch fail (timeout, 4xx/5xx, network, JSON parse, schema mismatch)
  *
  * Không throw — UI phải render được dù offline hoàn toàn. Error log
  * console.warn để dev thấy nhưng user không bị block.
+ *
+ * Phase 14.7.g — Switch sang Rust-side fetch:
+ *  - `fetchRegistryText()` từ tauri-bridge dùng `reqwest` ở Rust process,
+ *    bypass hoàn toàn WebView CORS/CSP/redirect rules.
+ *  - `DEFAULT_REGISTRY_URL` hardcode — production fetch từ canonical URL,
+ *    không expose UI cho end user. Admin có thể override qua
+ *    `settings.registryUrl` (hidden field, set qua localStorage hoặc
+ *    future TrishAdmin app).
  *
  * Phase 14.6.b sẽ gắn scheduled refetch với setInterval theo
  * `settings.autoUpdateInterval`.
@@ -17,8 +21,19 @@
 
 import type { AppRegistry } from '@trishteam/core/apps';
 import { SEED_REGISTRY } from './apps-seed.js';
+import { fetchRegistryText } from './tauri-bridge.js';
 
-const FETCH_TIMEOUT_MS = 8_000;
+/**
+ * URL chính thức cho registry — production launcher fetch luôn từ đây
+ * trừ khi `settings.registryUrl` non-empty (admin override).
+ *
+ * Tại sao hardcode? End user không cần biết URL này, không cần config.
+ * Launcher hoạt động "out of the box" — chỉ admin/dev mới đổi qua
+ * TrishAdmin (chưa build) hoặc localStorage manual.
+ */
+export const DEFAULT_REGISTRY_URL =
+  'https://trishteam.io.vn/apps-registry.json';
+
 const EXPECTED_SCHEMA_VERSION = 2;
 
 export interface RegistryLoadResult {
@@ -46,59 +61,36 @@ function isValidRegistry(data: unknown): data is AppRegistry {
 }
 
 /**
- * Fetch registry với AbortController timeout 8s. Trả kết quả đã resolve
- * hoặc throw lỗi (gọi wrap ngoài để fallback).
+ * Fetch registry text qua Rust (reqwest), parse JSON, validate shape.
+ * Throw nếu fail — caller wrap để fallback seed.
  */
 async function fetchRemote(url: string): Promise<AppRegistry> {
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
+  const text = await fetchRegistryText(url);
+  let json: unknown;
   try {
-    const res = await fetch(url, {
-      signal: controller.signal,
-      // Cache: no-cache để luôn check etag/last-modified mà không miss
-      // completely (browser vẫn 304 được).
-      cache: 'no-cache',
-      headers: {
-        Accept: 'application/json',
-      },
-    });
-    if (!res.ok) {
-      throw new Error(`HTTP ${res.status} ${res.statusText}`);
-    }
-    const json = (await res.json()) as unknown;
-    if (!isValidRegistry(json)) {
-      throw new Error('registry shape mismatch');
-    }
-    return json;
-  } finally {
-    clearTimeout(timer);
+    json = JSON.parse(text);
+  } catch (err) {
+    throw new Error(`JSON parse failed: ${err instanceof Error ? err.message : String(err)}`);
   }
+  if (!isValidRegistry(json)) {
+    throw new Error('registry shape mismatch');
+  }
+  return json;
 }
 
 /**
- * Load registry theo config. Rỗng URL = dùng seed luôn (không network).
- * Fail URL = seed + error message.
+ * Load registry. URL override (admin) > DEFAULT_REGISTRY_URL > seed nếu fail.
  *
- * Registry URL có thể là:
- *  - Full JSON path: `https://cdn.example.com/apps-registry.json`
- *  - Base path (auto append): `https://cdn.example.com/` → sẽ append
- *    `apps-registry.json`. Detect bằng heuristic trailing `/` hoặc
- *    không có extension.
+ * @param overrideUrl Nếu set + non-empty, dùng URL này thay default.
+ *   App.tsx truyền `settings.registryUrl` — empty (default user) → dùng
+ *   DEFAULT_REGISTRY_URL.
  */
 export async function loadRegistry(
-  configUrl: string,
+  overrideUrl?: string,
 ): Promise<RegistryLoadResult> {
-  const trimmed = configUrl.trim();
-  if (!trimmed) {
-    return {
-      registry: SEED_REGISTRY,
-      source: 'seed',
-      fetchedAt: null,
-      error: null,
-    };
-  }
+  const url =
+    overrideUrl && overrideUrl.trim() ? overrideUrl.trim() : DEFAULT_REGISTRY_URL;
 
-  const url = resolveRegistryUrl(trimmed);
   try {
     const remote = await fetchRemote(url);
     return {
@@ -117,15 +109,4 @@ export async function loadRegistry(
       error: message,
     };
   }
-}
-
-/**
- * Trả URL cuối để fetch. Trailing `/` hoặc không kết thúc `.json` →
- * append `apps-registry.json`. Convention: CDN cấu trúc theo folder
- * nên user chỉ set prefix được.
- */
-function resolveRegistryUrl(raw: string): string {
-  if (raw.endsWith('.json')) return raw;
-  if (raw.endsWith('/')) return raw + 'apps-registry.json';
-  return raw + '/apps-registry.json';
 }

@@ -128,21 +128,67 @@ Kích thước + checksum bản build hiện tại trên máy Trí:
     - `https://trishteam.io.vn/apps-registry.json` — registry JSON cho launcher fetch
     - SSL cert auto-provisioned by Vercel (Let's Encrypt)
 
+**Phase 14.7.f — CORS headers cho registry endpoint** (shipped 2026-04-25):
+
+- ✅ **website/next.config.mjs** thêm `async headers()`: source `/apps-registry.json` → `Access-Control-Allow-Origin: *` + `Access-Control-Allow-Methods: GET, OPTIONS` + `Cache-Control: public, s-maxage=300, stale-while-revalidate=86400`. Vercel mặc định không set CORS cho static files trong `public/` — phải opt-in qua headers config.
+- Lý do fail trước fix: Tauri WebView (origin `tauri://localhost` / dev `http://localhost:1420`) fetch cross-origin sang `https://trishteam.io.vn` bị browser block CORS preflight. Curl với `-L` follow redirect không bị (Rust client không enforce CORS).
+- ⚠ Dù fix CORS này nhưng vẫn còn 307 redirect chain cross-origin block fetch cuối → giải pháp bền hơn là 14.7.g (Rust-side fetch).
+
+**Phase 14.7.g — Rust-side registry fetch (BYPASS CORS/CSP/redirect)** (shipped 2026-04-25):
+
+- ✅ **apps-desktop/trishlauncher/src-tauri/Cargo.toml**: thêm `reqwest = { version = "0.12", default-features = false, features = ["rustls-tls"] }`. Rustls thay vì native-tls → không phụ thuộc OpenSSL/SChannel runtime. Webpki-roots bundled đủ verify Let's Encrypt cert.
+- ✅ **lib.rs**: thêm `#[tauri::command] async fn fetch_registry_text(url: String) -> Result<String, String>` (~30 dòng). Build `reqwest::Client` với timeout 10s + User-Agent `TrishLauncher/<version>` + header `Accept: application/json`. Status non-2xx → Err. Trả body text — frontend tự `JSON.parse` (separation of concerns).
+- ✅ **tauri-bridge.ts**: thêm `fetchRegistryText(url)` wrapper invoke. Browser dev mode (`!isInTauri()`) fallback browser fetch (sẽ bị CORS — chỉ dùng để soi UI, OK).
+- ✅ **registry-loader.ts** refactor:
+    - Constant `DEFAULT_REGISTRY_URL = 'https://trishteam.io.vn/apps-registry.json'` hardcode.
+    - `loadRegistry(overrideUrl?: string)` — empty/undefined override → dùng default URL. Admin có thể override qua localStorage.
+    - Bỏ `resolveRegistryUrl()` heuristic (đã gây bug append `/apps-registry.json` sau query string `?v=2`).
+    - Bỏ `cache: 'no-store'` config browser fetch (Rust dùng reqwest không cache).
+- ✅ **App.tsx** scheduler: bỏ early-return `if (!settings.registryUrl.trim()) return;` — luôn schedule với default URL. `startScheduler('off')` tự no-op nên không cần guard.
+
+**Phase 14.7.h — Ẩn Registry URL field trong SettingsModal** (shipped 2026-04-25):
+
+- ✅ **components/SettingsModal.tsx**: xóa section `<input type="url">` cho `settings.registryUrl`. Comment trỏ tới Phase 14.7.h. Schema settings.ts vẫn giữ field `registryUrl` (backward compat — admin override qua localStorage `trishlauncher:settings:v1` field `registryUrl` nếu cần đổi sang staging URL). Future TrishAdmin app sẽ có UI quản lý chuyên biệt.
+- End-user thấy 3 mục: Giao diện / Ngôn ngữ / Tự kiểm tra bản mới. Không còn confused về "Registry URL là gì".
+
+**Phase 14.7.j — UI polish: pill text + footer release counter** (shipped 2026-04-25):
+
+- ✅ **i18n/index.ts** thêm key VI/EN:
+    - `sysbar.connected`: "Đã kết nối" / "Connected"
+    - `sysbar.offline`: "Offline — dùng bản gốc" / "Offline — using bundled"
+    - `footer.apps_released`: "phần mềm đã phát hành" / "apps released"
+- ✅ **App.tsx**:
+    - Pill `● remote` → `● Đã kết nối` (xanh)
+    - Pill `⚠ seed fallback` → `⚠ Offline — dùng bản gốc` (hổ phách)
+    - Footer "9 app trong ecosystem" → "0/9 phần mềm đã phát hành" (đếm `apps.filter(a => a.status === 'released').length`).
+    - Khi từng app launch lên CDN thật → đổi field `status` trong `apps-registry.json` từ `coming_soon` → `released` → footer tự cập nhật ngay không cần ship lại launcher.
+
 ### Đang dở — PICK UP TỪ ĐÂY (session sau)
 
-**Phase 14.7 HOÀN TẤT.** Không còn việc dở từ Phase 14.7. Session mới nên pick up theo roadmap Phase 15.x:
+**Phase 14.7 hoàn thành xong code.** Cần làm:
 
-**Ưu tiên 1 — Verify end-to-end launcher ↔ registry live:**
+**Việc 1 — Rebuild + reupload launcher production:**
 
-- Trên máy Windows, cài TrishLauncher từ `https://trishteam.io.vn/downloads` → mở **Cài đặt** → nhập registry URL `https://trishteam.io.vn/apps-registry.json` → Lưu → check sysbar pill chuyển từ "Đang dùng bản seed" (amber) → "Bản mới nhất từ remote" (xanh) kèm timestamp.
-- `curl -sf https://trishteam.io.vn/apps-registry.json | jq '.apps | length'` phải = `9`.
-- Nếu pill vẫn seed → check console log launcher (`Ctrl+Shift+I` nếu devtools enabled) hoặc network tab browser để xem fetch có CORS/404 không.
+1. `cd apps-desktop/trishlauncher && pnpm tauri build` (~10-15 phút) — bundle code mới với Rust fetch + UI polish.
+2. Generate `SHA256SUMS.txt` mới qua PowerShell `Get-FileHash` cho 3 file output.
+3. `gh release upload launcher-v2.0.0-1 <files> --clobber --repo hosytri07/trishnexus-monorepo` để replace asset cũ trên GitHub Release (giữ tag, không bump version vì chưa user nào tải về thực tế).
+4. Reinstall trên máy → verify pill xanh "Đã kết nối" + Settings không còn Registry URL field + footer "0/9 phần mềm đã phát hành".
 
-**Ưu tiên 2 — Phase 15.x: Ship app con đầu tiên (TrishFont 2.0.0 Tauri):**
+**Việc 2 — Phase 15.0: TrishCheck (app con đầu tiên):**
 
-- TrishFont là app PyQt cũ nhất, đang được viết lại thành Tauri 2 (đồng nhất stack với TrishLauncher). Source cũ ở `apps/trishfont/`. Plan: tạo `apps-desktop/trishfont/` tương tự TrishLauncher → copy tokens v2 → wire Python engine qua sidecar hoặc port logic sang TS.
-- Khi ship: đổi `status: 'coming_soon'` → `'released'` trong cả `apps-desktop/trishlauncher/src/apps-seed.ts` **và** `website/public/apps-registry.json` (2 chỗ phải khớp), thêm `download.windows_x64.sha256` thật.
-- GitHub Release tag convention: `trishfont-v2.0.0-1` (khác launcher tag).
+Sau khi launcher production stable, ship app con đầu tiên. Recommend **TrishCheck** trước TrishFont vì:
+- Read-only (chỉ đọc system info), không phá data, không cần handle file write.
+- Dùng `sysinfo` crate sẵn (đã có trong launcher) → không thêm dep mới.
+- Pattern đơn giản, học stack Tauri 2 + tokens v2 trên 1 app rồi áp dụng cho 8 app còn lại.
+- Build → release → user thấy có app thật chạy được (1/9 trong launcher footer).
+
+Plan TrishCheck:
+- Tạo `apps-desktop/trishcheck/` skeleton tương tự TrishLauncher (Tauri 2 + React + TS + tokens v2).
+- Features: OS info, CPU model + count + load, RAM total/used, GPU info, disk usage per drive, network adapter list, benchmark CPU (single-core + multi-core qua `criterion` hoặc đơn giản `std::time::Instant`), benchmark disk read/write speed.
+- UI: 1 page với cards cho từng category. Export report dạng JSON/Markdown.
+- Bundle: NSIS .exe + MSI en-US/vi-VN (cùng pattern launcher).
+- Tag GitHub Release: `trishcheck-v2.0.0-1`.
+- Khi release → đổi `status: 'coming_soon'` → `'released'` trong cả `apps-desktop/trishlauncher/src/apps-seed.ts` **và** `website/public/apps-registry.json`. Thêm `download.windows_x64.url` trỏ tới GitHub Release asset.
 
 ### Đang dở phụ (optional, sẽ làm session sau)
 

@@ -10,11 +10,15 @@ import { makeT } from '../i18n/index.js';
 /**
  * Phase 14.5.5.e — Settings modal.
  *
- * 4 section:
+ * 3 section (end-user):
  *  1. Theme (light/dark/system) — radio
  *  2. Language (vi/en) — radio
- *  3. Registry source URL — input (dev/advanced, trống = built-in)
- *  4. Auto-update interval (off/daily/weekly) — select
+ *  3. Auto-update interval (off/daily/weekly) — select
+ *
+ * Phase 14.7.h — Bỏ field "Registry URL" khỏi UI end-user. Registry
+ * fetch luôn từ DEFAULT_REGISTRY_URL hardcode trong registry-loader.
+ * Admin/dev có thể override qua localStorage `trishlauncher:settings:v1`
+ * field `registryUrl` (chưa có UI quản lý — sẽ có ở TrishAdmin sau).
  *
  * Pattern copy từ AppDetailModal: overlay click đóng, dialog click
  * stopPropagation, Esc đóng. Draft state local → user bấm Lưu mới
@@ -49,8 +53,6 @@ export function SettingsModal({
     setDraft((d) => ({ ...d, language }));
   const updateUpdate = (autoUpdateInterval: UpdateInterval): void =>
     setDraft((d) => ({ ...d, autoUpdateInterval }));
-  const updateRegistry = (registryUrl: string): void =>
-    setDraft((d) => ({ ...d, registryUrl }));
 
   return (
     <div
@@ -132,19 +134,9 @@ export function SettingsModal({
             </div>
           </div>
 
-          {/* Registry URL -------------------------------------------- */}
-          <div className="modal-section settings-section">
-            <h3>{tr('settings.registry.label')}</h3>
-            <input
-              type="url"
-              className="settings-input"
-              value={draft.registryUrl}
-              placeholder={tr('settings.registry.placeholder')}
-              onChange={(e) => updateRegistry(e.target.value)}
-              spellCheck={false}
-            />
-            <p className="settings-hint">{tr('settings.registry.hint')}</p>
-          </div>
+          {/* Phase 14.7.h — Registry URL field removed (admin-only via
+              localStorage / future TrishAdmin). Schema vẫn giữ
+              `settings.registryUrl` để tương thích ngược. */}
 
           {/* Auto-update interval ------------------------------------ */}
           <div className="modal-section settings-section">
