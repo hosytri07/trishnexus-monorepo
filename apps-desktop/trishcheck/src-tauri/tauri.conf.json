@@ -1,7 +1,7 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
   "productName": "TrishCheck",
-  "version": "2.0.0-alpha.1",
+  "version": "2.0.0-1",
   "identifier": "vn.trishteam.check",
   "build": {
     "beforeDevCommand": "pnpm dev",
@@ -12,11 +12,12 @@
   "app": {
     "windows": [
       {
+        "label": "main",
         "title": "TrishCheck — Kiểm tra máy",
-        "width": 720,
-        "height": 640,
-        "minWidth": 560,
-        "minHeight": 480,
+        "width": 960,
+        "height": 720,
+        "minWidth": 720,
+        "minHeight": 560,
         "resizable": true,
         "center": true
       }
@@ -45,6 +46,40 @@
     "copyright": "© 2026 TrishTEAM",
     "shortDescription": "Kiểm tra phần cứng máy",
     "longDescription": "TrishCheck đo nhanh cấu hình CPU/RAM/disk + benchmark score để biết máy có chạy mượt ứng dụng nặng trong ecosystem TrishTEAM hay không.",
-    "publisher": "TrishTEAM"
+    "publisher": "TrishTEAM",
+    "homepage": "https://trishteam.io.vn",
+    "windows": {
+      "nsis": {
+        "installMode": "perMachine",
+        "languages": ["English", "Vietnamese"],
+        "displayLanguageSelector": true,
+        "installerIcon": "icons/icon.ico"
+      },
+      "wix": {
+        "language": ["en-US", "vi-VN"]
+      }
+    },
+    "linux": {
+      "deb": {
+        "depends": [
+          "libwebkit2gtk-4.1-0",
+          "libgtk-3-0",
+          "librsvg2-2"
+        ],
+        "section": "utils"
+      },
+      "appimage": {
+        "bundleMediaFramework": false
+      }
+    },
+    "macOS": {
+      "minimumSystemVersion": "10.15",
+      "dmg": {
+        "windowSize": {
+          "width": 660,
+          "height": 400
+        }
+      }
+    }
   }
 }

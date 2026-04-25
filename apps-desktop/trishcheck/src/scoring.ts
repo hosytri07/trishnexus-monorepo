@@ -1,14 +1,19 @@
 /**
  * Chuyển raw benchmark numbers → điểm 1..5 tương ứng mức máy.
  *
- * Reference baseline (2026-04):
- * - Máy cấu hình trung bình 2024 (Ryzen 5 5600 / M2): CPU SHA-256 ~450 MB/s,
- *   memory copy ~14 GB/s.
- * - Máy mạnh 2025-26 (M3 Pro / 14900K): CPU ~800 MB/s, memory ~25 GB/s.
- * - Máy yếu 2019 (i3 gen 8 / Celeron N4xxx): CPU ~150 MB/s, memory ~6 GB/s.
+ * Phase 15.0.j — Multi-thread bench thresholds (mới):
+ * Bench mới chạy SHA-256 song song trên TẤT CẢ CPU core. Số liệu này
+ * reflect tổng compute capability máy — khớp với cảm nhận thực tế
+ * khi chạy app multi-threaded (Photoshop, Premiere, Blender).
  *
- * Ngưỡng là xấp xỉ — giúp user hiểu máy ở mức nào, không phải benchmark
- * chính xác ngành. Logic được tách khỏi UI để dễ unit test.
+ * Reference 2026:
+ * - 4-core mid-range 2024 (i5-1340P / Ryzen 5 7530U): ~1500-2500 MB/s
+ * - 8-core 2025 (i7-13700H / Ryzen 7 7840HS / M2 Pro): ~3000-5000 MB/s
+ * - 16-20 core desktop 2026 (i9-14900K / Ryzen 9 7950X / M3 Max): ~5000-10000 MB/s
+ * - Thấp 2019 (i3 dual-core, Celeron): ~300-600 MB/s
+ *
+ * ⚠ Lưu ý dev mode (debug build): chậm 5-10× release. Kết quả bench
+ * trong `pnpm tauri dev` không đại diện performance thực tế của installed app.
  */
 
 export type Tier = 'excellent' | 'good' | 'ok' | 'low' | 'very_low';
@@ -21,43 +26,98 @@ export interface TierInfo {
 }
 
 export function cpuTier(mbPerSecond: number): TierInfo {
-  if (mbPerSecond >= 700) {
+  if (mbPerSecond >= 5000) {
     return {
       tier: 'excellent',
       label: 'Xuất sắc',
       color: 'green',
-      description: 'Chạy mượt mọi ứng dụng nặng (TrishImage face-group, TrishFont render).',
+      description:
+        'Workstation/máy gaming cao cấp. Render 4K, AI inference, compile code lớn — đều mượt.',
     };
   }
-  if (mbPerSecond >= 400) {
+  if (mbPerSecond >= 2500) {
     return {
       tier: 'good',
       label: 'Tốt',
       color: 'blue',
-      description: 'Đủ sức cho toàn bộ ecosystem, hơi chậm ở batch lớn.',
+      description:
+        'Đủ sức cho mọi app sáng tạo (Photoshop, Premiere, AutoCAD). Render ảnh/video mượt.',
     };
   }
-  if (mbPerSecond >= 250) {
+  if (mbPerSecond >= 1200) {
     return {
       tier: 'ok',
       label: 'Đạt',
       color: 'amber',
-      description: 'Chạy được tất cả app, nên tránh batch quá lớn cùng lúc.',
+      description:
+        'Văn phòng + design vừa phải tốt. Video editing 1080p chấp nhận được, 4K sẽ lag.',
     };
   }
-  if (mbPerSecond >= 120) {
+  if (mbPerSecond >= 500) {
     return {
       tier: 'low',
       label: 'Hơi chậm',
       color: 'orange',
-      description: 'Ưu tiên TrishNote / TrishClean. TrishImage sẽ lag rõ.',
+      description:
+        'OK cho học tập + duyệt web + Office. Tránh Photoshop/Premiere — sẽ giật lag.',
     };
   }
   return {
     tier: 'very_low',
     label: 'Rất yếu',
     color: 'red',
-    description: 'Chỉ nên dùng TrishNote + TrishQR. Tránh app xử lý ảnh/font nặng.',
+    description:
+      'Máy cũ — nên upgrade nếu cần dùng app sáng tạo. Office/web cơ bản vẫn OK.',
+  };
+}
+
+/**
+ * Phase 15.0.n.A — Disk tier (sequential read/write).
+ * Reference 2026:
+ * - HDD 7200 rpm: 100-200 MB/s
+ * - SATA SSD: 400-600 MB/s
+ * - NVMe Gen3: 2000-3500 MB/s
+ * - NVMe Gen4: 5000-7000 MB/s
+ * - NVMe Gen5: 12000-14000 MB/s
+ */
+export function diskTier(mbPerSecond: number): TierInfo {
+  if (mbPerSecond >= 5000) {
+    return {
+      tier: 'excellent',
+      label: 'NVMe Gen4+',
+      color: 'green',
+      description: 'SSD NVMe Gen4/5 — chuyển file lớn nhanh, load Photoshop/Premiere mượt.',
+    };
+  }
+  if (mbPerSecond >= 2000) {
+    return {
+      tier: 'good',
+      label: 'NVMe Gen3',
+      color: 'blue',
+      description: 'SSD NVMe Gen3 — đủ nhanh cho mọi tác vụ.',
+    };
+  }
+  if (mbPerSecond >= 350) {
+    return {
+      tier: 'ok',
+      label: 'SATA SSD',
+      color: 'amber',
+      description: 'SSD SATA — chấp nhận được cho dùng hàng ngày, tránh edit video lớn.',
+    };
+  }
+  if (mbPerSecond >= 80) {
+    return {
+      tier: 'low',
+      label: 'HDD',
+      color: 'orange',
+      description: 'Ổ cứng quay HDD — chậm. Khuyến nghị nâng cấp lên SSD ngay.',
+    };
+  }
+  return {
+    tier: 'very_low',
+    label: 'Rất chậm',
+    color: 'red',
+    description: 'Ổ đĩa quá chậm — có thể bị lỗi hoặc quá đầy. Cần chẩn đoán.',
   };
 }
 

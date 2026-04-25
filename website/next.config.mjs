@@ -44,17 +44,23 @@ const nextConfig = {
     return config;
   },
   async headers() {
+    const corsHeaders = [
+      { key: 'Access-Control-Allow-Origin', value: '*' },
+      { key: 'Access-Control-Allow-Methods', value: 'GET, OPTIONS' },
+      { key: 'Access-Control-Allow-Headers', value: 'Accept, Content-Type' },
+      { key: 'Cache-Control', value: 'public, max-age=0, s-maxage=300, stale-while-revalidate=86400' },
+    ];
     return [
       {
         // Public registry — TrishLauncher desktop fetch cross-origin.
         source: '/apps-registry.json',
-        headers: [
-          { key: 'Access-Control-Allow-Origin', value: '*' },
-          { key: 'Access-Control-Allow-Methods', value: 'GET, OPTIONS' },
-          { key: 'Access-Control-Allow-Headers', value: 'Accept, Content-Type' },
-          // Cache 5 phút edge, browser revalidate qua etag.
-          { key: 'Cache-Control', value: 'public, max-age=0, s-maxage=300, stale-while-revalidate=86400' },
-        ],
+        headers: corsHeaders,
+      },
+      {
+        // Phase 15.0.l — Min-spec data cho TrishCheck. Admin có thể edit
+        // file trong website/public/min-specs.json để update spec mới.
+        source: '/min-specs.json',
+        headers: corsHeaders,
       },
     ];
   },
