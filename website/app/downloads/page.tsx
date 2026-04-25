@@ -1,11 +1,23 @@
 import Link from 'next/link';
 import { ArrowLeft } from 'lucide-react';
 import { DownloadCards } from './DownloadCards';
+import { OtherAppsSection } from './OtherAppsSection';
+
+/**
+ * Phase 15.0.q — /downloads page mở rộng:
+ *   - Section đầu: TrishLauncher download (primary, OS-detect, multi-platform)
+ *   - Section sau: Apps đã phát hành (TrishCheck v1, future apps...)
+ *   - Section cuối: Verify checksum hướng dẫn
+ *
+ * Source data: website/public/apps-registry.json (qua lib/apps.ts).
+ * Khi admin push app mới với status='released' → page tự cập nhật, không cần
+ * deploy code lại.
+ */
 
 export const metadata = {
-  title: 'Tải TrishLauncher — TrishTEAM',
+  title: 'Tải về — TrishTEAM',
   description:
-    'Tải TrishLauncher (miễn phí) để cài, cập nhật và khởi chạy 10 ứng dụng desktop của TrishTEAM. Hỗ trợ Windows, macOS, Linux.',
+    'Tải TrishLauncher và các ứng dụng TrishTEAM đã phát hành. Miễn phí, không cần đăng nhập.',
 };
 
 export default function DownloadsPage() {
@@ -28,20 +40,44 @@ export default function DownloadsPage() {
           color: 'var(--color-text-primary)',
         }}
       >
-        Tải TrishLauncher
+        Tải về TrishTEAM
       </h1>
       <p className="text-lg mb-4" style={{ color: 'var(--color-text-secondary)' }}>
-        TrishLauncher là cổng vào hệ sinh thái TrishTEAM — cài đặt, cập nhật và khởi chạy 10
-        ứng dụng desktop chỉ trong một giao diện. Miễn phí, không cần đăng nhập.
+        TrishLauncher là cổng vào hệ sinh thái — cài đặt + cập nhật + khởi chạy 9 ứng dụng
+        desktop trong một giao diện. Dưới là các app đã phát hành riêng. Miễn phí, không cần
+        đăng nhập.
       </p>
       <p className="text-sm mb-10" style={{ color: 'var(--color-text-muted)' }}>
-        Phiên bản hiện tại:{' '}
-        <strong style={{ color: 'var(--color-text-primary)' }}>v2.0.0-1 (alpha)</strong> — chưa
-        code-sign, Windows Defender / SmartScreen có thể cảnh báo. Click{' '}
-        <em>More info → Run anyway</em> để tiếp tục.
+        Phiên bản hiện tại còn alpha — chưa code-sign, Windows Defender / SmartScreen có thể
+        cảnh báo. Click <em>More info → Run anyway</em> để tiếp tục.
       </p>
 
-      <DownloadCards />
+      {/* Section 1: TrishLauncher */}
+      <section className="mb-12">
+        <div className="flex items-baseline justify-between mb-4">
+          <h2
+            className="text-xl font-bold"
+            style={{ color: 'var(--color-text-primary)' }}
+          >
+            🚀 TrishLauncher
+          </h2>
+          <span className="text-xs" style={{ color: 'var(--color-text-muted)' }}>
+            v2.0.0-1 · Khuyên dùng
+          </span>
+        </div>
+        <DownloadCards />
+      </section>
+
+      {/* Section 2: Apps đã phát hành */}
+      <section>
+        <h2
+          className="text-xl font-bold mb-4"
+          style={{ color: 'var(--color-text-primary)' }}
+        >
+          Apps đã phát hành
+        </h2>
+        <OtherAppsSection />
+      </section>
     </main>
   );
 }

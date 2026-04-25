@@ -9,7 +9,7 @@
  *   - Role switcher mock (Guest/User/Admin) để preview trước khi có auth thật
  */
 import Link from 'next/link';
-import { Sparkles } from 'lucide-react';
+import { Sparkles, Download } from 'lucide-react';
 import { ThemeToggle } from '@/components/theme-toggle';
 import { NavPanels } from './nav-panels';
 
@@ -36,6 +36,20 @@ export function TopNav() {
           >
             Trish<span style={{ color: 'var(--color-accent-primary)' }}>TEAM</span>
           </span>
+        </Link>
+
+        {/* Phase 15.0.q — Tải về link (always visible) */}
+        <Link
+          href="/downloads"
+          className="hidden sm:inline-flex items-center gap-1.5 px-3 h-9 rounded-md text-sm font-semibold transition-opacity hover:opacity-90"
+          style={{
+            background: 'var(--color-accent-gradient)',
+            color: '#ffffff',
+          }}
+          title="Trang tải về tất cả ứng dụng TrishTEAM"
+        >
+          <Download size={14} strokeWidth={2.5} />
+          Tải về
         </Link>
 
         {/* Spacer */}
