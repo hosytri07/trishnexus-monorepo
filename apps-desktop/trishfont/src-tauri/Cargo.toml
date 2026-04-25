@@ -1,6 +1,6 @@
 [package]
 name = "trishfont"
-version = "2.0.0-alpha.1"
+version = "2.0.0-1"
 description = "TrishFont — font manager với pair recommendation AI"
 authors = ["TrishTEAM <hosytri77@gmail.com>"]
 edition = "2021"
@@ -22,10 +22,22 @@ tauri-build = { version = "2.0", features = [] }
 tauri = { version = "2.0", features = [] }
 tauri-plugin-dialog = "2.0"
 tauri-plugin-fs = "2.0"
+tauri-plugin-opener = "2.0"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 walkdir = "2"
 ttf-parser = "0.20"
+# Phase 15.1.h — FontPack: HTTP fetch manifest + download zip + SHA verify + extract
+reqwest = { version = "0.12", default-features = false, features = ["rustls-tls"] }
+tokio = { version = "1", features = ["rt-multi-thread", "macros"] }
+zip = { version = "2", default-features = false, features = ["deflate"] }
+sha2 = "0.10"
+hex = "0.4"
+
+# Phase 15.1.b — install font: registry write Windows
+[target.'cfg(windows)'.dependencies]
+winreg = "0.52"
+windows-sys = { version = "0.59", features = ["Win32_UI_WindowsAndMessaging", "Win32_Foundation"] }
 
 [features]
 custom-protocol = ["tauri/custom-protocol"]

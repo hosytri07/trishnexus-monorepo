@@ -1,7 +1,7 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
   "productName": "TrishFont",
-  "version": "2.0.0-alpha.1",
+  "version": "2.0.0-1",
   "identifier": "vn.trishteam.font",
   "build": {
     "beforeDevCommand": "pnpm dev",
@@ -12,11 +12,12 @@
   "app": {
     "windows": [
       {
-        "title": "TrishFont — Font manager",
-        "width": 1100,
-        "height": 720,
-        "minWidth": 900,
-        "minHeight": 560,
+        "label": "main",
+        "title": "TrishFont — Quản lý font",
+        "width": 1280,
+        "height": 900,
+        "minWidth": 1024,
+        "minHeight": 720,
         "resizable": true,
         "center": true
       }
@@ -27,13 +28,7 @@
   },
   "bundle": {
     "active": true,
-    "targets": [
-      "msi",
-      "nsis",
-      "dmg",
-      "deb",
-      "appimage"
-    ],
+    "targets": ["msi", "nsis", "dmg", "deb", "appimage"],
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",
@@ -43,8 +38,38 @@
     ],
     "category": "DeveloperTool",
     "copyright": "© 2026 TrishTEAM",
-    "shortDescription": "Font manager với pair AI",
-    "longDescription": "TrishFont quét folder font, classify personality (serif/sans/slab/mono/display/script), và đề xuất cặp heading+body hợp nhau — tối ưu cho tiếng Việt.",
-    "publisher": "TrishTEAM"
+    "shortDescription": "Quản lý + cài đặt font tiếng Việt",
+    "longDescription": "TrishFont quản lý thư viện font cá nhân: scan folder, preview live (FontFace API), tìm font hỗ trợ tiếng Việt, cài đặt vào Windows một-click không cần admin.",
+    "publisher": "TrishTEAM",
+    "homepage": "https://trishteam.io.vn",
+    "windows": {
+      "nsis": {
+        "installMode": "currentUser",
+        "languages": ["English", "Vietnamese"],
+        "displayLanguageSelector": true,
+        "installerIcon": "icons/icon.ico"
+      },
+      "wix": {
+        "language": ["en-US", "vi-VN"]
+      }
+    },
+    "linux": {
+      "deb": {
+        "depends": ["libwebkit2gtk-4.1-0", "libgtk-3-0", "librsvg2-2"],
+        "section": "fonts"
+      },
+      "appimage": {
+        "bundleMediaFramework": false
+      }
+    },
+    "macOS": {
+      "minimumSystemVersion": "10.15",
+      "dmg": {
+        "windowSize": {
+          "width": 660,
+          "height": 400
+        }
+      }
+    }
   }
 }

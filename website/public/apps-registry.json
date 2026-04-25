@@ -1,6 +1,6 @@
 {
   "schema_version": 2,
-  "updated_at": "2026-04-24",
+  "updated_at": "2026-04-25",
   "ecosystem": {
     "name": "TrishTEAM",
     "tagline": "Hệ sinh thái năng suất cá nhân",
@@ -11,20 +11,20 @@
     {
       "id": "trishfont",
       "name": "TrishFont",
-      "tagline": "Quản lý font tiếng Việt chuyên nghiệp",
+      "tagline": "Quản lý font tiếng Việt + AutoCAD + Fontpack",
       "logo_url": "https://trishteam.io.vn/logos/trishfont.png",
-      "version": "2.0.0",
-      "size_bytes": 38000000,
-      "status": "coming_soon",
+      "version": "2.0.0-1",
+      "size_bytes": 3420160,
+      "status": "released",
       "login_required": "none",
-      "platforms": ["windows_x64", "macos_arm64"],
+      "platforms": ["windows_x64"],
       "screenshots": [],
-      "changelog_url": "https://trishteam.io.vn/apps/trishfont/changelog",
+      "changelog_url": "https://github.com/hosytri07/trishnexus-monorepo/releases/tag/trishfont-v2.0.0-1",
       "download": {
         "windows_x64": {
-          "url": "https://trishteam.io.vn/dl/trishfont-2.0.0-x64.msi",
-          "sha256": "",
-          "installer_args": ["/quiet"]
+          "url": "https://github.com/hosytri07/trishnexus-monorepo/releases/download/trishfont-v2.0.0-1/TrishFont_2.0.0-1_x64-setup.exe",
+          "sha256": "1944c3a7c8f584cba0ac9cce9f22326ffc071318f2ebcf5808b6de8c27c830b3",
+          "installer_args": []
         }
       }
     },

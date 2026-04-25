@@ -1,6 +1,6 @@
 {
   "name": "@trishteam/trishfont",
-  "version": "2.0.0-alpha.1",
+  "version": "2.0.0-1",
   "private": true,
   "description": "TrishFont — quản lý + preview font cho designer Việt. Tauri 2 + @trishteam/core/fonts cho classify + pair recommendation AI. Rust backend parse TTF/OTF metadata qua ttf-parser.",
   "type": "module",
