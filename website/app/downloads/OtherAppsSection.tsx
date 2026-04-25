@@ -56,7 +56,8 @@ function AppDownloadCard({
 
   return (
     <div
-      className="flex items-center gap-4 border rounded-lg p-4"
+      id={app.id}
+      className="flex items-center gap-4 border rounded-lg p-4 scroll-mt-20"
       style={{
         borderColor: 'var(--color-border-subtle)',
         background: 'var(--color-surface-card)',
