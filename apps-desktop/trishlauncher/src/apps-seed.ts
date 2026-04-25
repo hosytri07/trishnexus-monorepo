@@ -88,18 +88,20 @@ export const SEED_REGISTRY: AppRegistry = {
       name: 'TrishCheck',
       tagline: 'System info + benchmark máy',
       logo_url: 'https://trishteam.io.vn/logos/trishcheck.png',
-      version: '2.0.0',
-      size_bytes: 22_000_000,
-      status: 'coming_soon',
+      version: '2.0.0-1',
+      size_bytes: 10_485_760,
+      status: 'released',
       login_required: 'none',
-      platforms: ['windows_x64', 'macos_arm64', 'linux_x64'],
+      platforms: ['windows_x64'],
       screenshots: [],
-      changelog_url: '',
+      changelog_url:
+        'https://github.com/hosytri07/trishnexus-monorepo/releases/tag/trishcheck-v2.0.0-1',
       download: {
         windows_x64: {
-          url: 'https://trishteam.io.vn/dl/trishcheck-2.0.0-x64.msi',
-          sha256: '',
-          installer_args: ['/quiet'],
+          url: 'https://github.com/hosytri07/trishnexus-monorepo/releases/download/trishcheck-v2.0.0-1/TrishCheck_2.0.0-1_x64-setup.exe',
+          sha256:
+            'feaa4334d407634f3bf023f034f0af336d2ad9c8aae117dd82356d8caa3a2be8',
+          installer_args: [],
         },
       },
     },

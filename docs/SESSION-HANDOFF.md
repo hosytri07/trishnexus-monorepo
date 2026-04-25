@@ -30,7 +30,42 @@
 
 ---
 
-## Trạng thái hiện tại (cuối session 2026-04-25 — máy nhà, **Phase 14.7 FULL DONE: Release published + Website live tại https://trishteam.io.vn**)
+## Trạng thái hiện tại (cuối session 2026-04-25 — máy nhà, **Phase 15.0 FULL DONE: TrishCheck v2.0.0-1 published — 1/9 phần mềm đã phát hành**)
+
+### Ship session này (2026-04-25 chiều/tối — máy nhà, Phase 15.0)
+
+**TrishCheck v2.0.0-1** — App con đầu tiên ship thành công. GitHub Release tại `https://github.com/hosytri07/trishnexus-monorepo/releases/tag/trishcheck-v2.0.0-1`.
+
+**Phase 15.0.a-o — Tóm tắt** (chi tiết trong commit `feat(trishcheck): Phase 15.0`):
+
+- **15.0.a/b**: Bump version `2.0.0-alpha.1` → `2.0.0-1` (3 files), NSIS multi-language config
+- **15.0.c**: `settings.ts` + `i18n/index.ts` (VN/EN dictionary, 70+ keys)
+- **15.0.d**: Rust extends — `Disks::new_with_refreshed_list()` + `Networks::new_with_refreshed_list()` cho disk/network info
+- **15.0.e**: Min-spec compare table component, hardcoded 25 software (16 popular + 9 TrishTEAM)
+- **15.0.f**: `lib/exporters.ts` (JSON+MD), `lib/clipboard.ts`, `lib/snapshots.ts` (FIFO max 30)
+- **15.0.g**: Components — `SettingsModal`, `ActionsToolbar`, `MinSpecTable`, `HistoryDrawer`, `ConfirmDialog` (tab-based App.tsx layout: System/Min-spec/History)
+- **15.0.h**: Tokens v2 CSS với dark mode switching qua `data-theme` attribute
+- **15.0.i**: Build + Release published — 3 binary asset + SHA256SUMS.txt
+- **15.0.j**: Multi-thread CPU bench (`std::thread::scope`) bypass single-thread bottleneck. RAM round-half-up cho min-spec compare (32GB physical = 31.7GB OS-reported → so sánh đúng)
+- **15.0.k**: Logo `apps-desktop/trishlauncher/src/icons/trishcheck.png` → `src/assets/logo.png` + 6 desktop icon variants (icon.png 1024 + 32/128/256 PNG + multi-size .ico + .icns) generated via Pillow Lanczos
+- **15.0.l**: Min-spec **admin-managed** — `website/public/min-specs.json` + Rust `fetch_text` command + `lib/specs-loader.ts` với bundled fallback. Admin edit JSON → push → Vercel → user Refresh trong app. **TrishAdmin (Phase 16+) sẽ thay edit tay bằng UI CRUD**
+- **15.0.m**: GPU detection cross-platform — Windows PowerShell `Get-CimInstance Win32_VideoController` + macOS `system_profiler` + Linux `lspci`. Phân biệt iGPU/dGPU + vendor badge (NVIDIA/AMD/Intel/Apple)
+- **15.0.n**: 4 TIER 1 features:
+    - **A. Disk benchmark**: write/read 100MB sequential trong temp dir, đo throughput
+    - **B. Battery info**: PowerShell `Get-CimInstance Win32_Battery` + `BatteryStaticData` + `BatteryFullChargedCapacity` → %sạc + sức khỏe pin (chai bao nhiêu)
+    - **C. Top 5 processes**: by RAM + by CPU dùng `sysinfo::Process`, hiện 2 cột mini table
+    - **D. TrishTEAM compat**: 9 apps (`trishlauncher/check/font/note/clean/image/type/library/search`) trong `min-specs.json` category `trishteam` — appear ở đầu Min-spec compare table với 🚀 emoji icons
+- **15.0.o**: Bỏ tier evaluation badge khỏi BenchCard (chỉ raw numbers, không gợi ý chủ quan). `ConfirmDialog` component thay browser native `confirm()` (Chrome-style). `save_report` Rust command lưu trực tiếp vào `~\Downloads\` (fix anchor blob: download không work trong WebView2) + toast hiện full path.
+
+**Kích thước + checksum bản trishcheck-v2.0.0-1:**
+
+| File | SHA256 |
+| --- | --- |
+| `TrishCheck_2.0.0-1_x64-setup.exe` | `feaa4334d4…3a2be8` |
+| `TrishCheck_2.0.0-1_x64_en-US.msi` | `b8de8432a9…6b8d8cf` |
+| `TrishCheck_2.0.0-1_x64_vi-VN.msi` | `fcc8b1ff2e…3cdd27` |
+
+**Registry update**: `apps-registry.json` + `apps-seed.ts` set TrishCheck `status: 'released'` + URL trỏ GitHub Release + SHA256 thật → Launcher footer **0/9 → 1/9 phần mềm đã phát hành** sau khi Vercel redeploy.
 
 ### Ship session này (2026-04-24 tối — máy cơ quan, tiếp theo sau 14.5.5.e)
 
@@ -165,30 +200,37 @@ Kích thước + checksum bản build hiện tại trên máy Trí:
 
 ### Đang dở — PICK UP TỪ ĐÂY (session sau)
 
-**Phase 14.7 hoàn thành xong code.** Cần làm:
+**Phase 15.0 hoàn tất 100%.** TrishCheck đã ship, registry đã update, đang chờ commit + push để Vercel redeploy.
 
-**Việc 1 — Rebuild + reupload launcher production:**
+**Việc cần làm ngay (~3 phút):**
 
-1. `cd apps-desktop/trishlauncher && pnpm tauri build` (~10-15 phút) — bundle code mới với Rust fetch + UI polish.
-2. Generate `SHA256SUMS.txt` mới qua PowerShell `Get-FileHash` cho 3 file output.
-3. `gh release upload launcher-v2.0.0-1 <files> --clobber --repo hosytri07/trishnexus-monorepo` để replace asset cũ trên GitHub Release (giữ tag, không bump version vì chưa user nào tải về thực tế).
-4. Reinstall trên máy → verify pill xanh "Đã kết nối" + Settings không còn Registry URL field + footer "0/9 phần mềm đã phát hành".
+1. `git add ...` + `git commit` + `git push origin main` — đẩy:
+   - `website/public/apps-registry.json` (trishcheck released)
+   - `apps-desktop/trishlauncher/src/apps-seed.ts` (cùng update)
+   - `docs/SESSION-HANDOFF.md` (this file)
 
-**Việc 2 — Phase 15.0: TrishCheck (app con đầu tiên):**
+2. Đợi Vercel redeploy (~1-2 phút) → mở TrishLauncher đã cài → footer chuyển từ **0/9** → **1/9 phần mềm đã phát hành** + card TrishCheck chuyển từ "Sắp ra mắt" → "Tải về" (xanh).
 
-Sau khi launcher production stable, ship app con đầu tiên. Recommend **TrishCheck** trước TrishFont vì:
-- Read-only (chỉ đọc system info), không phá data, không cần handle file write.
-- Dùng `sysinfo` crate sẵn (đã có trong launcher) → không thêm dep mới.
-- Pattern đơn giản, học stack Tauri 2 + tokens v2 trên 1 app rồi áp dụng cho 8 app còn lại.
-- Build → release → user thấy có app thật chạy được (1/9 trong launcher footer).
+3. Verify: bấm "Tải về" trên card TrishCheck trong launcher → Open browser → GitHub Release page mở → user tải `.exe` được.
 
-Plan TrishCheck:
-- Tạo `apps-desktop/trishcheck/` skeleton tương tự TrishLauncher (Tauri 2 + React + TS + tokens v2).
-- Features: OS info, CPU model + count + load, RAM total/used, GPU info, disk usage per drive, network adapter list, benchmark CPU (single-core + multi-core qua `criterion` hoặc đơn giản `std::time::Instant`), benchmark disk read/write speed.
-- UI: 1 page với cards cho từng category. Export report dạng JSON/Markdown.
-- Bundle: NSIS .exe + MSI en-US/vi-VN (cùng pattern launcher).
-- Tag GitHub Release: `trishcheck-v2.0.0-1`.
-- Khi release → đổi `status: 'coming_soon'` → `'released'` trong cả `apps-desktop/trishlauncher/src/apps-seed.ts` **và** `website/public/apps-registry.json`. Thêm `download.windows_x64.url` trỏ tới GitHub Release asset.
+**Việc tiếp theo — Phase 15.1: Ship app con thứ 2:**
+
+Recommend thứ tự (theo độ phức tạp tăng dần):
+
+- **Phase 15.1 — TrishClean** (utility cleaner): Quét file/cache không cần thiết với undo 7 ngày. Đơn giản hơn vì không cần ML/CRDT, chỉ là filesystem walk + safe delete. Effort ~6h dev.
+- **Phase 15.2 — TrishFont** (font manager): Port từ Python PyQt6 cũ ở `apps/trishfont/` sang Tauri. Quản lý font tiếng Việt, install/preview. Có code tham khảo. Effort ~8-10h.
+- **Phase 15.3 — TrishNote** (notes + kanban): CRUD notes, daily review, kanban board. Cần data persistence (localStorage hoặc SQLite). Effort ~10h.
+- **Phase 15.4-7**: TrishImage (face grouping cần ML model), TrishType (CRDT editor), TrishLibrary, TrishSearch — phức tạp hơn, defer.
+
+**Phase 16 — TrishAdmin** (admin desktop app):
+
+Khi đã có 3-4 app con stable, build TrishAdmin để admin quản lý:
+- CRUD `apps-registry.json` (publish app mới, bump version, đổi status)
+- CRUD `min-specs.json` (thêm/sửa/xóa software entries)
+- User stats / telemetry view (sau)
+- License keys (sau khi có monetization)
+
+Auth: chỉ email admin (`hosytri77@gmail.com`) login được. Lưu data: trực tiếp commit vào GitHub repo qua GitHub API → Vercel auto-redeploy → user Refresh trong app. Hoặc backend riêng (Cloudflare Workers / Vercel Functions). Phase lớn ~10-15h.
 
 ### Đang dở phụ (optional, sẽ làm session sau)
 
