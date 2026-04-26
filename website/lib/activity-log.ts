@@ -31,7 +31,8 @@ export type ActivityKind =
   | 'note_update'
   | 'app_open'
   | 'feedback_sent'
-  | 'profile_update';
+  | 'profile_update'
+  | 'key_activated';
 
 export interface ActivityEvent {
   kind: ActivityKind;

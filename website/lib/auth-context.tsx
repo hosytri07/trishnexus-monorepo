@@ -1,16 +1,14 @@
 'use client';
 
 /**
- * AuthProvider — Phase 11.6.2.
+ * AuthProvider — Phase 16.1.f.
  *
- * Kiến trúc:
- *   - Khi firebaseReady=false HOẶC NEXT_PUBLIC_AUTH_MOCK=1 → mode='mock':
- *     dùng localStorage role switcher cũ (để dev không cần Firebase).
- *   - Khi firebaseReady=true → mode='firebase':
- *     1. onAuthStateChanged() listener cập nhật firebaseUser
- *     2. Fetch Firestore /users/{uid} để lấy profile mở rộng (fullName,
- *        phone, role...) — nếu doc chưa có thì tự tạo với role='user'.
- *     3. SessionUser = { id, name, email, avatar_initials, plan, role }.
+ * Firebase-only. Mock mode đã bị remove.
+ *
+ *   1. onAuthStateChanged() listener cập nhật firebaseUser
+ *   2. Fetch Firestore /users/{uid} để lấy profile mở rộng (fullName,
+ *      phone, role...) — nếu doc chưa có thì tự tạo với role='trial'.
+ *   3. SessionUser = { id, name, email, avatar_initials, plan, role }.
  *
  * Bọc ở `app/layout.tsx` với <AuthProvider>. Components dùng `useAuth()`
  * hoặc compat wrapper `useUserSession()` (giữ API cũ).
@@ -32,7 +30,7 @@ import {
 import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
 import { auth, db, firebaseReady } from './firebase';
 
-export type UserRole = 'guest' | 'user' | 'admin';
+export type UserRole = 'guest' | 'trial' | 'user' | 'admin';
 
 export type SessionUser = {
   id: string;
@@ -40,43 +38,33 @@ export type SessionUser = {
   fullName?: string;
   email: string;
   phone?: string;
+  photo_url?: string;
   avatar_initials: string;
-  plan: 'Free' | 'Pro' | 'Team' | 'Admin';
+  plan: 'Free' | 'Pro' | 'Team' | 'Admin' | 'Trial';
   role: UserRole;
+  /** Phase 16.1.c — timestamp ms khi kích hoạt key (Trial → User). 0 = chưa */
+  key_activated_at?: number;
+  /** Mã key đã activate */
+  activated_key_id?: string;
 };
-
-type AuthMode = 'mock' | 'firebase';
 
 type AuthContextValue = {
-  mode: AuthMode;
+  /** @deprecated Always 'firebase' — giữ để không break code cũ */
+  mode: 'firebase';
   user: SessionUser | null;
   role: UserRole;
-  setRole: (r: UserRole) => void; // mock only
+  /** @deprecated Mock role switcher đã bị remove — no-op */
+  setRole: (r: UserRole) => void;
   isAdmin: boolean;
   isAuthenticated: boolean;
+  /** Phase 16.1.c — true nếu role >= 'user' (đã kích hoạt key hoặc admin) */
+  isPaid: boolean;
+  /** Trial chưa activate key */
+  isTrial: boolean;
   loading: boolean;
   logout: () => Promise<void>;
-};
-
-const MOCK_STORAGE = 'trishteam:session_role';
-
-const MOCK_USERS: Record<Exclude<UserRole, 'guest'>, SessionUser> = {
-  user: {
-    id: 'usr_demo_01',
-    name: 'Trí Hồ Sỹ',
-    email: 'hosytri77@gmail.com',
-    avatar_initials: 'TH',
-    plan: 'Pro',
-    role: 'user',
-  },
-  admin: {
-    id: 'adm_owner_01',
-    name: 'TrishTEAM Admin',
-    email: 'trishteam.official@gmail.com',
-    avatar_initials: 'TT',
-    plan: 'Admin',
-    role: 'admin',
-  },
+  /** Refresh profile sau khi activate key */
+  refreshProfile: () => Promise<void>;
 };
 
 function initials(s: string): string {
@@ -93,35 +81,77 @@ function initials(s: string): string {
 const Ctx = createContext<AuthContextValue | null>(null);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const forceMock =
-    typeof process !== 'undefined' &&
-    process.env.NEXT_PUBLIC_AUTH_MOCK === '1';
-  const mode: AuthMode = firebaseReady && !forceMock ? 'firebase' : 'mock';
-
-  // ---- Mock mode state ----
-  const [mockRole, setMockRole] = useState<UserRole>('guest');
-
-  // ---- Firebase mode state ----
   const [fbUser, setFbUser] = useState<FirebaseUser | null>(null);
   const [profile, setProfile] = useState<SessionUser | null>(null);
-  const [loading, setLoading] = useState<boolean>(mode === 'firebase');
+  const [loading, setLoading] = useState<boolean>(firebaseReady);
 
-  // Hydrate mock role from localStorage on mount
-  useEffect(() => {
-    if (mode !== 'mock') return;
-    try {
-      const raw = window.localStorage.getItem(MOCK_STORAGE);
-      if (raw === 'user' || raw === 'admin' || raw === 'guest') {
-        setMockRole(raw);
+  /** Helper: load profile từ Firestore (re-use cho refreshProfile) */
+  const loadProfileFromFirestore = useCallback(
+    async (u: FirebaseUser): Promise<SessionUser> => {
+      if (!db) throw new Error('no db');
+      const ref = doc(db, 'users', u.uid);
+      const snap = await getDoc(ref);
+      let data: Record<string, unknown> = {};
+      if (snap.exists()) {
+        data = snap.data() as Record<string, unknown>;
+      } else {
+        // Phase 16.1.c — Default role 'trial' (thay vì 'user').
+        // User phải nhập key để upgrade thành 'user'.
+        const now = Date.now();
+        const newDoc = {
+          id: u.uid,
+          email: u.email ?? '',
+          display_name: u.displayName ?? u.email?.split('@')[0] ?? 'User',
+          role: 'trial' as UserRole,
+          photo_url: u.photoURL ?? null,
+          provider: u.providerData[0]?.providerId ?? 'password',
+          key_activated_at: 0,
+          created_at: now,
+          last_login_at: now,
+        };
+        await setDoc(ref, {
+          ...newDoc,
+          _server_created_at: serverTimestamp(),
+          updatedAt: serverTimestamp(),
+        });
+        data = newDoc;
       }
-    } catch {
-      /* ignore */
-    }
-  }, [mode]);
+      const role = (data.role as UserRole) ?? 'trial';
+      const displayName =
+        (data.display_name as string) ??
+        (data.name as string) ??
+        u.displayName ??
+        u.email?.split('@')[0] ??
+        'User';
+      let plan: SessionUser['plan'] = 'Trial';
+      if (role === 'admin') plan = 'Admin';
+      else if (role === 'user') plan = 'Pro';
+      else if (role === 'trial') plan = 'Trial';
+      return {
+        id: u.uid,
+        name: displayName,
+        fullName: (data.fullName as string) ?? undefined,
+        email: u.email ?? (data.email as string) ?? '',
+        phone: (data.phone as string) ?? undefined,
+        photo_url:
+          (data.photo_url as string) ?? u.photoURL ?? undefined,
+        avatar_initials: initials(displayName),
+        plan,
+        role,
+        key_activated_at: (data.key_activated_at as number) ?? 0,
+        activated_key_id:
+          (data.activated_key_id as string) ?? undefined,
+      };
+    },
+    [],
+  );
 
   // Listen to Firebase auth state
   useEffect(() => {
-    if (mode !== 'firebase' || !auth) return;
+    if (!firebaseReady || !auth) {
+      setLoading(false);
+      return;
+    }
     const unsub = onAuthStateChanged(auth, async (u) => {
       setFbUser(u);
       if (!u) {
@@ -129,41 +159,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setLoading(false);
         return;
       }
-      // Fetch/create Firestore profile
       try {
-        if (!db) throw new Error('no db');
-        const ref = doc(db, 'users', u.uid);
-        const snap = await getDoc(ref);
-        let data: Partial<SessionUser> & { role?: UserRole } = {};
-        if (snap.exists()) {
-          data = snap.data() as Partial<SessionUser>;
-        } else {
-          // Create minimal profile if missing (e.g. OAuth signup)
-          data = {
-            id: u.uid,
-            name: u.displayName ?? u.email?.split('@')[0] ?? 'User',
-            email: u.email ?? '',
-            role: 'user',
-            plan: 'Free',
-          };
-          await setDoc(ref, {
-            ...data,
-            createdAt: serverTimestamp(),
-            updatedAt: serverTimestamp(),
-          });
-        }
-        const displayName =
-          data.name ?? u.displayName ?? u.email?.split('@')[0] ?? 'User';
-        setProfile({
-          id: u.uid,
-          name: displayName,
-          fullName: data.fullName,
-          email: u.email ?? data.email ?? '',
-          phone: data.phone,
-          avatar_initials: initials(displayName),
-          plan: data.plan ?? 'Free',
-          role: (data.role as UserRole) ?? 'user',
-        });
+        const sessionUser = await loadProfileFromFirestore(u);
+        setProfile(sessionUser);
       } catch (err) {
         console.error('[AuthProvider] load profile fail', err);
         setProfile({
@@ -171,42 +169,33 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           name: u.displayName ?? 'User',
           email: u.email ?? '',
           avatar_initials: initials(u.displayName ?? u.email ?? 'U'),
-          plan: 'Free',
-          role: 'user',
+          plan: 'Trial',
+          role: 'trial',
+          key_activated_at: 0,
         });
       } finally {
         setLoading(false);
       }
     });
     return () => unsub();
-  }, [mode]);
+  }, [loadProfileFromFirestore]);
 
-  const setRole = useCallback(
-    (r: UserRole) => {
-      if (mode !== 'mock') {
-        console.warn('[Auth] setRole chỉ dùng được ở mock mode');
-        return;
-      }
-      setMockRole(r);
-      try {
-        window.localStorage.setItem(MOCK_STORAGE, r);
-      } catch {
-        /* ignore */
-      }
-    },
-    [mode],
-  );
+  const refreshProfile = useCallback(async () => {
+    if (!fbUser) return;
+    try {
+      const sessionUser = await loadProfileFromFirestore(fbUser);
+      setProfile(sessionUser);
+    } catch (err) {
+      console.error('[AuthProvider] refresh profile fail', err);
+    }
+  }, [fbUser, loadProfileFromFirestore]);
+
+  // No-op stub — giữ API cho code cũ destructure {setRole}
+  const setRole = useCallback((_r: UserRole) => {
+    // Mock role switcher đã bị remove — chỉ Firebase quản lý role.
+  }, []);
 
   const logout = useCallback(async () => {
-    if (mode === 'mock') {
-      setMockRole('guest');
-      try {
-        window.localStorage.setItem(MOCK_STORAGE, 'guest');
-      } catch {
-        /* ignore */
-      }
-      return;
-    }
     if (auth) {
       try {
         await fbSignOut(auth);
@@ -214,35 +203,42 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         console.error('[Auth] signOut fail', err);
       }
     }
-  }, [mode]);
+  }, []);
 
   const value = useMemo<AuthContextValue>(() => {
-    if (mode === 'mock') {
-      const u = mockRole === 'guest' ? null : MOCK_USERS[mockRole];
-      return {
-        mode,
-        user: u,
-        role: mockRole,
-        setRole,
-        isAdmin: mockRole === 'admin',
-        isAuthenticated: mockRole !== 'guest',
-        loading: false,
-        logout,
+    const role: UserRole = profile?.role ?? (fbUser ? 'trial' : 'guest');
+    // Phase 16.1.d — Khi fbUser logged in nhưng profile đang load, return
+    // minimal user để UI không crash với `user!.X`. Khi profile load xong
+    // sẽ tự re-render với data đầy đủ.
+    let userVal: SessionUser | null = profile;
+    if (!profile && fbUser) {
+      const fallbackName =
+        fbUser.displayName ?? fbUser.email?.split('@')[0] ?? 'User';
+      userVal = {
+        id: fbUser.uid,
+        name: fallbackName,
+        email: fbUser.email ?? '',
+        photo_url: fbUser.photoURL ?? undefined,
+        avatar_initials: initials(fallbackName),
+        plan: 'Trial',
+        role: 'trial',
+        key_activated_at: 0,
       };
     }
-    // firebase mode
-    const role: UserRole = profile?.role ?? (fbUser ? 'user' : 'guest');
     return {
-      mode,
-      user: profile,
+      mode: 'firebase',
+      user: userVal,
       role,
       setRole,
       isAdmin: role === 'admin',
       isAuthenticated: Boolean(fbUser),
+      isPaid: role === 'user' || role === 'admin',
+      isTrial: role === 'trial',
       loading,
       logout,
+      refreshProfile,
     };
-  }, [mode, mockRole, fbUser, profile, loading, setRole, logout]);
+  }, [fbUser, profile, loading, setRole, logout, refreshProfile]);
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }
@@ -252,14 +248,17 @@ export function useAuth(): AuthContextValue {
   if (!v) {
     // Graceful fallback if provider missing (e.g. legacy component tree).
     return {
-      mode: 'mock',
+      mode: 'firebase',
       user: null,
       role: 'guest',
       setRole: () => {},
       isAdmin: false,
       isAuthenticated: false,
+      isPaid: false,
+      isTrial: false,
       loading: false,
       logout: async () => {},
+      refreshProfile: async () => {},
     };
   }
   return v;

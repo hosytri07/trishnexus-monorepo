@@ -99,6 +99,10 @@ export function loginRequiredLabel(kind: LoginRequired): string {
   switch (kind) {
     case 'none':
       return 'Miễn phí — không cần đăng nhập';
+    case 'trial':
+      return 'Cần đăng nhập TrishTEAM (trial chặn, kích hoạt key để mở full)';
+    case 'paid':
+      return 'Cần kích hoạt key';
     case 'user':
       return 'Cần đăng nhập';
     case 'admin':
@@ -107,6 +111,37 @@ export function loginRequiredLabel(kind: LoginRequired): string {
       return 'Chỉ dev nội bộ';
     default:
       return kind;
+  }
+}
+
+/**
+ * Compact badge cho card grid: emoji + 1-2 từ.
+ * Phase 16.4 — UI badge nhỏ ở góc app card.
+ *
+ * Chỉ 2 nhóm: 'none' = Free, 'trial' = Cần đăng nhập (block trial).
+ * Các value còn lại (paid/user/admin/dev) giữ trong type cho future
+ * nhưng hiện tại không dùng trong app catalog.
+ */
+export function loginRequiredBadge(kind: LoginRequired): {
+  emoji: string;
+  label: string;
+  color: 'green' | 'orange' | 'red' | 'purple' | 'gray';
+} {
+  switch (kind) {
+    case 'none':
+      return { emoji: '🆓', label: 'Free', color: 'green' };
+    case 'trial':
+      return { emoji: '🔑', label: 'Cần đăng nhập', color: 'orange' };
+    case 'paid':
+      return { emoji: '💎', label: 'Cần key', color: 'red' };
+    case 'user':
+      return { emoji: '👤', label: 'Login', color: 'orange' };
+    case 'admin':
+      return { emoji: '👑', label: 'Admin', color: 'purple' };
+    case 'dev':
+      return { emoji: '🛠', label: 'Dev', color: 'gray' };
+    default:
+      return { emoji: '❓', label: kind, color: 'gray' };
   }
 }
 

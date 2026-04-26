@@ -1,13 +1,12 @@
 rules_version = '2';
 
-// TrishTEAM Firestore Security Rules — Phase 11.6.5
-// Nguyên tắc:
-//   - Public không đọc được gì.
-//   - User đã login: đọc/ghi doc của chính mình trong /users/{uid}.
-//   - Admin (custom claim `admin:true` HOẶC doc /users/{uid}.role == 'admin'):
-//     đọc toàn bộ /users, toàn quyền /announcements, /audit, /posts.
-//   - /notes/{uid}/** — chỉ owner đọc/ghi.
-//   - /feedback — bất kỳ user login nào cũng tạo được, admin đọc all.
+// TrishTEAM Firestore Security Rules — Phase 16.1.c
+//
+// 4 roles:
+//   - admin    — toàn quyền hệ sinh thái (manual set qua Firebase Console)
+//   - user     — đã kích hoạt key, dùng đầy đủ tính năng + sync data riêng
+//   - trial    — chưa kích hoạt key, default khi đăng ký, chỉ xem demo
+//   - guest    — chưa login, không có doc trong /users/
 //
 // Sau khi deploy:
 //   firebase deploy --only firestore:rules
@@ -22,29 +21,59 @@ service cloud.firestore {
     function isSelf(uid) {
       return signedIn() && request.auth.uid == uid;
     }
+    function userDoc() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid));
+    }
+    function userExists() {
+      return signedIn()
+        && exists(/databases/$(database)/documents/users/$(request.auth.uid));
+    }
     function isAdmin() {
       return signedIn() && (
         request.auth.token.admin == true ||
-        (exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
-         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin')
+        (userExists() && userDoc().data.role == 'admin')
       );
+    }
+    function isPaidUser() {
+      // role == 'user' (đã kích hoạt key) HOẶC admin
+      return signedIn() && (
+        isAdmin() ||
+        (userExists() && userDoc().data.role == 'user')
+      );
+    }
+    function isAnyMember() {
+      // Bất kỳ user đã đăng ký (admin/user/trial)
+      return signedIn() && userExists();
     }
 
     // --- /users/{uid} ---
-    // Owner: CRUD trên doc của chính mình (trừ field `role`).
-    // Admin: đọc all + sửa role.
+    // Owner: CRUD doc của mình. Bình thường KHÔNG tự đổi role được.
+    // EXCEPTION: activate key flow Trial → User trong cùng transaction với
+    // /keys/{kid}.status = 'used' (đảm bảo key consumed atomic).
+    // Admin: đọc all + đổi role tuỳ ý.
     match /users/{uid} {
       allow read: if isSelf(uid) || isAdmin();
       allow create: if isSelf(uid)
-        && request.resource.data.role == 'user'
-        && request.resource.data.id == uid;
-      allow update: if (isSelf(uid)
-        && request.resource.data.role == resource.data.role)   // user không tự đổi role
-        || isAdmin();
+        && request.resource.data.role in ['trial', 'user']
+        && (request.resource.data.role == 'trial' || isAdmin());
+
+      // Update có 3 case hợp lệ:
+      //   1. Self update field thường (không đổi role)
+      //   2. Self activate key: trial → user + key_activated_at > 0 + activated_key_id set
+      //   3. Admin update bất kỳ
+      allow update: if isAdmin()
+        || (isSelf(uid) && request.resource.data.role == resource.data.role)
+        || (
+          isSelf(uid)
+          && resource.data.role == 'trial'
+          && request.resource.data.role == 'user'
+          && request.resource.data.key_activated_at > 0
+          && request.resource.data.activated_key_id is string
+          && request.resource.data.activated_key_id.size() > 0
+        );
       allow delete: if isAdmin();
 
-      // Phase 11.7 — activity events (append-only, owner + admin read).
-      // User chỉ được tạo; không update/delete để giữ audit trail sạch.
+      // Activity events (append-only, owner + admin read).
       match /events/{eventId} {
         allow read: if isSelf(uid) || isAdmin();
         allow create: if isSelf(uid)
@@ -53,28 +82,34 @@ service cloud.firestore {
         allow update, delete: if false;
       }
 
-      // Phase 11.7 — per-app progress (quiz, flashcard, checklist...).
-      // Dùng trong các app trishnexus (10 app desktop) để lưu state.
+      // Per-app progress.
       match /progress/{appId} {
         allow read, write: if isSelf(uid);
+      }
+
+      // Phase 16.2 — TrishLibrary per-user data sync
+      // Files (scan folder local) + online folders (links + QR) + trishteam_folders cache
+      // Chỉ owner đọc/ghi. Admin KHÔNG được đọc — privacy guarantee.
+      match /trishlibrary/{docId} {
+        allow read, write: if isSelf(uid) && isPaidUser();
+      }
+      match /trishlibrary/{docId}/items/{itemId} {
+        allow read, write: if isSelf(uid) && isPaidUser();
       }
     }
 
     // --- /announcements/{id} ---
-    // Public (signed in) đọc active; admin full.
     match /announcements/{id} {
       allow read: if signedIn();
       allow create, update, delete: if isAdmin();
     }
 
-    // --- /notes/{uid}/{noteId} ---
-    // Subcollection per-user — chỉ owner đọc/ghi.
+    // --- /notes/{uid}/items/{noteId} ---
     match /notes/{uid}/items/{noteId} {
       allow read, write: if isSelf(uid);
     }
 
     // --- /feedback/{id} ---
-    // User đã login tạo được; admin đọc all; user không đọc được của người khác.
     match /feedback/{id} {
       allow create: if signedIn() && request.resource.data.uid == request.auth.uid;
       allow read: if isAdmin()
@@ -83,35 +118,49 @@ service cloud.firestore {
     }
 
     // --- /audit/{id} ---
-    // Chỉ Cloud Functions ghi; admin đọc.
     match /audit/{id} {
       allow read: if isAdmin();
-      allow write: if false; // write qua Admin SDK / Cloud Functions
+      allow write: if false;
     }
 
-    // --- /posts/{id} (blog, documentation) ---
+    // --- /posts/{id} ---
     match /posts/{id} {
       allow read: if resource.data.status == 'published' || isAdmin();
       allow create, update, delete: if isAdmin();
     }
 
-    // --- Collection-group cho admin (Phase 11.8) ---
-    // Cho phép admin query collection-group `events` để xem feed toàn
-    // hệ thống ở /admin/audit. Rule nested /users/{uid}/events/{id} đã
-    // quản owner read riêng; rule này thêm nhánh admin cross-user.
+    // --- Phase 16.1.c — /keys/{keyId} (activation keys) ---
+    // Admin tạo + revoke. User đọc 1 key cụ thể bằng ID để activate.
+    // Schema: { code, status: 'active'|'used'|'revoked', created_at, used_by_uid?, used_at?, note? }
+    match /keys/{keyId} {
+      allow read: if isAdmin() || (signedIn() && resource.data.status == 'active');
+      allow create: if isAdmin();
+      allow update: if isAdmin()
+        || (signedIn()
+            && resource.data.status == 'active'
+            && request.resource.data.status == 'used'
+            && request.resource.data.used_by_uid == request.auth.uid);
+      allow delete: if isAdmin();
+    }
+
+    // --- Phase 15.2/16.2 — /trishteam_library/{folderId} (admin curated) ---
+    // Top-level collection (path 1 segment để Firestore valid odd-segments).
+    // Admin tạo/sửa/xóa folders + links. Mọi user đã login (kể cả trial) read.
+    match /trishteam_library/{folderId} {
+      allow read: if signedIn();
+      allow create, update, delete: if isAdmin();
+    }
+    match /trishteam_library/{folderId}/links/{linkId} {
+      allow read: if signedIn();
+      allow create, update, delete: if isAdmin();
+    }
+
+    // --- /{path=**}/events/{eventId} (admin cross-user) ---
     match /{path=**}/events/{eventId} {
       allow read: if isAdmin();
     }
 
-    // --- /semantic/{kind}/{id} (Phase 12.4) ---
-    // Vector embedding index cho universal search. Schema:
-    //   { vec: number[], model: string, text: string (preview),
-    //     title: string, category: string, updatedAt: Timestamp }
-    // kind ∈ {'apps','announcements','notes'}.
-    //
-    // Rules:
-    //   - apps/announcements: signed-in đọc (để client rerank), admin ghi.
-    //   - notes: owner đọc/ghi của mình (id prefix uid_*).
+    // --- /semantic/{kind}/items/{docId} ---
     match /semantic/{kind}/items/{docId} {
       allow read: if signedIn() && (kind == 'apps' || kind == 'announcements' || isAdmin()
         || (kind == 'notes' && docId.matches(request.auth.uid + '_.*')));
@@ -123,21 +172,13 @@ service cloud.firestore {
         || (kind == 'notes' && docId.matches(request.auth.uid + '_.*'));
     }
 
-    // --- /vitals/{env}/samples/{id} (Phase 16.3) ---
-    // Core Web Vitals samples gửi bởi `/api/vitals` route (Admin SDK).
-    // Client KHÔNG write trực tiếp — luôn qua API route để sanitize.
-    // Chỉ admin đọc được để phân tích (Phase 16.4 sẽ có dashboard).
+    // --- /vitals/{env}/samples/{id} ---
     match /vitals/{env}/samples/{sampleId} {
       allow read: if isAdmin();
-      // write=deny cho client; server Admin SDK bypass rules hoàn toàn.
       allow write: if false;
     }
 
-    // --- /errors/{env}/samples/{id} (Phase 16.5) ---
-    // Lỗi runtime (JS error, unhandledrejection, React ErrorBoundary) gửi
-    // bởi `/api/errors` route (Admin SDK). Client KHÔNG write trực tiếp —
-    // luôn qua API route để sanitize + rate-limit.
-    // Admin đọc ở `/admin/errors` để triage.
+    // --- /errors/{env}/samples/{id} ---
     match /errors/{env}/samples/{sampleId} {
       allow read: if isAdmin();
       allow write: if false;

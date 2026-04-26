@@ -42,7 +42,7 @@ const REGISTRY = registry as unknown as AppRegistry;
  * Website homepage cần show launcher như 1 card → prepend entry này
  * trước 9 apps khác để mergeRegistry kết hợp với APP_META.
  *
- * URL + SHA256 sync với GitHub Release `launcher-v2.0.0-1`. Khi bump
+ * URL + SHA256 sync với GitHub Release `launcher-v2.0.1`. Khi bump
  * launcher version → update 3 field: version, url, sha256.
  */
 const TRISHLAUNCHER_ENTRY = {
@@ -50,17 +50,17 @@ const TRISHLAUNCHER_ENTRY = {
   name: 'TrishLauncher',
   tagline: 'Hệ sinh thái năng suất cá nhân — cài đặt và quản lý 9 ứng dụng TrishTEAM qua 1 entry',
   logo_url: 'https://trishteam.io.vn/logos/TrishLauncher/icon-256.png',
-  version: '2.0.0-1',
+  version: '2.0.1',
   size_bytes: 5_500_000,
   status: 'released' as const,
   login_required: 'none' as const,
   platforms: ['windows_x64' as const],
   screenshots: [],
-  changelog_url: 'https://github.com/hosytri07/trishnexus-monorepo/releases/tag/launcher-v2.0.0-1',
+  changelog_url: 'https://github.com/hosytri07/trishnexus-monorepo/releases/tag/launcher-v2.0.1',
   download: {
     windows_x64: {
-      url: 'https://github.com/hosytri07/trishnexus-monorepo/releases/download/launcher-v2.0.0-1/TrishLauncher_2.0.0-1_x64-setup.exe',
-      sha256: 'd86089cd714ff11f8db9c3e8f1dfc6a60e83c2bc1bff0e6ff185439ed07f2b1f',
+      url: 'https://github.com/hosytri07/trishnexus-monorepo/releases/download/launcher-v2.0.1/TrishLauncher_2.0.1_x64-setup.exe',
+      sha256: '16657ef916ba7ad6eedf1c0ef036069e4abb1ad4a6216e60a1e145d05cf586a9',
       installer_args: [],
     },
   },

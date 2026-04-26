@@ -12,12 +12,23 @@ export type AppStatus = 'released' | 'coming_soon' | 'beta';
 
 /**
  * Mức auth cần để tải/chạy app.
- * - 'none'  = public, ai cũng tải được
- * - 'user'  = phải login account TrishTEAM
- * - 'admin' = chỉ admin (TrishAdmin)
+ * - 'none'  = utility free, không cần login (TrishCheck, TrishFont, TrishLauncher,
+ *             TrishClean, TrishSearch, TrishDesign — ai cũng tải/dùng được)
+ * - 'trial' = login OK với role 'trial' cũng dùng được limited features
+ *             (TrishLibrary — trial xem demo content, key kích hoạt mở full)
+ * - 'paid'  = phải có key đã activate (TrishNote, TrishImage, TrishType — sync
+ *             cloud yêu cầu user role)
+ * - 'user'  = (deprecated, dùng 'paid')
+ * - 'admin' = chỉ admin (TrishAdmin tools)
  * - 'dev'   = chỉ dev nội bộ
  */
-export type LoginRequired = 'none' | 'user' | 'admin' | 'dev';
+export type LoginRequired =
+  | 'none'
+  | 'trial'
+  | 'paid'
+  | 'user'
+  | 'admin'
+  | 'dev';
 
 export type Platform =
   | 'windows_x64'
