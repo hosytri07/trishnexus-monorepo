@@ -1,7 +1,7 @@
 [package]
 name = "trishnote"
-version = "2.0.0-alpha.1"
-description = "TrishNote — ghi chú local + daily review + kanban"
+version = "2.0.0-1"
+description = "TrishNote — ghi chú cá nhân + dự án có deadline (rich text + đính kèm + thùng rác)"
 authors = ["TrishTEAM <hosytri77@gmail.com>"]
 edition = "2021"
 rust-version = "1.77"
@@ -21,9 +21,13 @@ tauri-build = { version = "2.0", features = [] }
 [dependencies]
 tauri = { version = "2.0", features = [] }
 tauri-plugin-dialog = "2.0"
+tauri-plugin-opener = "2.0"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 dirs = "5"
+# Phase 17.2 — Update check (fetch GitHub registry)
+reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "json"] }
+tokio = { version = "1", features = ["rt-multi-thread", "macros"] }
 
 [features]
 custom-protocol = ["tauri/custom-protocol"]

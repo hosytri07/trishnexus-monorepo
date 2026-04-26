@@ -1,6 +1,6 @@
 {
   "name": "@trishteam/trishnote",
-  "version": "2.0.0-alpha.1",
+  "version": "2.0.0-1",
   "private": true,
   "description": "TrishNote — ghi chú + daily review + kanban board. Tauri 2 + @trishteam/core/notes. Rust backend lưu JSON local (cap 10 MiB) cho alpha; Firebase Auth + Firestore sync dời 14.4.1.b.",
   "type": "module",
@@ -14,9 +14,13 @@
     "tauri:build": "tauri build"
   },
   "dependencies": {
+    "@trishteam/auth": "workspace:*",
     "@trishteam/core": "workspace:*",
+    "@trishteam/data": "workspace:*",
     "@tauri-apps/api": "^2.0.0",
     "@tauri-apps/plugin-dialog": "^2.0.0",
+    "@tauri-apps/plugin-opener": "^2.0.0",
+    "firebase": "^10.14.1",
     "react": "18.3.1",
     "react-dom": "18.3.1"
   },
