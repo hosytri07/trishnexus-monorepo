@@ -1,54 +1,89 @@
+/**
+ * Phase 17.3 Layer 1 — TrishSearch tauri-bridge.
+ *
+ * Wraps Rust commands cho:
+ *  - Search location management (add/remove/rename/list)
+ *  - Index location (background scan + extract text content)
+ *  - Search filename + content với filters
+ *  - Open file / open containing folder
+ *  - App version + update check
+ */
+
 import { invoke } from '@tauri-apps/api/core';
 import { open as openDialog } from '@tauri-apps/plugin-dialog';
-import { openPath } from '@tauri-apps/plugin-opener';
-import type { FulltextDoc } from '@trishteam/core/fulltext';
-import type { LibraryDoc } from '@trishteam/core/library';
-import type { Note } from '@trishteam/core/notes';
-import { collectFulltextDocs } from '@trishteam/core/fulltext';
 
 export interface EnvLocation {
   data_dir: string;
   exists: boolean;
 }
 
-export interface ScannedTextFile {
+export type LocationKind = 'local' | 'lan';
+
+export interface SearchLocation {
+  id: string;
+  name: string;
+  path: string;
+  kind: LocationKind;
+  last_indexed_at: number;
+  indexed_files: number;
+  indexed_bytes: number;
+}
+
+export interface IndexedFile {
+  location_id: string;
   path: string;
   name: string;
   ext: string;
   size_bytes: number;
-  mtime_ms: number | null;
+  mtime_ms: number;
   content: string;
-  truncated: boolean;
+  content_truncated: boolean;
+  has_content: boolean;
 }
 
-export interface ScanTextSummary {
-  root: string;
-  files: ScannedTextFile[];
-  total_files_visited: number;
+export interface PreScanResult {
+  total_files: number;
+  total_bytes: number;
+  indexable_files: number;
   elapsed_ms: number;
+  limit_reached: boolean;
+}
+
+export interface IndexResult {
+  location_id: string;
+  indexed_files: number;
+  skipped_files: number;
   errors: string[];
-  max_entries_reached: boolean;
+  total_bytes: number;
+  elapsed_ms: number;
+  limit_reached: boolean;
 }
 
-interface JsonLoadResult {
-  path: string;
-  content: string;
-  size_bytes: number;
+export type SearchMode = 'name' | 'content' | 'both';
+
+export interface SearchQuery {
+  query: string;
+  mode: SearchMode;
+  extensions: string[];
+  modified_after_ms: number;
+  modified_before_ms: number;
+  min_size_bytes: number;
+  max_size_bytes: number;
+  location_ids: string[];
+  limit: number;
 }
 
-export interface LoadedCorpus {
-  notes: Note[];
-  libraryDocs: LibraryDoc[];
-  files: ScannedTextFile[];
-  sources: {
-    notesPath: string | null;
-    libraryPath: string | null;
-    folderRoot: string | null;
-  };
-  notesSize: number;
-  libraryDocsSize: number;
-  filesScanned: number;
-  filesErrors: string[];
+export interface SearchHit {
+  file: IndexedFile;
+  score: number;
+  snippet: string;
+  match_in: 'name' | 'content' | 'both' | 'browse';
+}
+
+export interface SearchResponse {
+  hits: SearchHit[];
+  total_indexed: number;
+  elapsed_ms: number;
 }
 
 function isInTauri(): boolean {
@@ -59,120 +94,9 @@ function isInTauri(): boolean {
   );
 }
 
-/** --------------------------------------------------------------------
- *  DEV FALLBACK — mix 3 nguồn để test UI trong browser.
- *  -------------------------------------------------------------------- */
-const NOW_FAKE = Date.UTC(2026, 3, 24, 9, 0);
-const DAY = 86_400_000;
-
-const DEV_NOTES: Note[] = [
-  {
-    id: 'n-001',
-    title: 'React hook pattern',
-    body: 'useState, useEffect, useMemo — AND kết hợp với custom hook để encapsulate logic. react hook là xương sống của function component.',
-    tags: ['react', 'code'],
-    createdAt: NOW_FAKE - 3 * DAY,
-    updatedAt: NOW_FAKE - 1 * DAY,
-    deletedAt: null,
-    status: 'active',
-  },
-  {
-    id: 'n-002',
-    title: 'TCVN 5574 — Bê tông cốt thép',
-    body: 'Ghi nhanh khi đọc chương 3 về tính toán cốt chịu lực. Ô nhiễm tiếng ồn không áp dụng ở đây. Vietnamese diacritics như "đỗ" "nở" "độ nở".',
-    tags: ['xây dựng', 'tcvn'],
-    createdAt: NOW_FAKE - 10 * DAY,
-    updatedAt: NOW_FAKE - 5 * DAY,
-    deletedAt: null,
-    status: 'active',
-  },
-  {
-    id: 'n-003',
-    title: 'Deprecated ghi chú cũ',
-    body: 'Chỉ để test soft delete',
-    tags: [],
-    createdAt: NOW_FAKE - 50 * DAY,
-    updatedAt: NOW_FAKE - 40 * DAY,
-    deletedAt: NOW_FAKE - 20 * DAY,
-  },
-];
-
-const DEV_LIBRARY: LibraryDoc[] = [
-  {
-    id: 'l-001',
-    path: '/dev/library/react-handbook.pdf',
-    name: 'react-handbook.pdf',
-    ext: 'pdf',
-    format: 'pdf',
-    sizeBytes: 1_800_000,
-    mtimeMs: NOW_FAKE - 30 * DAY,
-    title: 'The React Handbook',
-    authors: ['Flavio Copes'],
-    year: 2021,
-    publisher: 'Self-published',
-    tags: ['code', 'javascript'],
-    status: 'done',
-    note: 'Xong 2 lần đọc; cần ghi lại các hook pattern.',
-    addedAt: NOW_FAKE - 40 * DAY,
-    updatedAt: NOW_FAKE - 30 * DAY,
-  },
-  {
-    id: 'l-002',
-    path: '/dev/library/ieee_semantic.pdf',
-    name: 'ieee_semantic.pdf',
-    ext: 'pdf',
-    format: 'pdf',
-    sizeBytes: 600_000,
-    mtimeMs: NOW_FAKE - 10 * DAY,
-    title: 'A Survey on Semantic Retrieval',
-    authors: ['Alice Johnson', 'Bob Lee'],
-    year: 2023,
-    publisher: 'IEEE',
-    tags: ['nghiên cứu', 'code'],
-    status: 'unread',
-    note: 'Dùng BM25 làm baseline rerank.',
-    addedAt: NOW_FAKE - 12 * DAY,
-    updatedAt: NOW_FAKE - 10 * DAY,
-  },
-];
-
-const DEV_FILES: ScannedTextFile[] = [
-  {
-    path: '/dev/notes/readme.md',
-    name: 'readme.md',
-    ext: 'md',
-    size_bytes: 420,
-    mtime_ms: NOW_FAKE - 2 * DAY,
-    content:
-      '# Dự án TrishSearch\n\nFull-text search xuyên notes + library + file rời với BM25. Chạy local, không cần server.',
-    truncated: false,
-  },
-  {
-    path: '/dev/notes/changelog.txt',
-    name: 'changelog.txt',
-    ext: 'txt',
-    size_bytes: 240,
-    mtime_ms: NOW_FAKE - 7 * DAY,
-    content:
-      'v2.0.0-alpha.1 — first cut of BM25 engine in pure TS. Rust backend chỉ lo file-IO an toàn.',
-    truncated: false,
-  },
-];
-
-/** Dev fallback: FulltextDoc sẵn sàng cho index (đã qua adapter). */
-export const DEV_FALLBACK_DOCS: FulltextDoc[] = collectFulltextDocs({
-  notes: DEV_NOTES,
-  libraryDocs: DEV_LIBRARY,
-  files: DEV_FILES.map((f) => ({
-    path: f.path,
-    content: f.content,
-    mtimeMs: f.mtime_ms ?? NOW_FAKE,
-  })),
-});
-
-/** --------------------------------------------------------------------
- *  Tauri commands.
- *  -------------------------------------------------------------------- */
+// ============================================================
+// Env
+// ============================================================
 
 export async function getDefaultStoreLocation(): Promise<EnvLocation> {
   if (!isInTauri()) {
@@ -181,67 +105,250 @@ export async function getDefaultStoreLocation(): Promise<EnvLocation> {
   return invoke<EnvLocation>('default_store_location');
 }
 
-export async function pickNotesFile(): Promise<Note[] | null> {
-  if (!isInTauri()) {
-    await new Promise((r) => setTimeout(r, 60));
-    return DEV_NOTES;
-  }
-  const picked = await openDialog({
-    multiple: false,
-    filters: [{ name: 'TrishNote JSON', extensions: ['json'] }],
-  });
-  if (typeof picked !== 'string') return null;
-  const raw = await invoke<JsonLoadResult>('load_json_file', { path: picked });
-  try {
-    const parsed = JSON.parse(raw.content);
-    if (!Array.isArray(parsed)) return [];
-    return parsed as Note[];
-  } catch {
-    return [];
-  }
+// ============================================================
+// Search Locations
+// ============================================================
+
+export async function listLocations(): Promise<SearchLocation[]> {
+  if (!isInTauri()) return [];
+  return invoke<SearchLocation[]>('list_locations');
 }
 
-export async function pickLibraryFile(): Promise<LibraryDoc[] | null> {
+/** User pick folder qua dialog hoặc nhập UNC path tay → add. */
+export async function addLocation(
+  path: string,
+  name?: string,
+): Promise<SearchLocation> {
   if (!isInTauri()) {
-    await new Promise((r) => setTimeout(r, 60));
-    return DEV_LIBRARY;
+    throw new Error('Add location chỉ hoạt động trong bản desktop.');
   }
-  const picked = await openDialog({
-    multiple: false,
-    filters: [{ name: 'TrishLibrary JSON', extensions: ['json'] }],
-  });
-  if (typeof picked !== 'string') return null;
-  const raw = await invoke<JsonLoadResult>('load_json_file', { path: picked });
-  try {
-    const parsed = JSON.parse(raw.content);
-    if (!Array.isArray(parsed)) return [];
-    return parsed as LibraryDoc[];
-  } catch {
-    return [];
-  }
+  return invoke<SearchLocation>('add_location', { path, name: name ?? null });
 }
 
-export async function pickAndScanTextFolder(): Promise<ScanTextSummary | null> {
+export async function removeLocation(locationId: string): Promise<void> {
+  if (!isInTauri()) return;
+  await invoke<void>('remove_location', { locationId });
+}
+
+export async function renameLocation(locationId: string, name: string): Promise<void> {
+  if (!isInTauri()) return;
+  await invoke<void>('rename_location', { locationId, name });
+}
+
+/** Picker chọn thư mục local. UNC path nhập tay qua textbox riêng. */
+export async function pickLocalFolder(): Promise<string | null> {
   if (!isInTauri()) {
-    await new Promise((r) => setTimeout(r, 80));
-    return {
-      root: '(browser dev)',
-      files: DEV_FILES,
-      total_files_visited: DEV_FILES.length,
-      elapsed_ms: 3,
-      errors: [],
-      max_entries_reached: false,
-    };
+    return prompt('Nhập đường dẫn folder (browser dev):');
   }
   const picked = await openDialog({ directory: true, multiple: false });
-  if (typeof picked !== 'string') return null;
-  return invoke<ScanTextSummary>('scan_text_folder', { dir: picked });
+  return typeof picked === 'string' ? picked : null;
 }
 
-export async function openByPath(path: string): Promise<void> {
+// ============================================================
+// Indexing
+// ============================================================
+
+export async function preScanLocation(path: string): Promise<PreScanResult> {
   if (!isInTauri()) {
-    alert('Mở file bằng app mặc định chỉ hoạt động trong bản desktop.');
+    return {
+      total_files: 0,
+      total_bytes: 0,
+      indexable_files: 0,
+      elapsed_ms: 0,
+      limit_reached: false,
+    };
+  }
+  return invoke<PreScanResult>('pre_scan_location', { path });
+}
+
+export async function indexLocation(locationId: string): Promise<IndexResult> {
+  if (!isInTauri()) {
+    return {
+      location_id: locationId,
+      indexed_files: 0,
+      skipped_files: 0,
+      errors: [],
+      total_bytes: 0,
+      elapsed_ms: 0,
+      limit_reached: false,
+    };
+  }
+  return invoke<IndexResult>('index_location', { locationId });
+}
+
+// ============================================================
+// Search
+// ============================================================
+
+export const DEFAULT_SEARCH_QUERY: SearchQuery = {
+  query: '',
+  mode: 'both',
+  extensions: [],
+  modified_after_ms: 0,
+  modified_before_ms: 0,
+  min_size_bytes: 0,
+  max_size_bytes: 0,
+  location_ids: [],
+  limit: 200,
+};
+
+export async function searchFiles(q: SearchQuery): Promise<SearchResponse> {
+  if (!isInTauri()) {
+    return { hits: [], total_indexed: 0, elapsed_ms: 0 };
+  }
+  return invoke<SearchResponse>('search', { q });
+}
+
+// ============================================================
+// Open
+// ============================================================
+
+export async function openFile(path: string): Promise<void> {
+  if (!isInTauri()) {
+    alert(`(dev) Mở: ${path}`);
     return;
   }
-  await openPath(path);
+  await invoke<void>('open_file', { path });
+}
+
+export async function openContainingFolder(path: string): Promise<void> {
+  if (!isInTauri()) {
+    alert(`(dev) Mở folder chứa: ${path}`);
+    return;
+  }
+  await invoke<void>('open_containing_folder', { path });
+}
+
+// ============================================================
+// Layer 3 — OCR commands (frontend Tesseract.js + PDF.js)
+// ============================================================
+
+export interface OcrStatus {
+  enabled: boolean;
+  languages: string;
+}
+
+export async function getOcrStatus(): Promise<OcrStatus> {
+  if (!isInTauri()) {
+    return { enabled: false, languages: 'vie+eng' };
+  }
+  return invoke<OcrStatus>('get_ocr_status');
+}
+
+export async function setOcrSettings(
+  enabled: boolean,
+  languages: string,
+): Promise<void> {
+  if (!isInTauri()) return;
+  await invoke<void>('set_ocr_settings', { enabled, languages });
+}
+
+/** Đọc bytes của file để feed vào Tesseract.js / PDF.js. */
+export async function readFileBytes(path: string): Promise<Uint8Array> {
+  if (!isInTauri()) {
+    throw new Error('Read file bytes chỉ chạy trong desktop.');
+  }
+  // Tauri serialize Vec<u8> → number[] trong JS, convert lại Uint8Array
+  const arr = await invoke<number[]>('read_file_bytes', { path });
+  return Uint8Array.from(arr);
+}
+
+/** Update content của file đã index sau khi OCR xong. */
+export async function updateFileOcr(
+  path: string,
+  content: string,
+): Promise<void> {
+  if (!isInTauri()) return;
+  await invoke<void>('update_file_ocr', { path, content });
+}
+
+/** List tất cả file PDF/ảnh chưa có content (candidate cho bulk OCR). */
+export async function listOcrCandidates(): Promise<IndexedFile[]> {
+  if (!isInTauri()) return [];
+  return invoke<IndexedFile[]>('list_ocr_candidates');
+}
+
+// ============================================================
+// App version + Update check
+// ============================================================
+
+export async function getAppVersion(): Promise<string> {
+  if (!isInTauri()) return 'dev';
+  try {
+    return await invoke<string>('app_version');
+  } catch {
+    return 'dev';
+  }
+}
+
+export interface UpdateInfo {
+  current: string;
+  latest: string;
+  hasUpdate: boolean;
+  downloadUrl: string;
+  changelogUrl: string;
+}
+
+export async function checkForUpdate(currentVersion: string): Promise<UpdateInfo> {
+  const APPS_REGISTRY = 'https://trishteam.io.vn/apps-registry.json';
+  const fallback: UpdateInfo = {
+    current: currentVersion,
+    latest: currentVersion,
+    hasUpdate: false,
+    downloadUrl: '',
+    changelogUrl: '',
+  };
+  if (!isInTauri()) return fallback;
+  try {
+    const text = await invoke<string>('fetch_text', { url: APPS_REGISTRY });
+    const json = JSON.parse(text) as {
+      apps?: Array<{
+        id: string;
+        version: string;
+        download?: { windows_x64?: { url: string } };
+        changelog_url?: string;
+      }>;
+    };
+    const me = json.apps?.find((a) => a.id === 'trishsearch');
+    if (!me) return fallback;
+    return {
+      current: currentVersion,
+      latest: me.version,
+      hasUpdate: me.version !== currentVersion,
+      downloadUrl: me.download?.windows_x64?.url ?? '',
+      changelogUrl: me.changelog_url ?? '',
+    };
+  } catch (err) {
+    console.warn('[trishsearch] checkForUpdate fail:', err);
+    return fallback;
+  }
+}
+
+// ============================================================
+// Helpers
+// ============================================================
+
+export function formatBytes(bytes: number): string {
+  if (bytes <= 0) return '0 B';
+  const gb = bytes / 1024 ** 3;
+  if (gb >= 1) return `${gb.toFixed(2)} GB`;
+  const mb = bytes / 1024 ** 2;
+  if (mb >= 1) return `${mb.toFixed(1)} MB`;
+  const kb = bytes / 1024;
+  if (kb >= 1) return `${kb.toFixed(0)} KB`;
+  return `${bytes} B`;
+}
+
+export function formatRelativeTime(ms: number, now: number = Date.now()): string {
+  if (ms <= 0) return 'chưa bao giờ';
+  const diff = now - ms;
+  const sec = Math.round(diff / 1000);
+  if (sec < 60) return `${sec}s trước`;
+  const min = Math.round(sec / 60);
+  if (min < 60) return `${min} phút trước`;
+  const hour = Math.round(min / 60);
+  if (hour < 24) return `${hour} giờ trước`;
+  const day = Math.round(hour / 24);
+  if (day < 7) return `${day} ngày trước`;
+  return new Date(ms).toLocaleDateString('vi-VN');
 }

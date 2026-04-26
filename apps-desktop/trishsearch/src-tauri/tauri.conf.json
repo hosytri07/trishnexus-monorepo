@@ -1,7 +1,7 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
   "productName": "TrishSearch",
-  "version": "2.0.0-alpha.1",
+  "version": "2.0.0-1",
   "identifier": "vn.trishteam.search",
   "build": {
     "beforeDevCommand": "pnpm dev",
@@ -12,7 +12,7 @@
   "app": {
     "windows": [
       {
-        "title": "TrishSearch — Tìm kiếm full-text xuyên Ghi chú / Thư viện / File",
+        "title": "TrishSearch",
         "width": 1240,
         "height": 820,
         "minWidth": 960,
@@ -22,7 +22,7 @@
       }
     ],
     "security": {
-      "csp": "default-src 'self' ipc: http://ipc.localhost; img-src 'self' data: asset: http://asset.localhost; style-src 'self' 'unsafe-inline'; script-src 'self'"
+      "csp": "default-src 'self' ipc: http://ipc.localhost; connect-src 'self' ipc: http://ipc.localhost https://api.github.com https://*.github.com https://trishteam.io.vn; img-src 'self' data: asset: http://asset.localhost; style-src 'self' 'unsafe-inline'; script-src 'self'"
     }
   },
   "bundle": {
@@ -43,8 +43,20 @@
     ],
     "category": "Productivity",
     "copyright": "© 2026 TrishTEAM",
-    "shortDescription": "Tìm kiếm full-text BM25 xuyên ghi chú + thư viện + file text (local alpha)",
-    "longDescription": "TrishSearch — index BM25 in-memory cho ghi chú (TrishNote), thư viện tài liệu (TrishLibrary) và file text rời (md/txt/html/rtf). Query DSL: AND ngầm, -phủ định, *prefix, \"cụm từ\", note:/library:/file: nguồn. Vietnamese fold + lite stem. Alpha chạy hoàn toàn local; Tantivy WASM cho index bền ở 14.4.3.b; Firebase cross-device ở 14.4.3.c.",
-    "publisher": "TrishTEAM"
+    "shortDescription": "Tìm kiếm file local + LAN, OCR ảnh tiếng Việt offline",
+    "longDescription": "TrishSearch — full-text search offline cho file local + LAN UNC. Hỗ trợ: file text/code, PDF text-based, DOCX, XLSX. OCR ảnh tiếng Việt qua Tesseract.js + PDF.js (bundled). Index parallel với rayon. 100% offline, không upload data, không cần API key.",
+    "publisher": "TrishTEAM",
+    "homepage": "https://trishteam.io.vn",
+    "windows": {
+      "nsis": {
+        "installMode": "currentUser",
+        "languages": ["English", "Vietnamese"],
+        "displayLanguageSelector": true,
+        "installerIcon": "icons/icon.ico"
+      },
+      "wix": {
+        "language": ["en-US", "vi-VN"]
+      }
+    }
   }
 }

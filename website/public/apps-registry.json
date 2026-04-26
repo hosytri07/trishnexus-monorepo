@@ -1,6 +1,6 @@
 {
   "schema_version": 2,
-  "updated_at": "2026-04-26T17:30+07:00",
+  "updated_at": "2026-04-26T20:30+07:00",
   "ecosystem": {
     "name": "TrishTEAM",
     "tagline": "Hệ sinh thái năng suất cá nhân",
@@ -151,20 +151,20 @@
     {
       "id": "trishsearch",
       "name": "TrishSearch",
-      "tagline": "Full-text search BM25 offline",
+      "tagline": "Tìm kiếm file local + LAN, OCR ảnh tiếng Việt offline",
       "logo_url": "https://trishteam.io.vn/logos/trishsearch.png",
-      "version": "2.0.0",
-      "size_bytes": 42000000,
-      "status": "coming_soon",
+      "version": "2.0.0-1",
+      "size_bytes": 34906112,
+      "status": "released",
       "login_required": "none",
-      "platforms": ["windows_x64", "macos_arm64", "linux_x64"],
+      "platforms": ["windows_x64"],
       "screenshots": [],
-      "changelog_url": "",
+      "changelog_url": "https://github.com/hosytri07/trishnexus-monorepo/releases/tag/trishsearch-v2.0.0-1",
       "download": {
         "windows_x64": {
-          "url": "https://trishteam.io.vn/dl/trishsearch-2.0.0-x64.msi",
-          "sha256": "",
-          "installer_args": ["/quiet"]
+          "url": "https://github.com/hosytri07/trishnexus-monorepo/releases/download/trishsearch-v2.0.0-1/TrishSearch_2.0.0-1_x64-setup.exe",
+          "sha256": "cd41ea3ce675a30645fc23dc0a1b64b370495eec9675d166933e717feb14eef1",
+          "installer_args": []
         }
       }
     },
