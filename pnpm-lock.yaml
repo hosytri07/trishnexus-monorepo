@@ -267,9 +267,18 @@ importers:
       '@tauri-apps/plugin-opener':
         specifier: ^2.0.0
         version: 2.5.3
-      '@trishteam/core':
+      '@trishteam/auth':
         specifier: workspace:*
-        version: link:../../packages/core
+        version: link:../../packages/auth
+      '@trishteam/data':
+        specifier: workspace:*
+        version: link:../../packages/data
+      firebase:
+        specifier: ^10.14.1
+        version: 10.14.1
+      qrcode:
+        specifier: ^1.5.3
+        version: 1.5.4
       react:
         specifier: 18.3.1
         version: 18.3.1
@@ -280,6 +289,9 @@ importers:
       '@tauri-apps/cli':
         specifier: ^2.0.0
         version: 2.10.1
+      '@types/qrcode':
+        specifier: ^1.5.5
+        version: 1.5.6
       '@types/react':
         specifier: 18.3.3
         version: 18.3.3
@@ -304,9 +316,21 @@ importers:
       '@tauri-apps/plugin-dialog':
         specifier: ^2.0.0
         version: 2.7.0
+      '@tauri-apps/plugin-opener':
+        specifier: ^2.0.0
+        version: 2.5.3
+      '@trishteam/auth':
+        specifier: workspace:*
+        version: link:../../packages/auth
       '@trishteam/core':
         specifier: workspace:*
         version: link:../../packages/core
+      '@trishteam/data':
+        specifier: workspace:*
+        version: link:../../packages/data
+      firebase:
+        specifier: ^10.14.1
+        version: 10.14.1
       react:
         specifier: 18.3.1
         version: 18.3.1
@@ -419,6 +443,25 @@ importers:
         specifier: 5.4.5
         version: 5.4.5
 
+  packages/auth:
+    dependencies:
+      '@trishteam/data':
+        specifier: workspace:*
+        version: link:../data
+    devDependencies:
+      '@types/react':
+        specifier: 18.3.3
+        version: 18.3.3
+      firebase:
+        specifier: 10.14.1
+        version: 10.14.1
+      react:
+        specifier: 18.3.1
+        version: 18.3.1
+      typescript:
+        specifier: 5.4.5
+        version: 5.4.5
+
   packages/core:
     devDependencies:
       '@vitest/coverage-v8':
@@ -491,7 +534,7 @@ importers:
         version: 0.383.0(react@18.3.1)
       next:
         specifier: 14.2.5
-        version: 14.2.5(@opentelemetry/api@1.9.1)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
+        version: 14.2.5(@babel/core@7.29.0)(@opentelemetry/api@1.9.1)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
       qrcode:
         specifier: ^1.5.3
         version: 1.5.4
@@ -5461,7 +5504,7 @@ snapshots:
       eslint: 8.57.0
       eslint-import-resolver-node: 0.3.10
       eslint-import-resolver-typescript: 3.10.1(eslint-plugin-import@2.32.0(eslint@8.57.0))(eslint@8.57.0)
-      eslint-plugin-import: 2.32.0(@typescript-eslint/parser@7.2.0(eslint@8.57.0)(typescript@5.4.5))(eslint-import-resolver-typescript@3.10.1)(eslint@8.57.0)
+      eslint-plugin-import: 2.32.0(@typescript-eslint/parser@7.2.0(eslint@8.57.0)(typescript@5.4.5))(eslint-import-resolver-typescript@3.10.1(eslint-plugin-import@2.32.0(eslint@8.57.0))(eslint@8.57.0))(eslint@8.57.0)
       eslint-plugin-jsx-a11y: 6.10.2(eslint@8.57.0)
       eslint-plugin-react: 7.37.5(eslint@8.57.0)
       eslint-plugin-react-hooks: 5.0.0-canary-7118f5dd7-20230705(eslint@8.57.0)
@@ -5491,7 +5534,7 @@ snapshots:
       tinyglobby: 0.2.16
       unrs-resolver: 1.11.1
     optionalDependencies:
-      eslint-plugin-import: 2.32.0(@typescript-eslint/parser@7.2.0(eslint@8.57.0)(typescript@5.4.5))(eslint-import-resolver-typescript@3.10.1)(eslint@8.57.0)
+      eslint-plugin-import: 2.32.0(@typescript-eslint/parser@7.2.0(eslint@8.57.0)(typescript@5.4.5))(eslint-import-resolver-typescript@3.10.1(eslint-plugin-import@2.32.0(eslint@8.57.0))(eslint@8.57.0))(eslint@8.57.0)
     transitivePeerDependencies:
       - supports-color
 
@@ -5506,7 +5549,7 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  eslint-plugin-import@2.32.0(@typescript-eslint/parser@7.2.0(eslint@8.57.0)(typescript@5.4.5))(eslint-import-resolver-typescript@3.10.1)(eslint@8.57.0):
+  eslint-plugin-import@2.32.0(@typescript-eslint/parser@7.2.0(eslint@8.57.0)(typescript@5.4.5))(eslint-import-resolver-typescript@3.10.1(eslint-plugin-import@2.32.0(eslint@8.57.0))(eslint@8.57.0))(eslint@8.57.0):
     dependencies:
       '@rtsao/scc': 1.1.0
       array-includes: 3.1.9
@@ -6462,7 +6505,7 @@ snapshots:
 
   natural-compare@1.4.0: {}
 
-  next@14.2.5(@opentelemetry/api@1.9.1)(react-dom@18.3.1(react@18.3.1))(react@18.3.1):
+  next@14.2.5(@babel/core@7.29.0)(@opentelemetry/api@1.9.1)(react-dom@18.3.1(react@18.3.1))(react@18.3.1):
     dependencies:
       '@next/env': 14.2.5
       '@swc/helpers': 0.5.5
@@ -6472,7 +6515,7 @@ snapshots:
       postcss: 8.4.31
       react: 18.3.1
       react-dom: 18.3.1(react@18.3.1)
-      styled-jsx: 5.1.1(react@18.3.1)
+      styled-jsx: 5.1.1(@babel/core@7.29.0)(react@18.3.1)
     optionalDependencies:
       '@next/swc-darwin-arm64': 14.2.5
       '@next/swc-darwin-x64': 14.2.5
@@ -7082,10 +7125,12 @@ snapshots:
   stubs@3.0.0:
     optional: true
 
-  styled-jsx@5.1.1(react@18.3.1):
+  styled-jsx@5.1.1(@babel/core@7.29.0)(react@18.3.1):
     dependencies:
       client-only: 0.0.1
       react: 18.3.1
+    optionalDependencies:
+      '@babel/core': 7.29.0
 
   sucrase@3.35.1:
     dependencies:
