@@ -1,0 +1,32 @@
+{
+  "name": "@trishteam/auth",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Firebase Auth wrapper cho TrishTEAM ecosystem — share giữa website (Next.js), 9 desktop apps (Tauri 2 + React), Zalo Mini App. Email/Password + Google sign-in, 4 roles (admin/user/trial/guest), key activation flow.",
+  "type": "module",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts",
+    "./react": "./src/react.tsx"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@trishteam/data": "workspace:*"
+  },
+  "peerDependencies": {
+    "firebase": ">=10 <12",
+    "react": ">=18"
+  },
+  "peerDependenciesMeta": {
+    "react": { "optional": true }
+  },
+  "devDependencies": {
+    "@types/react": "18.3.3",
+    "firebase": "10.14.1",
+    "react": "18.3.1",
+    "typescript": "5.4.5"
+  }
+}
