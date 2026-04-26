@@ -1,8 +1,8 @@
 {
   "name": "@trishteam/trishlibrary",
-  "version": "2.0.0-alpha.1",
+  "version": "2.1.2",
   "private": true,
-  "description": "TrishLibrary — thư viện tài liệu PDF/docx/epub + tag auto-suggest + cite generator APA/IEEE. Tauri 2 + @trishteam/core/library. Alpha local-only; OCR Tesseract dời 14.4.2.b, Firebase sync dời 14.4.2.c.",
+  "description": "TrishLibrary — thư viện tài liệu PDF/EPUB/Word + tag AI + cite APA/IEEE. Tauri 2 + @trishteam/core/library, local-first.",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -14,15 +14,19 @@
     "tauri:build": "tauri build"
   },
   "dependencies": {
-    "@trishteam/core": "workspace:*",
     "@tauri-apps/api": "^2.0.0",
     "@tauri-apps/plugin-dialog": "^2.0.0",
     "@tauri-apps/plugin-opener": "^2.0.0",
+    "@trishteam/auth": "workspace:*",
+    "@trishteam/data": "workspace:*",
+    "firebase": "^10.14.1",
+    "qrcode": "^1.5.3",
     "react": "18.3.1",
     "react-dom": "18.3.1"
   },
   "devDependencies": {
     "@tauri-apps/cli": "^2.0.0",
+    "@types/qrcode": "^1.5.5",
     "@types/react": "18.3.3",
     "@types/react-dom": "18.3.0",
     "@vitejs/plugin-react": "^4.3.1",

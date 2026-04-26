@@ -1,6 +1,6 @@
 {
   "name": "@trishteam/trishclean",
-  "version": "2.0.0-alpha.1",
+  "version": "2.0.0-1",
   "private": true,
   "description": "TrishClean — dọn dẹp file/cache với undo 7 ngày (staged delete). Tauri 2 + @trishteam/core/clean cho scan logic. Không xoá thật ngay — move sang trash folder riêng, commit sau retention window.",
   "type": "module",
