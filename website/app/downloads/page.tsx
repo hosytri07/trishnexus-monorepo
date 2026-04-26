@@ -77,7 +77,7 @@ export default function DownloadsPage() {
                 🚀 TrishLauncher
               </h2>
               <span className="text-xs" style={{ color: 'var(--color-text-muted)' }}>
-                v2.0.0-1 · Khuyên dùng
+                v2.0.1 · Khuyên dùng
               </span>
             </div>
             <DownloadCards />

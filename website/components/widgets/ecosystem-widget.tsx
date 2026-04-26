@@ -17,7 +17,8 @@
  *   └──────┴───────────────┘
  */
 import { useMemo, useState } from 'react';
-import { Sparkles } from 'lucide-react';
+import Link from 'next/link';
+import { Sparkles, Download } from 'lucide-react';
 import { WidgetCard } from './widget-card';
 import { AppDetailModal } from './app-detail-modal';
 import { getAppsForWebsite, type AppForWebsite } from '@/lib/apps';
@@ -149,12 +150,15 @@ export function EcosystemWidget() {
         title="Hệ sinh thái TrishNexus"
         icon={<Sparkles size={16} strokeWidth={2} />}
         action={
-          <span
-            className="text-xs"
-            style={{ color: 'var(--color-text-muted)' }}
+          <Link
+            href="/downloads"
+            className="inline-flex items-center gap-1 text-xs font-medium transition-colors hover:underline"
+            style={{ color: 'var(--color-accent-primary)' }}
+            title="Xem trang tải về đầy đủ với hướng dẫn cài đặt"
           >
-            {apps.length} ứng dụng
-          </span>
+            <Download size={12} strokeWidth={2.25} />
+            Trang tải về
+          </Link>
         }
       >
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">

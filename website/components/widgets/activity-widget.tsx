@@ -20,6 +20,7 @@ import {
   MousePointerClick,
   MessageSquare,
   UserCog,
+  KeyRound,
   type LucideIcon,
 } from 'lucide-react';
 import {
@@ -53,6 +54,7 @@ const KIND_ICON: Record<ActivityKind, LucideIcon> = {
   app_open: MousePointerClick,
   feedback_sent: MessageSquare,
   profile_update: UserCog,
+  key_activated: KeyRound,
 };
 
 const KIND_COLOR: Record<ActivityKind, string> = {
@@ -63,6 +65,7 @@ const KIND_COLOR: Record<ActivityKind, string> = {
   app_open: '#3B82F6',
   feedback_sent: '#8B5CF6',
   profile_update: '#EC4899',
+  key_activated: '#22C55E',
 };
 
 export function ActivityWidget() {

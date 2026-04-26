@@ -121,9 +121,11 @@ function SidebarLink({
         background: active
           ? 'var(--color-surface-card)'
           : 'transparent',
+        // Phase 15.0.r fix: inactive dùng text-secondary thay text-muted để
+        // visible rõ hơn (user feedback: TrishCheck quá dim, tưởng chưa hiển thị).
         color: active
           ? 'var(--color-text-primary)'
-          : 'var(--color-text-muted)',
+          : 'var(--color-text-secondary)',
         borderLeft: `3px solid ${active ? app.accent : 'transparent'}`,
         fontWeight: active ? 600 : 500,
       }}

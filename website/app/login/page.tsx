@@ -17,18 +17,52 @@
  *   - Forgot: sendPasswordResetEmail → toast nhắc kiểm tra email.
  *   - Sau khi auth OK → redirect /.
  */
-import { useState, useRef, type FormEvent } from 'react';
+import { useState, useRef, useEffect, type FormEvent } from 'react';
+
+const REMEMBER_KEY = 'trishteam:remember_email';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import {
   Facebook,
   Github,
   Linkedin,
-  Mail,
   ArrowLeft,
   Sparkles,
   Loader2,
 } from 'lucide-react';
+
+/** Google brand "G" logo SVG (4 màu Google chính thức). */
+function GoogleIcon({ size = 16 }: { size?: number }) {
+  return (
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      aria-hidden="true"
+    >
+      <path
+        fill="#4285F4"
+        d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 0 1-2.2 3.32v2.76h3.56c2.08-1.92 3.28-4.74 3.28-8.09z"
+      />
+      <path
+        fill="#34A853"
+        d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.56-2.76c-.99.66-2.25 1.06-3.72 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84A11 11 0 0 0 12 23z"
+      />
+      <path
+        fill="#FBBC05"
+        d="M5.84 14.11A6.6 6.6 0 0 1 5.5 12c0-.73.13-1.44.34-2.11V7.05H2.18a11 11 0 0 0 0 9.9l3.66-2.84z"
+      />
+      <path
+        fill="#EA4335"
+        d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1A11 11 0 0 0 2.18 7.05l3.66 2.84C6.71 7.31 9.14 5.38 12 5.38z"
+      />
+    </svg>
+  );
+}
+
+const SOCIAL_BUSY_MSG =
+  '⚠ Hệ thống quá tải. TrishTEAM sẽ fix trong thời gian sớm nhất — tạm dùng Email hoặc Google.';
 import {
   createUserWithEmailAndPassword,
   signInWithEmailAndPassword,
@@ -66,6 +100,33 @@ export default function LoginPage() {
   const [active, setActive] = useState(false); // false = Login, true = Register
   const [toast, setToast] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [remember, setRemember] = useState(true);
+
+  // Prefill email từ lần đăng nhập trước (nếu đã tick "Ghi nhớ")
+  useEffect(() => {
+    try {
+      const saved = window.localStorage.getItem(REMEMBER_KEY);
+      if (saved && loginEmailRef.current) {
+        loginEmailRef.current.value = saved;
+        setRemember(true);
+      }
+    } catch {
+      /* ignore */
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  function persistRememberEmail(value: string): void {
+    try {
+      if (remember && value.trim()) {
+        window.localStorage.setItem(REMEMBER_KEY, value.trim());
+      } else {
+        window.localStorage.removeItem(REMEMBER_KEY);
+      }
+    } catch {
+      /* ignore */
+    }
+  }
 
   // Refs để lấy value từ form mà không cần controlled state
   const loginEmailRef = useRef<HTMLInputElement>(null);
@@ -94,7 +155,7 @@ export default function LoginPage() {
     setBusy(true);
     try {
       const cred = await signInWithEmailAndPassword(auth, email, pass);
-      // fire-and-forget activity log (Phase 11.7.3)
+      persistRememberEmail(email);
       void logActivity(cred.user.uid, {
         kind: 'login',
         title: 'Đăng nhập bằng email',
@@ -125,26 +186,37 @@ export default function LoginPage() {
     try {
       const cred = await createUserWithEmailAndPassword(auth, email, pass);
       await updateProfile(cred.user, { displayName });
-      // Ghi profile mở rộng vào Firestore /users/{uid}
+      // Phase 16.1.d — Schema TrishUser với role mặc định 'trial'.
+      // User phải nhập key trong /profile để upgrade thành 'user'.
+      const now = Date.now();
       await setDoc(doc(db, 'users', cred.user.uid), {
         id: cred.user.uid,
-        name: displayName,
+        display_name: displayName,
         fullName,
         email,
         phone,
-        role: 'user',
-        plan: 'Free',
-        createdAt: serverTimestamp(),
+        role: 'trial',
+        provider: 'password',
+        key_activated_at: 0,
+        created_at: now,
+        last_login_at: now,
+        _server_created_at: serverTimestamp(),
         updatedAt: serverTimestamp(),
       });
-      // Phase 11.7.3 — log cả register + login đầu tiên.
+      // Send email verification (best-effort)
+      try {
+        const { sendEmailVerification } = await import('firebase/auth');
+        await sendEmailVerification(cred.user);
+      } catch {
+        /* ignore */
+      }
       void logActivity(cred.user.uid, {
         kind: 'register',
         title: `Tạo tài khoản mới (${displayName})`,
-        meta: { method: 'password' },
+        meta: { method: 'password', role: 'trial' },
       });
-      showToast('Tạo tài khoản thành công! Đang chuyển về dashboard…');
-      setTimeout(() => router.push('/'), 1000);
+      showToast('Tạo tài khoản thành công! Email xác thực đã gửi. Đang chuyển về Dashboard…');
+      setTimeout(() => router.push('/profile'), 1200);
     } catch (err) {
       showToast(errMsg(err));
       setBusy(false);
@@ -210,12 +282,12 @@ export default function LoginPage() {
           <form onSubmit={onRegister}>
             <h1>Đăng ký</h1>
             <div className="social-container">
-              <button type="button" aria-label="Google" onClick={onGoogle} disabled={busy}>
-                <Mail size={16} />
+              <button type="button" aria-label="Google" title="Đăng ký bằng Google" onClick={onGoogle} disabled={busy}>
+                <GoogleIcon size={16} />
               </button>
-              <a href="#" aria-label="Facebook" onClick={(e) => { e.preventDefault(); showToast('Facebook OAuth: chưa bật provider — add vào Firebase Console.'); }}><Facebook size={16} /></a>
-              <a href="#" aria-label="GitHub" onClick={(e) => { e.preventDefault(); showToast('GitHub OAuth: chưa bật provider — add vào Firebase Console.'); }}><Github size={16} /></a>
-              <a href="#" aria-label="LinkedIn" onClick={(e) => { e.preventDefault(); showToast('LinkedIn OAuth: chưa hỗ trợ native Firebase (dùng custom token).'); }}><Linkedin size={16} /></a>
+              <a href="#" aria-label="Facebook" title="Facebook" onClick={(e) => { e.preventDefault(); showToast(SOCIAL_BUSY_MSG); }}><Facebook size={16} /></a>
+              <a href="#" aria-label="GitHub" title="GitHub" onClick={(e) => { e.preventDefault(); showToast(SOCIAL_BUSY_MSG); }}><Github size={16} /></a>
+              <a href="#" aria-label="LinkedIn" title="LinkedIn" onClick={(e) => { e.preventDefault(); showToast(SOCIAL_BUSY_MSG); }}><Linkedin size={16} /></a>
             </div>
             <span className="muted">hoặc dùng email để đăng ký</span>
             <input ref={regFullRef} type="text" name="fullname" placeholder="Họ và tên" required autoComplete="name" disabled={busy} />
@@ -235,16 +307,25 @@ export default function LoginPage() {
           <form onSubmit={onLogin}>
             <h1>Đăng nhập</h1>
             <div className="social-container">
-              <button type="button" aria-label="Google" onClick={onGoogle} disabled={busy}>
-                <Mail size={16} />
+              <button type="button" aria-label="Google" title="Đăng nhập bằng Google" onClick={onGoogle} disabled={busy}>
+                <GoogleIcon size={16} />
               </button>
-              <a href="#" aria-label="Facebook" onClick={(e) => { e.preventDefault(); showToast('Facebook OAuth: chưa bật provider — add vào Firebase Console.'); }}><Facebook size={16} /></a>
-              <a href="#" aria-label="GitHub" onClick={(e) => { e.preventDefault(); showToast('GitHub OAuth: chưa bật provider — add vào Firebase Console.'); }}><Github size={16} /></a>
-              <a href="#" aria-label="LinkedIn" onClick={(e) => { e.preventDefault(); showToast('LinkedIn OAuth: chưa hỗ trợ native Firebase (dùng custom token).'); }}><Linkedin size={16} /></a>
+              <a href="#" aria-label="Facebook" title="Facebook" onClick={(e) => { e.preventDefault(); showToast(SOCIAL_BUSY_MSG); }}><Facebook size={16} /></a>
+              <a href="#" aria-label="GitHub" title="GitHub" onClick={(e) => { e.preventDefault(); showToast(SOCIAL_BUSY_MSG); }}><Github size={16} /></a>
+              <a href="#" aria-label="LinkedIn" title="LinkedIn" onClick={(e) => { e.preventDefault(); showToast(SOCIAL_BUSY_MSG); }}><Linkedin size={16} /></a>
             </div>
             <span className="muted">hoặc dùng tài khoản của bạn</span>
             <input ref={loginEmailRef} type="email" placeholder="Email" required autoComplete="email" disabled={busy} />
             <input ref={loginPassRef} type="password" placeholder="Mật khẩu" required autoComplete="current-password" disabled={busy} />
+            <label className="remember-row">
+              <input
+                type="checkbox"
+                checked={remember}
+                onChange={(e) => setRemember(e.target.checked)}
+                disabled={busy}
+              />
+              <span>Ghi nhớ tài khoản</span>
+            </label>
             <a href="#" className="forgot" onClick={onForgot}>Quên mật khẩu?</a>
             <button type="submit" className="auth-submit" disabled={busy}>
               {busy ? <Loader2 size={13} className="spin" /> : null}
@@ -469,11 +550,32 @@ export default function LoginPage() {
         .form-container :global(input::placeholder) {
           color: var(--color-text-muted);
         }
+        .remember-row {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          margin: 8px 0 4px;
+          font-size: 12px;
+          color: var(--color-text-muted);
+          cursor: pointer;
+          user-select: none;
+          align-self: flex-start;
+        }
+        .remember-row :global(input[type='checkbox']) {
+          width: 14px;
+          height: 14px;
+          cursor: pointer;
+          accent-color: var(--color-accent-primary);
+          margin: 0;
+        }
+        .remember-row:hover {
+          color: var(--color-text-primary);
+        }
         .forgot {
           color: var(--color-text-muted);
           font-size: 12px;
           text-decoration: none;
-          margin: 14px 0 10px;
+          margin: 8px 0 10px;
           transition: color 0.25s;
         }
         .forgot:hover {

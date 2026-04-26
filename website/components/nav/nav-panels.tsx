@@ -12,7 +12,7 @@
  *  - User:  Profile / Settings / Billing / Upgrade / Refer / Logout
  *  - Admin: Dashboard / Users / Announcements / Posts / Audit log / Logout
  *
- * Chưa có auth thật → có role switcher "Chế độ xem" để preview Guest/User/Admin.
+ * Phase 16.1.f — Bỏ mock role switcher. Role chỉ đọc từ Firebase /users/{uid}.
  */
 import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
@@ -33,9 +33,8 @@ import {
   History,
   UserCheck,
   Shield,
-  Sun,
 } from 'lucide-react';
-import { useUserSession, type UserRole } from '@/lib/user-session';
+import { useUserSession } from '@/lib/user-session';
 
 type PanelKey = 'search' | 'notif' | 'user' | null;
 
@@ -82,8 +81,7 @@ const RECENT_SEARCHES = [
 ];
 
 export function NavPanels() {
-  const { user, role, setRole, isAdmin, isAuthenticated, logout } =
-    useUserSession();
+  const { user, isAdmin, isAuthenticated, logout } = useUserSession();
   const [openPanel, setOpenPanel] = useState<PanelKey>(null);
   const [unreadCount, setUnreadCount] = useState(
     NOTIFICATIONS.filter((n) => n.unread).length
@@ -239,8 +237,6 @@ export function NavPanels() {
       {!isAuthenticated ? (
         <div className="flex items-center gap-2">
           <LoginButton />
-          {/* Mock: guest cũng có thể preview user/admin */}
-          <RoleSwitcher role={role} setRole={setRole} compact />
         </div>
       ) : (
         <div className="panel-wrap">
@@ -285,13 +281,6 @@ export function NavPanels() {
             </div>
 
             {isAdmin ? <AdminMenuItems /> : <UserMenuItems />}
-
-            <div className="panel-divider" />
-
-            <div className="panel-section">
-              <div className="section-label">Chế độ xem (mock)</div>
-              <RoleSwitcher role={role} setRole={setRole} />
-            </div>
 
             <div className="panel-divider" />
 
@@ -1056,88 +1045,4 @@ function AdminMenuItems() {
   );
 }
 
-/* ──────────────────────────────────────────────
- * ROLE SWITCHER — preview Guest/User/Admin mock
- * ────────────────────────────────────────────── */
-function RoleSwitcher({
-  role,
-  setRole,
-  compact = false,
-}: {
-  role: UserRole;
-  setRole: (r: UserRole) => void;
-  compact?: boolean;
-}) {
-  const opts: Array<{ v: UserRole; label: string; icon: React.ReactNode }> = [
-    { v: 'guest', label: 'Guest', icon: <User size={11} strokeWidth={2.5} /> },
-    {
-      v: 'user',
-      label: 'User',
-      icon: <Sun size={11} strokeWidth={2.5} />,
-    },
-    {
-      v: 'admin',
-      label: 'Admin',
-      icon: <Shield size={11} strokeWidth={2.5} />,
-    },
-  ];
-  return (
-    <div className={`role-switcher ${compact ? 'compact' : ''}`}>
-      {opts.map((o) => (
-        <button
-          key={o.v}
-          type="button"
-          className={`role-btn ${role === o.v ? 'active' : ''} role-${o.v}`}
-          onClick={() => setRole(o.v)}
-          aria-pressed={role === o.v}
-          title={`Xem như ${o.label}`}
-        >
-          {o.icon}
-          {!compact && <span>{o.label}</span>}
-        </button>
-      ))}
-      <style jsx>{`
-        .role-switcher {
-          display: inline-flex;
-          padding: 3px;
-          gap: 2px;
-          background: var(--color-surface-muted);
-          border-radius: 8px;
-          border: 1px solid var(--color-border-subtle);
-        }
-        .role-btn {
-          display: inline-flex;
-          align-items: center;
-          gap: 4px;
-          padding: 4px 8px;
-          border-radius: 6px;
-          font-size: 11px;
-          font-weight: 600;
-          color: var(--color-text-muted);
-          background: transparent;
-          border: none;
-          cursor: pointer;
-          transition: color 0.15s, background 0.15s;
-        }
-        .role-btn:hover {
-          color: var(--color-text-primary);
-        }
-        .role-btn.active.role-guest {
-          background: var(--color-surface-bg_elevated);
-          color: var(--color-text-primary);
-        }
-        .role-btn.active.role-user {
-          background: var(--color-accent-soft);
-          color: var(--color-accent-primary);
-        }
-        .role-btn.active.role-admin {
-          background: rgba(239, 68, 68, 0.12);
-          color: #f87171;
-        }
-        .role-switcher.compact .role-btn {
-          padding: 5px;
-        }
-      `}</style>
-    </div>
-  );
-}
+// Phase 16.1.f — RoleSwitcher đã bị remove. Role giờ chỉ đọc từ Firebase.

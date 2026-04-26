@@ -26,11 +26,11 @@ interface DownloadTarget {
   Icon: typeof Monitor;
 }
 
-// Phase 14.7 ship v2.0.0-1 (alpha 1).
-// Tag GitHub Release: launcher-v2.0.0-1 — phân biệt với release app con
+// Phase 16.4 ship v2.0.1 — login badges + footer login link.
+// Tag GitHub Release: launcher-v2.0.1 — phân biệt với release app con
 // sau này (vd font-v2.0.0, note-v2.0.0).
-const RELEASE_TAG = 'launcher-v2.0.0-1';
-const RELEASE_VERSION = '2.0.0-1';
+const RELEASE_TAG = 'launcher-v2.0.1';
+const RELEASE_VERSION = '2.0.1';
 const GH_REPO = 'hosytri07/trishnexus-monorepo';
 
 const releaseUrl = (fileName: string) =>

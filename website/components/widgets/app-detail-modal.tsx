@@ -11,7 +11,7 @@
  *   - CTA: Tải xuống / Xem changelog / Yêu cầu sớm ra
  */
 import { useState } from 'react';
-import { Calendar, Download, ExternalLink, HardDrive, Lock, Package, User } from 'lucide-react';
+import { Calendar, Download, ExternalLink, HardDrive, Lock, Package, User, KeyRound, Gem } from 'lucide-react';
 import { Modal } from '@/components/modal/modal';
 import {
   type AppForWebsite,
@@ -28,6 +28,8 @@ type Props = {
 
 const LoginIcon = {
   none: Package,
+  trial: KeyRound,
+  paid: Gem,
   user: User,
   admin: Lock,
   dev: Lock,
@@ -35,6 +37,8 @@ const LoginIcon = {
 
 const LoginLabel = {
   none: 'Không cần đăng nhập',
+  trial: 'Cần đăng nhập (trial bị chặn — kích hoạt key)',
+  paid: 'Cần kích hoạt key',
   user: 'Yêu cầu tài khoản user',
   admin: 'Yêu cầu admin',
   dev: 'Yêu cầu developer',

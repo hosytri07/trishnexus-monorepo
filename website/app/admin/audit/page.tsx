@@ -31,6 +31,7 @@ import {
   MousePointerClick,
   MessageSquare,
   UserCog,
+  KeyRound,
   Filter,
   type LucideIcon,
 } from 'lucide-react';
@@ -53,6 +54,7 @@ const KIND_ICON: Record<ActivityKind, LucideIcon> = {
   app_open: MousePointerClick,
   feedback_sent: MessageSquare,
   profile_update: UserCog,
+  key_activated: KeyRound,
 };
 
 const KIND_COLOR: Record<ActivityKind, string> = {
@@ -63,6 +65,7 @@ const KIND_COLOR: Record<ActivityKind, string> = {
   app_open: '#3B82F6',
   feedback_sent: '#8B5CF6',
   profile_update: '#EC4899',
+  key_activated: '#22C55E',
 };
 
 const KIND_LABELS: Record<ActivityKind | 'all', string> = {
@@ -74,6 +77,7 @@ const KIND_LABELS: Record<ActivityKind | 'all', string> = {
   app_open: 'Mở app',
   feedback_sent: 'Gửi phản hồi',
   profile_update: 'Cập nhật profile',
+  key_activated: 'Kích hoạt key',
 };
 
 const KIND_OPTIONS: (ActivityKind | 'all')[] = [
@@ -83,6 +87,7 @@ const KIND_OPTIONS: (ActivityKind | 'all')[] = [
   'note_update',
   'app_open',
   'feedback_sent',
+  'key_activated',
 ];
 
 export default function AdminAuditPage() {

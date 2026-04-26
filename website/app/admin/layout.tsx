@@ -25,6 +25,7 @@ import {
   Sparkles,
   Gauge,
   Bug,
+  KeyRound,
 } from 'lucide-react';
 import { useAuth } from '@/lib/auth-context';
 
@@ -37,6 +38,7 @@ interface NavItem {
 const NAV: NavItem[] = [
   { href: '/admin', label: 'Dashboard', icon: LayoutDashboard },
   { href: '/admin/users', label: 'Người dùng', icon: Users },
+  { href: '/admin/keys', label: 'Activation Keys', icon: KeyRound },
   { href: '/admin/announcements', label: 'Thông báo', icon: Megaphone },
   { href: '/admin/reindex', label: 'Semantic', icon: Sparkles },
   { href: '/admin/vitals', label: 'Vitals', icon: Gauge },
