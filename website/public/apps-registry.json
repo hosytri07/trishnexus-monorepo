@@ -1,6 +1,6 @@
 {
   "schema_version": 2,
-  "updated_at": "2026-04-27T22:00+07:00",
+  "updated_at": "2026-04-27T22:30+07:00",
   "ecosystem": {
     "name": "TrishTEAM",
     "tagline": "Hệ sinh thái năng suất cá nhân",
@@ -31,11 +31,11 @@
     {
       "id": "trishnote",
       "name": "TrishNote",
-      "tagline": "Ghi chú cá nhân + dự án có deadline · rich text + đính kèm + thùng rác",
+      "tagline": "👉 Đã tích hợp vào TrishLibrary 3.0 (module Ghi chú). Tải TrishLibrary để dùng.",
       "logo_url": "https://trishteam.io.vn/logos/trishnote.png",
       "version": "2.0.0-1",
       "size_bytes": 3155530,
-      "status": "released",
+      "status": "deprecated",
       "login_required": "trial",
       "platforms": ["windows_x64"],
       "screenshots": [],
@@ -91,31 +91,31 @@
     {
       "id": "trishtype",
       "name": "TrishType",
-      "tagline": "Text editor CRDT multi-caret",
+      "tagline": "👉 Đã tích hợp vào TrishLibrary 3.0 (module Tài liệu — soạn thảo + chuyển đổi). Tải TrishLibrary để dùng.",
       "logo_url": "https://trishteam.io.vn/logos/trishtype.png",
-      "version": "2.0.0",
-      "size_bytes": 32000000,
-      "status": "coming_soon",
-      "login_required": "trial",
-      "platforms": ["windows_x64", "macos_arm64"],
+      "version": "2.0.0-1",
+      "size_bytes": 0,
+      "status": "deprecated",
+      "login_required": "none",
+      "platforms": ["windows_x64"],
       "screenshots": [],
-      "changelog_url": "",
+      "changelog_url": "https://github.com/hosytri07/trishnexus-monorepo/releases/tag/trishtype-v2.0.0-1",
       "download": {
         "windows_x64": {
-          "url": "https://trishteam.io.vn/dl/trishtype-2.0.0-x64.msi",
+          "url": "https://github.com/hosytri07/trishnexus-monorepo/releases/download/trishtype-v2.0.0-1/TrishType_2.0.0-1_x64-setup.exe",
           "sha256": "",
-          "installer_args": ["/quiet"]
+          "installer_args": []
         }
       }
     },
     {
       "id": "trishimage",
       "name": "TrishImage",
-      "tagline": "Quản lý ảnh + video local · 5 chế độ xem · EXIF + thumbnail + tag + ghi chú · LAN UNC",
+      "tagline": "👉 Đã tích hợp vào TrishLibrary 3.0 (module Ảnh). Tải TrishLibrary để dùng.",
       "logo_url": "https://trishteam.io.vn/logos/trishimage.png",
       "version": "2.0.0-1",
       "size_bytes": 3668219,
-      "status": "released",
+      "status": "deprecated",
       "login_required": "none",
       "platforms": ["windows_x64"],
       "screenshots": [],
@@ -131,19 +131,19 @@
     {
       "id": "trishlibrary",
       "name": "TrishLibrary",
-      "tagline": "Thư viện PDF/EPUB/Word + Online Library + TrishTEAM curated + QR share",
+      "tagline": "All-in-one: 📚 Thư viện · 📝 Ghi chú · 📄 Tài liệu · 🖼 Ảnh (soạn thảo + chuyển đổi đa định dạng + PDF Tools)",
       "logo_url": "https://trishteam.io.vn/logos/trishlibrary.png",
-      "version": "2.1.2",
-      "size_bytes": 10485760,
+      "version": "3.0.0",
+      "size_bytes": 7239739,
       "status": "released",
       "login_required": "trial",
       "platforms": ["windows_x64"],
       "screenshots": [],
-      "changelog_url": "https://github.com/hosytri07/trishnexus-monorepo/releases/tag/trishlibrary-v2.1.2",
+      "changelog_url": "https://github.com/hosytri07/trishnexus-monorepo/releases/tag/trishlibrary-v3.0.0",
       "download": {
         "windows_x64": {
-          "url": "https://github.com/hosytri07/trishnexus-monorepo/releases/download/trishlibrary-v2.1.2/TrishLibrary_2.1.2_x64-setup.exe",
-          "sha256": "6b4376550e754b8d2e75d1d8f65c8a3fb63f7fad186d108427eb4c232932f935",
+          "url": "https://github.com/hosytri07/trishnexus-monorepo/releases/download/trishlibrary-v3.0.0/TrishLibrary_3.0.0_x64-setup.exe",
+          "sha256": "814cea1f80e9744999f5149c1d94adf16124bbd11167c19c1054f0674deee0f9",
           "installer_args": []
         }
       }
@@ -151,11 +151,11 @@
     {
       "id": "trishsearch",
       "name": "TrishSearch",
-      "tagline": "Tìm kiếm file local + LAN, OCR ảnh tiếng Việt offline",
+      "tagline": "👉 Đã tích hợp vào TrishLibrary 3.0 (Search built-in trong module Thư viện). Tải TrishLibrary để dùng.",
       "logo_url": "https://trishteam.io.vn/logos/trishsearch.png",
       "version": "2.0.0-1",
       "size_bytes": 34906112,
-      "status": "released",
+      "status": "deprecated",
       "login_required": "none",
       "platforms": ["windows_x64"],
       "screenshots": [],

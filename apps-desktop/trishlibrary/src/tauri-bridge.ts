@@ -1,8 +1,16 @@
+/**
+ * Phase 15.2.r — TrishLibrary tauri-bridge v2.
+ * Bỏ pickAndScan + import/export complex; chỉ giữ load/save + version + opener + update check.
+ */
+
 import { invoke } from '@tauri-apps/api/core';
 import { save as saveDialog, open as openDialog } from '@tauri-apps/plugin-dialog';
-import { openPath } from '@tauri-apps/plugin-opener';
-import type { LibraryDoc, RawLibraryEntry } from '@trishteam/core/library';
-import { enrichRaw } from '@trishteam/core/library';
+import { openPath, openUrl } from '@tauri-apps/plugin-opener';
+import type {
+  LibraryFile,
+  OnlineFolder,
+  ScanLibrarySummary,
+} from './types.js';
 
 export interface StoreLocation {
   path: string;
@@ -12,7 +20,9 @@ export interface StoreLocation {
 
 export interface LoadResult {
   path: string;
-  docs: LibraryDoc[];
+  files: LibraryFile[];
+  online_folders: OnlineFolder[];
+  trishteam_folders: OnlineFolder[];
   size_bytes: number;
   created_empty: boolean;
 }
@@ -20,15 +30,6 @@ export interface LoadResult {
 export interface SaveResult {
   path: string;
   size_bytes: number;
-}
-
-export interface ScanSummary {
-  root: string;
-  entries: RawLibraryEntry[];
-  total_files_visited: number;
-  elapsed_ms: number;
-  errors: string[];
-  max_entries_reached: boolean;
 }
 
 interface RawLoadResult {
@@ -46,110 +47,16 @@ function isInTauri(): boolean {
   );
 }
 
-/**
- * Dev fallback: 6 doc mẫu phủ đủ format + status + chủ đề VN/EN,
- * để test UI trong browser mà không cần Tauri runtime.
- */
-const NOW_FAKE = Date.UTC(2026, 3, 24, 9, 0);
-const DAY = 86_400_000;
-
-function seed(
-  rawName: string,
-  ext: string,
-  sizeKb: number,
-  title: string,
-  authors: string[],
-  year: number | null,
-  publisher: string | null,
-  tags: string[],
-  status: LibraryDoc['status'],
-  addedDaysAgo: number,
-): LibraryDoc {
-  const raw: RawLibraryEntry = {
-    path: '/dev/library/' + rawName,
-    name: rawName,
-    ext,
-    size_bytes: sizeKb * 1024,
-    mtime_ms: NOW_FAKE - addedDaysAgo * DAY,
-  };
-  const base = enrichRaw(raw, NOW_FAKE - addedDaysAgo * DAY);
-  return { ...base, title, authors, year, publisher, tags, status };
-}
-
-export const DEV_FALLBACK_DOCS: LibraryDoc[] = [
-  seed(
-    'tcvn_5574_2018.pdf',
-    'pdf',
-    2_400,
-    'TCVN 5574:2018 — Thiết kế kết cấu bê tông cốt thép',
-    ['Bộ Xây dựng'],
-    2018,
-    'NXB Xây dựng',
-    ['tcvn', 'xây dựng', 'tiếng việt'],
-    'reading',
-    3,
-  ),
-  seed(
-    'react-handbook.pdf',
-    'pdf',
-    1_800,
-    'The React Handbook',
-    ['Flavio Copes'],
-    2021,
-    'Self-published',
-    ['code', 'javascript'],
-    'done',
-    30,
-  ),
-  seed(
-    'typescript_patterns.epub',
-    'epub',
-    900,
-    'TypeScript Design Patterns',
-    ['Vilic Vane'],
-    2022,
-    'Packt',
-    ['code', 'sách'],
-    'unread',
-    1,
-  ),
-  seed(
-    'ghi_chu_xay_dung.md',
-    'md',
-    12,
-    'Ghi chú khảo sát công trình',
-    ['Trí'],
-    null,
-    null,
-    ['ghi chú', 'tiếng việt'],
-    'reading',
-    5,
-  ),
-  seed(
-    'luan_van_ThS.docx',
-    'docx',
-    1_200,
-    'Luận văn Thạc sĩ — Ứng xử kết cấu thép chịu lửa',
-    ['Nguyễn Văn A'],
-    2020,
-    'ĐH Bách khoa',
-    ['nghiên cứu', 'tiếng việt'],
-    'abandoned',
-    120,
-  ),
-  seed(
-    'ieee_paper_2023.pdf',
-    'pdf',
-    600,
-    'A Survey on Semantic Retrieval',
-    ['Alice Johnson', 'Bob Lee'],
-    2023,
-    'IEEE',
-    ['nghiên cứu', 'code'],
-    'unread',
-    10,
-  ),
-];
+// In-memory store cho dev fallback (chạy `pnpm dev` trên browser)
+let DEV_FALLBACK_STORE: {
+  files: LibraryFile[];
+  online_folders: OnlineFolder[];
+  trishteam_folders: OnlineFolder[];
+} = {
+  files: [],
+  online_folders: [],
+  trishteam_folders: [],
+};
 
 export async function getDefaultStoreLocation(): Promise<StoreLocation> {
   if (!isInTauri()) {
@@ -162,38 +69,79 @@ export async function getDefaultStoreLocation(): Promise<StoreLocation> {
   return invoke<StoreLocation>('default_store_location');
 }
 
+/**
+ * Phase 16.2.d — Per-UID library file để 2 user trên cùng máy không share.
+ * Pass `uid` thay path → Rust auto map thành `library.{uid}.json` trong default dir.
+ */
+export function libraryFilenameForUid(uid: string | null): string | null {
+  if (!uid) return null;
+  // Sanitize UID — chỉ alphanumeric (Firebase UID đã là alphanumeric).
+  const safe = uid.replace(/[^a-zA-Z0-9]/g, '');
+  if (!safe) return null;
+  return `library.${safe}.json`;
+}
+
 export async function loadLibrary(path?: string | null): Promise<LoadResult> {
   if (!isInTauri()) {
-    await new Promise((r) => setTimeout(r, 80));
+    await new Promise((r) => setTimeout(r, 60));
     return {
-      path: '(browser dev — chạy trong bộ nhớ)',
-      docs: [...DEV_FALLBACK_DOCS],
-      size_bytes: JSON.stringify(DEV_FALLBACK_DOCS).length,
-      created_empty: false,
+      path: '(browser dev)',
+      files: [...DEV_FALLBACK_STORE.files],
+      online_folders: [...DEV_FALLBACK_STORE.online_folders],
+      trishteam_folders: [...DEV_FALLBACK_STORE.trishteam_folders],
+      size_bytes: JSON.stringify(DEV_FALLBACK_STORE).length,
+      created_empty: DEV_FALLBACK_STORE.files.length === 0,
     };
   }
   const raw = await invoke<RawLoadResult>('load_library', { path: path ?? null });
-  let docs: LibraryDoc[] = [];
+  let files: LibraryFile[] = [];
+  let online_folders: OnlineFolder[] = [];
+  let trishteam_folders: OnlineFolder[] = [];
   try {
     const parsed = JSON.parse(raw.content);
-    if (Array.isArray(parsed)) docs = parsed as LibraryDoc[];
+    if (Array.isArray(parsed)) {
+      files = parsed as LibraryFile[];
+    } else if (parsed && typeof parsed === 'object') {
+      files = Array.isArray(parsed.files) ? (parsed.files as LibraryFile[]) : [];
+      online_folders = Array.isArray(parsed.online_folders)
+        ? (parsed.online_folders as OnlineFolder[])
+        : [];
+      trishteam_folders = Array.isArray(parsed.trishteam_folders)
+        ? (parsed.trishteam_folders as OnlineFolder[])
+        : [];
+    }
   } catch {
-    docs = [];
+    files = [];
   }
   return {
     path: raw.path,
-    docs,
+    files,
+    online_folders,
+    trishteam_folders,
     size_bytes: raw.size_bytes,
     created_empty: raw.created_empty,
   };
 }
 
 export async function saveLibrary(
-  docs: LibraryDoc[],
+  files: LibraryFile[],
+  online_folders: OnlineFolder[],
+  trishteam_folders: OnlineFolder[],
   path?: string | null,
 ): Promise<SaveResult> {
-  const content = JSON.stringify(docs);
+  const payload = {
+    schema_version: 2,
+    files,
+    online_folders,
+    trishteam_folders,
+  };
+  const content = JSON.stringify(payload);
   if (!isInTauri()) {
+    DEV_FALLBACK_STORE = {
+      files: [...files],
+      online_folders: [...online_folders],
+      trishteam_folders: [...trishteam_folders],
+    };
     return {
       path: '(browser dev — không thực sự ghi file)',
       size_bytes: content.length,
@@ -205,38 +153,15 @@ export async function saveLibrary(
   });
 }
 
-/**
- * Pick folder rồi gọi scan_library Rust. Trả về raw entries — UI/core
- * sẽ enrich + merge với docs đang có.
- */
-export async function pickAndScan(): Promise<ScanSummary | null> {
-  if (!isInTauri()) {
-    await new Promise((r) => setTimeout(r, 100));
-    return {
-      root: '(browser dev)',
-      entries: DEV_FALLBACK_DOCS.map((d) => ({
-        path: d.path,
-        name: d.name,
-        ext: d.ext,
-        size_bytes: d.sizeBytes,
-        mtime_ms: d.mtimeMs,
-      })),
-      total_files_visited: DEV_FALLBACK_DOCS.length,
-      elapsed_ms: 4,
-      errors: [],
-      max_entries_reached: false,
-    };
-  }
-  const picked = await openDialog({ directory: true, multiple: false });
-  if (typeof picked !== 'string') return null;
-  return invoke<ScanSummary>('scan_library', { dir: picked });
-}
-
-export async function exportLibraryAs(
-  docs: LibraryDoc[],
+/** Export library JSON ra file user chọn (backup). */
+export async function exportLibraryJson(
+  files: LibraryFile[],
+  online_folders: OnlineFolder[],
+  trishteam_folders: OnlineFolder[],
 ): Promise<SaveResult | null> {
+  const payload = { schema_version: 2, files, online_folders, trishteam_folders };
   if (!isInTauri()) {
-    const blob = new Blob([JSON.stringify(docs, null, 2)], {
+    const blob = new Blob([JSON.stringify(payload, null, 2)], {
       type: 'application/json',
     });
     const url = URL.createObjectURL(blob);
@@ -252,10 +177,15 @@ export async function exportLibraryAs(
     filters: [{ name: 'JSON', extensions: ['json'] }],
   });
   if (typeof picked !== 'string') return null;
-  return saveLibrary(docs, picked);
+  return saveLibrary(files, online_folders, trishteam_folders, picked);
 }
 
-export async function importLibraryFrom(): Promise<LibraryDoc[] | null> {
+/** Import library JSON từ file user chọn — replace toàn bộ. */
+export async function importLibraryJson(): Promise<{
+  files: LibraryFile[];
+  online_folders: OnlineFolder[];
+  trishteam_folders: OnlineFolder[];
+} | null> {
   if (!isInTauri()) {
     alert('Import chỉ hoạt động trong bản desktop.');
     return null;
@@ -266,13 +196,113 @@ export async function importLibraryFrom(): Promise<LibraryDoc[] | null> {
   });
   if (typeof picked !== 'string') return null;
   const result = await loadLibrary(picked);
-  return result.docs;
+  return {
+    files: result.files,
+    online_folders: result.online_folders,
+    trishteam_folders: result.trishteam_folders,
+  };
 }
 
-export async function openDocument(path: string): Promise<void> {
+/**
+ * Phase 15.2.r8 — Pick folder dialog → call Rust scan_library.
+ * Trả null nếu user cancel dialog.
+ */
+export async function pickLibraryRoot(): Promise<string | null> {
   if (!isInTauri()) {
-    alert('Mở file bằng app mặc định chỉ hoạt động trong bản desktop.');
+    alert('Chọn folder chỉ hoạt động trong bản desktop.');
+    return null;
+  }
+  const picked = await openDialog({ directory: true, multiple: false });
+  return typeof picked === 'string' ? picked : null;
+}
+
+export async function scanLibraryRoot(
+  root: string,
+): Promise<ScanLibrarySummary> {
+  if (!isInTauri()) {
+    return {
+      root,
+      entries: [],
+      total_files_visited: 0,
+      elapsed_ms: 0,
+      errors: [],
+      max_entries_reached: false,
+    };
+  }
+  return invoke<ScanLibrarySummary>('scan_library', { dir: root });
+}
+
+/** Mở URL trong browser default (dùng cho click link tải). */
+export async function openLink(url: string): Promise<void> {
+  if (!isInTauri()) {
+    window.open(url, '_blank', 'noopener');
     return;
   }
+  try {
+    await openUrl(url);
+  } catch (err) {
+    console.warn('[trishlibrary] openUrl fail:', err);
+  }
+}
+
+/** Mở 1 path local (chưa dùng v1 vì không scan local file). */
+export async function openLocalPath(path: string): Promise<void> {
+  if (!isInTauri()) return;
   await openPath(path);
+}
+
+// ============================================================
+// Phase 15.2.f — App version + Update check
+// ============================================================
+
+export async function getAppVersion(): Promise<string> {
+  if (!isInTauri()) return 'dev';
+  try {
+    return await invoke<string>('app_version');
+  } catch {
+    return 'dev';
+  }
+}
+
+export interface UpdateInfo {
+  current: string;
+  latest: string;
+  hasUpdate: boolean;
+  downloadUrl: string;
+  changelogUrl: string;
+}
+
+export async function checkForUpdate(currentVersion: string): Promise<UpdateInfo> {
+  const APPS_REGISTRY = 'https://trishteam.io.vn/apps-registry.json';
+  const fallback: UpdateInfo = {
+    current: currentVersion,
+    latest: currentVersion,
+    hasUpdate: false,
+    downloadUrl: '',
+    changelogUrl: '',
+  };
+  if (!isInTauri()) return fallback;
+  try {
+    const text = await invoke<string>('fetch_text', { url: APPS_REGISTRY });
+    const json = JSON.parse(text) as {
+      apps?: Array<{
+        id: string;
+        version: string;
+        download?: { windows_x64?: { url: string } };
+        changelog_url?: string;
+      }>;
+    };
+    const trishlibrary = json.apps?.find((a) => a.id === 'trishlibrary');
+    if (!trishlibrary) return fallback;
+    return {
+      current: currentVersion,
+      latest: trishlibrary.version,
+      hasUpdate: trishlibrary.version !== currentVersion,
+      downloadUrl: trishlibrary.download?.windows_x64?.url ?? '',
+      changelogUrl: trishlibrary.changelog_url ?? '',
+    };
+  } catch (err) {
+    console.warn('[trishlibrary] checkForUpdate fail:', err);
+    return fallback;
+  }
 }
