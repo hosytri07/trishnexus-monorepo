@@ -1,8 +1,8 @@
 {
   "name": "@trishteam/trishimage",
-  "version": "2.0.0-alpha.1",
+  "version": "2.0.0-1",
   "private": true,
-  "description": "TrishImage — photo organizer với event grouping + face bucket. Tauri 2 + @trishteam/core/images. Rust backend scan EXIF + dimensions qua kamadak-exif + imagesize (header-only, không decode pixels).",
+  "description": "TrishImage — quản lý ảnh local với EXIF + thumbnail + tag + timeline. Tauri 2 + Rust backend (kamadak-exif + image crate).",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -17,6 +17,7 @@
     "@trishteam/core": "workspace:*",
     "@tauri-apps/api": "^2.0.0",
     "@tauri-apps/plugin-dialog": "^2.0.0",
+    "@tauri-apps/plugin-opener": "^2.0.0",
     "react": "18.3.1",
     "react-dom": "18.3.1"
   },

@@ -1,6 +1,6 @@
 {
   "schema_version": 2,
-  "updated_at": "2026-04-26T20:30+07:00",
+  "updated_at": "2026-04-27T22:00+07:00",
   "ecosystem": {
     "name": "TrishTEAM",
     "tagline": "Hệ sinh thái năng suất cá nhân",
@@ -111,20 +111,20 @@
     {
       "id": "trishimage",
       "name": "TrishImage",
-      "tagline": "Tổ chức ảnh + event/face grouping",
+      "tagline": "Quản lý ảnh + video local · 5 chế độ xem · EXIF + thumbnail + tag + ghi chú · LAN UNC",
       "logo_url": "https://trishteam.io.vn/logos/trishimage.png",
-      "version": "2.0.0",
-      "size_bytes": 42000000,
-      "status": "coming_soon",
+      "version": "2.0.0-1",
+      "size_bytes": 3668219,
+      "status": "released",
       "login_required": "none",
-      "platforms": ["windows_x64", "macos_arm64"],
+      "platforms": ["windows_x64"],
       "screenshots": [],
-      "changelog_url": "",
+      "changelog_url": "https://github.com/hosytri07/trishnexus-monorepo/releases/tag/trishimage-v2.0.0-1",
       "download": {
         "windows_x64": {
-          "url": "https://trishteam.io.vn/dl/trishimage-2.0.0-x64.msi",
-          "sha256": "",
-          "installer_args": ["/quiet"]
+          "url": "https://github.com/hosytri07/trishnexus-monorepo/releases/download/trishimage-v2.0.0-1/TrishImage_2.0.0-1_x64-setup.exe",
+          "sha256": "8612841525fb886b903bb3a181b0ec132ebbb349f5c38c2b120152ba0f4212ed",
+          "installer_args": []
         }
       }
     },
