@@ -1,7 +1,7 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "TrishDesign cần dialog (open/save design-token JSON) và opener (mở file export). Không fs plugin — IO qua std::fs trong Rust. Không shell, không http.",
+  "description": "TrishDesign cần dialog (open/save design-token JSON) + opener (mở file export & URL OAuth Google). Phase 14.4.10 thêm opener:allow-open-url cho Google Loopback OAuth flow.",
   "windows": ["main"],
   "permissions": [
     "core:default",
@@ -9,6 +9,8 @@
     "dialog:allow-open",
     "dialog:allow-save",
     "opener:default",
-    "opener:allow-open-path"
+    "opener:allow-open-path",
+    "opener:allow-open-url",
+    "opener:allow-default-urls"
   ]
 }

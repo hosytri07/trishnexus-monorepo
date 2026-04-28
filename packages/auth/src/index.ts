@@ -21,6 +21,8 @@ export {
   signInWithEmail,
   signUpWithEmail,
   signInWithGoogle,
+  signInWithGoogleRedirect,
+  handleGoogleRedirectResult,
   signOut,
   sendResetPassword,
   type SignUpInput,

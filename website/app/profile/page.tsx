@@ -39,6 +39,7 @@ import {
 } from 'firebase/auth';
 import { auth, db, firebaseReady } from '@/lib/firebase';
 import { useAuth } from '@/lib/auth-context';
+import { AvatarUploader } from '@/components/avatar-uploader';
 import { logActivity } from '@/lib/activity-log';
 
 type ActivateResult =
@@ -52,10 +53,22 @@ async function activateKeyOnFirestore(
   // Wrap entire function trong try/catch — đảm bảo không throw uncaught
   try {
     if (!db) return { ok: false, error: 'Firestore chưa cấu hình' };
-    const trimmed = code.trim().toUpperCase().replace(/[^A-Z0-9]/g, '');
-    if (!trimmed) return { ok: false, error: 'Mã key không được rỗng' };
-    if (trimmed.length !== 16) {
-      return { ok: false, error: 'Mã key phải đúng 16 ký tự (chữ hoa + số)' };
+
+    // Phase 19.18 — Format key 16 ký tự ngẫu nhiên + dấu - mỗi 4 ký tự.
+    // Format chuẩn: XXXX-XXXX-XXXX-XXXX (16 alphanumeric + 3 dashes).
+    // User paste có/không dấu, hoa/thường — auto re-format.
+    const cleaned = code.trim().toUpperCase();
+    const stripped = cleaned.replace(/[^A-Z0-9]/g, '');
+    let canonical: string | null = null;
+    if (stripped.length === 16 && /^[A-Z0-9]{16}$/.test(stripped)) {
+      // Re-format thành XXXX-XXXX-XXXX-XXXX
+      canonical = `${stripped.slice(0, 4)}-${stripped.slice(4, 8)}-${stripped.slice(8, 12)}-${stripped.slice(12, 16)}`;
+    }
+    if (!canonical) {
+      return {
+        ok: false,
+        error: 'Mã key sai format. Đúng phải là 16 ký tự (XXXX-XXXX-XXXX-XXXX).',
+      };
     }
 
     // Firestore rules yêu cầu query filter `status == 'active'` để tránh
@@ -63,7 +76,7 @@ async function activateKeyOnFirestore(
     // doc không thoả rule, dù thực tế filter exclude — phải explicit).
     const q = query(
       collection(db, 'keys'),
-      where('code', '==', trimmed),
+      where('code', '==', canonical),
       where('status', '==', 'active'),
       limit(1),
     );
@@ -256,13 +269,7 @@ export default function ProfilePage() {
 
       <div className="profile-card">
         <div className="profile-header">
-          {user.photo_url ? (
-            <img src={user.photo_url} alt="avatar" className="profile-avatar" />
-          ) : (
-            <div className="profile-avatar-fallback">
-              {user.avatar_initials}
-            </div>
-          )}
+          <AvatarUploader uid={user.id} avatarId={user.cloudinary_avatar_id} photoUrl={user.photo_url} size={88} />
           <div className="profile-info">
             <h1 className="profile-name">{user.name}</h1>
             <p className="profile-email">{user.email}</p>

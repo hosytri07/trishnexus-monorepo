@@ -15,6 +15,9 @@ import {
   listFeedback,
   setFeedbackStatus,
 } from '../lib/firestore-admin.js';
+import { applyMask, maskEmail, maskName, maskUid } from '../lib/mask.js';
+import { useReveal } from '../lib/use-reveal.js';
+import { RevealToggle } from './RevealToggle.js';
 
 const STATUS_LABEL: Record<Feedback['status'], string> = {
   new: '🆕 Mới',
@@ -43,6 +46,7 @@ export function FeedbackPanel(): JSX.Element {
   const [search, setSearch] = useState('');
   const [actionMsg, setActionMsg] = useState<string | null>(null);
   const [editing, setEditing] = useState<Feedback | null>(null);
+  const reveal = useReveal(false);
 
   async function load(): Promise<void> {
     setLoading(true);
@@ -125,14 +129,24 @@ export function FeedbackPanel(): JSX.Element {
             {counts.total} tổng
           </p>
         </div>
-        <button
-          type="button"
-          className="btn btn-ghost"
-          onClick={() => void load()}
-          disabled={loading}
-        >
-          {loading ? '⏳' : '🔄'} Refresh
-        </button>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <RevealToggle
+            revealed={reveal.revealAll}
+            onToggle={reveal.toggleAll}
+            variant="header"
+            showLabel
+            overrideCount={reveal.hasRowOverrides ? feedback.length : 0}
+            disabled={loading}
+          />
+          <button
+            type="button"
+            className="btn btn-ghost"
+            onClick={() => void load()}
+            disabled={loading}
+          >
+            {loading ? '⏳' : '🔄'} Refresh
+          </button>
+        </div>
       </header>
 
       <div className="filter-row">
@@ -184,10 +198,14 @@ export function FeedbackPanel(): JSX.Element {
             {loading ? 'Đang tải…' : 'Không có feedback nào.'}
           </div>
         ) : (
-          filtered.map((f) => (
+          filtered.map((f) => {
+            const rowRevealed = reveal.isRevealed(f.id);
+            const displayName = f.display_name ?? '(no name)';
+            const emailText = f.email ?? '';
+            return (
             <div
               key={f.id}
-              className={`feedback-card status-${f.status}`}
+              className={`feedback-card status-${f.status} ${rowRevealed ? 'row-revealed' : 'row-masked'}`}
               onClick={() => {
                 if (f.status === 'new') {
                   void handleSetStatus(f, 'read');
@@ -203,15 +221,24 @@ export function FeedbackPanel(): JSX.Element {
                   <span className="audience-badge">{CATEGORY_LABEL[f.category]}</span>
                   <span className="audience-badge">📱 {f.app}</span>
                 </div>
-                <span className="muted small" title={formatTimestamp(f.created_at)}>
-                  {formatRelative(f.created_at)}
-                </span>
+                <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                  <span className="muted small" title={formatTimestamp(f.created_at)}>
+                    {formatRelative(f.created_at)}
+                  </span>
+                  <span onClick={(ev) => ev.stopPropagation()}>
+                    <RevealToggle
+                      revealed={rowRevealed}
+                      onToggle={() => reveal.toggleRow(f.id)}
+                      variant="inline"
+                    />
+                  </span>
+                </div>
               </header>
               <div className="feedback-body">
                 <p className="feedback-message">{f.message}</p>
                 <p className="muted small feedback-author">
-                  👤 {f.display_name ?? f.email ?? '(no name)'}
-                  {f.email && f.display_name && ` · ${f.email}`}
+                  👤 {applyMask(displayName, rowRevealed, maskName)}
+                  {emailText && (<> · {applyMask(emailText, rowRevealed, maskEmail)}</>)}
                   {f.app_version && ` · v${f.app_version}`}
                 </p>
                 {f.admin_note && (
@@ -221,7 +248,8 @@ export function FeedbackPanel(): JSX.Element {
                 )}
               </div>
             </div>
-          ))
+            );
+          })
         )}
       </div>
 
@@ -254,13 +282,22 @@ function FeedbackDetailModal({
   onDelete,
 }: DetailProps): JSX.Element {
   const [note, setNote] = useState(feedback.admin_note ?? '');
+  const [revealed, setRevealed] = useState(false);
 
   return (
     <div className="modal-backdrop" onClick={onClose}>
       <div className="modal" onClick={(e) => e.stopPropagation()} style={{ maxWidth: 640 }}>
         <header className="modal-head">
           <h2>Feedback detail</h2>
-          <button className="mini" onClick={onClose}>×</button>
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+            <RevealToggle
+              revealed={revealed}
+              onToggle={() => setRevealed((v) => !v)}
+              variant="inline"
+              showLabel
+            />
+            <button className="mini" onClick={onClose}>×</button>
+          </div>
         </header>
         <div className="modal-body">
           <div className="feedback-meta" style={{ marginBottom: 12 }}>
@@ -275,9 +312,17 @@ function FeedbackDetailModal({
           </div>
 
           <p className="muted small">
-            👤 {feedback.display_name ?? '—'} ·{' '}
-            {feedback.email ? <code>{feedback.email}</code> : <em>(no email)</em>} ·{' '}
-            <code>{feedback.uid?.slice(0, 12)}…</code>
+            👤 {applyMask(feedback.display_name ?? '—', revealed, maskName)} ·{' '}
+            {feedback.email ? (
+              <code>{applyMask(feedback.email, revealed, maskEmail)}</code>
+            ) : (
+              <em>(no email)</em>
+            )}{' '}
+            ·{' '}
+            <code>
+              {applyMask(feedback.uid?.slice(0, 12) ?? '', revealed, maskUid)}
+              {revealed ? '…' : ''}
+            </code>
           </p>
           <p className="muted small">
             Tạo {formatTimestamp(feedback.created_at)} · {formatRelative(feedback.created_at)}

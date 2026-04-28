@@ -1,57 +1,26 @@
 'use client';
 
 /**
- * SideNav — sticky left sidebar với icon + label nav.
+ * SideNav — Phase 19.10 (refactored to use shared nav-data).
  *
- * Collapsible: trạng thái lưu localStorage `trishteam:sidebar:collapsed`.
- * Khi collapsed → chỉ hiện icon 56px wide; khi expanded → icon + label 224px.
- * Trên mobile (< lg) → ẩn toàn bộ, user dùng TopNav links thay.
- *
- * Items: Dashboard + 6 feature pages + Góp ý + Liên hệ.
+ * Sticky left sidebar (lg+ only). Mobile (< lg) ẩn → user dùng MobileDrawer.
+ * Collapsible: localStorage `trishteam:sidebar:collapsed`.
  */
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import {
-  Car,
-  FileBadge,
-  Home,
-  MessageSquare,
-  Newspaper,
-  PanelLeftClose,
-  PanelLeftOpen,
-  Signpost,
-  UserCircle2,
-  Waypoints,
-} from 'lucide-react';
-
-type SideItem = {
-  label: string;
-  href: string;
-  icon: typeof Home;
-  /** Section tag để group (hiện khi expanded). */
-  section?: 'main' | 'feature' | 'foot';
-};
-
-const ITEMS: SideItem[] = [
-  { label: 'Dashboard', href: '/', icon: Home, section: 'main' },
-  { label: 'Ôn thi lái xe', href: '/driving-test', icon: Car, section: 'feature' },
-  { label: 'Chứng chỉ XD', href: '/certificates', icon: FileBadge, section: 'feature' },
-  { label: 'Biển báo', href: '/traffic-signs', icon: Signpost, section: 'feature' },
-  { label: 'Cầu VN', href: '/bridges', icon: Waypoints, section: 'feature' },
-  { label: 'Bảng tin', href: '/posts', icon: Newspaper, section: 'feature' },
-  { label: 'Góp ý', href: '/#feedback', icon: MessageSquare, section: 'foot' },
-  { label: 'Liên hệ tác giả', href: '/#author', icon: UserCircle2, section: 'foot' },
-];
+import { PanelLeftClose, PanelLeftOpen } from 'lucide-react';
+import { NAV_GROUPS, NavStatusBadge, type NavItem } from '@/lib/nav-data';
+import { useAuth } from '@/lib/auth-context';
 
 const STORAGE_KEY = 'trishteam:sidebar:collapsed';
 
 export function SideNav() {
   const pathname = usePathname();
+  const { isAuthenticated, loading } = useAuth();
   const [collapsed, setCollapsed] = useState(false);
   const [hydrated, setHydrated] = useState(false);
 
-  // Hydrate collapsed state client-side — tránh server/client mismatch.
   useEffect(() => {
     try {
       const saved = window.localStorage.getItem(STORAGE_KEY);
@@ -74,36 +43,46 @@ export function SideNav() {
     });
   };
 
-  const width = collapsed ? 64 : 224;
+  // Phase 19.16 — Ẩn sidebar khi guest (chưa đăng nhập)
+  // Tránh flash khi đang load auth state
+  if (!loading && !isAuthenticated) {
+    return null;
+  }
 
-  // Nhóm items để vẽ section break giữa feature vs foot
-  const featureItems = ITEMS.filter((i) => i.section !== 'foot');
-  const footItems = ITEMS.filter((i) => i.section === 'foot');
+  const width = collapsed ? 64 : 260;
 
-  const renderItem = (item: SideItem) => {
+  const renderItem = (item: NavItem) => {
     const Icon = item.icon;
+    const hrefBase = item.href.split('#')[0] ?? item.href;
     const active =
-      item.href === '/'
+      hrefBase === '/'
         ? pathname === '/'
-        : pathname?.startsWith(item.href.split('#')[0] ?? item.href);
+        : pathname?.startsWith(hrefBase);
+
     return (
       <Link
         key={item.href}
         href={item.href}
         title={collapsed ? item.label : undefined}
-        className="group flex items-center gap-3 px-3 h-10 rounded-md transition-colors"
+        className="group flex items-center gap-3 px-3 h-9 rounded-md transition-colors"
         style={{
           color: active ? 'var(--color-text-primary)' : 'var(--color-text-muted)',
           background: active ? 'var(--color-surface-muted)' : 'transparent',
           borderLeft: active
-            ? `3px solid var(--color-accent-primary)`
+            ? '3px solid var(--color-accent-primary)'
             : '3px solid transparent',
         }}
       >
-        <Icon size={18} strokeWidth={2} className="shrink-0" />
+        <Icon size={17} strokeWidth={1.9} className="shrink-0" />
         {!collapsed && (
-          <span className="text-sm font-medium truncate">{item.label}</span>
+          <>
+            <span className="text-[13px] font-medium truncate flex-1">
+              {item.label}
+            </span>
+            {item.status && <NavStatusBadge status={item.status} />}
+          </>
         )}
+        {collapsed && item.status && <NavStatusBadge status={item.status} compact />}
       </Link>
     );
   };
@@ -111,7 +90,7 @@ export function SideNav() {
   return (
     <aside
       className="hidden lg:flex flex-col shrink-0 sticky top-16 self-start transition-all"
-      aria-label="Menu điều hướng phụ"
+      aria-label="Menu chính"
       style={{
         width,
         height: 'calc(100vh - 4rem)',
@@ -120,11 +99,10 @@ export function SideNav() {
         transition: hydrated ? 'width 200ms ease' : 'none',
       }}
     >
-      {/* Toggle */}
       <button
         type="button"
         onClick={toggle}
-        className="flex items-center gap-2 mx-3 mt-3 h-9 rounded-md text-sm"
+        className="flex items-center gap-2 mx-3 mt-3 h-9 rounded-md text-sm shrink-0"
         style={{
           color: 'var(--color-text-muted)',
           background: 'transparent',
@@ -136,27 +114,37 @@ export function SideNav() {
         aria-expanded={!collapsed}
       >
         {collapsed ? (
-          <PanelLeftOpen size={16} strokeWidth={2} />
+          <PanelLeftOpen size={15} strokeWidth={2} />
         ) : (
           <>
-            <PanelLeftClose size={16} strokeWidth={2} />
+            <PanelLeftClose size={15} strokeWidth={2} />
             <span className="font-medium">Thu gọn</span>
           </>
         )}
       </button>
 
-      {/* Main nav */}
-      <nav className="flex-1 px-2 pt-4 space-y-0.5 overflow-y-auto">
-        {featureItems.map(renderItem)}
+      <nav className="flex-1 px-2 pt-3 pb-3 space-y-3 overflow-y-auto">
+        {NAV_GROUPS.map((group, idx) => (
+          <div key={idx} className="space-y-0.5">
+            {!collapsed && group.heading && (
+              <div
+                className="px-3 pt-2 pb-1 text-[10px] font-bold uppercase tracking-wider"
+                style={{ color: 'var(--color-text-muted)', opacity: 0.7 }}
+              >
+                {group.heading}
+              </div>
+            )}
+            {collapsed && group.heading && idx > 0 && (
+              <div
+                className="mx-3 my-1 border-t"
+                style={{ borderColor: 'var(--color-border-subtle)' }}
+                aria-hidden
+              />
+            )}
+            {group.items.map(renderItem)}
+          </div>
+        ))}
       </nav>
-
-      {/* Foot */}
-      <div
-        className="px-2 py-3 space-y-0.5 border-t"
-        style={{ borderColor: 'var(--color-border-subtle)' }}
-      >
-        {footItems.map(renderItem)}
-      </div>
     </aside>
   );
 }

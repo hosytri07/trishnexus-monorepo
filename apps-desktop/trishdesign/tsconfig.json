@@ -19,7 +19,11 @@
     "paths": {
       "@/*": ["./src/*"],
       "@trishteam/core": ["../../packages/core/src/index.ts"],
-      "@trishteam/core/*": ["../../packages/core/src/*"]
+      "@trishteam/core/*": ["../../packages/core/src/*"],
+      "@trishteam/auth": ["../../packages/auth/src/index.ts"],
+      "@trishteam/auth/react": ["../../packages/auth/src/react.tsx"],
+      "@trishteam/data": ["../../packages/data/src/index.ts"],
+      "@trishteam/data/*": ["../../packages/data/src/*"]
     }
   },
   "include": [

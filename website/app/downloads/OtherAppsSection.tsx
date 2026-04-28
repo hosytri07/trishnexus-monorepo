@@ -110,7 +110,7 @@ function AppDownloadCard({
 
       {/* Download button */}
       <a
-        href={win.url}
+        href={`/dl/${app.id}`}
         download
         className="inline-flex items-center gap-2 px-4 py-2 rounded font-semibold text-sm transition-opacity hover:opacity-90 shrink-0"
         style={{

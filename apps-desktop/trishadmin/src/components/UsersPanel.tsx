@@ -16,6 +16,9 @@ import {
   setUserRole,
 } from '../lib/firestore-admin.js';
 import type { TrishUser, UserRole } from '@trishteam/data';
+import { applyMask, maskEmail, maskKey, maskName, maskUid } from '../lib/mask.js';
+import { useReveal } from '../lib/use-reveal.js';
+import { RevealToggle } from './RevealToggle.js';
 
 const ROLE_OPTIONS: UserRole[] = ['trial', 'user', 'admin'];
 const ROLE_LABEL: Record<UserRole, string> = {
@@ -37,6 +40,7 @@ export function UsersPanel(): JSX.Element {
   const [roleFilter, setRoleFilter] = useState<UserRole | 'all'>('all');
   const [editing, setEditing] = useState<TrishUser | null>(null);
   const [actionMsg, setActionMsg] = useState<string | null>(null);
+  const reveal = useReveal(false);
 
   async function load(): Promise<void> {
     setLoading(true);
@@ -130,9 +134,19 @@ export function UsersPanel(): JSX.Element {
             Quản lý {users.length} user trong Firestore. Đổi role / reset trial.
           </p>
         </div>
-        <button type="button" className="btn btn-ghost" onClick={() => void load()} disabled={loading}>
-          {loading ? '⏳' : '🔄'} Refresh
-        </button>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <RevealToggle
+            revealed={reveal.revealAll}
+            onToggle={reveal.toggleAll}
+            variant="header"
+            showLabel
+            overrideCount={reveal.hasRowOverrides ? users.length : 0}
+            disabled={loading}
+          />
+          <button type="button" className="btn btn-ghost" onClick={() => void load()} disabled={loading}>
+            {loading ? '⏳' : '🔄'} Refresh
+          </button>
+        </div>
       </header>
 
       <div className="filter-row">
@@ -184,22 +198,30 @@ export function UsersPanel(): JSX.Element {
                 </td>
               </tr>
             ) : (
-              filtered.map((u) => (
-                <tr key={u.id}>
+              filtered.map((u) => {
+                const rowRevealed = reveal.isRevealed(u.id);
+                const uidShort = (u.id ?? '').slice(0, 10);
+                const keyShort = u.activated_key_id ? String(u.activated_key_id).slice(0, 12) : '';
+                return (
+                <tr key={u.id} className={rowRevealed ? 'row-revealed' : 'row-masked'}>
                   <td>
-                    <strong>{u.email || '(no email)'}</strong>
+                    <strong>{applyMask(u.email || '(no email)', rowRevealed, maskEmail)}</strong>
                     <span className="muted small" style={{ display: 'block' }}>
-                      {u.display_name || '(no name)'} ·{' '}
-                      <code>{(u.id ?? '').slice(0, 10) || '—'}…</code>
+                      {applyMask(u.display_name || '(no name)', rowRevealed, maskName)} ·{' '}
+                      <code>
+                        {applyMask(uidShort || '—', rowRevealed, maskUid)}
+                        {rowRevealed && uidShort.length > 0 ? '…' : ''}
+                      </code>
                     </span>
                   </td>
                   <td>
                     <span className={`role-badge role-${u.role ?? 'trial'}`}>
                       {ROLE_LABEL[u.role] ?? u.role ?? '?'}
                     </span>
-                    {u.activated_key_id && (
+                    {keyShort && (
                       <span className="muted small" style={{ display: 'block' }}>
-                        🔑 {String(u.activated_key_id).slice(0, 12)}…
+                        🔑 {applyMask(keyShort, rowRevealed, maskKey)}
+                        {rowRevealed ? '…' : ''}
                       </span>
                     )}
                   </td>
@@ -212,6 +234,11 @@ export function UsersPanel(): JSX.Element {
                   </td>
                   <td>
                     <div className="row-actions">
+                      <RevealToggle
+                        revealed={rowRevealed}
+                        onToggle={() => reveal.toggleRow(u.id)}
+                        variant="inline"
+                      />
                       <button
                         type="button"
                         className="btn btn-sm btn-ghost"
@@ -239,7 +266,8 @@ export function UsersPanel(): JSX.Element {
                     </div>
                   </td>
                 </tr>
-              ))
+                );
+              })
             )}
           </tbody>
         </table>

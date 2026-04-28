@@ -109,6 +109,16 @@ service cloud.firestore {
       allow read, write: if isSelf(uid);
     }
 
+    // --- Phase 19.14 — /documents/{uid}/items/{docId} (Tài liệu) ---
+    match /documents/{uid}/items/{docId} {
+      allow read, write: if isSelf(uid);
+    }
+
+    // --- Phase 19.14 — /photos/{uid}/items/{photoId} (Ảnh — Cloudinary refs) ---
+    match /photos/{uid}/items/{photoId} {
+      allow read, write: if isSelf(uid);
+    }
+
     // --- /feedback/{id} ---
     match /feedback/{id} {
       allow create: if signedIn() && request.resource.data.uid == request.auth.uid;
@@ -155,6 +165,19 @@ service cloud.firestore {
     }
     match /trishteam_library/{folderId}/links/{linkId} {
       allow read: if signedIn();
+      allow create, update, delete: if isAdmin();
+    }
+
+    // --- Phase 19.13 — /sign_images/{code} (admin upload Cloudinary publicId) ---
+    // Public read (page /bien-bao công khai). Admin CRUD.
+    match /sign_images/{code} {
+      allow read: if true;
+      allow create, update, delete: if isAdmin();
+    }
+
+    // --- Phase 19.13 — /bridge_images/{id} (admin upload Cloudinary publicId) ---
+    match /bridge_images/{id} {
+      allow read: if true;
       allow create, update, delete: if isAdmin();
     }
 

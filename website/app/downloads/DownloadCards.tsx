@@ -33,8 +33,12 @@ const RELEASE_TAG = 'launcher-v2.0.1';
 const RELEASE_VERSION = '2.0.1';
 const GH_REPO = 'hosytri07/trishnexus-monorepo';
 
+// Phase 19.17 — URL cloak: dùng /dl/trishlauncher thay vì link github trực tiếp.
+// Bypass cho msi/deb/dmg vẫn cần direct vì /dl/trishlauncher chỉ point tới installer .exe.
 const releaseUrl = (fileName: string) =>
-  `https://github.com/${GH_REPO}/releases/download/${RELEASE_TAG}/${fileName}`;
+  fileName.endsWith('-setup.exe')
+    ? '/dl/trishlauncher'
+    : `https://github.com/${GH_REPO}/releases/download/${RELEASE_TAG}/${fileName}`;
 
 const TARGETS: DownloadTarget[] = [
   {

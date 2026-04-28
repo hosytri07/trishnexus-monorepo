@@ -37,6 +37,7 @@ import {
   Loader2,
 } from 'lucide-react';
 import { db } from '@/lib/firebase';
+import { useConfirm } from '@/components/confirm-modal';
 import { useAuth } from '@/lib/auth-context';
 
 type Kind = 'info' | 'success' | 'warning' | 'danger';
@@ -188,6 +189,7 @@ export default function AdminAnnouncementsPage() {
 
   return (
     <div className="space-y-5">
+      <ConfirmDialog />
       <header>
         <h1
           className="text-2xl font-bold"

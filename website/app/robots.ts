@@ -26,7 +26,7 @@ export default function robots(): MetadataRoute.Robots {
       {
         userAgent: '*',
         allow: '/',
-        disallow: ['/admin/', '/api/', '/offline', '/_next/'],
+        disallow: ['/admin/', '/api/', '/offline', '/_next/', '/anh', '/dl/'],
       },
       // Opt-out khỏi AI training crawler (policy — tôn trọng dữ liệu user).
       { userAgent: 'GPTBot', disallow: '/' },

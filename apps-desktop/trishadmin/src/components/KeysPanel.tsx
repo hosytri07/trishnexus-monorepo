@@ -16,6 +16,9 @@ import {
   deleteKey,
 } from '../lib/firestore-admin.js';
 import type { ActivationKey } from '@trishteam/data';
+import { applyMask, maskKey, maskUid } from '../lib/mask.js';
+import { useReveal } from '../lib/use-reveal.js';
+import { RevealToggle } from './RevealToggle.js';
 
 interface Props {
   adminUid: string;
@@ -40,6 +43,7 @@ export function KeysPanel({ adminUid }: Props): JSX.Element {
   const [statusFilter, setStatusFilter] = useState<ActivationKey['status'] | 'all'>('all');
   const [showGenerate, setShowGenerate] = useState(false);
   const [actionMsg, setActionMsg] = useState<string | null>(null);
+  const reveal = useReveal(false);
 
   async function load(): Promise<void> {
     setLoading(true);
@@ -116,6 +120,14 @@ export function KeysPanel({ adminUid }: Props): JSX.Element {
           </p>
         </div>
         <div style={{ display: 'flex', gap: 8 }}>
+          <RevealToggle
+            revealed={reveal.revealAll}
+            onToggle={reveal.toggleAll}
+            variant="header"
+            showLabel
+            overrideCount={reveal.hasRowOverrides ? keys.length : 0}
+            disabled={loading}
+          />
           <button type="button" className="btn btn-ghost" onClick={() => void load()} disabled={loading}>
             {loading ? '⏳' : '🔄'} Refresh
           </button>
@@ -176,10 +188,15 @@ export function KeysPanel({ adminUid }: Props): JSX.Element {
                 </td>
               </tr>
             ) : (
-              filtered.map((k) => (
-                <tr key={k.id}>
+              filtered.map((k) => {
+                const rowRevealed = reveal.isRevealed(k.id);
+                const usedByShort = k.used_by_uid ? String(k.used_by_uid).slice(0, 10) : '';
+                return (
+                <tr key={k.id} className={rowRevealed ? 'row-revealed' : 'row-masked'}>
                   <td>
-                    <code className="key-code">{k.code ?? '(no code)'}</code>
+                    <code className="key-code">
+                      {applyMask(k.code ?? '(no code)', rowRevealed, maskKey)}
+                    </code>
                   </td>
                   <td>
                     <span className={`status-badge status-${k.status ?? 'active'}`}>
@@ -193,7 +210,10 @@ export function KeysPanel({ adminUid }: Props): JSX.Element {
                   <td className="muted small">
                     {k.used_by_uid ? (
                       <>
-                        <code>{String(k.used_by_uid).slice(0, 10)}…</code>
+                        <code>
+                          {applyMask(usedByShort, rowRevealed, maskUid)}
+                          {rowRevealed ? '…' : ''}
+                        </code>
                         <br />
                         {formatRelative(k.used_at ?? null)}
                       </>
@@ -203,6 +223,11 @@ export function KeysPanel({ adminUid }: Props): JSX.Element {
                   </td>
                   <td>
                     <div className="row-actions">
+                      <RevealToggle
+                        revealed={rowRevealed}
+                        onToggle={() => reveal.toggleRow(k.id)}
+                        variant="inline"
+                      />
                       <button
                         type="button"
                         className="btn btn-sm btn-ghost"
@@ -233,7 +258,8 @@ export function KeysPanel({ adminUid }: Props): JSX.Element {
                     </div>
                   </td>
                 </tr>
-              ))
+                );
+              })
             )}
           </tbody>
         </table>

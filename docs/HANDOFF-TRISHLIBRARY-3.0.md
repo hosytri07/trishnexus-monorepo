@@ -1,7 +1,27 @@
-# Handoff TỔNG — TrishNexus Monorepo (Phase 14 → 18.8.a)
+# Handoff TỔNG — TrishNexus Monorepo (Phase 14 → 19.22)
+
+> ## 🚨 PHIÊN GẦN NHẤT LÀM WEBSITE — ĐỌC HANDOFF KIA TRƯỚC
+>
+> Phiên ngày **28/04/2026** ở máy cơ quan đã làm Phase 19.20 → 19.22 (toàn bộ là website).
+> Pick up phiên kế ở máy nhà → đọc:
+>
+> 👉 **`docs/HANDOFF-WEBSITE-PHASE-19.md`** 👈
+>
+> File đó có:
+> - Trạng thái website đầy đủ Phase 19.x
+> - Test checklist trước khi deploy
+> - 8,081 câu hỏi BXD 163/2025 cho /on-thi-chung-chi (đã parse + tích hợp)
+> - 6 database mới (quy chuẩn, định mức, vật liệu, đường VN, tin học VP, tiếng Anh)
+> - Notification preferences + avatar upload status
+> - Mobile responsive fixes
+>
+> File hiện tại (HANDOFF-TRISHLIBRARY-3.0) chỉ tham khảo cho desktop apps (TrishLibrary 3.0, TrishAdmin v1.1) khi cần.
+
+---
 
 **Ngày cập nhật:** 2026-04-27 (rev4 — sau Phase 18.8.a — TrishAdmin v1.1)
 **Session trước:** Phase 18.5 (UX polish TrishLibrary) → 18.6 (release v3.0.0) → 18.7 (scaffold TrishAdmin) → 18.8.a (mở rộng TrishAdmin 9 panel)
+**Phiên 28/04 cơ quan:** Phase 19.20 → 19.22 (website) — xem `HANDOFF-WEBSITE-PHASE-19.md`
 **User:** Trí (hosytri77@gmail.com) — không phải dev, giải thích đơn giản, **luôn dùng tiếng Việt**
 **Repo chính:** `hosytri07/trishnexus-monorepo` (sync GitHub giữa 2 máy nhà ↔ cơ quan)
 **Domain:** `trishteam.io.vn` (Vercel + Tenten DNS)

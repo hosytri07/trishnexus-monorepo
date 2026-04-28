@@ -66,9 +66,28 @@ const TRISHLAUNCHER_ENTRY = {
   },
 };
 
-/** Merge registry + website meta. Apps không có meta → fallback rỗng.
- * Prepend TrishLauncher để homepage hiện đầy đủ 10 cards (launcher + 9 child apps). */
+/**
+ * Phase 19.1 — chỉ trả về apps "alive" (released + coming_soon), bỏ deprecated.
+ * Sau khi gộp 4 app (Note/Image/Search/Type) vào TrishLibrary 3.0, registry vẫn
+ * giữ entry cũ với status='deprecated' để launcher hiện thông báo migration —
+ * nhưng homepage website KHÔNG nên show vì gây nhầm lẫn cho user mới.
+ *
+ * Prepend TrishLauncher (không có trong registry vì nó là hub).
+ *
+ * Kết quả: 6 app cho ecosystem widget (Launcher · Library · Font · Check · Clean · Design).
+ */
 export function getAppsForWebsite(): AppForWebsite[] {
+  const augmented: AppRegistry = {
+    ...REGISTRY,
+    apps: [TRISHLAUNCHER_ENTRY as CoreAppRegistryEntry, ...REGISTRY.apps],
+  };
+  const merged = mergeRegistry(augmented, APP_META);
+  return merged.filter((a) => a.status !== 'deprecated');
+}
+
+/** Variant trả về cả deprecated app — dùng cho /downloads page (vẫn cần
+ *  hiện link cho user cũ tải bản v2 nếu muốn). */
+export function getAllAppsIncludingDeprecated(): AppForWebsite[] {
   const augmented: AppRegistry = {
     ...REGISTRY,
     apps: [TRISHLAUNCHER_ENTRY as CoreAppRegistryEntry, ...REGISTRY.apps],
@@ -77,7 +96,7 @@ export function getAppsForWebsite(): AppForWebsite[] {
 }
 
 export function getAppById(id: string): AppForWebsite | null {
-  return findAppById(getAppsForWebsite(), id);
+  return findAppById(getAllAppsIncludingDeprecated(), id);
 }
 
 export function getEcosystemInfo(): EcosystemInfo {

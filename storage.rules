@@ -1,0 +1,63 @@
+rules_version = '2';
+
+// Phase 19.11 — TrishTEAM Storage Rules.
+// Dùng cùng project Firebase với Firestore (trishteam-17c2d).
+service firebase.storage {
+  match /b/{bucket}/o {
+
+    // ─ Helpers ─
+    function isSignedIn() {
+      return request.auth != null;
+    }
+    function isAdmin() {
+      return isSignedIn() &&
+        firestore.get(/databases/(default)/documents/users/$(request.auth.uid)).data.role == 'admin';
+    }
+    function isOwner(uid) {
+      return isSignedIn() && request.auth.uid == uid;
+    }
+    function maxSize(mb) {
+      return request.resource.size < mb * 1024 * 1024;
+    }
+    function isImage() {
+      return request.resource.contentType.matches('image/.*');
+    }
+
+    // ─ Avatars ─
+    // gs://.../avatars/{uid}.{ext}
+    // Owner upload + public read.
+    match /avatars/{filename} {
+      // Public read — avatar hiện ở mọi nơi (profile card, comment, ...)
+      allow read: if true;
+      // Chỉ owner write (UID match prefix filename trước dấu chấm)
+      // Pattern: "abc123.jpg" → uid='abc123'
+      allow write: if isSignedIn()
+        && filename.split('.')[0] == request.auth.uid
+        && isImage()
+        && maxSize(2);
+      allow delete: if isSignedIn()
+        && filename.split('.')[0] == request.auth.uid;
+    }
+
+    // ─ Post images (blog) ─
+    // gs://.../posts/{postId}/{filename}
+    // Chỉ admin write, public read.
+    match /posts/{postId}/{filename} {
+      allow read: if true;
+      allow write: if isAdmin() && isImage() && maxSize(5);
+      allow delete: if isAdmin();
+    }
+
+    // ─ Temp uploads (cleanup auto sau 24h qua Cloud Function) ─
+    // gs://.../temp/{uid}/{filename}
+    match /temp/{uid}/{filename} {
+      allow read, write, delete: if isOwner(uid)
+        && (request.method != 'create' || (isImage() && maxSize(10)));
+    }
+
+    // ─ Default deny ─
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}

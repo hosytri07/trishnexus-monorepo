@@ -14,6 +14,8 @@ import {
   sendEmailVerification,
   signInWithEmailAndPassword,
   signInWithPopup,
+  signInWithRedirect,
+  getRedirectResult,
   signOut as firebaseSignOut,
   updateProfile as updateFirebaseProfile,
 } from 'firebase/auth';
@@ -91,6 +93,44 @@ export async function signInWithGoogle(): Promise<FirebaseUser> {
   await ensureUserDoc(cred.user, 'google.com');
   await touchLastLogin(cred.user.uid);
   return cred.user;
+}
+
+/**
+ * Phase 14.4.10 — Tauri-friendly Google login (redirect cùng cửa sổ).
+ *
+ * Trong Tauri WebView2, signInWithPopup bị chặn cross-origin.
+ * Dùng signInWithRedirect thay thế: WebView2 navigate sang accounts.google.com
+ * → user chọn account → Google redirect về Firebase handler
+ * → handler redirect về Tauri origin → app load lại + getRedirectResult.
+ *
+ * YÊU CẦU: Firebase Console → Authentication → Settings → Authorized Domains
+ * phải có: `localhost`, `tauri.localhost`.
+ */
+export async function signInWithGoogleRedirect(): Promise<void> {
+  const provider = new GoogleAuthProvider();
+  provider.setCustomParameters({ prompt: 'select_account' });
+  await signInWithRedirect(getFirebaseAuth(), provider);
+  // Hàm này KHÔNG return — page sẽ navigate sang Google ngay.
+}
+
+/**
+ * Gọi khi app mount để hoàn tất flow signInWithRedirect.
+ * Firebase tự kiểm tra URL hash + lấy token nếu vừa redirect về.
+ * Trả null nếu không có pending redirect.
+ */
+export async function handleGoogleRedirectResult(): Promise<FirebaseUser | null> {
+  try {
+    const result = await getRedirectResult(getFirebaseAuth());
+    if (result?.user) {
+      await ensureUserDoc(result.user, 'google.com');
+      await touchLastLogin(result.user.uid);
+      return result.user;
+    }
+    return null;
+  } catch (err) {
+    console.warn('[trishteam-auth] handleGoogleRedirectResult fail', err);
+    return null;
+  }
 }
 
 // ============================================================

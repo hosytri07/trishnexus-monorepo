@@ -1,22 +1,18 @@
 /**
- * app/sitemap.ts — Phase 16.1.
+ * app/sitemap.ts — Phase 19.20 (cập nhật full routes Phase 19.20).
  *
- * Next.js App Router convention: return MetadataRoute.Sitemap → Next tự
- * generate `/sitemap.xml` tại build time (hoặc runtime nếu dynamic).
+ * Routes priority matrix:
+ *   - 1.0  : `/`
+ *   - 0.9  : `/downloads`, `/blog`
+ *   - 0.8  : `/thu-vien`, `/ghi-chu`, `/tai-lieu` (apps đồng bộ)
+ *   - 0.75 : `/bien-bao`, `/cau-vn`, `/duong-vn`, `/quy-chuan`, `/dinh-muc`, `/vat-lieu` (database SEO cao)
+ *   - 0.7  : `/on-thi-lai-xe`, `/on-thi-chung-chi`, `/tin-hoc-vp`, `/tieng-anh` (học tập)
+ *   - 0.65 : `/ung-ho`
+ *   - 0.6  : `/cong-cu/*` (tools)
+ *   - 0.5  : `/login`, `/profile`, `/settings`
+ *   - 0.4  : `/search`
  *
- * Site URL lấy từ `NEXT_PUBLIC_SITE_URL` (set ở Vercel). Fallback
- * `https://trishteam.io.vn` để local dev vẫn hợp lệ.
- *
- * Priority matrix:
- *   - 1.0  : landing `/`
- *   - 0.8  : `/apps`, `/downloads`
- *   - 0.7  : `/search`
- *   - 0.5  : `/login`, `/register` (entry points)
- *   - Không index: `/admin/*`, `/api/*`, `/offline` (xử lý ở robots.ts).
- *
- * Lưu ý: khi có dynamic routes (vd `/apps/[id]`), bổ sung vòng lặp đọc
- * từ app registry — hiện registry chưa expose public URL per-app nên
- * tạm giữ static.
+ * Không index: `/admin/*`, `/api/*`, `/offline`, `/anh` (chỉ desktop) → xử lý ở robots.ts.
  */
 import type { MetadataRoute } from 'next';
 
@@ -30,36 +26,64 @@ export default function sitemap(): MetadataRoute.Sitemap {
   const weekly = 'weekly' as const;
   const monthly = 'monthly' as const;
 
+  const make = (
+    path: string,
+    priority: number,
+    changeFrequency: 'daily' | 'weekly' | 'monthly' = weekly,
+  ) => ({
+    url: `${BASE_URL}${path}`,
+    lastModified: now,
+    changeFrequency,
+    priority,
+  });
+
   return [
-    {
-      url: `${BASE_URL}/`,
-      lastModified: now,
-      changeFrequency: daily,
-      priority: 1.0,
-    },
-    {
-      url: `${BASE_URL}/apps`,
-      lastModified: now,
-      changeFrequency: weekly,
-      priority: 0.8,
-    },
-    {
-      url: `${BASE_URL}/downloads`,
-      lastModified: now,
-      changeFrequency: weekly,
-      priority: 0.8,
-    },
-    {
-      url: `${BASE_URL}/search`,
-      lastModified: now,
-      changeFrequency: monthly,
-      priority: 0.7,
-    },
-    {
-      url: `${BASE_URL}/login`,
-      lastModified: now,
-      changeFrequency: monthly,
-      priority: 0.5,
-    },
+    make('/', 1.0, daily),
+    make('/downloads', 0.9),
+    make('/blog', 0.9, daily),
+
+    // Apps đồng bộ với desktop
+    make('/thu-vien', 0.8),
+    make('/ghi-chu', 0.8),
+    make('/tai-lieu', 0.8),
+
+    // Database (content pages có giá trị SEO cao)
+    make('/bien-bao', 0.75, monthly),
+    make('/cau-vn', 0.75, monthly),
+    make('/duong-vn', 0.75, monthly),
+    make('/quy-chuan', 0.75, monthly),
+    make('/dinh-muc', 0.75, monthly),
+    make('/vat-lieu', 0.75, monthly),
+
+    // Học tập
+    make('/on-thi-lai-xe', 0.7),
+    make('/on-thi-chung-chi', 0.7),
+    make('/tin-hoc-vp', 0.7),
+    make('/tieng-anh', 0.7),
+
+    // Cộng đồng
+    make('/ung-ho', 0.65, monthly),
+
+    // Công cụ
+    make('/cong-cu/pomodoro', 0.6, monthly),
+    make('/cong-cu/may-tinh-tai-chinh', 0.6, monthly),
+    make('/cong-cu/qr-code', 0.6, monthly),
+    make('/cong-cu/thoi-tiet', 0.6, monthly),
+    make('/cong-cu/lich', 0.6, monthly),
+    make('/cong-cu/ghi-chu-nhanh', 0.6, monthly),
+    make('/cong-cu/don-vi', 0.6, monthly),
+    make('/cong-cu/tinh-ngay', 0.6, monthly),
+    make('/cong-cu/bmi', 0.6, monthly),
+    make('/cong-cu/rut-gon-link', 0.6, monthly),
+    make('/cong-cu/mat-khau', 0.6, monthly),
+    make('/cong-cu/base64', 0.6, monthly),
+    make('/cong-cu/hash', 0.6, monthly),
+    make('/cong-cu/vn2000', 0.6, monthly),
+
+    // Tài khoản + tìm kiếm
+    make('/login', 0.5, monthly),
+    make('/profile', 0.5, monthly),
+    make('/settings', 0.5, monthly),
+    make('/search', 0.4, monthly),
   ];
 }

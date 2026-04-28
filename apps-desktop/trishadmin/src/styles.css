@@ -655,6 +655,47 @@ textarea {
 }
 
 /* ============================================================
+ * Reveal toggle (Phase 18.8.b — eye button ẩn/hiện info)
+ * ============================================================ */
+.reveal-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+}
+.reveal-toggle.reveal-inline {
+  padding: 2px 8px;
+  font-size: 14px;
+  line-height: 1.4;
+}
+.reveal-toggle.reveal-header {
+  border: 1px solid var(--border);
+}
+.reveal-toggle .reveal-icon {
+  font-size: 14px;
+}
+.reveal-toggle .reveal-label {
+  font-weight: 500;
+}
+.reveal-toggle .reveal-override-count {
+  font-size: 11px;
+  opacity: 0.75;
+  margin-left: 2px;
+}
+/* Row đang ẩn — mono cho mask đẹp hơn */
+tr.row-masked code,
+.feedback-card.row-masked .feedback-author {
+  font-family: ui-monospace, "SF Mono", Menlo, monospace;
+}
+/* Row đang hiện — màu accent nhẹ ở border-left để admin biết đang lộ info */
+tr.row-revealed td:first-child {
+  border-left: 2px solid var(--warning, #f59e0b);
+}
+.feedback-card.row-revealed {
+  border-left-color: var(--warning, #f59e0b);
+}
+
+/* ============================================================
  * Badges
  * ============================================================ */
 .role-badge,

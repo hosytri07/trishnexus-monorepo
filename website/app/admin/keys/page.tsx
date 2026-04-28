@@ -36,6 +36,7 @@ import {
   type Unsubscribe,
 } from 'firebase/firestore';
 import { db, firebaseReady } from '@/lib/firebase';
+import { useConfirm } from '@/components/confirm-modal';
 import { useAuth } from '@/lib/auth-context';
 
 interface KeyRow {
@@ -50,27 +51,38 @@ interface KeyRow {
   created_by_uid: string;
 }
 
-/** Generate random 16 chars uppercase alphanumeric (loại trừ chữ lẫn lộn). */
-function generateRandomKey(): string {
-  // Loại bỏ ký tự dễ nhầm: 0/O, 1/I, S/5, B/8
-  const alphabet = 'ACDEFGHJKLMNPQRTUVWXY2346789';
-  const bytes = new Uint8Array(16);
+/**
+ * Phase 19.10 — fix key format mismatch giữa web ↔ TrishAdmin desktop.
+ * Generate format đồng bộ với TrishAdmin: TRISH-XXXX-XXXX-XXXX
+ * (3 nhóm 4 ký tự, alphabet bỏ I/O/0/1 dễ nhầm).
+ */
+const KEY_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+
+function randomChunk(len: number): string {
+  const arr = new Uint8Array(len);
   if (typeof crypto !== 'undefined' && crypto.getRandomValues) {
-    crypto.getRandomValues(bytes);
+    crypto.getRandomValues(arr);
   } else {
-    for (let i = 0; i < 16; i++) bytes[i] = Math.floor(Math.random() * 256);
+    for (let i = 0; i < len; i++) arr[i] = Math.floor(Math.random() * 256);
   }
   let out = '';
-  for (let i = 0; i < 16; i++) {
-    out += alphabet[bytes[i]! % alphabet.length];
+  for (let i = 0; i < len; i++) {
+    out += KEY_ALPHABET[arr[i]! % KEY_ALPHABET.length];
   }
   return out;
 }
 
-/** Format key 16 chars thành "XXXX-XXXX-XXXX-XXXX" cho display. */
+/**
+ * Phase 19.18 — Format key 16 ký tự ngẫu nhiên + dấu - mỗi 4 ký tự.
+ * Stored: XXXX-XXXX-XXXX-XXXX (16 alphanumeric, alphabet 32 chars bỏ I/O/0/1).
+ * Bỏ TRISH prefix theo yêu cầu user.
+ */
+function generateRandomKey(): string {
+  return `${randomChunk(4)}-${randomChunk(4)}-${randomChunk(4)}-${randomChunk(4)}`;
+}
+
 function formatKeyForDisplay(code: string): string {
-  if (!code || code.length !== 16) return code;
-  return `${code.slice(0, 4)}-${code.slice(4, 8)}-${code.slice(8, 12)}-${code.slice(12, 16)}`;
+  return code ?? '';
 }
 
 export default function AdminKeysPage() {
@@ -80,6 +92,7 @@ export default function AdminKeysPage() {
   const [loadingKeys, setLoadingKeys] = useState(true);
   const [generating, setGenerating] = useState(false);
   const [note, setNote] = useState('');
+  const [ConfirmDialog, askConfirm] = useConfirm();
   const [toast, setToast] = useState<{ msg: string; kind: 'ok' | 'err' } | null>(null);
   const [copiedId, setCopiedId] = useState<string | null>(null);
 
@@ -161,7 +174,13 @@ export default function AdminKeysPage() {
 
   async function handleRevoke(keyId: string): Promise<void> {
     if (!db) return;
-    if (!confirm('Thu hồi key này? Không khôi phục được.')) return;
+    const ok = await askConfirm({
+      title: 'Thu hồi key này?',
+      message: 'Sau khi thu hồi, key không thể dùng để activate. Hành động không thể khôi phục.',
+      okLabel: 'Thu hồi',
+      danger: true,
+    });
+    if (!ok) return;
     try {
       await updateDoc(doc(db, 'keys', keyId), {
         status: 'revoked',
@@ -201,7 +220,7 @@ export default function AdminKeysPage() {
   const revokedCount = keys.filter((k) => k.status === 'revoked').length;
 
   return (
-    <div className="admin-keys-page">
+    <div className="admin-keys-page"><ConfirmDialog />
       <Link href="/admin" className="admin-back">
         <ArrowLeft size={18} /> Admin
       </Link>

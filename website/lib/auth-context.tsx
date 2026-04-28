@@ -46,6 +46,8 @@ export type SessionUser = {
   key_activated_at?: number;
   /** Mã key đã activate */
   activated_key_id?: string;
+  /** Phase 19.12 — Cloudinary public_id của avatar */
+  cloudinary_avatar_id?: string;
 };
 
 type AuthContextValue = {
@@ -141,6 +143,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         key_activated_at: (data.key_activated_at as number) ?? 0,
         activated_key_id:
           (data.activated_key_id as string) ?? undefined,
+        cloudinary_avatar_id:
+          (data.cloudinary_avatar_id as string) ?? undefined,
       };
     },
     [],

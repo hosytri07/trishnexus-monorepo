@@ -84,8 +84,11 @@ echo  ============================================
 echo.
 echo   Mo chat moi -^> paste cau hoi:
 echo.
-echo     "Doc file handoff de cap nhat tien do project:"
-echo     "docs/HANDOFF-TRISHLIBRARY-3.0.md"
+echo     "Doc handoff de tiep tuc project:"
+echo     "docs/HANDOFF-WEBSITE-PHASE-19.md"
+echo.
+echo     (Neu lam desktop apps thi doc:
+echo      docs/HANDOFF-TRISHLIBRARY-3.0.md)
 echo.
 echo   Claude se doc handoff va biet phai lam gi tiep.
 echo.

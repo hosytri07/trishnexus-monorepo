@@ -8,64 +8,27 @@ if exist "%~dp0..\.git" (
 ) else if exist "%~dp0trishnexus-monorepo\.git" (
     cd /d "%~dp0trishnexus-monorepo"
 ) else (
-    echo.
-    echo  [LOI] Khong tim thay trishnexus-monorepo.
+    echo [!] Khong tim thay repo trishnexus-monorepo
     pause
     exit /b 1
 )
 
-cls
 echo.
 echo  ============================================
 echo     Firestore Rules  --  DEPLOY
 echo  ============================================
 echo.
-echo   Project: %cd%
+echo   Project: %CD%
 echo   File:    firestore.rules
 echo.
 echo  --------------------------------------------
-echo.
 echo   Ban se deploy rules moi nhat len Firebase.
 echo   Anh huong toan bo apps + website (read/write Firestore).
 echo.
-echo   Phase 18.8.a moi: cho phep admin write audit/ collection.
-echo.
+echo   Phase 19.17: bo Storage step (Spark plan khong ho tro,
+echo   anh dung Cloudinary thay the).
 echo  --------------------------------------------
 echo.
-
-REM === Kiem tra Firebase CLI ===
-where firebase >nul 2>&1
-if errorlevel 1 (
-    echo  [LOI] Chua cai Firebase CLI.
-    echo.
-    echo   Cai bang lenh:
-    echo     npm install -g firebase-tools
-    echo.
-    echo   Sau do dang nhap:
-    echo     firebase login
-    echo.
-    pause
-    exit /b 1
-)
-
-REM === Kiem tra dang nhap Firebase ===
-firebase projects:list >nul 2>&1
-if errorlevel 1 (
-    echo  [LOI] Chua dang nhap Firebase.
-    echo.
-    echo   Chay lenh nay roi quay lai:
-    echo     firebase login
-    echo.
-    pause
-    exit /b 1
-)
-
-REM === Kiem tra firestore.rules ton tai ===
-if not exist firestore.rules (
-    echo  [LOI] Khong thay firestore.rules.
-    pause
-    exit /b 1
-)
 
 echo   [1/2] Hien rules hien tai (10 dong dau):
 echo  --------------------------------------------
@@ -83,14 +46,14 @@ if /i not "%CONFIRM%"=="y" (
 )
 
 echo.
-echo   [2/2] Deploy rules len Firebase...
+echo   [2/2] Deploy Firestore rules + indexes...
 echo.
 
-call firebase deploy --only firestore:rules
+call firebase deploy --only firestore:rules,firestore:indexes
 if errorlevel 1 (
     echo.
     echo  --------------------------------------------
-    echo   [!] Deploy that bai. Mo Cowork hoi Claude.
+    echo   [!] Firestore deploy fail. Hoi Claude.
     echo  --------------------------------------------
     echo.
     pause
@@ -102,7 +65,8 @@ echo  ============================================
 echo     DA DEPLOY RULES THANH CONG
 echo  ============================================
 echo.
-echo   Cac apps va TrishAdmin co the dung Firestore
-echo   voi rules moi ngay.
+echo   Firestore rules + indexes da update.
+echo   Storage: bo qua (Spark plan khong support).
+echo   Cloudinary lam storage chinh - khong can Firebase Storage.
 echo.
 pause

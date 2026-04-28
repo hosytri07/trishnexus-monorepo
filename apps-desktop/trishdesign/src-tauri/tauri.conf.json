@@ -12,7 +12,7 @@
   "app": {
     "windows": [
       {
-        "title": "TrishDesign — Color palette & design token",
+        "title": "TrishDesign — Bộ công cụ Khảo sát & Thiết kế",
         "width": 1280,
         "height": 840,
         "minWidth": 960,
@@ -22,7 +22,13 @@
       }
     ],
     "security": {
-      "csp": "default-src 'self' ipc: http://ipc.localhost; img-src 'self' data: asset: http://asset.localhost; style-src 'self' 'unsafe-inline'; script-src 'self'"
+      "csp": "default-src 'self' ipc: http://ipc.localhost; connect-src 'self' ipc: http://ipc.localhost https://*.googleapis.com https://*.firebaseio.com https://*.firebaseapp.com https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://firestore.googleapis.com https://www.googleapis.com https://accounts.google.com https://api.github.com https://*.github.com; img-src 'self' data: blob: asset: http://asset.localhost https://*.googleusercontent.com https://www.gstatic.com; style-src 'self' 'unsafe-inline' https://accounts.google.com; script-src 'self' https://apis.google.com https://accounts.google.com https://www.gstatic.com; frame-src 'self' asset: http://asset.localhost https://trishteam-17c2d.firebaseapp.com https://accounts.google.com https://*.firebaseapp.com; object-src 'self' asset: http://asset.localhost",
+      "assetProtocol": {
+        "enable": true,
+        "scope": [
+          "**"
+        ]
+      }
     }
   },
   "bundle": {
@@ -43,8 +49,8 @@
     ],
     "category": "DeveloperTool",
     "copyright": "© 2026 TrishTEAM",
-    "shortDescription": "Quản lý color palette + design token, AI gợi ý palette WCAG-compliant",
-    "longDescription": "TrishDesign — xây scale màu 50..950 theo chuẩn Tailwind, check contrast WCAG 2.1 (AA/AAA), build harmony complementary/triadic/analogous/tetradic, gợi ý palette hoàn chỉnh từ 1 hex base với target mode (light/dark/brand), export ra CSS custom properties, Tailwind config, Figma Tokens JSON, SCSS map. Alpha local; cross-device sync dời 14.4.4.b.",
+    "shortDescription": "Bộ công cụ Khảo sát & Thiết kế cho kỹ sư cầu đường",
+    "longDescription": "TrishDesign — Bộ công cụ Khảo sát & Thiết kế cho dân cầu đường giao thông. 11 module tích hợp: Dashboard dự án, Danh mục hồ sơ, Vẽ hư hỏng MĐ + ATGT lên AutoCAD, Khảo sát OCR ảnh/PDF, Quản lý AutoLISP, Bảng tính kết cấu, Dự toán, GIS-MAP VN2000, Chatbot RAG MCP AutoCAD. Login required (block trial).",
     "publisher": "TrishTEAM"
   }
 }

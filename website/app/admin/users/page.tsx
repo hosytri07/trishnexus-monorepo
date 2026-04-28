@@ -33,6 +33,7 @@ import {
 } from 'lucide-react';
 import { getIdToken } from 'firebase/auth';
 import { auth, db } from '@/lib/firebase';
+import { useConfirm } from '@/components/confirm-modal';
 import { useAuth } from '@/lib/auth-context';
 
 interface UserRow {
@@ -115,7 +116,12 @@ export default function AdminUsersPage() {
     }
     const next: 'user' | 'admin' = row.role === 'admin' ? 'user' : 'admin';
     const verb = next === 'admin' ? 'Cấp quyền admin' : 'Gỡ quyền admin';
-    if (!window.confirm(`${verb} cho ${row.email}?`)) return;
+    const __ok = await askConfirm({
+      title: 'Xác nhận',
+      message: '${verb} cho ${row.email}?',
+      okLabel: 'Đồng ý',
+    });
+    if (!__ok) return;
 
     setBusyUid(row.id);
     try {
@@ -186,6 +192,7 @@ export default function AdminUsersPage() {
 
   return (
     <div className="space-y-5">
+      <ConfirmDialog />
       <header className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>
           <h1

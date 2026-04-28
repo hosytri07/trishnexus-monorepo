@@ -46,21 +46,31 @@ async function fetchStats() {
   if (!db) throw new Error('Firebase chưa cấu hình');
   const since24h = Timestamp.fromMillis(Date.now() - 24 * 60 * 60 * 1000);
 
-  // Chạy song song để giảm latency.
-  const [usersAll, admins, annActive, events24h] = await Promise.all([
+  // Phase 19.18.3 — events24h tách riêng try/catch vì collectionGroup query
+  // cần fieldOverride (deploy chậm hoặc chưa build xong index).
+  // 3 query đầu chắc chắn work; events24h fail → show null thay vì crash UI.
+  const [usersAll, admins, annActive] = await Promise.all([
     getCountFromServer(collection(db, 'users')),
     getCountFromServer(query(collection(db, 'users'), where('role', '==', 'admin'))),
     getCountFromServer(query(collection(db, 'announcements'), where('active', '==', true))),
-    getCountFromServer(
-      query(collectionGroup(db, 'events'), where('createdAt', '>=', since24h)),
-    ),
   ]);
+
+  let events24hCount: number | null = null;
+  try {
+    const events24h = await getCountFromServer(
+      query(collectionGroup(db, 'events'), where('createdAt', '>=', since24h)),
+    );
+    events24hCount = events24h.data().count;
+  } catch (err) {
+    console.warn('[admin/dashboard] events24h fail (cần fieldOverride events.createdAt):', err);
+    // events24h vẫn null → UI hiện "—" không phá dashboard
+  }
 
   return {
     users: usersAll.data().count,
     admins: admins.data().count,
     announcements: annActive.data().count,
-    events24h: events24h.data().count,
+    events24h: events24hCount,
   };
 }
 

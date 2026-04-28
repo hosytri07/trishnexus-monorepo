@@ -17,7 +17,9 @@
       "size_bytes": 3420160,
       "status": "released",
       "login_required": "none",
-      "platforms": ["windows_x64"],
+      "platforms": [
+        "windows_x64"
+      ],
       "screenshots": [],
       "changelog_url": "https://github.com/hosytri07/trishnexus-monorepo/releases/tag/trishfont-v2.0.0-1",
       "download": {
@@ -37,7 +39,9 @@
       "size_bytes": 3155530,
       "status": "deprecated",
       "login_required": "trial",
-      "platforms": ["windows_x64"],
+      "platforms": [
+        "windows_x64"
+      ],
       "screenshots": [],
       "changelog_url": "https://github.com/hosytri07/trishnexus-monorepo/releases/tag/trishnote-v2.0.0-1",
       "download": {
@@ -57,7 +61,9 @@
       "size_bytes": 10485760,
       "status": "released",
       "login_required": "none",
-      "platforms": ["windows_x64"],
+      "platforms": [
+        "windows_x64"
+      ],
       "screenshots": [],
       "changelog_url": "https://github.com/hosytri07/trishnexus-monorepo/releases/tag/trishclean-v2.0.0-1",
       "download": {
@@ -77,7 +83,9 @@
       "size_bytes": 10485760,
       "status": "released",
       "login_required": "none",
-      "platforms": ["windows_x64"],
+      "platforms": [
+        "windows_x64"
+      ],
       "screenshots": [],
       "changelog_url": "https://github.com/hosytri07/trishnexus-monorepo/releases/tag/trishcheck-v2.0.0-1",
       "download": {
@@ -97,7 +105,9 @@
       "size_bytes": 0,
       "status": "deprecated",
       "login_required": "none",
-      "platforms": ["windows_x64"],
+      "platforms": [
+        "windows_x64"
+      ],
       "screenshots": [],
       "changelog_url": "https://github.com/hosytri07/trishnexus-monorepo/releases/tag/trishtype-v2.0.0-1",
       "download": {
@@ -117,7 +127,9 @@
       "size_bytes": 3668219,
       "status": "deprecated",
       "login_required": "none",
-      "platforms": ["windows_x64"],
+      "platforms": [
+        "windows_x64"
+      ],
       "screenshots": [],
       "changelog_url": "https://github.com/hosytri07/trishnexus-monorepo/releases/tag/trishimage-v2.0.0-1",
       "download": {
@@ -137,7 +149,9 @@
       "size_bytes": 7239739,
       "status": "released",
       "login_required": "trial",
-      "platforms": ["windows_x64"],
+      "platforms": [
+        "windows_x64"
+      ],
       "screenshots": [],
       "changelog_url": "https://github.com/hosytri07/trishnexus-monorepo/releases/tag/trishlibrary-v3.0.0",
       "download": {
@@ -157,7 +171,9 @@
       "size_bytes": 34906112,
       "status": "deprecated",
       "login_required": "none",
-      "platforms": ["windows_x64"],
+      "platforms": [
+        "windows_x64"
+      ],
       "screenshots": [],
       "changelog_url": "https://github.com/hosytri07/trishnexus-monorepo/releases/tag/trishsearch-v2.0.0-1",
       "download": {
@@ -171,20 +187,25 @@
     {
       "id": "trishdesign",
       "name": "TrishDesign",
-      "tagline": "Color palette WCAG + design tokens",
+      "tagline": "Bộ công cụ thiết kế đồ hoạ cá nhân",
       "logo_url": "https://trishteam.io.vn/logos/trishdesign.png",
       "version": "2.0.0",
       "size_bytes": 30000000,
       "status": "coming_soon",
-      "login_required": "trial",
-      "platforms": ["windows_x64", "macos_arm64"],
+      "login_required": "user",
+      "platforms": [
+        "windows_x64",
+        "macos_arm64"
+      ],
       "screenshots": [],
       "changelog_url": "",
       "download": {
         "windows_x64": {
           "url": "https://trishteam.io.vn/dl/trishdesign-2.0.0-x64.msi",
           "sha256": "",
-          "installer_args": ["/quiet"]
+          "installer_args": [
+            "/quiet"
+          ]
         }
       }
     }

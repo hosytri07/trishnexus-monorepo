@@ -11,6 +11,9 @@ import {
   formatTimestamp,
   listAudit,
 } from '../lib/firestore-admin.js';
+import { applyMask, maskEmail, maskUid } from '../lib/mask.js';
+import { useReveal } from '../lib/use-reveal.js';
+import { RevealToggle } from './RevealToggle.js';
 
 const ACTION_LABEL: Record<string, { label: string; color: string }> = {
   'user.set_role': { label: 'Đổi role', color: '#a855f7' },
@@ -35,6 +38,7 @@ export function AuditPanel(): JSX.Element {
   const [error, setError] = useState<string | null>(null);
   const [actionFilter, setActionFilter] = useState<string>('all');
   const [search, setSearch] = useState('');
+  const reveal = useReveal(false);
 
   async function load(): Promise<void> {
     setLoading(true);
@@ -82,14 +86,24 @@ export function AuditPanel(): JSX.Element {
             Lịch sử {entries.length} action admin trong hệ sinh thái. Read-only.
           </p>
         </div>
-        <button
-          type="button"
-          className="btn btn-ghost"
-          onClick={() => void load()}
-          disabled={loading}
-        >
-          {loading ? '⏳' : '🔄'} Refresh
-        </button>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <RevealToggle
+            revealed={reveal.revealAll}
+            onToggle={reveal.toggleAll}
+            variant="header"
+            showLabel
+            overrideCount={reveal.hasRowOverrides ? entries.length : 0}
+            disabled={loading}
+          />
+          <button
+            type="button"
+            className="btn btn-ghost"
+            onClick={() => void load()}
+            disabled={loading}
+          >
+            {loading ? '⏳' : '🔄'} Refresh
+          </button>
+        </div>
       </header>
 
       <div className="filter-row">
@@ -125,20 +139,24 @@ export function AuditPanel(): JSX.Element {
               <th>Actor</th>
               <th>Target</th>
               <th>Chi tiết</th>
+              <th></th>
             </tr>
           </thead>
           <tbody>
             {filtered.length === 0 ? (
               <tr>
-                <td colSpan={5} className="muted small" style={{ textAlign: 'center', padding: 24 }}>
+                <td colSpan={6} className="muted small" style={{ textAlign: 'center', padding: 24 }}>
                   {loading ? 'Đang tải…' : '(Không có entry)'}
                 </td>
               </tr>
             ) : (
               filtered.map((e) => {
                 const meta = actionMeta(e.action);
+                const rowRevealed = reveal.isRevealed(e.id);
+                const actorUidShort = (e.actor_uid ?? '').slice(0, 10);
+                const targetIdShort = e.target_id ? e.target_id.slice(0, 10) : '';
                 return (
-                  <tr key={e.id}>
+                  <tr key={e.id} className={rowRevealed ? 'row-revealed' : 'row-masked'}>
                     <td title={formatTimestamp(e.created_at)}>
                       <span className="muted small">{formatRelative(e.created_at)}</span>
                     </td>
@@ -158,21 +176,29 @@ export function AuditPanel(): JSX.Element {
                       </span>
                     </td>
                     <td>
-                      <strong className="small">{e.actor_email ?? '—'}</strong>
+                      <strong className="small">
+                        {applyMask(e.actor_email ?? '—', rowRevealed, maskEmail)}
+                      </strong>
                       <span className="muted small" style={{ display: 'block' }}>
-                        <code>{(e.actor_uid ?? '').slice(0, 10)}…</code>
+                        <code>
+                          {applyMask(actorUidShort, rowRevealed, maskUid)}
+                          {rowRevealed && actorUidShort.length > 0 ? '…' : ''}
+                        </code>
                       </span>
                     </td>
                     <td>
                       {e.target_label ? (
-                        <strong className="small">{e.target_label}</strong>
+                        <strong className="small">
+                          {applyMask(e.target_label, rowRevealed, maskEmail)}
+                        </strong>
                       ) : (
                         <span className="muted small">—</span>
                       )}
                       {e.target_type && (
                         <span className="muted small" style={{ display: 'block' }}>
                           {e.target_type}
-                          {e.target_id && ` · ${e.target_id.slice(0, 10)}…`}
+                          {targetIdShort &&
+                            ` · ${applyMask(targetIdShort, rowRevealed, maskUid)}${rowRevealed ? '…' : ''}`}
                         </span>
                       )}
                     </td>
@@ -185,6 +211,13 @@ export function AuditPanel(): JSX.Element {
                       ) : (
                         <span className="muted small">—</span>
                       )}
+                    </td>
+                    <td>
+                      <RevealToggle
+                        revealed={rowRevealed}
+                        onToggle={() => reveal.toggleRow(e.id)}
+                        variant="inline"
+                      />
                     </td>
                   </tr>
                 );

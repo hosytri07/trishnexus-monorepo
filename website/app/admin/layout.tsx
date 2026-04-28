@@ -26,6 +26,10 @@ import {
   Gauge,
   Bug,
   KeyRound,
+  HardDrive,
+  Signpost,
+  Waypoints,
+  Newspaper,
 } from 'lucide-react';
 import { useAuth } from '@/lib/auth-context';
 
@@ -44,6 +48,10 @@ const NAV: NavItem[] = [
   { href: '/admin/vitals', label: 'Vitals', icon: Gauge },
   { href: '/admin/errors', label: 'Lỗi', icon: Bug },
   { href: '/admin/audit', label: 'Nhật ký', icon: History },
+  { href: '/admin/storage', label: 'Storage', icon: HardDrive },
+  { href: '/admin/posts', label: 'Bài blog', icon: Newspaper },
+  { href: '/admin/signs', label: 'Ảnh biển báo', icon: Signpost },
+  { href: '/admin/bridges', label: 'Ảnh cầu', icon: Waypoints },
 ];
 
 export default function AdminLayout({ children }: { children: ReactNode }) {
