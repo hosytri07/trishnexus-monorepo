@@ -328,15 +328,21 @@ function checkTsc() {
     return;
   }
   const all = [...PACKAGES.map((p) => `packages/${p}`), ...APPS.map((a) => `apps-desktop/${a.id}`)];
-  const tscBin = path.join(ROOT, 'node_modules/.bin/tsc');
-  if (!fs.existsSync(tscBin)) {
-    fail('tsc', 'node_modules/.bin/tsc missing — run npm install');
+  // Windows: pnpm tạo cả `tsc` (shell script) và `tsc.CMD`. spawnSync ko exec
+  // được shell script trực tiếp → thử .cmd trên Windows trước, fallback unix.
+  const isWin = process.platform === 'win32';
+  const tscCandidates = isWin
+    ? [path.join(ROOT, 'node_modules/.bin/tsc.CMD'), path.join(ROOT, 'node_modules/.bin/tsc.cmd'), path.join(ROOT, 'node_modules/.bin/tsc')]
+    : [path.join(ROOT, 'node_modules/.bin/tsc')];
+  const tscBin = tscCandidates.find((p) => fs.existsSync(p));
+  if (!tscBin) {
+    fail('tsc', `node_modules/.bin/tsc missing — run pnpm install. Tried: ${tscCandidates.map((p) => path.relative(ROOT, p)).join(', ')}`);
     return;
   }
   for (const ws of all) {
     const cfg = path.join(ROOT, ws, 'tsconfig.json');
     if (!fs.existsSync(cfg)) continue;
-    const res = spawnSync(tscBin, ['-p', cfg, '--noEmit'], { cwd: ROOT, encoding: 'utf8' });
+    const res = spawnSync(tscBin, ['-p', cfg, '--noEmit'], { cwd: ROOT, encoding: 'utf8', shell: isWin });
     if (res.status !== 0) {
       const output = (res.stdout || '') + (res.stderr || '');
       fail('tsc', `${ws} exit=${res.status}\n${output.split('\n').slice(0, 15).join('\n')}`);
@@ -355,10 +361,17 @@ function checkVitest() {
   }
   // pnpm: vitest nằm ở packages/core/node_modules/.bin/
   // npm:  vitest nằm ở root node_modules/.bin/
-  const candidates = [
-    path.join(ROOT, 'packages/core/node_modules/.bin/vitest'),
-    path.join(ROOT, 'node_modules/.bin/vitest'),
+  // Windows: thêm .CMD/.cmd variant do pnpm tạo cả 2.
+  const isWin = process.platform === 'win32';
+  const baseDirs = [
+    path.join(ROOT, 'packages/core/node_modules/.bin'),
+    path.join(ROOT, 'node_modules/.bin'),
   ];
+  const candidates = baseDirs.flatMap((dir) =>
+    isWin
+      ? [path.join(dir, 'vitest.CMD'), path.join(dir, 'vitest.cmd'), path.join(dir, 'vitest')]
+      : [path.join(dir, 'vitest')],
+  );
   const vitestBin = candidates.find((p) => fs.existsSync(p));
   if (!vitestBin) {
     fail(
@@ -370,6 +383,7 @@ function checkVitest() {
   const res = spawnSync(vitestBin, ['run', '--reporter=dot'], {
     cwd: path.join(ROOT, 'packages/core'),
     encoding: 'utf8',
+    shell: isWin,
   });
   const out = (res.stdout || '') + (res.stderr || '');
   const m = out.match(/Tests\s+(\d+)\s+passed/);
