@@ -1,8 +1,22 @@
-# Session Handoff — TrishNexus
+# Session Handoff — TrishNexus (LEGACY — Phase 14-16)
 
-**Mục đích:** Claude ở session Cowork mới đọc file này để pick up công việc đúng chỗ.
+> ⚠️ **FILE NÀY OUTDATED — KHÔNG CÒN LÀ NGUỒN HANDOFF CHÍNH**
+>
+> File này lưu lịch sử chi tiết Phase 14 → 16 (TrishLauncher + 3 app đầu + Firebase Auth).
+> Để pick up công việc hiện tại (Phase 17 + 18 + TrishLibrary 3.0), đọc:
+> 👉 **`docs/HANDOFF-TRISHLIBRARY-3.0.md`** 👈
+>
+> File mới có:
+> - Tóm tắt toàn bộ Phase 14 → 18
+> - Trạng thái current task (đang fix lỗi compile + chờ test)
+> - Bảng app đã release + tag GitHub
+> - Pattern + gotchas cần nhớ
 
-**Ngôn ngữ giao tiếp với user:** Tiếng Việt. User là Trí (hosytri07 / hosytri07@gmail.com), không phải developer — cần giải thích đơn giản, tránh jargon khi không cần thiết.
+---
+
+**Mục đích:** Lưu trữ chi tiết Phase 14-16 cho reference (debug ngược dependency cũ).
+
+**Ngôn ngữ giao tiếp với user:** Tiếng Việt. User là Trí (hosytri07 / hosytri77@gmail.com), không phải developer — cần giải thích đơn giản, tránh jargon khi không cần thiết.
 
 ---
 
@@ -30,7 +44,53 @@
 
 ---
 
-## Trạng thái hiện tại (cuối session 2026-04-25 — máy nhà, **Phase 15.1 FULL DONE: TrishFont v2.0.0-1 published — 2/9 phần mềm đã phát hành**)
+## Trạng thái hiện tại (cuối session 2026-04-25/26 — máy nhà, **Phase 16 ĐANG LÀM: Auth Firebase + TrishLibrary v2.1.0 với sync 2-chiều**)
+
+### 🔴 ĐANG DỞ — PICK UP TỪ ĐÂY (sáng 26/4)
+
+User đêm 25/4 fix tới khuya thì đi ngủ. Code Phase 16.2.b/c/d đã ship xong, **chưa test E2E + chưa build production**.
+
+**Pending tomorrow:**
+1. **Test TrishLibrary desktop với 3 role (admin / user / trial)** — restart `pnpm tauri dev` ở `apps-desktop/trishlibrary/`. Verify:
+   - Admin scan files cá nhân hiện đầy đủ (đã fix tách useEffect — không còn "..." stuck)
+   - Admin tạo folder + link ở Thư viện TrishTEAM → user login khác máy/khác account thấy ngay (đã fix schema inline links thay subcollection)
+   - Trial → block screen ngay với hướng dẫn liên hệ
+   - User cá nhân: data riêng theo UID (file `library.{uid}.json`)
+2. **Phase 16.2.c — Build production trishlibrary-v2.1.0**: `pnpm tauri build` (PowerShell admin), generate SHA256, GitHub Release. Update `apps-registry.json` → 3/9 apps live.
+3. **Phase 16.4 deferred**: Wire Auth tới TrishCheck/TrishFont/TrishLauncher với Trial Blocked Screen format giống TrishLibrary.
+
+**Code đã ship Phase 16 đêm 25/4:**
+- Firebase project: `trishteam-17c2d` (asia-southeast1). 4 roles: admin / user / trial / guest. Email + Google sign-in.
+- Admin user: `trishteam.official@gmail.com`, UID `YiJa3yRtQmM5sSK8vqgTC4Zfzex2`, role admin set qua Console.
+- `firestore.rules` v2 — exception cho self trial→user khi activate key (transaction).
+- `firestore.indexes.json` — index keys collection.
+- `packages/data/src/index.ts` — paths + UserRole + TrishUser + ActivationKey types. Path `trishteam_library/{folderId}` (top-level collection, links inline trong doc).
+- `packages/auth/` mới — Firebase Auth wrapper với React provider. Auto-tạo Firestore doc role='trial' lần đầu login. Self-heal nếu doc thiếu (account tạo qua Console). Synthetic profile fallback nếu rules deny.
+- `website/.env.local` — Firebase config 6 keys.
+- `website/lib/auth-context.tsx` — extend với role 'trial', isPaid/isTrial flags, refreshProfile.
+- `website/app/login/page.tsx` — register flow default role='trial', remember email checkbox.
+- `website/app/profile/page.tsx` — activate key flow với 16 chars XXXX-XXXX-XXXX-XXXX, transaction Trial → User.
+- `website/app/admin/keys/page.tsx` — Admin Keys Panel: generate/revoke/copy keys (16 chars random alphanumeric, alphabet bỏ 0/O/1/I/S/B/8 dễ nhầm).
+- `website/app/admin/layout.tsx` — sidebar thêm link "Activation Keys".
+- `apps-desktop/trishlibrary/` Phase 16.2.a/b/d:
+  - `package.json` thêm deps `@trishteam/auth`, `@trishteam/data`, `firebase`
+  - `tsconfig.json` paths cho monorepo workspace
+  - `src/main.tsx` wrap với `<AuthProvider>`
+  - `src/Root.tsx` gate auth: loading → spinner / chưa login → LoginScreen / trial → TrialBlockedScreen / paid → App. Có ProfileLoadingScreen với fallback Sign Out sau 8s nếu treo.
+  - `src/components/LoginScreen.tsx` — Email + Google + Sign up + Forgot password + checkbox "Ghi nhớ tài khoản"
+  - `src/components/TrialBlockedScreen.tsx` — block UI với hướng dẫn liên hệ trishteam.official@gmail.com + góp ý cuối website. **Format này áp dụng cho tất cả app khi Phase 16.4 roll out.**
+  - `src/components/UserPanel.tsx` rewrite — Firebase user thật + role pill, dropdown với Profile/Admin Panel/Sign Out
+  - `src/lib/firestore-sync.ts` — sync 2-chiều `users/{uid}/trishlibrary/online_folders` + load/subscribe `trishteam_library` (schema inline links, KHÔNG subcollection)
+  - `src/App.tsx` — load per-UID `library.{uid}.json` thay file chung. Tách useEffect load + auto-rescan độc lập (loading flag không stuck). KHÔNG auto-save trishteam (race condition wipe data) — save explicit trong handlers khi scope='trishteam' + isAdmin. "đang lưu..." moved từ topbar xuống footer + debounce 15s. Read-only flag cho TrishTEAM section khi !isAdmin.
+  - `src-tauri/src/lib.rs` — `resolve_store_path` accept relative filename (per-UID).
+- `tauri-bridge.ts` thêm `libraryFilenameForUid(uid)` helper.
+
+**KHÔNG xong:**
+- Phase 16.2.c build production trishlibrary-v2.1.0 (anh sẽ chạy mai)
+- Phase 16.4 rollout Auth cho TrishCheck/TrishFont/TrishLauncher (sau)
+- TrishCheck v2.0.0-1 + TrishFont v2.0.0-1 đã release từ trước (1/9 và 2/9). Chưa update lên v2.1.0 với Auth — sẽ làm Phase 16.4.
+
+### Ship session này (2026-04-25 tối — máy nhà, Phase 15.1)
 
 ### Ship session này (2026-04-25 tối — máy nhà, Phase 15.1)
 

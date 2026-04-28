@@ -1,0 +1,64 @@
+# Phase 16.1.f — Loại trừ file không cần upload lên Vercel.
+# Vercel cần code source của `website/` thôi, không cần Rust artifacts/desktop apps.
+
+# Node
+node_modules
+**/node_modules
+.pnpm-store
+**/.pnpm-store
+
+# Next.js build output
+.next
+**/.next
+
+# Vite/Rollup output
+dist
+**/dist
+build
+**/build
+
+# Rust / Tauri build artifacts (rất nặng)
+target
+**/target
+**/src-tauri/target
+**/src-tauri/gen
+
+# Desktop bundle artifacts
+**/*.msi
+**/*.exe
+**/*.dmg
+**/*.deb
+**/*.AppImage
+
+# Logs
+*.log
+**/*.log
+.cache
+**/.cache
+
+# IDE
+.vscode
+.idea
+
+# Git
+.git
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Vercel itself
+.vercel
+
+# Env files (nếu lỡ commit)
+.env.development.local
+.env.test.local
+.env.production.local
+
+# Test artifacts
+coverage
+**/coverage
+playwright-report
+**/playwright-report
+test-results
+**/test-results

@@ -89,14 +89,16 @@ export const APP_META: Record<string, AppMeta> = {
   trishtype: {
     release_date: null,
     features: [
-      'Soạn thảo .docx / .pdf / .md / .html',
-      'PDF tools: merge, split, sign, watermark',
-      'OCR nhanh cho PDF scan (tiếng Việt)',
-      'Export về nhiều format không đổi layout',
-      'Template engineering có sẵn',
+      'Code/text editor offline với Monaco engine (VSCode core)',
+      'Multi-caret: Alt+Click · Ctrl+D select next · Ctrl+Shift+L select all',
+      'Syntax highlight 50+ ngôn ngữ tự động (.js/.ts/.py/.rs/.md/.json/.html...)',
+      'Tab system + file tree workspace + recent files',
+      'Find/Replace với regex (Ctrl+F, Ctrl+H)',
+      'Markdown preview split view + auto-save',
+      'Theme dark/light/auto · 5 fonts · word wrap · minimap',
     ],
-    accent: '#764BA2',
-    icon_fallback: 'FileText',
+    accent: '#0EA5E9',
+    icon_fallback: 'Code2',
     logo_path: '/logos/TrishType/icon-256.png',
   },
   trishcheck: {

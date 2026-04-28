@@ -1,0 +1,35 @@
+{
+  "name": "@trishteam/trishadmin",
+  "version": "1.0.0",
+  "private": true,
+  "description": "TrishAdmin — quản lý hệ sinh thái TrishTEAM. Quản lý users, sinh activate keys, push notifications, edit apps registry. CHỈ dành cho admin, không phân phối public.",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview",
+    "typecheck": "tsc --noEmit",
+    "tauri": "tauri",
+    "tauri:dev": "tauri dev",
+    "tauri:build": "tauri build"
+  },
+  "dependencies": {
+    "@trishteam/auth": "workspace:*",
+    "@trishteam/core": "workspace:*",
+    "@trishteam/data": "workspace:*",
+    "@tauri-apps/api": "^2.0.0",
+    "@tauri-apps/plugin-dialog": "^2.0.0",
+    "@tauri-apps/plugin-opener": "^2.0.0",
+    "firebase": "^10.14.1",
+    "react": "18.3.1",
+    "react-dom": "18.3.1"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "^2.0.0",
+    "@types/react": "18.3.3",
+    "@types/react-dom": "18.3.0",
+    "@vitejs/plugin-react": "^4.3.1",
+    "typescript": "5.4.5",
+    "vite": "^5.4.0"
+  }
+}

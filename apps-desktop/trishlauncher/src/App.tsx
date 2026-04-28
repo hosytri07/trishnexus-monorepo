@@ -4,6 +4,7 @@ import {
   filterByPlatform,
   statusLabel,
   loginRequiredLabel,
+  loginRequiredBadge,
   formatSize,
   type AppForUi,
   type Platform,
@@ -325,6 +326,16 @@ export function App(): JSX.Element {
         <span>
           {releasedCount}/{apps.length} {tr('footer.apps_released')}
         </span>
+        <button
+          type="button"
+          className="foot-link"
+          onClick={() =>
+            void openExternal('https://www.trishteam.io.vn/login')
+          }
+          title="Đăng nhập / kích hoạt key trên web TrishTEAM"
+        >
+          🔑 Đăng nhập TrishTEAM
+        </button>
         <span className="muted">
           © 2026 TrishTEAM · {registryResult.registry.ecosystem.website}
         </span>
@@ -411,6 +422,17 @@ function AppCard({
               <span className={`badge badge-${app.status}`}>
                 {statusLabel(app.status)}
               </span>
+              {(() => {
+                const b = loginRequiredBadge(app.login_required);
+                return (
+                  <span
+                    className={`badge badge-login badge-login-${b.color}`}
+                    title={loginRequiredLabel(app.login_required)}
+                  >
+                    {b.emoji} {b.label}
+                  </span>
+                );
+              })()}
               {isInstalled && (
                 <span className="badge badge-installed" title="Đã cài đặt">
                   ✓ Đã cài

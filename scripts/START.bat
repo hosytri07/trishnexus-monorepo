@@ -82,8 +82,18 @@ echo  ============================================
 echo     SAN SANG  --  Mo Cowork Desktop!
 echo  ============================================
 echo.
-echo   Mo chat moi -^> go: tiep tuc
-echo   Claude se doc docs/SESSION-HANDOFF.md va lam tiep.
+echo   Mo chat moi -^> paste cau hoi:
+echo.
+echo     "Doc file handoff de cap nhat tien do project:"
+echo     "docs/HANDOFF-TRISHLIBRARY-3.0.md"
+echo.
+echo   Claude se doc handoff va biet phai lam gi tiep.
+echo.
+echo   Neu can deploy Firestore rules moi:
+echo     scripts\DEPLOY-RULES.bat
+echo.
+echo   Neu can chay TrishAdmin (test phase 18.7+):
+echo     scripts\RUN-TRISHADMIN.bat
 echo.
 echo   Cua so nay co the dong.
 echo.

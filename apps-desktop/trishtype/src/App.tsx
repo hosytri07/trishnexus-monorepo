@@ -1,390 +1,725 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { type } from '@trishteam/core';
-import { pickAndReadFile, saveAs, saveTo } from './tauri-bridge.js';
+/**
+ * TrishType App — Phase 17.6 v2.
+ *
+ * Trình soạn thảo văn bản chuyên nghiệp + converter đa format.
+ *
+ * Mode toggle:
+ *  - editor: Tab system + TipTap rich editor + toolbar + outline + stats
+ *  - convert: Standalone file converter UI
+ */
 
-const ACTOR = `u-${Math.random().toString(36).slice(2, 8)}`;
+import { useEffect, useRef, useState } from 'react';
+import { open as openDialog, save as saveDialog } from '@tauri-apps/plugin-dialog';
+import { invoke } from '@tauri-apps/api/core';
+import { EditorPanel } from './EditorPanel.js';
+import { ConvertPanel } from './ConvertPanel.js';
+import { SettingsModal } from './SettingsModal.js';
+import {
+  applySettings,
+  loadSettings,
+  saveSettings,
+  type AppSettings,
+} from './settings.js';
+import {
+  detectFormatFromName,
+  exportFromHtml,
+  importToHtml,
+  importTipTapJson,
+  type DocFormat,
+} from './formats.js';
+import { TEMPLATES, type Template, findTemplate } from './templates.js';
+import logoUrl from './assets/logo.png';
+
+export interface DocTab {
+  id: string;
+  /** Disk path nếu đã save, null nếu untitled */
+  path: string | null;
+  /** Hiển thị (basename hoặc untitled-N) */
+  name: string;
+  /** TipTap HTML content */
+  html: string;
+  /** Để compare dirty */
+  savedHtml: string;
+  /** Format detect from path/extension. 'json' = native TipTap JSON. */
+  format: DocFormat;
+  /** Lúc tạo */
+  created_ms: number;
+}
+
+export type AppMode = 'editor' | 'convert';
+
+let _tabId = 1;
+function genTabId(): string {
+  return `t${_tabId++}-${Date.now().toString(36)}`;
+}
+
+function basename(path: string): string {
+  const m = path.split(/[\\/]/);
+  return m[m.length - 1] ?? path;
+}
+
+function isInTauri(): boolean {
+  return (
+    typeof window !== 'undefined' &&
+    // @ts-expect-error injected at runtime
+    typeof window.__TAURI_INTERNALS__ !== 'undefined'
+  );
+}
 
 export function App(): JSX.Element {
-  const [, setTick] = useState(0);
-  // CRDT state sống trong ref (mutable), React chỉ re-render qua setTick.
-  const stateRef = useRef(type.createState());
-  const [carets, setCarets] = useState<type.Caret[]>([
-    type.caretAtIndex(stateRef.current, ACTOR, 0, 'primary'),
-  ]);
-  const [filePath, setFilePath] = useState<string | null>(null);
-  const [status, setStatus] = useState<string>('Sẵn sàng');
-  const [dirty, setDirty] = useState(false);
-  const editorRef = useRef<HTMLDivElement>(null);
+  const [mode, setMode] = useState<AppMode>('editor');
+  const [appVersion, setAppVersion] = useState('dev');
+  const [settings, setSettings] = useState<AppSettings>(() => loadSettings());
+  const [showSettings, setShowSettings] = useState(false);
+  const [showTemplatePicker, setShowTemplatePicker] = useState(false);
+  const [showExportMenu, setShowExportMenu] = useState(false);
 
-  const rerender = useCallback(() => setTick((x) => x + 1), []);
+  const [tabs, setTabs] = useState<DocTab[]>([]);
+  const [activeId, setActiveId] = useState<string | null>(null);
+  const [flash, setFlash] = useState<string | null>(null);
+  const [systemFonts, setSystemFonts] = useState<string[]>([]);
 
-  const text = type.toText(stateRef.current);
-  const visible = useMemo(
-    () => type.visibleChars(stateRef.current),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [text],
-  );
+  const autoSaveTimerRef = useRef<number | null>(null);
+  const initRef = useRef(false);
 
-  /** Insert 1 char ở tất cả carets. */
-  const doType = useCallback(
-    (ch: string) => {
-      const res = type.typeAtCarets(stateRef.current, carets, ch, ACTOR);
-      if (res.ops.length > 0) {
-        setCarets(res.carets);
-        setDirty(true);
-        rerender();
-      }
-    },
-    [carets, rerender],
-  );
-
-  /** Backspace tại tất cả carets. */
-  const doBackspace = useCallback(() => {
-    const res = type.backspaceAtCarets(stateRef.current, carets);
-    if (res.ops.length > 0) {
-      setCarets(res.carets);
-      setDirty(true);
-      rerender();
-    }
-  }, [carets, rerender]);
-
-  /** Move all carets left/right theo visual index. */
-  const moveCarets = useCallback(
-    (delta: number) => {
-      const state = stateRef.current;
-      const next = carets.map((c) => {
-        const idx = type.afterToIndex(state, c.anchorAfter);
-        const newIdx = Math.max(
-          0,
-          Math.min(type.visibleChars(state).length, idx + delta),
-        );
-        const after = type.indexToAfter(state, newIdx);
-        return { ...c, anchorAfter: after, headAfter: after };
-      });
-      setCarets(next);
-    },
-    [carets],
-  );
-
-  /** Add caret tại visual index. */
-  const addCaretAt = useCallback(
-    (idx: number) => {
-      const id = `c-${Math.random().toString(36).slice(2, 6)}`;
-      const caret = type.caretAtIndex(stateRef.current, ACTOR, idx, id);
-      setCarets((prev) => dedupeCarets([...prev, caret]));
-    },
-    [],
-  );
-
-  const removeCaret = useCallback((id: string) => {
-    setCarets((prev) => (prev.length <= 1 ? prev : prev.filter((c) => c.id !== id)));
-  }, []);
-
-  /** Key handler gắn vào editor div. */
-  const onKeyDown = useCallback(
-    (e: React.KeyboardEvent<HTMLDivElement>) => {
-      // Ctrl/Cmd shortcuts
-      if (e.ctrlKey || e.metaKey) {
-        if (e.key.toLowerCase() === 's') {
-          e.preventDefault();
-          void handleSave();
-          return;
-        }
-        if (e.key.toLowerCase() === 'o') {
-          e.preventDefault();
-          void handleOpen();
-          return;
-        }
-        // Đừng nuốt các ctrl shortcut khác (copy, paste dùng default — chưa
-        // implement paste CRDT nên mặc kệ).
-        return;
-      }
-      if (e.key === 'Backspace') {
-        e.preventDefault();
-        doBackspace();
-        return;
-      }
-      if (e.key === 'Enter') {
-        e.preventDefault();
-        doType('\n');
-        return;
-      }
-      if (e.key === 'ArrowLeft') {
-        e.preventDefault();
-        moveCarets(-1);
-        return;
-      }
-      if (e.key === 'ArrowRight') {
-        e.preventDefault();
-        moveCarets(1);
-        return;
-      }
-      if (e.key === 'Tab') {
-        e.preventDefault();
-        doType('  ');
-        return;
-      }
-      if (e.key.length === 1 && !e.altKey) {
-        // printable character
-        e.preventDefault();
-        doType(e.key);
-      }
-    },
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [doType, doBackspace, moveCarets],
-  );
-
-  const handleOpen = useCallback(async () => {
-    setStatus('Đang mở file…');
-    try {
-      const res = await pickAndReadFile();
-      if (!res) {
-        setStatus('Huỷ mở file');
-        return;
-      }
-      // Rebuild CRDT từ text — actor này "insert" toàn bộ doc.
-      const fresh = type.createState();
-      type.makeInsertString(fresh, ACTOR, null, res.content);
-      stateRef.current = fresh;
-      setCarets([type.caretAtIndex(fresh, ACTOR, 0, 'primary')]);
-      setFilePath(res.path);
-      setDirty(false);
-      setStatus(
-        `Đã mở: ${res.path.split(/[\\/]/).pop()}` +
-          (res.truncated ? ' (bị cắt vì quá lớn)' : ''),
-      );
-      rerender();
-    } catch (e) {
-      setStatus('Lỗi mở file: ' + String(e));
-    }
-  }, [rerender]);
-
-  const handleSave = useCallback(async () => {
-    setStatus('Đang lưu…');
-    try {
-      const content = type.toText(stateRef.current);
-      const res = filePath
-        ? await saveTo(filePath, content)
-        : await saveAs(content, 'untitled.md');
-      if (!res) {
-        setStatus('Huỷ lưu');
-        return;
-      }
-      setFilePath(res.path);
-      setDirty(false);
-      setStatus(`Đã lưu ${res.size_bytes} bytes`);
-    } catch (e) {
-      setStatus('Lỗi lưu: ' + String(e));
-    }
-  }, [filePath]);
-
-  const handleSaveAs = useCallback(async () => {
-    setStatus('Đang lưu (Save As)…');
-    try {
-      const content = type.toText(stateRef.current);
-      const res = await saveAs(content, 'untitled.md');
-      if (!res) {
-        setStatus('Huỷ lưu');
-        return;
-      }
-      setFilePath(res.path);
-      setDirty(false);
-      setStatus(`Đã lưu ${res.size_bytes} bytes`);
-    } catch (e) {
-      setStatus('Lỗi lưu: ' + String(e));
-    }
-  }, []);
-
-  /** Focus editor on mount để bắt key ngay. */
   useEffect(() => {
-    editorRef.current?.focus();
+    applySettings(settings);
+  }, [settings]);
+
+  // Initial: get version + create blank tab + load system fonts
+  // useRef guard ensures only-once kể cả StrictMode double-mount
+  useEffect(() => {
+    if (initRef.current) return;
+    initRef.current = true;
+    if (isInTauri()) {
+      void invoke<string>('app_version')
+        .then(setAppVersion)
+        .catch(() => {});
+      // Load fonts hệ thống async — không block UI
+      void invoke<string[]>('list_system_fonts')
+        .then((fonts) => setSystemFonts(fonts ?? []))
+        .catch((err) => {
+          console.warn('[trishtype] list_system_fonts fail:', err);
+        });
+    }
+    newTabFromTemplate('blank');
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Build visual render: danh sách cells + caret markers xen kẽ.
-  const caretIndexSet = useMemo(() => {
-    const s = new Set<number>();
-    for (const c of carets) {
-      s.add(type.afterToIndex(stateRef.current, c.anchorAfter));
+  const activeTab = tabs.find((t) => t.id === activeId) ?? null;
+
+  // Auto-save effect
+  useEffect(() => {
+    if (autoSaveTimerRef.current !== null) {
+      window.clearTimeout(autoSaveTimerRef.current);
+      autoSaveTimerRef.current = null;
     }
-    return s;
+    if (!settings.autoSave || !activeTab || !activeTab.path) return;
+    if (activeTab.html === activeTab.savedHtml) return;
+    if (activeTab.format === 'pdf') return; // PDF không re-save được
+    autoSaveTimerRef.current = window.setTimeout(() => {
+      void saveActiveTab();
+    }, settings.autoSaveDelayMs);
+    return () => {
+      if (autoSaveTimerRef.current !== null) {
+        window.clearTimeout(autoSaveTimerRef.current);
+      }
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [carets, text]);
+  }, [activeTab?.html, activeTab?.path, settings.autoSave, settings.autoSaveDelayMs]);
+
+  // Global shortcuts
+  useEffect(() => {
+    function onKey(e: KeyboardEvent): void {
+      const ctrl = e.ctrlKey || e.metaKey;
+      if (!ctrl) return;
+      const key = e.key.toLowerCase();
+      if (key === 's') {
+        e.preventDefault();
+        if (e.shiftKey) {
+          void saveAsActiveTab();
+        } else {
+          void saveActiveTab();
+        }
+      } else if (key === 'o') {
+        e.preventDefault();
+        void openFileDialog();
+      } else if (key === 'n' && !e.shiftKey) {
+        e.preventDefault();
+        setShowTemplatePicker(true);
+      } else if (key === 'w') {
+        e.preventDefault();
+        if (activeId) closeTab(activeId);
+      } else if (key === 'e' && e.shiftKey) {
+        e.preventDefault();
+        setShowExportMenu(true);
+      }
+    }
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeId, tabs]);
+
+  // ===== Tab management =====
+
+  function newTabFromTemplate(templateId: string): void {
+    const tpl = findTemplate(templateId);
+    if (!tpl) return;
+    const id = genTabId();
+    const tab: DocTab = {
+      id,
+      path: null,
+      name: `untitled-${tabs.length + 1}.docx`,
+      html: tpl.html,
+      savedHtml: tpl.html,
+      format: 'docx',
+      created_ms: Date.now(),
+    };
+    setTabs((prev) => [...prev, tab]);
+    setActiveId(id);
+    setShowTemplatePicker(false);
+  }
+
+  function updateTabHtml(id: string, html: string): void {
+    setTabs((prev) => prev.map((t) => (t.id === id ? { ...t, html } : t)));
+  }
+
+  function closeTab(id: string): void {
+    const t = tabs.find((x) => x.id === id);
+    if (!t) return;
+    if (t.html !== t.savedHtml) {
+      const ok = window.confirm(
+        `"${t.name}" chưa lưu. Đóng và bỏ thay đổi?\n\nNhấn Cancel để giữ lại.`,
+      );
+      if (!ok) return;
+    }
+    setTabs((prev) => {
+      const idx = prev.findIndex((x) => x.id === id);
+      const next = prev.filter((x) => x.id !== id);
+      if (activeId === id) {
+        const newActive = next[Math.max(0, Math.min(idx, next.length - 1))] ?? null;
+        setActiveId(newActive?.id ?? null);
+      }
+      return next;
+    });
+  }
+
+  // ===== File I/O =====
+
+  async function openFileDialog(): Promise<void> {
+    if (!isInTauri()) {
+      window.alert('Mở file chỉ hoạt động trong desktop.');
+      return;
+    }
+    const picked = await openDialog({
+      multiple: false,
+      filters: [
+        {
+          name: 'Tất cả định dạng hỗ trợ',
+          extensions: ['docx', 'md', 'markdown', 'html', 'htm', 'txt', 'json'],
+        },
+        { name: 'Word', extensions: ['docx'] },
+        { name: 'Markdown', extensions: ['md', 'markdown'] },
+        { name: 'HTML', extensions: ['html', 'htm'] },
+        { name: 'Text', extensions: ['txt'] },
+        { name: 'TrishType JSON', extensions: ['json'] },
+      ],
+    });
+    if (typeof picked !== 'string') return;
+    await openPathInTab(picked);
+  }
+
+  async function openPathInTab(path: string): Promise<void> {
+    // Đã mở rồi → switch
+    const existing = tabs.find((t) => t.path === path);
+    if (existing) {
+      setActiveId(existing.id);
+      return;
+    }
+    try {
+      const fmt = detectFormatFromName(path);
+      let html: string;
+      let warnings: string[] = [];
+      if (fmt === 'docx') {
+        // Read binary qua Rust
+        const bytes = await invoke<number[]>('read_binary_file', { path });
+        const ab = new Uint8Array(bytes).buffer;
+        const r = await importToHtml(ab, fmt);
+        html = r.html;
+        warnings = r.warnings;
+      } else if (fmt === 'json') {
+        const text = await invoke<string>('read_text_string', { path });
+        const json = importTipTapJson(text) as { html?: string };
+        html = json.html ?? '<p></p>';
+      } else {
+        const text = await invoke<string>('read_text_string', { path });
+        const r = await importToHtml(text, fmt);
+        html = r.html;
+        warnings = r.warnings;
+      }
+      const id = genTabId();
+      const tab: DocTab = {
+        id,
+        path,
+        name: basename(path),
+        html,
+        savedHtml: html,
+        format: fmt,
+        created_ms: Date.now(),
+      };
+      setTabs((prev) => [...prev, tab]);
+      setActiveId(id);
+      if (warnings.length > 0) {
+        setFlash(`⚠ Mở "${tab.name}" với ${warnings.length} cảnh báo (xem console)`);
+        warnings.forEach((w) => console.warn('[trishtype]', w));
+      } else {
+        setFlash(`✓ Đã mở: ${tab.name}`);
+      }
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      setFlash(`⚠ Lỗi mở file: ${msg}`);
+    }
+  }
+
+  async function saveActiveTab(): Promise<void> {
+    if (!activeTab) return;
+    if (!activeTab.path) {
+      await saveAsActiveTab();
+      return;
+    }
+    await writeTabToPath(activeTab, activeTab.path, activeTab.format);
+  }
+
+  async function saveAsActiveTab(): Promise<void> {
+    if (!activeTab) return;
+    const target = await pickSavePath(activeTab.name, activeTab.format);
+    if (!target) return;
+    const fmt = detectFormatFromName(target);
+    await writeTabToPath(activeTab, target, fmt);
+  }
+
+  async function pickSavePath(suggested: string, fmt: DocFormat): Promise<string | null> {
+    if (!isInTauri()) {
+      return prompt('Lưu thành (browser dev):', suggested);
+    }
+    const filters: Array<{ name: string; extensions: string[] }> = [];
+    if (fmt === 'docx') filters.push({ name: 'Word', extensions: ['docx'] });
+    if (fmt === 'md') filters.push({ name: 'Markdown', extensions: ['md'] });
+    if (fmt === 'html') filters.push({ name: 'HTML', extensions: ['html'] });
+    if (fmt === 'txt') filters.push({ name: 'Text', extensions: ['txt'] });
+    if (fmt === 'pdf') filters.push({ name: 'PDF', extensions: ['pdf'] });
+    if (fmt === 'json') filters.push({ name: 'TrishType JSON', extensions: ['json'] });
+    filters.push({
+      name: 'Tất cả định dạng',
+      extensions: ['docx', 'md', 'html', 'txt', 'pdf', 'json'],
+    });
+    const picked = await saveDialog({ defaultPath: suggested, filters });
+    return typeof picked === 'string' ? picked : null;
+  }
+
+  async function writeTabToPath(
+    tab: DocTab,
+    path: string,
+    fmt: DocFormat,
+  ): Promise<void> {
+    try {
+      const result = await exportFromHtml(tab.html, fmt, {
+        fileName: basename(path),
+        tipTapJson: { html: tab.html },
+      });
+      if (result.isBinary) {
+        const ab = result.content as ArrayBuffer;
+        const arr = Array.from(new Uint8Array(ab));
+        await invoke<void>('write_binary_file', { path, bytes: arr });
+      } else {
+        await invoke<void>('write_text_string', {
+          path,
+          content: result.content as string,
+        });
+      }
+      setTabs((prev) =>
+        prev.map((t) =>
+          t.id === tab.id
+            ? { ...t, path, name: basename(path), savedHtml: t.html, format: fmt }
+            : t,
+        ),
+      );
+      setFlash(`✓ Đã lưu: ${basename(path)} (${fmt.toUpperCase()})`);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      setFlash(`⚠ Lỗi lưu: ${msg}`);
+    }
+  }
+
+  /** Bulk export — xuất tab hiện tại sang nhiều format 1 lúc. */
+  async function handleBulkExport(formats: DocFormat[]): Promise<void> {
+    if (!activeTab) return;
+    if (!isInTauri()) {
+      window.alert('Bulk export chỉ trong desktop.');
+      return;
+    }
+    // Pick destination folder
+    const folder = await openDialog({ directory: true, multiple: false });
+    if (typeof folder !== 'string') return;
+
+    const baseName = activeTab.name.replace(/\.[^.]+$/, '');
+    let success = 0;
+    const errors: string[] = [];
+
+    for (const fmt of formats) {
+      try {
+        const ext = fmt === 'pdf' ? 'pdf' : fmt === 'docx' ? 'docx' : fmt;
+        const path = `${folder}\\${baseName}.${ext}`;
+        const result = await exportFromHtml(activeTab.html, fmt, {
+          fileName: `${baseName}.${ext}`,
+          tipTapJson: { html: activeTab.html },
+        });
+        if (result.isBinary) {
+          const arr = Array.from(new Uint8Array(result.content as ArrayBuffer));
+          await invoke<void>('write_binary_file', { path, bytes: arr });
+        } else {
+          await invoke<void>('write_text_string', {
+            path,
+            content: result.content as string,
+          });
+        }
+        success++;
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        errors.push(`${fmt}: ${msg}`);
+      }
+    }
+
+    if (errors.length > 0) {
+      setFlash(`⚠ Bulk export: ${success} OK · ${errors.length} lỗi (xem console)`);
+      errors.forEach((e) => console.warn('[trishtype] bulk export:', e));
+    } else {
+      setFlash(`✓ Bulk export: ${success} file đã lưu vào ${basename(folder)}`);
+    }
+  }
+
+  /** Export single format từ menu. */
+  async function handleExportSingle(fmt: DocFormat): Promise<void> {
+    if (!activeTab) return;
+    setShowExportMenu(false);
+    const baseName = activeTab.name.replace(/\.[^.]+$/, '');
+    const ext = fmt === 'pdf' ? 'pdf' : fmt === 'docx' ? 'docx' : fmt;
+    const target = await pickSavePath(`${baseName}.${ext}`, fmt);
+    if (!target) return;
+    try {
+      const result = await exportFromHtml(activeTab.html, fmt, {
+        fileName: basename(target),
+        tipTapJson: { html: activeTab.html },
+      });
+      if (result.isBinary) {
+        const arr = Array.from(new Uint8Array(result.content as ArrayBuffer));
+        await invoke<void>('write_binary_file', { path: target, bytes: arr });
+      } else {
+        await invoke<void>('write_text_string', {
+          path: target,
+          content: result.content as string,
+        });
+      }
+      setFlash(`✓ Đã export: ${basename(target)}`);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      setFlash(`⚠ Lỗi export: ${msg}`);
+    }
+  }
+
+  // ===== Render =====
+
+  const dirtyCount = tabs.filter((t) => t.html !== t.savedHtml).length;
 
   return (
     <div className="app">
       <header className="topbar">
         <div className="brand">
-          <strong>TrishType</strong>
-          <span className="muted"> · multi-caret</span>
+          <img src={logoUrl} alt="TrishType" className="brand-logo" />
+          <strong className="brand-name">TrishType</strong>
         </div>
-        <div className="actions">
-          <button onClick={() => void handleOpen()}>Mở…</button>
-          <button onClick={() => void handleSave()}>Lưu</button>
-          <button onClick={() => void handleSaveAs()}>Lưu dưới tên…</button>
+
+        <div className="mode-toggle">
+          <button
+            className={`mode-btn ${mode === 'editor' ? 'active' : ''}`}
+            onClick={() => setMode('editor')}
+          >
+            ✏ Soạn thảo
+          </button>
+          <button
+            className={`mode-btn ${mode === 'convert' ? 'active' : ''}`}
+            onClick={() => setMode('convert')}
+          >
+            ⇄ Chuyển đổi
+          </button>
         </div>
+
+        <span className="filter-spacer" />
+
+        {mode === 'editor' && (
+          <div className="topbar-actions">
+            <button
+              className="btn btn-ghost btn-small"
+              onClick={() => setShowTemplatePicker(true)}
+              title="File mới (Ctrl+N)"
+            >
+              ＋ Mới
+            </button>
+            <button
+              className="btn btn-ghost btn-small"
+              onClick={() => void openFileDialog()}
+              title="Mở file (Ctrl+O)"
+            >
+              📂 Mở
+            </button>
+            <button
+              className="btn btn-primary btn-small"
+              onClick={() => void saveActiveTab()}
+              disabled={!activeTab || activeTab.html === activeTab.savedHtml}
+              title="Lưu (Ctrl+S)"
+            >
+              💾 Lưu
+            </button>
+            <div className="export-menu-wrap">
+              <button
+                className={`btn btn-ghost btn-small ${showExportMenu ? 'active' : ''}`}
+                onClick={() => setShowExportMenu((v) => !v)}
+                disabled={!activeTab}
+                title="Xuất file (Ctrl+Shift+E)"
+              >
+                📤 Xuất ▾
+              </button>
+              {showExportMenu && (
+                <ExportMenu
+                  onClose={() => setShowExportMenu(false)}
+                  onExport={(fmt) => void handleExportSingle(fmt)}
+                  onBulkExport={(fmts) => void handleBulkExport(fmts)}
+                />
+              )}
+            </div>
+          </div>
+        )}
+
+        <button
+          type="button"
+          className="topbar-icon"
+          onClick={() => setShowSettings(true)}
+          title="Cài đặt"
+        >
+          ⚙
+        </button>
       </header>
 
-      <div className="main">
-        <aside className="sidebar">
-          <section>
-            <h3>Thông tin</h3>
-            <div className="kv">
-              <span>Actor</span>
-              <code>{ACTOR}</code>
-            </div>
-            <div className="kv">
-              <span>Ký tự</span>
-              <code>{visible.length}</code>
-            </div>
-            <div className="kv">
-              <span>File</span>
-              <code className="path">
-                {filePath ? filePath.split(/[\\/]/).pop() : '(chưa lưu)'}
-              </code>
-            </div>
-            <div className="kv">
-              <span>Trạng thái</span>
-              <code>{dirty ? 'đã chỉnh' : 'sạch'}</code>
-            </div>
-          </section>
-          <section>
-            <h3>Carets ({carets.length})</h3>
-            <ul className="carets">
-              {carets.map((c) => {
-                const idx = type.afterToIndex(stateRef.current, c.anchorAfter);
-                return (
-                  <li key={c.id}>
-                    <span className="caret-id">{c.id}</span>
-                    <span className="caret-idx">vị trí {idx}</span>
-                    <button
-                      className="mini"
-                      disabled={carets.length <= 1}
-                      onClick={() => removeCaret(c.id)}
-                    >
-                      ×
-                    </button>
-                  </li>
-                );
-              })}
-            </ul>
-            <AddCaretForm
-              max={visible.length}
-              onAdd={(idx) => addCaretAt(idx)}
-            />
-          </section>
-          <section>
-            <h3>Phím tắt</h3>
-            <ul className="help">
-              <li>
-                <kbd>Ctrl+O</kbd> mở · <kbd>Ctrl+S</kbd> lưu
-              </li>
-              <li>
-                <kbd>←</kbd>/<kbd>→</kbd> di chuyển tất cả caret
-              </li>
-              <li>
-                <kbd>Enter</kbd> xuống dòng · <kbd>Tab</kbd> 2 khoảng trắng
-              </li>
-              <li>Gõ sẽ chèn ở tất cả caret cùng lúc</li>
-            </ul>
-          </section>
-        </aside>
+      {flash && (
+        <div className="flash-bar" onClick={() => setFlash(null)}>
+          {flash} <span className="muted small">(click để đóng)</span>
+        </div>
+      )}
 
-        <main
-          className="editor"
-          tabIndex={0}
-          ref={editorRef}
-          onKeyDown={onKeyDown}
-        >
-          <pre className="doc">
-            {renderLines(visible, caretIndexSet)}
-          </pre>
-        </main>
-      </div>
+      {mode === 'editor' && (
+        <EditorPanel
+          tabs={tabs}
+          activeId={activeId}
+          settings={settings}
+          systemFonts={systemFonts}
+          onActivate={setActiveId}
+          onClose={closeTab}
+          onUpdate={updateTabHtml}
+          onNewTab={() => setShowTemplatePicker(true)}
+        />
+      )}
+
+      {mode === 'convert' && (
+        <ConvertPanel
+          onFlash={(msg) => setFlash(msg)}
+          onSwitchToEditor={() => setMode('editor')}
+          onOpenInEditor={(path) => {
+            setMode('editor');
+            void openPathInTab(path);
+          }}
+        />
+      )}
 
       <footer className="statusbar">
-        <span>{status}</span>
-        {dirty && <span className="dot">●</span>}
+        {mode === 'editor' && activeTab && (
+          <>
+            <span className="muted small">
+              {activeTab.path ? (
+                <code className="status-path" title={activeTab.path}>
+                  {activeTab.path}
+                </code>
+              ) : (
+                '— Chưa lưu —'
+              )}
+            </span>
+            <span className="filter-spacer" />
+            <span className="muted small">{activeTab.format.toUpperCase()}</span>
+          </>
+        )}
+        {mode === 'convert' && (
+          <>
+            <span className="muted small">⇄ Chế độ chuyển đổi file</span>
+            <span className="filter-spacer" />
+          </>
+        )}
+        <span className="muted small">
+          {dirtyCount > 0 ? `● ${dirtyCount} chưa lưu` : '— sạch —'}
+        </span>
+        <span className="muted small">v{appVersion}</span>
       </footer>
+
+      {showSettings && (
+        <SettingsModal
+          settings={settings}
+          appVersion={appVersion}
+          onSettingsChange={(s) => {
+            setSettings(s);
+            saveSettings(s);
+          }}
+          onClose={() => setShowSettings(false)}
+        />
+      )}
+
+      {showTemplatePicker && (
+        <TemplatePickerModal
+          onPick={newTabFromTemplate}
+          onClose={() => setShowTemplatePicker(false)}
+        />
+      )}
     </div>
   );
 }
 
-function dedupeCarets(list: type.Caret[]): type.Caret[] {
-  const seen = new Set<string>();
-  const out: type.Caret[] = [];
-  for (const c of list) {
-    const key = c.anchorAfter ? c.anchorAfter.join(':') : 'null';
-    if (seen.has(key)) continue;
-    seen.add(key);
-    out.push(c);
-  }
-  return out;
-}
+// ============================================================
+// Template picker modal
+// ============================================================
 
-/**
- * Render toàn bộ doc thành danh sách lines (mỗi line 1 <div>).
- * Caret markers chèn vào đúng vị trí theo visual index.
- */
-function renderLines(
-  visible: readonly type.CharNode[],
-  caretIndexSet: Set<number>,
-): JSX.Element[] {
-  const lines: JSX.Element[][] = [[]];
-  const pushNode = (el: JSX.Element) => {
-    lines[lines.length - 1]!.push(el);
-  };
-  // Caret trước char[0] → tại index 0.
-  if (caretIndexSet.has(0)) {
-    pushNode(<span key="caret-0" className="caret" />);
-  }
-  for (let i = 0; i < visible.length; i++) {
-    const node = visible[i]!;
-    if (node.ch === '\n') {
-      // line break → mở dòng mới.
-      lines.push([]);
-    } else {
-      pushNode(
-        <span key={`ch-${i}-${node.id[0]}-${node.id[1]}`} className="ch">
-          {node.ch}
-        </span>,
-      );
-    }
-    if (caretIndexSet.has(i + 1)) {
-      pushNode(<span key={`caret-${i + 1}`} className="caret" />);
-    }
-  }
-  return lines.map((ln, idx) => (
-    <div key={`line-${idx}`} className="line">
-      {ln.length === 0 ? <span className="ch empty">&nbsp;</span> : ln}
-    </div>
-  ));
-}
-
-function AddCaretForm({
-  max,
-  onAdd,
+function TemplatePickerModal({
+  onPick,
+  onClose,
 }: {
-  max: number;
-  onAdd: (idx: number) => void;
+  onPick: (id: string) => void;
+  onClose: () => void;
 }): JSX.Element {
-  const [val, setVal] = useState<string>('0');
   return (
-    <form
-      className="add-caret"
-      onSubmit={(e) => {
-        e.preventDefault();
-        const n = Math.max(0, Math.min(max, Number.parseInt(val, 10) || 0));
-        onAdd(n);
-      }}
-    >
-      <input
-        type="number"
-        min={0}
-        max={max}
-        value={val}
-        onChange={(e) => setVal(e.target.value)}
-      />
-      <button type="submit">+ Thêm caret</button>
-    </form>
+    <div className="modal-backdrop" onClick={onClose}>
+      <div
+        className="modal"
+        onClick={(e) => e.stopPropagation()}
+        style={{ maxWidth: 640 }}
+      >
+        <header className="modal-head">
+          <h2>📑 Chọn template</h2>
+          <button className="mini" onClick={onClose}>
+            ×
+          </button>
+        </header>
+        <div className="modal-body">
+          <div className="template-grid">
+            {TEMPLATES.map((t) => (
+              <button key={t.id} className="template-card" onClick={() => onPick(t.id)}>
+                <div className="template-icon">{t.icon}</div>
+                <div className="template-name">{t.name}</div>
+                <div className="template-desc">{t.description}</div>
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ============================================================
+// Export dropdown menu
+// ============================================================
+
+function ExportMenu({
+  onClose,
+  onExport,
+  onBulkExport,
+}: {
+  onClose: () => void;
+  onExport: (fmt: DocFormat) => void;
+  onBulkExport: (fmts: DocFormat[]) => void;
+}): JSX.Element {
+  const [bulkSelection, setBulkSelection] = useState<DocFormat[]>([]);
+  const [bulkMode, setBulkMode] = useState(false);
+
+  function toggleBulk(fmt: DocFormat): void {
+    setBulkSelection((prev) =>
+      prev.includes(fmt) ? prev.filter((f) => f !== fmt) : [...prev, fmt],
+    );
+  }
+
+  return (
+    <div className="export-dropdown" onMouseLeave={onClose}>
+      <div className="export-mode-row">
+        <button
+          className={`mini ${!bulkMode ? 'active' : ''}`}
+          onClick={() => setBulkMode(false)}
+        >
+          1 file
+        </button>
+        <button
+          className={`mini ${bulkMode ? 'active' : ''}`}
+          onClick={() => setBulkMode(true)}
+        >
+          Bulk (E)
+        </button>
+      </div>
+      {!bulkMode &&
+        (
+          [
+            { v: 'docx', label: '📘 Word (.docx)' },
+            { v: 'pdf', label: '📕 PDF (.pdf)' },
+            { v: 'md', label: '📝 Markdown (.md)' },
+            { v: 'html', label: '🌐 HTML (.html)' },
+            { v: 'txt', label: '📄 Plain text (.txt)' },
+            { v: 'json', label: '🗃 TrishType JSON' },
+          ] as Array<{ v: DocFormat; label: string }>
+        ).map((opt) => (
+          <button key={opt.v} className="export-item" onClick={() => onExport(opt.v)}>
+            {opt.label}
+          </button>
+        ))}
+
+      {bulkMode && (
+        <>
+          <p className="muted small" style={{ padding: '6px 8px', margin: 0 }}>
+            Chọn nhiều format để xuất 1 lúc:
+          </p>
+          {(
+            [
+              { v: 'docx', label: '📘 Word' },
+              { v: 'pdf', label: '📕 PDF' },
+              { v: 'md', label: '📝 Markdown' },
+              { v: 'html', label: '🌐 HTML' },
+              { v: 'txt', label: '📄 Plain text' },
+            ] as Array<{ v: DocFormat; label: string }>
+          ).map((opt) => (
+            <label key={opt.v} className="export-item bulk">
+              <input
+                type="checkbox"
+                checked={bulkSelection.includes(opt.v)}
+                onChange={() => toggleBulk(opt.v)}
+              />
+              <span>{opt.label}</span>
+            </label>
+          ))}
+          <button
+            className="btn btn-primary btn-small"
+            style={{ margin: '8px 6px' }}
+            disabled={bulkSelection.length === 0}
+            onClick={() => {
+              onBulkExport(bulkSelection);
+              onClose();
+            }}
+          >
+            ⤓ Xuất {bulkSelection.length} file
+          </button>
+        </>
+      )}
+    </div>
   );
 }

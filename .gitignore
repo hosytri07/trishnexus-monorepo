@@ -43,3 +43,5 @@ target/
 target-desktop/
 *.rs.bk
 Cargo.lock.bk
+.vercel
+.env*.local

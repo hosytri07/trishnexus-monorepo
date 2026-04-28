@@ -1,25 +1,46 @@
-# Handoff TỔNG — TrishNexus Monorepo (Phase 14 → 18.5)
+# Handoff TỔNG — TrishNexus Monorepo (Phase 14 → 18.8.a)
 
-**Ngày cập nhật:** 2026-04-27 (rev2 — sau Phase 18.5)
-**Session trước:** Phase 18.5 — UX polish cho TrishLibrary 3.0 (per-user data + card grid + nhỏ dashboard + gộp PDF Tools)
+**Ngày cập nhật:** 2026-04-27 (rev4 — sau Phase 18.8.a — TrishAdmin v1.1)
+**Session trước:** Phase 18.5 (UX polish TrishLibrary) → 18.6 (release v3.0.0) → 18.7 (scaffold TrishAdmin) → 18.8.a (mở rộng TrishAdmin 9 panel)
 **User:** Trí (hosytri77@gmail.com) — không phải dev, giải thích đơn giản, **luôn dùng tiếng Việt**
 **Repo chính:** `hosytri07/trishnexus-monorepo` (sync GitHub giữa 2 máy nhà ↔ cơ quan)
 **Domain:** `trishteam.io.vn` (Vercel + Tenten DNS)
+**Workflow chuyển máy:** chạy `END.bat` ở USB/scripts/ trước khi rời máy → `START.bat` khi đến máy mới.
 
 ---
 
 ## ⚡ TÓM TẮT SIÊU NHANH
 
-Hệ sinh thái **TrishTEAM** gồm **TrishLauncher (hub) + 8 app con**, deploy qua GitHub Releases + website Vercel. **TrishLibrary 3.0** đã code + UX polish xong (Phase 18.5). User confirm "app đã xong rồi" → chuyển Phase 18.6 = build production + GitHub Release `trishlibrary-v3.0.0`.
+Hệ sinh thái **TrishTEAM**: TrishLauncher (hub) + 9 app (8 user + 1 admin private). TrishLibrary 3.0 đã RELEASE GitHub (`trishlibrary-v3.0.0` NSIS .exe 7.24MB). TrishAdmin v1.1 đang ở giai đoạn test (9 panel: Dashboard/Users/Keys/LibraryCurator/Posts/Broadcasts/Feedback/Audit/Registry/Settings) — **chưa release**, hidden distribution (admin tự build + cài tay).
 
-### 🔴 PICK UP TỪ ĐÂY
+### 🔴 PICK UP TỪ ĐÂY (cho session máy CƠ QUAN sau khi switch)
 
-App đã pass test runtime. Đang vào **Phase 18.6 (Build + Release v3.0.0)**:
-1. Bump version trong `package.json` + `tauri.conf.json` + `Cargo.toml` về `3.0.0`
-2. Trí chạy `pnpm tauri build` ở `apps-desktop/trishlibrary/` → tạo .msi + .exe
-3. Cập nhật `apps-registry.json` trên website (URL release + sha256)
-4. Push tag `trishlibrary-v3.0.0` + upload artifacts lên GitHub Releases
-5. Update website footer X/Y phần mềm đã phát hành
+User vừa rời máy NHÀ sau Phase 18.8.a. Đã commit + push toàn bộ. Trên máy CƠ QUAN làm:
+
+**1. Pull + cài deps + deploy rules:**
+```powershell
+# Cách dễ — chạy 1 .bat file:
+scripts\START.bat            # pull + pnpm install + status
+scripts\DEPLOY-RULES.bat     # deploy firestore.rules (chỉ chạy nếu chưa deploy)
+
+# Hoặc thủ công:
+git pull
+pnpm install
+firebase deploy --only firestore:rules
+```
+
+**2. Test TrishAdmin:**
+```powershell
+scripts\RUN-TRISHADMIN.bat   # tự cd + pnpm tauri dev
+```
+
+**3. Login admin** (`trishteam.official@gmail.com` hoặc `hosytri77@gmail.com`) → check 9 panel + 5 nhóm sidebar.
+
+**4. Sau khi pass test → tiếp Phase 18.8.b** (Telemetry):
+- Tạo `packages/telemetry/` package mới
+- Wire vào TrishLibrary 3.0 pilot
+- Thêm panel Errors + Vitals trong TrishAdmin
+- Reindex Cloud Function
 
 ---
 
@@ -80,6 +101,155 @@ App đã pass test runtime. Đang vào **Phase 18.6 (Build + Release v3.0.0)**:
 - `modules/document/PdfTools.tsx`: thêm prop `variant?: 'full' | 'grid-only'`. Khi `grid-only` → render chỉ 13 card (không header/wrapper).
 - `styles.css`: thêm `.doc-convert-grid`, `.doc-convert-grid-head`, `.doc-convert-tools-grid` (responsive auto-fill 320px), `.doc-convert-file-card` (accent badge), `.convert-tips-details` (collapsible tips trong modal).
 - Card size 1.5x: padding 22px, icon 42px, title 17px, min-height 96px, gap 14px, min-w 320px.
+
+### Phase 18.6 — Build + Release `trishlibrary-v3.0.0` ✅ DONE
+- Fix 15 TS errors trước build:
+  - `AppSettingsModal.tsx:15` — bỏ unused import `loadSettings`
+  - `InputModal.tsx:212` — bỏ unused generic `<T>`
+  - `formats.ts:12` — `@ts-expect-error` cho `turndown-plugin-gfm` (no types)
+  - `formats.ts:73` — chuyển `@ts-ignore` vào trong import expression Vite ?url
+  - `formats.ts:141` — `margin` → `margins` (sai tên field html-docx-js-typescript)
+  - `formats.ts:153` — `@ts-ignore` cho `html2pdf.js`
+  - `PdfTools.tsx:14` — thêm `useEffect` vào import
+  - `NoteModule.tsx:1579-1604` — thêm `if (!editor) return;` guard cho 4 hàm (setColor/setHighlight/setLink/setFont) — 7 chỗ editor possibly null
+- `pnpm tauri build` thành công → 3 file:
+  - `TrishLibrary_3.0.0_x64-setup.exe` (NSIS, multi-lang) — **MAIN file release** (7,239,739 bytes ~ 6.91 MB)
+  - SHA256: `814cea1f80e9744999f5149c1d94adf16124bbd11167c19c1054f0674deee0f9`
+  - `TrishLibrary_3.0.0_x64_en-US.msi` + `TrishLibrary_3.0.0_x64_vi-VN.msi` (WiX 2 ngôn ngữ)
+- `apps-registry.json`: TrishLibrary 3.0.0 set status `released` + sha256 + size 7239739. TrishImage đánh dấu deprecated (đã merge vào TrishLibrary 3.0).
+- Tag GitHub Release `trishlibrary-v3.0.0` đã push qua `gh release create` (Cách 1).
+- Vercel auto-deploy registry mới sau khi push.
+
+### Phase 18.7 — TrishAdmin scaffold MVP ✅ DONE
+**Mục tiêu**: app admin nội bộ quản lý Firestore + apps-registry.json. **HIDDEN distribution** — không lên website, không lên TrishLauncher, admin tự build .exe + cài tay. Chỉ admin email trong allowlist mới login được.
+
+**Path:** `apps-desktop/trishadmin/` (Tauri 2 + React + TypeScript + Firebase). Đã xóa Python placeholder cũ ở `apps/trishadmin/`.
+
+**Files chính** (~2700 dòng + ~700 dòng CSS):
+- `package.json` — deps `firebase ^10.14.1`, `@trishteam/auth/data/core` workspace, `@tauri-apps/plugin-dialog/opener`. Vite port 1450 / 1451.
+- `tsconfig.json` — paths cho `@trishteam/data` + `auth/react`
+- `vite-env.d.ts` — declare module *.png/jpg/svg
+- `src-tauri/Cargo.toml` — `tauri 2.0` features `["devtools"]`, `tauri-plugin-dialog/opener`, `serde`, `serde_json`, `dirs`
+- `src-tauri/tauri.conf.json` — `productName: TrishAdmin`, version 1.0.0, identifier `vn.trishteam.admin`, port 1450, CSP allow Firebase + GitHub, bundle target msi+nsis
+- `src-tauri/src/lib.rs` — 4 commands: `app_version` / `default_data_dir` / `read_text_file` / `write_text_file` / `check_path_exists` (cap 16 MiB cho registry edit)
+- `src-tauri/capabilities/default.json` — core + dialog + opener
+- `src-tauri/icons/` — 32/128/256/512 PNG + ICO multi-resolution (sinh từ `apps/trishlauncher/src/.../resources/logos/trishadmin.png` 128x128 RGBA dùng Pillow Lanczos)
+- `src/main.tsx` — `<ErrorBoundary><AuthProvider><Root/>` + window error handlers + apply theme từ settings local
+- `src/Root.tsx` — auth gate 3 tầng: loading → AdminLogin → AdminBlocked (nếu email không phải admin) → App
+- `src/App.tsx` — sidebar 5 nhóm + main panel switcher + Ctrl+1..9 quick switch
+- `src/lib/admin-emails.ts` — hardcoded allowlist (`trishteam.official@gmail.com`, `hosytri77@gmail.com`)
+- `src/lib/firestore-admin.ts` — Firestore CRUD users/keys/broadcasts + new collections (~430 dòng)
+- `src/lib/key-gen.ts` — generate `TRISH-XXXX-XXXX-XXXX` qua Web Crypto getRandomValues
+- `src/tauri-bridge.ts` — wrapper Tauri commands + dialog
+- `src/settings.ts` — theme (dark/light/system) + language (vi/en) + applyTheme đặt `data-theme` attribute trên `<html>`
+- `src/styles.css` — toàn bộ theme dark + light + components (~1100 dòng)
+
+**Components** (`src/components/`):
+- `AdminLogin.tsx` — Email + password form gọi `signInWithEmail`
+- `AdminBlocked.tsx` — màn hình block + auto signOut sau 4s
+- `ErrorBoundary.tsx` — catch React errors, surface stack trace
+- `DashboardPanel.tsx` — 4 stat cards + role bars (gọi `fetchStats()` aggregate)
+- `UsersPanel.tsx` — table users + filter role + edit role modal + reset trial + **delete user 2-step confirm** (xóa Firestore doc only)
+- `KeysPanel.tsx` — table activation keys + filter status + generate batch modal + revoke + delete + copy
+- `BroadcastsPanel.tsx` — list broadcasts + compose modal (severity/audience/expires)
+- `RegistryPanel.tsx` — load/save 2 file local: `apps-registry.json` + `min-specs.json`. Save xong show git push commands.
+- `SettingsPanel.tsx` — theme + language pills + about app
+
+**Auth flow**:
+1. User mở app → AuthProvider check Firebase Auth state.
+2. `firebaseUser === null` → `<AdminLogin>` → email/password.
+3. Login OK → `firebaseUser.email` check vs `ADMIN_EMAILS`. Match → `<App>`. Không match → `<AdminBlocked>` + auto signOut sau 4s.
+4. Email khác login lần nữa thấy lại `<AdminLogin>`.
+
+**Firestore collections sử dụng**:
+| Path | Mục đích | Rules đã có |
+|---|---|---|
+| `users/{uid}` | TrishUser, role | admin read all + update bất kỳ ✓ |
+| `keys/{keyId}` | ActivationKey | admin CRUD ✓ |
+| `announcements/{id}` | Broadcast | admin CRUD ✓ |
+
+### Phase 18.7 issues đã fix trong session
+- `slice undefined` ở UsersPanel/KeysPanel — Firestore docs cũ không có field `id` → defensive `(u.id ?? '').slice()` + inject `data.id ?? doc.id` ở mọi list function.
+- `Function setDoc() called with invalid data. Unsupported field value: undefined (note)` — Firestore reject undefined → thêm helper `stripUndefined()` + conditional spread `...(input.note ? { note: input.note } : {})`.
+- Logo bị chìm dark mode → `--logo-bg: #ffffff` ở dark theme, `transparent` ở light. Logo wrap rounded 8px padding 4px.
+- Bỏ icon emoji + bỏ `^1..^5` kbd hint trong sidebar nav theo yêu cầu user.
+- Sidebar dùng image `<img src={logoUrl}>` thay emoji 🛡.
+
+### Phase 18.8.a — TrishAdmin v1.1 mở rộng ✅ DONE
+
+**Mục tiêu**: thêm 4 panel content + audit auto-log + sidebar group navigation.
+
+**4 panel mới**:
+
+#### LibraryCuratorPanel (`src/components/LibraryCuratorPanel.tsx`)
+- Layout 2-pane: trái list folders (320px), phải list links của folder đang chọn.
+- CRUD folder: name + description + icon (emoji) + sort_order auto.
+- CRUD link: title + url + description + icon + link_type (web/pdf/docs/video/other).
+- Delete folder cascade xóa subcollection links trước.
+- Firestore: `trishteam_library/{folderId}` + subcollection `links/{linkId}`.
+- TrishLibrary 3.0 module Thư viện section "TrishTEAM" sẽ hiển thị các folder + link này (read-only qua subscribe Firestore).
+
+#### FeedbackPanel (`src/components/FeedbackPanel.tsx`)
+- List `feedback/{id}`, click card mở detail modal.
+- Filter: status (new/read/in_progress/resolved/wontfix) + category (bug/feature/question/praise/other) + search.
+- Counter ở header: số mới, đang xử lý, đã xử lý, tổng.
+- Auto-mark `read` khi click 1 feedback đang ở status `new`.
+- Detail modal: full message + admin note input + 5 nút status pill + reply via mailto.
+- Delete feedback (cascade).
+- Cần data thực — chưa có app nào ghi vào collection này. Sẽ làm Phase 18.8.b (telemetry + feedback widget).
+
+#### AuditPanel (`src/components/AuditPanel.tsx`)
+- Read-only list `audit/{id}`, filter by action type + search.
+- Action types đã định nghĩa label + color (`ACTION_LABEL` map): `user.set_role`, `user.reset_trial`, `user.delete_doc`, `key.create_batch`, `key.revoke`, `key.delete`, `broadcast.create`, `broadcast.activate`, `broadcast.deactivate`, `broadcast.delete`.
+- Table 5 cột: time + action badge + actor + target + details (JSON snippet).
+
+#### PostsPanel (`src/components/PostsPanel.tsx`)
+- Grid post cards (auto-fill 360px) với border-left color theo status.
+- CRUD post: title + body_md (markdown) + excerpt + hero_url + tags (CSV) + status (draft/published) + slug auto-generate.
+- Toggle Publish/Unpublish 1 click.
+- Filter status + search title/body/tags.
+- Editor modal: textarea markdown 14 rows + form row 3 cột (hero/tags/status).
+
+**Audit auto-log** — `firestore-admin.ts` thêm:
+- Type `ActorContext { uid, email? }`
+- Helper `writeAudit(input)` — addDoc vào `audit/` (Firestore tự sinh ID), append-only, fail-safe (không block action chính nếu ghi audit lỗi).
+- Wire `actor` parameter vào 9 function: `setUserRole`, `resetUserToTrial`, `deleteUserDoc`, `createKeys`, `revokeKey`, `deleteKey`, `createBroadcast`, `setBroadcastActive`, `deleteBroadcast`.
+- 4 panel (UsersPanel/KeysPanel/BroadcastsPanel) lấy actor từ `useAuth().firebaseUser` rồi pass vào các call.
+
+**Sidebar group navigation** (`src/App.tsx`):
+- 5 nhóm:
+  1. **Tổng quan** → Dashboard
+  2. **Người dùng** → Users · Keys
+  3. **Nội dung** → TrishTEAM Library · Posts/News · Broadcasts
+  4. **Inbox** → Feedback · Audit log
+  5. **Hệ thống** → Apps Registry · Cài đặt
+- `NAV_GROUPS` array driving render. `ALL_NAV_ITEMS = NAV_GROUPS.flatMap(g => g.items)` cho persist + Ctrl+1..9.
+- CSS mới: `.admin-nav-group` + `.admin-nav-group-label` (uppercase 10px muted).
+
+**Firestore rules update** (`firestore.rules`):
+```
+match /audit/{id} {
+  allow read: if isAdmin();
+  allow create: if isAdmin();   // <-- mới (trước đó allow write: if false)
+  allow update, delete: if false;
+}
+```
+**Phải `firebase deploy --only firestore:rules`** để TrishAdmin write audit được.
+
+**Issue gặp + đã fix**:
+- Logo background cho dark mode (đã làm Phase 18.7 issue) — bonus thêm light theme support qua `[data-theme='light']` selector.
+- Settings panel apply theme ngay khi đổi qua `applyTheme(value)` đặt `data-theme` attribute trên `<html>`.
+
+### Phase 18.8.b — NEXT (chưa bắt đầu)
+- Tạo `packages/telemetry/` package mới — `reportError(err, context)` + `reportVital(name, value)` + auto-init `window.onerror` + `unhandledrejection` + throttle + batch.
+- Wire vào TrishLibrary 3.0 (pilot) trong `main.tsx`.
+- Thêm panel **Errors** trong TrishAdmin đọc `errors/{env}/samples/{id}` (group by error message + count).
+- Thêm panel **Vitals** đọc `vitals/{env}/samples/{id}` (chart + filter).
+- Thêm panel **Reindex** + Cloud Function HTTP endpoint trigger reindex `semantic/apps/` + `semantic/announcements/`.
+
+### Phase 18.8.c — Wire telemetry vào 8 apps Tauri
+- TrishLauncher · TrishCheck · TrishFont · TrishClean · TrishLibrary · TrishDesign · TrishAdmin · TrishType (sau khi build)
+- Thêm `import '@trishteam/telemetry'; init({ app: 'trishlibrary' })` vào `main.tsx` mỗi app.
 
 ---
 
@@ -218,7 +388,77 @@ User chạy `pnpm tauri dev` → cargo báo 7 lỗi compile. Đã fix:
 
 ---
 
-## 🎯 NEXT STEPS — PHASE 18.6 BUILD + RELEASE
+## 🔴 PICK UP TỪ ĐÂY (cập nhật cho session máy cơ quan)
+
+User vừa rời máy NHÀ sau Phase 18.8.a. Trên máy CƠ QUAN cần:
+
+1. **Pull code mới**:
+   ```powershell
+   cd C:\<đường dẫn repo trên máy cơ quan>\trishnexus-monorepo
+   git pull
+   ```
+2. **Cài deps mới** (TrishAdmin có deps `firebase`, `@trishteam/data` mới):
+   ```powershell
+   pnpm install
+   ```
+3. **Deploy firestore.rules** (audit collection mới allow admin create):
+   ```powershell
+   firebase deploy --only firestore:rules
+   ```
+4. **Test TrishAdmin**:
+   ```powershell
+   cd apps-desktop\trishadmin
+   pnpm tauri dev
+   ```
+5. Login email admin → check 9 panel + 5 nhóm sidebar.
+
+Sau khi test pass → tiếp **Phase 18.8.b** (Telemetry package + Errors + Vitals + Reindex):
+- Tạo `packages/telemetry/` — wrapper `reportError(err, ctx)` + `reportVital(name, value)` + auto-init `window.onerror` + `unhandledrejection` + throttle/batch.
+- Wire vào TrishLibrary 3.0 (pilot) trước khi roll-out 7 app còn lại.
+- Thêm panel Errors + Vitals đọc collection `errors/{env}/samples` + `vitals/{env}/samples`.
+- Reindex panel + Cloud Function HTTP endpoint.
+
+Sau Phase 18.8.b → 18.8.c (wire telemetry vào TrishLauncher/Check/Font/Clean/Type/Design/Admin/Library).
+
+---
+
+## 📋 PHASE 18.7 + 18.8.a — TRISHADMIN ĐÃ DONE (REFERENCE)
+
+1. **Test dev mode** — Trí chạy:
+   ```
+   cd apps-desktop\trishadmin
+   pnpm install         # cài deps mới
+   pnpm tauri dev
+   ```
+2. Login với email admin (hardcode trong `src/lib/admin-emails.ts`):
+   - `trishteam.official@gmail.com`
+   - `hosytri77@gmail.com`
+3. Test 5 panel:
+   - 📊 Dashboard — số stats
+   - 👥 Users — list + đổi role + reset trial
+   - 🔑 Keys — sinh + revoke + copy
+   - 📢 Broadcasts — soạn + push notification
+   - 📦 Apps Registry — load + edit JSON local
+4. Lỗi runtime → paste cho mình fix
+5. Pass test → build production: `pnpm tauri build` → file `.exe` ở `src-tauri/target/release/bundle/nsis/`. Cài tay (KHÔNG release public).
+
+### Architecture TrishAdmin
+- **Auth**: Firebase Auth check email vs `ADMIN_EMAILS` allowlist. Email khác → `<AdminBlocked>` + force signOut.
+- **Firestore collections**: `users/{uid}` · `keys/{keyId}` · `announcements/{id}`.
+- **Tauri commands**: `read_text_file` / `write_text_file` / `check_path_exists` / `default_data_dir` (cho Apps Registry editor).
+- **Distribution**: hidden — không trong registry, không trên Launcher. Trí build + cài tay.
+
+### File chính TrishAdmin
+- `src/Root.tsx` — auth gate 3 tầng (loading / login / blocked / app)
+- `src/App.tsx` — sidebar 5 panel + Ctrl+1..5
+- `src/lib/admin-emails.ts` — allowlist
+- `src/lib/firestore-admin.ts` — Firestore CRUD users/keys/broadcasts + stats
+- `src/lib/key-gen.ts` — sinh `TRISH-XXXX-XXXX-XXXX` (Web Crypto)
+- `src/components/{Dashboard,Users,Keys,Broadcasts,Registry}Panel.tsx`
+
+---
+
+## 📋 PREVIOUS PHASE 18.6 BUILD + RELEASE (ARCHIVE)
 
 1. **Bump version** về `3.0.0`:
    - `apps-desktop/trishlibrary/package.json` → `"version": "3.0.0"`
@@ -272,10 +512,21 @@ cargo check
 - ✅ Phase 17 — TrishClean + TrishNote + TrishSearch + TrishImage v2.0.0-1 (released)
 - ⏳ Phase 17.6 — TrishType v2.0.0-1 build/release pending
 - ✅ Phase 18 — TrishLibrary 3.0 (gộp 4 module + cross-features) — code done
-- ✅ Phase 18.5 — UX polish + per-user data (4 fix sau test) — **DONE 2026-04-27**
-- ⏳ Phase 18.6 — Build + GitHub Release `trishlibrary-v3.0.0` — **đang làm**
+- ✅ Phase 18.5 — UX polish + per-user data — DONE 2026-04-27
+- ✅ Phase 18.6 — Build + GitHub Release `trishlibrary-v3.0.0` — DONE 2026-04-27 (NSIS .exe 7.24 MB · sha256 `814cea1f...e0f9`)
+- ✅ Phase 18.7 — TrishAdmin scaffold MVP (5 panel: Dashboard/Users/Keys/Broadcasts/Registry) — DONE 2026-04-27
+- ✅ Phase 18.8.a — TrishAdmin v1.1 mở rộng — DONE 2026-04-27
+  - Thêm 4 panel: LibraryCurator, Feedback, Audit, Posts
+  - Thêm Settings panel (theme dark/light/system + language vi/en)
+  - Thêm xóa user (UsersPanel) + 2-step confirm
+  - Sidebar group nav (5 nhóm thay vì list phẳng)
+  - Logo TrishAdmin shield + light theme support
+  - Auto audit log từ 9 admin actions
+  - Update firestore.rules cho audit collection (allow admin create)
+- 🔨 Phase 18.8.b — Telemetry + ErrorsPanel + VitalsPanel + Reindex — **NEXT** (chưa bắt đầu)
+- ⏳ Phase 18.8.c — Wire telemetry vào 8 apps Tauri
 - ⏳ Phase 16.4 — Roll out Auth tới TrishCheck/TrishFont/TrishLauncher (deferred)
-- ⏳ Phase 17.4 — TrishDesign (chưa scaffold)
+- ⏳ Phase 17.4 — TrishDesign build + release (code có sẵn ~550 dòng)
 
 ---
 

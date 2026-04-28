@@ -118,9 +118,12 @@ service cloud.firestore {
     }
 
     // --- /audit/{id} ---
+    // Phase 18.8.a — Admin write audit từ TrishAdmin app khi thực hiện
+    // action quan trọng (sinh key, đổi role, revoke, ...). Append-only.
     match /audit/{id} {
       allow read: if isAdmin();
-      allow write: if false;
+      allow create: if isAdmin();
+      allow update, delete: if false;
     }
 
     // --- /posts/{id} ---

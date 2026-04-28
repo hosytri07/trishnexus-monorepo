@@ -1,7 +1,7 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "TrishLibrary cần dialog (pick folder scan + export/import JSON) và opener (mở file bằng app mặc định của OS). Store JSON + folder scan đều qua Rust std::fs — không cần fs plugin. Không shell, không http.",
+  "description": "TrishLibrary 3.0 — capabilities cho 3 module: dialog (pick folder/file), opener (mở file/URL), global-shortcut (Ctrl+Shift+N quick capture), notification (deadline reminder). HTTP fetch + scan folder qua Rust commands.",
   "windows": ["main"],
   "permissions": [
     "core:default",
@@ -9,6 +9,9 @@
     "dialog:allow-open",
     "dialog:allow-save",
     "opener:default",
-    "opener:allow-open-path"
+    "opener:allow-open-path",
+    "opener:allow-open-url",
+    "global-shortcut:default",
+    "notification:default"
   ]
 }

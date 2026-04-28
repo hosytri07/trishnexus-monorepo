@@ -1,0 +1,57 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "TrishAdmin",
+  "version": "1.0.0",
+  "identifier": "vn.trishteam.admin",
+  "build": {
+    "beforeDevCommand": "pnpm dev",
+    "devUrl": "http://localhost:1450",
+    "beforeBuildCommand": "pnpm build",
+    "frontendDist": "../dist"
+  },
+  "app": {
+    "windows": [
+      {
+        "label": "main",
+        "title": "TrishAdmin — Quản trị hệ sinh thái",
+        "width": 1400,
+        "height": 900,
+        "minWidth": 1100,
+        "minHeight": 720,
+        "resizable": true,
+        "center": true
+      }
+    ],
+    "security": {
+      "csp": "default-src 'self' ipc: http://ipc.localhost; connect-src 'self' ipc: http://ipc.localhost https://*.googleapis.com https://*.firebaseio.com https://*.firebaseapp.com https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://firestore.googleapis.com https://www.googleapis.com https://accounts.google.com https://api.github.com https://*.github.com; img-src 'self' data: blob: asset: http://asset.localhost https://*.googleusercontent.com https://www.gstatic.com; style-src 'self' 'unsafe-inline' https://accounts.google.com; script-src 'self' https://apis.google.com https://accounts.google.com https://www.gstatic.com; frame-src 'self' asset: http://asset.localhost https://trishteam-17c2d.firebaseapp.com https://accounts.google.com https://*.firebaseapp.com; object-src 'self' asset: http://asset.localhost"
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": ["msi", "nsis"],
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.icns",
+      "icons/icon.ico"
+    ],
+    "category": "DeveloperTool",
+    "copyright": "© 2026 TrishTEAM",
+    "shortDescription": "Admin tool cho hệ sinh thái TrishTEAM (private — không phân phối public)",
+    "longDescription": "TrishAdmin — quản lý users (Firestore), sinh + revoke activate keys, push broadcast notifications tới user app, edit apps-registry.json + min-specs.json. CHỈ admin được login.",
+    "publisher": "TrishTEAM",
+    "homepage": "https://trishteam.io.vn",
+    "windows": {
+      "nsis": {
+        "installMode": "currentUser",
+        "languages": ["English", "Vietnamese"],
+        "displayLanguageSelector": false,
+        "installerIcon": "icons/icon.ico"
+      },
+      "wix": {
+        "language": ["en-US", "vi-VN"]
+      }
+    }
+  }
+}

@@ -1,0 +1,30 @@
+[package]
+name = "trishadmin"
+version = "1.0.0"
+description = "TrishAdmin — admin tool cho hệ sinh thái TrishTEAM (manage users + keys + broadcasts + registry)"
+authors = ["TrishTEAM <hosytri77@gmail.com>"]
+edition = "2021"
+rust-version = "1.77"
+
+[[bin]]
+name = "trishadmin"
+path = "src/main.rs"
+
+[lib]
+name = "trishadmin_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+path = "src/lib.rs"
+
+[build-dependencies]
+tauri-build = { version = "2.0", features = [] }
+
+[dependencies]
+tauri = { version = "2.0", features = ["devtools"] }
+tauri-plugin-dialog = "2.0"
+tauri-plugin-opener = "2.0"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+dirs = "5"
+
+[features]
+custom-protocol = ["tauri/custom-protocol"]

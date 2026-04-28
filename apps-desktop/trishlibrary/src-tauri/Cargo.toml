@@ -1,7 +1,7 @@
 [package]
 name = "trishlibrary"
-version = "2.0.0-alpha.1"
-description = "TrishLibrary — thư viện tài liệu local + tag + cite"
+version = "3.0.0"
+description = "TrishLibrary 3.0 — All-in-one Thư viện + Ghi chú + Tài liệu"
 authors = ["TrishTEAM <hosytri77@gmail.com>"]
 edition = "2021"
 rust-version = "1.77"
@@ -19,13 +19,35 @@ path = "src/lib.rs"
 tauri-build = { version = "2.0", features = [] }
 
 [dependencies]
-tauri = { version = "2.0", features = [] }
+tauri = { version = "2.0", features = ["protocol-asset", "tray-icon"] }
 tauri-plugin-dialog = "2.0"
 tauri-plugin-opener = "2.0"
+tauri-plugin-global-shortcut = "2.0"
+tauri-plugin-notification = "2.0"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 dirs = "5"
 walkdir = "2.5"
+parking_lot = "0.12"
+# Phase 18 — Search engine (gộp TrishSearch into Library)
+tantivy = "0.22"
+# Phase 18 — System fonts cho editor (Tài liệu module)
+ttf-parser = "0.24"
+# Phase 18 — Update check + URL fetch (Convert URL → file)
+reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "json"] }
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "sync"] }
+# Phase 16.2.e — Decode base64 data URL của QR PNG để save file
+base64 = "0.22"
+# Phase 18.6.b — Module Ảnh: thumbnail generator (resize + cache JPEG)
+image = { version = "0.25", default-features = false, features = ["jpeg", "png", "webp", "gif", "bmp"] }
+# Phase 18.3.b — PDF Tools (merge/split/extract/delete/rotate)
+lopdf = "0.34"
+# Images → PDF (compose JPEG into a single PDF)
+printpdf = "0.6"
+# Phase 18.1.b — Trích xuất text từ PDF cho Tantivy index
+pdf-extract = "0.7"
+# Phase 18.6.h — EXIF metadata cho ảnh
+kamadak-exif = "0.5"
 
 [features]
 custom-protocol = ["tauri/custom-protocol"]

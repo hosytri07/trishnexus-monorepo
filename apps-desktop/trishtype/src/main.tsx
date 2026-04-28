@@ -1,3 +1,8 @@
+/**
+ * TrishType main entry — Phase 17.6 v2.
+ * Document editor + converter app.
+ */
+
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { App } from './App.js';
