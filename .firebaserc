@@ -1,7 +1,5 @@
 {
   "projects": {
-    "default": "trishteam-dev",
-    "staging": "trishteam-staging",
-    "production": "trishteam-prod"
+    "default": "trishteam-17c2d"
   }
 }

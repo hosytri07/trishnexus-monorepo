@@ -556,8 +556,11 @@ Footer launcher hiện: **X/9 phần mềm đã phát hành** (auto-count từ `
 - Website: https://trishteam.io.vn
 - Registry JSON: https://trishteam.io.vn/apps-registry.json
 - Min-specs JSON: https://trishteam.io.vn/min-specs.json
-- Firebase Console: project `trishteam-17c2d` (asia-southeast1)
-- Admin email: trishteam.official@gmail.com (UID `YiJa3yRtQmM5sSK8vqgTC4Zfzex2`)
+- Firebase Console: project ID **`trishteam-17c2d`** (display name `trishTEAM`, region asia-southeast1)
+- **Firebase project OWNER (quản lý / billing / deploy rules)**: `trishteam.official@gmail.com` — login Firebase CLI bằng email này khi deploy
+- **Admin user của app (login user role=admin trong app)**: `trishteam.official@gmail.com` (chính chủ) + `hosytri77@gmail.com` (Trí cá nhân)
+- `.firebaserc` đã sửa về `trishteam-17c2d` (trước đó từng có placeholder `trishteam-dev` gây deploy nhầm)
+- ⚠ Lưu ý: KHÔNG login Firebase CLI bằng `nerwin.underbox@gmail.com` — email đó owner 1 project khác (`trishteam-e3ae4`) không liên quan
 
 ---
 
