@@ -3,9 +3,9 @@
 /**
  * /quy-chuan — Phase 19.20 — Quy chuẩn / Tiêu chuẩn / Văn bản pháp lý ngành XD-GT.
  */
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
-import { ArrowLeft, BookText, Search, X, ExternalLink } from 'lucide-react';
+import { ArrowLeft, BookText, Search, X, ExternalLink, Loader2 } from 'lucide-react';
 import {
   type Standard,
   type StandardType,
@@ -13,16 +13,23 @@ import {
   STANDARD_TYPE_CONFIGS,
   CATEGORY_LABELS,
 } from '@/data/standards-vn';
+import { fetchStandards } from '@/lib/databases-fetch';
 
 export default function QuyChuanPage() {
+  // Init với static data → instant render. useEffect sẽ refresh từ Firestore.
+  const [standards, setStandards] = useState<Standard[]>(STANDARDS);
   const [activeType, setActiveType] = useState<StandardType | 'all'>('all');
   const [activeCat, setActiveCat] = useState<Standard['category'] | 'all'>('all');
   const [search, setSearch] = useState('');
   const [selected, setSelected] = useState<Standard | null>(null);
 
+  useEffect(() => {
+    fetchStandards().then(setStandards);
+  }, []);
+
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
-    return STANDARDS.filter((s) => {
+    return standards.filter((s) => {
       if (activeType !== 'all' && s.type !== activeType) return false;
       if (activeCat !== 'all' && s.category !== activeCat) return false;
       if (!q) return true;
@@ -33,7 +40,7 @@ export default function QuyChuanPage() {
         s.tags.some((t) => t.toLowerCase().includes(q))
       );
     }).sort((a, b) => b.year - a.year);
-  }, [activeType, activeCat, search]);
+  }, [activeType, activeCat, search, standards]);
 
   const types = Object.values(STANDARD_TYPE_CONFIGS);
   const categories = Object.entries(CATEGORY_LABELS) as [Standard['category'], string][];
@@ -58,7 +65,7 @@ export default function QuyChuanPage() {
             className="inline-flex items-center px-2 h-5 rounded text-[10px] font-bold uppercase tracking-wide"
             style={{ background: 'var(--color-accent-soft)', color: 'var(--color-accent-primary)' }}
           >
-            {STANDARDS.length} văn bản
+            {standards.length} văn bản
           </span>
         </div>
         <p className="text-base" style={{ color: 'var(--color-text-secondary)' }}>
@@ -86,11 +93,11 @@ export default function QuyChuanPage() {
         <Chip
           active={activeType === 'all'}
           onClick={() => setActiveType('all')}
-          label={`Tất cả (${STANDARDS.length})`}
+          label={`Tất cả (${standards.length})`}
           color="#9CA3AF"
         />
         {types.map((t) => {
-          const count = STANDARDS.filter((s) => s.type === t.type).length;
+          const count = standards.filter((s) => s.type === t.type).length;
           if (count === 0) return null;
           return (
             <Chip
@@ -107,7 +114,7 @@ export default function QuyChuanPage() {
       <div className="flex flex-wrap gap-1.5 mb-5">
         <SmallChip active={activeCat === 'all'} onClick={() => setActiveCat('all')} label="Mọi lĩnh vực" />
         {categories.map(([id, label]) => {
-          const count = STANDARDS.filter((s) => s.category === id).length;
+          const count = standards.filter((s) => s.category === id).length;
           if (count === 0) return null;
           return (
             <SmallChip

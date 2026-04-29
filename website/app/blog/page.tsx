@@ -173,7 +173,7 @@ function EmptyState() {
         className="text-sm mb-4 max-w-md mx-auto"
         style={{ color: 'var(--color-text-secondary)' }}
       >
-        Admin sẽ post bài đầu tiên qua TrishAdmin desktop. Quay lại sau hoặc
+        Admin sẽ post bài đầu tiên qua trang quản trị. Quay lại sau hoặc
         đăng ký nhận thông báo qua email khi có bài mới.
       </p>
       <Link

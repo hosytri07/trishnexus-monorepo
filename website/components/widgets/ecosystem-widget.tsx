@@ -16,13 +16,15 @@
  *   │      │               │
  *   └──────┴───────────────┘
  */
-import { useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { Sparkles, Download } from 'lucide-react';
 import { WidgetCard } from './widget-card';
 import { AppDetailModal } from './app-detail-modal';
-import { getAppsForWebsite, type AppForWebsite } from '@/lib/apps';
+import { type AppForWebsite } from '@/lib/apps';
+import { fetchAppsClient } from '@/lib/apps-fetch';
 import { resolveAppIcon } from '@/lib/app-icons';
+import { CountdownClock } from '@/components/countdown-clock';
 
 function AppLogoBig({ app }: { app: AppForWebsite }) {
   const [broken, setBroken] = useState(false);
@@ -68,18 +70,28 @@ function AppLogoBig({ app }: { app: AppForWebsite }) {
 }
 
 function AppTile({ app, onClick }: { app: AppForWebsite; onClick: () => void }) {
-  const statusDot =
-    {
-      released: '#10B981',
-      beta: '#F59E0B',
-      coming_soon: 'var(--color-text-muted)',
-    }[app.status] ?? 'var(--color-text-muted)';
+  const releaseAt = (app as { release_at?: string }).release_at ?? null;
+  const isScheduledPending =
+    app.status === 'scheduled' && releaseAt && Date.now() < new Date(releaseAt).getTime();
+
+  const statusDotMap: Record<AppForWebsite['status'], string> = {
+    released: '#10B981',
+    beta: '#F59E0B',
+    scheduled: '#F59E0B',
+    coming_soon: 'var(--color-text-muted)',
+    deprecated: '#EF4444',
+  };
+  const statusDot = statusDotMap[app.status] ?? 'var(--color-text-muted)';
 
   const versionLabel =
     app.status === 'released'
       ? `v${app.version}`
       : app.status === 'beta'
       ? `Beta v${app.version}`
+      : isScheduledPending
+      ? `Sắp phát hành · v${app.version}`
+      : app.status === 'scheduled'
+      ? `v${app.version}`
       : 'Sắp ra mắt';
 
   return (
@@ -121,13 +133,22 @@ function AppTile({ app, onClick }: { app: AppForWebsite; onClick: () => void }) 
         >
           {versionLabel}
         </div>
-        <div
-          className="text-[11px] truncate mt-1.5 leading-snug"
-          style={{ color: 'var(--color-text-secondary)' }}
-          title={app.tagline}
-        >
-          {app.tagline.length > 50 ? `${app.tagline.slice(0, 50)}…` : app.tagline}
-        </div>
+        {isScheduledPending && releaseAt ? (
+          <div
+            className="text-[11px] mt-1 inline-flex items-center gap-1 px-1.5 py-0.5 rounded font-mono tabular-nums"
+            style={{ background: 'rgba(245,158,11,0.15)', color: '#B45309' }}
+          >
+            <CountdownClock releaseAt={releaseAt} showIcon iconSize={10} />
+          </div>
+        ) : (
+          <div
+            className="text-[11px] truncate mt-1.5 leading-snug"
+            style={{ color: 'var(--color-text-secondary)' }}
+            title={app.tagline}
+          >
+            {app.tagline.length > 50 ? `${app.tagline.slice(0, 50)}…` : app.tagline}
+          </div>
+        )}
       </div>
 
       {/* Status dot góc phải trên */}
@@ -141,8 +162,15 @@ function AppTile({ app, onClick }: { app: AppForWebsite; onClick: () => void }) 
 }
 
 export function EcosystemWidget() {
-  const apps = useMemo(() => getAppsForWebsite(), []);
+  const [apps, setApps] = useState<AppForWebsite[]>([]);
   const [selected, setSelected] = useState<AppForWebsite | null>(null);
+
+  useEffect(() => {
+    fetchAppsClient().then((all) => {
+      // Filter loại deprecated cho homepage
+      setApps(all.filter((a) => a.status !== 'deprecated'));
+    });
+  }, []);
 
   return (
     <>

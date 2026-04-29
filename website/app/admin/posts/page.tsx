@@ -38,6 +38,7 @@ import {
   onSnapshot,
   orderBy,
   query,
+  runTransaction,
   serverTimestamp,
   setDoc,
   updateDoc,
@@ -78,6 +79,7 @@ function slugify(s: string): string {
 
 export default function AdminPostsPage() {
   const { user } = useAuth();
+  const [ConfirmDialog, askConfirm] = useConfirm();
   const [posts, setPosts] = useState<Post[] | null>(null);
   const [filter, setFilter] = useState<'all' | 'draft' | 'published'>('all');
   const [search, setSearch] = useState('');
@@ -442,8 +444,26 @@ function PostEditor({
     }
     setBusy(true);
     try {
-      const id = post?.id ?? `${slugify(title)}-${Date.now().toString(36).slice(-4)}`;
-      const slug = post?.slug ?? id;
+      // Phase 19.22 — Doc ID = sequence từ 01, 02, 03... (atomic counter trong Firestore).
+      // URL /blog/01, /blog/02 — ngắn gọn, dễ nhớ.
+      let id = post?.id;
+      if (!id) {
+        const counterRef = doc(db, '_meta', 'posts_counter');
+        const newNum = await runTransaction(db, async (tx) => {
+          const snap = await tx.get(counterRef);
+          const current = snap.exists() ? Number(snap.data()?.value ?? 0) : 0;
+          const next = current + 1;
+          tx.set(
+            counterRef,
+            { value: next, updated_at: Date.now() },
+            { merge: true },
+          );
+          return next;
+        });
+        // Pad 2 digit (01, 02...). Sau 100 thì tự dài 3+ digit.
+        id = newNum < 100 ? newNum.toString().padStart(2, '0') : newNum.toString();
+      }
+      const slug = post?.slug ?? slugify(title);
       const tagList = tags
         .split(',')
         .map((t) => t.trim())

@@ -72,6 +72,28 @@ export async function getPostBySlug(slug: string): Promise<BlogPost | null> {
 }
 
 /**
+ * Fetch 1 post by document ID (Phase 19.22 — URL /blog/[id] với ID 13-digit).
+ * Auto fallback sang getPostBySlug nếu ID không phải số (legacy slug post).
+ */
+export async function getPostById(idOrSlug: string): Promise<BlogPost | null> {
+  if (!adminReady()) return null;
+  // Thử fetch by doc ID trước
+  try {
+    const snap = await adminDb().collection('posts').doc(idOrSlug).get();
+    if (snap.exists) {
+      const data = snap.data();
+      if (data?.status === 'published') {
+        return normalize(snap.id, data);
+      }
+    }
+  } catch (err) {
+    console.warn('[blog] getPostById direct fail:', err);
+  }
+  // Fallback: thử as slug (cho post legacy)
+  return getPostBySlug(idOrSlug);
+}
+
+/**
  * Get all unique tags từ published posts (cho filter sidebar).
  */
 export async function getAllTags(): Promise<{ tag: string; count: number }[]> {

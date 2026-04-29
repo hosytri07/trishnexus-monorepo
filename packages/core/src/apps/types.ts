@@ -8,7 +8,16 @@
  * Phase 14.0 (2026-04-23): tách khỏi website/lib/apps.ts.
  */
 
-export type AppStatus = 'released' | 'coming_soon' | 'beta';
+/**
+ * Phase 19.22 — thêm 'scheduled' (đã code, chờ release_at) + 'deprecated'
+ * (app gộp vào TrishLibrary, không còn release riêng).
+ */
+export type AppStatus =
+  | 'released'
+  | 'coming_soon'
+  | 'beta'
+  | 'scheduled'
+  | 'deprecated';
 
 /**
  * Mức auth cần để tải/chạy app.
@@ -53,6 +62,8 @@ export type AppRegistryEntry = {
   version: string;
   size_bytes: number;
   status: AppStatus;
+  /** Phase 19.22 — ISO timestamp (with timezone). Chỉ status='scheduled' mới dùng. */
+  release_at?: string;
   login_required: LoginRequired;
   platforms: Platform[];
   screenshots: string[];

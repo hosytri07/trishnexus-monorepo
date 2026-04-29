@@ -1,17 +1,21 @@
 'use client';
 
 /**
- * AnnouncementsBanner — thanh thông báo admin đầu dashboard.
+ * AnnouncementsBanner — Phase 19.22 (rewrite).
  *
- * Lọc announcement active theo:
- *   - Trong khoảng [starts_at, expires_at]
- *   - Audience: 'all' hoặc 'guests' (chưa có auth → treat mọi người như guest)
- *   - Chưa bị dismiss (localStorage 'trishteam:dismissed')
+ * Subscribe Firestore /announcements (admin tạo qua /admin/announcements).
+ * Fallback static `data/announcements.ts` nếu Firestore trống/lỗi.
  *
- * Ưu tiên theo severity: critical > warning > info > success.
- * Chỉ hiện 1 announcement cao nhất tại 1 thời điểm cho gọn.
+ * Lọc:
+ *   - active === true
+ *   - startAt <= now <= endAt (nếu có)
+ *   - Chưa bị dismiss (localStorage)
+ *
+ * Ưu tiên kind: danger > warning > info > success.
+ * Hiện 1 announcement cao nhất tại 1 thời điểm.
  */
 import { useEffect, useMemo, useState } from 'react';
+import { collection, onSnapshot } from 'firebase/firestore';
 import {
   AlertCircle,
   AlertTriangle,
@@ -19,24 +23,37 @@ import {
   ExternalLink,
   Info,
   X,
+  XCircle,
 } from 'lucide-react';
-import {
-  ANNOUNCEMENTS,
-  type Announcement,
-  type AnnouncementSeverity,
-} from '@/data/announcements';
+import { db, firebaseReady } from '@/lib/firebase';
+import { ANNOUNCEMENTS as STATIC_ANNOUNCEMENTS } from '@/data/announcements';
+
+type Kind = 'info' | 'success' | 'warning' | 'danger' | 'critical';
+
+interface BannerEntry {
+  id: string;
+  kind: Kind;
+  title: string;
+  message: string;
+  link?: { label: string; href: string };
+  startAt: number | null;
+  endAt: number | null;
+  dismissible: boolean;
+  active: boolean;
+}
 
 const DISMISS_KEY = 'trishteam:dismissed';
 
-const SEVERITY_ORDER: Record<AnnouncementSeverity, number> = {
+const KIND_ORDER: Record<Kind, number> = {
   critical: 0,
+  danger: 0,
   warning: 1,
   info: 2,
   success: 3,
 };
 
-const SEVERITY_STYLE: Record<
-  AnnouncementSeverity,
+const KIND_STYLE: Record<
+  Kind,
   { bg: string; border: string; color: string; Icon: typeof Info }
 > = {
   critical: {
@@ -44,6 +61,12 @@ const SEVERITY_STYLE: Record<
     border: 'rgba(239,68,68,0.35)',
     color: '#EF4444',
     Icon: AlertCircle,
+  },
+  danger: {
+    bg: 'rgba(239,68,68,0.12)',
+    border: 'rgba(239,68,68,0.35)',
+    color: '#EF4444',
+    Icon: XCircle,
   },
   warning: {
     bg: 'rgba(245,158,11,0.12)',
@@ -84,35 +107,94 @@ function saveDismissed(ids: string[]): void {
   }
 }
 
-function isActive(a: Announcement, now: number): boolean {
-  if (a.starts_at && new Date(a.starts_at).getTime() > now) return false;
-  if (a.expires_at && new Date(a.expires_at).getTime() < now) return false;
-  // Chưa có auth → audience 'users' tạm ẩn, còn 'all' + 'guests' show.
-  if (a.audience === 'users') return false;
+function staticToBanner(): BannerEntry[] {
+  return STATIC_ANNOUNCEMENTS.map((a) => ({
+    id: a.id,
+    kind: a.severity === 'critical' ? 'critical' : (a.severity as Kind),
+    title: a.title,
+    message: a.body ?? '',
+    link: a.link,
+    startAt: a.starts_at ? new Date(a.starts_at).getTime() : null,
+    endAt: a.expires_at ? new Date(a.expires_at).getTime() : null,
+    dismissible: a.dismissible ?? true,
+    active: true,
+  }));
+}
+
+function isVisible(b: BannerEntry, now: number): boolean {
+  if (!b.active) return false;
+  if (b.startAt && b.startAt > now) return false;
+  if (b.endAt && b.endAt < now) return false;
   return true;
 }
 
 export function AnnouncementsBanner() {
   const [mounted, setMounted] = useState(false);
   const [dismissed, setDismissed] = useState<string[]>([]);
+  const [entries, setEntries] = useState<BannerEntry[]>(() => staticToBanner());
 
+  // Mount + load dismissed
   useEffect(() => {
     setMounted(true);
     setDismissed(loadDismissed());
   }, []);
 
-  const active = useMemo<Announcement | null>(() => {
+  // Subscribe Firestore
+  useEffect(() => {
+    if (!firebaseReady || !db) return;
+    const unsub = onSnapshot(
+      collection(db, 'announcements'),
+      (snap) => {
+        if (snap.empty) {
+          setEntries(staticToBanner());
+          return;
+        }
+        const list: BannerEntry[] = snap.docs.map((d) => {
+          const data = d.data();
+          const start =
+            (data.startAt as { toMillis?: () => number } | undefined)?.toMillis?.() ??
+            (typeof data.startAt === 'number' ? (data.startAt as number) : null);
+          const end =
+            (data.endAt as { toMillis?: () => number } | undefined)?.toMillis?.() ??
+            (typeof data.endAt === 'number' ? (data.endAt as number) : null);
+          const k = (data.kind as string) ?? 'info';
+          const kind: Kind = ['info', 'success', 'warning', 'danger', 'critical'].includes(k)
+            ? (k as Kind)
+            : 'info';
+          return {
+            id: d.id,
+            kind,
+            title: (data.title as string) ?? '',
+            message: (data.message as string) ?? (data.body as string) ?? '',
+            link: data.link as { label: string; href: string } | undefined,
+            startAt: start,
+            endAt: end,
+            dismissible: (data.dismissible as boolean) ?? true,
+            active: (data.active as boolean) ?? true,
+          };
+        });
+        setEntries(list);
+      },
+      (err) => {
+        console.warn('[banner] subscribe fail, fallback static:', err);
+        setEntries(staticToBanner());
+      },
+    );
+    return () => unsub();
+  }, []);
+
+  const active = useMemo<BannerEntry | null>(() => {
     if (!mounted) return null;
     const now = Date.now();
-    const list = ANNOUNCEMENTS.filter(
-      (a) => isActive(a, now) && !dismissed.includes(a.id)
-    ).sort((a, b) => SEVERITY_ORDER[a.severity] - SEVERITY_ORDER[b.severity]);
-    return list[0] ?? null;
-  }, [mounted, dismissed]);
+    const visible = entries
+      .filter((b) => isVisible(b, now) && !dismissed.includes(b.id))
+      .sort((a, b) => KIND_ORDER[a.kind] - KIND_ORDER[b.kind]);
+    return visible[0] ?? null;
+  }, [mounted, entries, dismissed]);
 
   if (!mounted || !active) return null;
 
-  const style = SEVERITY_STYLE[active.severity];
+  const style = KIND_STYLE[active.kind] ?? KIND_STYLE.info;
   const { Icon } = style;
 
   function handleDismiss() {
@@ -131,27 +213,20 @@ export function AnnouncementsBanner() {
         border: `1px solid ${style.border}`,
       }}
     >
-      <span
-        aria-hidden="true"
-        className="shrink-0 mt-0.5"
-        style={{ color: style.color }}
-      >
+      <span aria-hidden="true" className="shrink-0 mt-0.5" style={{ color: style.color }}>
         <Icon size={18} strokeWidth={2} />
       </span>
 
       <div className="min-w-0 flex-1">
-        <div
-          className="text-sm font-semibold"
-          style={{ color: 'var(--color-text-primary)' }}
-        >
+        <div className="text-sm font-semibold" style={{ color: 'var(--color-text-primary)' }}>
           {active.title}
         </div>
-        {active.body && (
+        {active.message && (
           <div
             className="text-xs mt-0.5 leading-relaxed"
             style={{ color: 'var(--color-text-secondary)' }}
           >
-            {active.body}
+            {active.message}
           </div>
         )}
         {active.link && (
@@ -160,9 +235,7 @@ export function AnnouncementsBanner() {
             className="inline-flex items-center gap-1 text-xs font-semibold mt-1.5 hover:opacity-80 transition-opacity"
             style={{ color: style.color }}
             target={active.link.href.startsWith('http') ? '_blank' : undefined}
-            rel={
-              active.link.href.startsWith('http') ? 'noopener noreferrer' : undefined
-            }
+            rel={active.link.href.startsWith('http') ? 'noopener noreferrer' : undefined}
           >
             {active.link.label}
             <ExternalLink size={10} strokeWidth={2} />
@@ -170,7 +243,7 @@ export function AnnouncementsBanner() {
         )}
       </div>
 
-      {(active.dismissible ?? true) && (
+      {active.dismissible && (
         <button
           type="button"
           onClick={handleDismiss}

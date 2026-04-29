@@ -66,20 +66,6 @@ const CHARITIES: Charity[] = [
     defaultMemo: 'Ung ho quy vi nguoi ngheo',
     accent: '#F59E0B',
   },
-  {
-    id: 'vaccine-fund',
-    name: 'Quỹ Vắc-xin phòng COVID-19',
-    organization: 'Bộ Y tế Việt Nam',
-    description:
-      'Quỹ chuyên biệt phục vụ tiêm chủng vắc-xin COVID-19 và bệnh truyền nhiễm khác — vẫn duy trì cho các chiến dịch tiêm phòng quy mô.',
-    bank: 'BIDV CN Hà Thành',
-    bankCode: 'BIDV',
-    account: '21110009993399',
-    accountName: 'QUY VAC XIN PHONG COVID 19',
-    website: 'https://quyvacxincovid19.gov.vn',
-    defaultMemo: 'Ung ho quy vac xin',
-    accent: '#06B6D4',
-  },
 ];
 
 function vietQrUrl(c: Charity, size: 'compact' | 'large' = 'compact'): string {

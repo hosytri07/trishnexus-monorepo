@@ -42,6 +42,7 @@ interface SignImageDoc {
 
 export default function AdminSignsPage() {
   const { user } = useAuth();
+  const [ConfirmDialog, askConfirm] = useConfirm();
   const [allSigns, setAllSigns] = useState<TrafficSign[] | null>(null);
   const [overrides, setOverrides] = useState<Record<string, SignImageDoc>>({});
   const [activeGroup, setActiveGroup] = useState<SignGroup | 'all'>('all');

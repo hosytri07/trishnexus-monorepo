@@ -314,6 +314,7 @@ const TEMPLATES: { id: string; name: string; description: string; body: string }
 
 export default function TaiLieuPage() {
   const { user, isAuthenticated, loading, isPaid } = useAuth();
+  const [ConfirmDialog, askConfirm] = useConfirm();
   const [docs, setDocs] = useState<DocumentItem[] | null>(null);
   const [activeId, setActiveId] = useState<string | null>(null);
   const [draft, setDraft] = useState<{ title: string; body: string }>({ title: '', body: '' });

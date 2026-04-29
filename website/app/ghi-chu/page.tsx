@@ -56,6 +56,7 @@ const SAVE_DEBOUNCE_MS = 800;
 
 export default function GhiChuPage() {
   const { user, isAuthenticated, loading, isPaid } = useAuth();
+  const [ConfirmDialog, askConfirm] = useConfirm();
   const [notes, setNotes] = useState<NoteDoc[] | null>(null);
   const [activeId, setActiveId] = useState<string | null>(null);
   const [draft, setDraft] = useState<{ title: string; body: string }>({

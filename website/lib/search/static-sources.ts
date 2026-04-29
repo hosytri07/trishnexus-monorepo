@@ -195,8 +195,8 @@ export const NAV_ITEMS: SearchableItem[] = [
   {
     id: 'nav:ung-ho',
     category: 'nav',
-    title: 'Ủng hộ — Quỹ từ thiện VN',
-    subtitle: '4 quỹ chính thức + VietQR',
+    title: 'Ủng hộ tôi — Quỹ từ thiện VN',
+    subtitle: '3 quỹ chính thức + VietQR',
     keywords: ['ung ho', 'donate', 'tu thien', 'charity', 'quy'],
     href: '/ung-ho',
   },

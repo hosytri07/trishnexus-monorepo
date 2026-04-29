@@ -11,6 +11,7 @@
  *   - CTA: Tải xuống / Xem changelog / Yêu cầu sớm ra
  */
 import { useState } from 'react';
+import Link from 'next/link';
 import { Calendar, Download, ExternalLink, HardDrive, Lock, Package, User, KeyRound, Gem } from 'lucide-react';
 import { Modal } from '@/components/modal/modal';
 import {
@@ -18,8 +19,11 @@ import {
   statusLabel,
   formatSize,
   formatReleaseDate,
+  isReleaseAvailable,
+  getReleaseAt,
 } from '@/lib/apps';
 import { resolveAppIcon } from '@/lib/app-icons';
+import { CountdownClock } from '@/components/countdown-clock';
 
 type Props = {
   app: AppForWebsite | null;
@@ -45,11 +49,13 @@ const LoginLabel = {
 } as const;
 
 function StatusBadge({ status }: { status: AppForWebsite['status'] }) {
-  const map = {
+  const map: Record<AppForWebsite['status'], { bg: string; fg: string; dot: string }> = {
     released: { bg: 'rgba(16,185,129,0.12)', fg: '#10B981', dot: '#10B981' },
     beta: { bg: 'rgba(245,158,11,0.12)', fg: '#F59E0B', dot: '#F59E0B' },
+    scheduled: { bg: 'rgba(245,158,11,0.12)', fg: '#F59E0B', dot: '#F59E0B' },
     coming_soon: { bg: 'rgba(160,152,144,0.15)', fg: 'var(--color-text-muted)', dot: 'var(--color-text-muted)' },
-  } as const;
+    deprecated: { bg: 'rgba(239,68,68,0.12)', fg: '#EF4444', dot: '#EF4444' },
+  };
   const style = map[status] ?? map.coming_soon;
 
   return (
@@ -110,8 +116,9 @@ export function AppDetailModal({ app, onClose }: Props) {
   if (!app) return null;
   const LoginIconCmp = LoginIcon[app.login_required] ?? Package;
   const loginLabel = LoginLabel[app.login_required] ?? app.login_required;
-  const downloadEntry = app.download?.windows_x64;
-  const canDownload = app.status === 'released' && !!downloadEntry?.url;
+  const canDownload = isReleaseAvailable(app);
+  const releaseAt = getReleaseAt(app);
+  const isScheduled = app.status === 'scheduled' && !canDownload;
 
   return (
     <Modal open={!!app} onClose={onClose} title={app.name}>
@@ -221,16 +228,48 @@ export function AppDetailModal({ app, onClose }: Props) {
           </div>
         )}
 
+        {/* Scheduled banner with realtime countdown */}
+        {isScheduled && releaseAt ? (
+          <div
+            className="px-4 py-3 rounded-lg flex flex-col sm:flex-row items-start sm:items-center gap-3 sm:gap-4"
+            style={{
+              background: 'rgba(245,158,11,0.12)',
+              color: '#B45309',
+              border: '1px solid rgba(245,158,11,0.35)',
+            }}
+          >
+            <div className="flex items-center gap-2 shrink-0">
+              <Calendar size={16} />
+              <div>
+                <div className="text-xs font-semibold uppercase tracking-wide opacity-80">
+                  Phát hành
+                </div>
+                <div className="text-sm font-bold">{formatReleaseDate(releaseAt)}</div>
+              </div>
+            </div>
+            <div className="h-px sm:h-8 w-full sm:w-px" style={{ background: 'currentColor', opacity: 0.2 }} />
+            <div>
+              <div className="text-xs font-semibold uppercase tracking-wide opacity-80">
+                Còn
+              </div>
+              <CountdownClock
+                releaseAt={releaseAt}
+                showIcon={false}
+                className="text-base font-bold"
+              />
+            </div>
+          </div>
+        ) : null}
+
         {/* Actions */}
         <div
           className="flex flex-wrap gap-2 pt-4 border-t"
           style={{ borderColor: 'var(--color-border-subtle)' }}
         >
           {canDownload ? (
-            <a
-              href={downloadEntry!.url}
-              target="_blank"
-              rel="noopener noreferrer"
+            <Link
+              href={`/downloads#${app.id}`}
+              onClick={onClose}
               className="inline-flex items-center gap-2 px-4 h-10 rounded-md font-semibold text-sm transition-opacity hover:opacity-90"
               style={{
                 background: 'var(--color-accent-gradient)',
@@ -238,8 +277,22 @@ export function AppDetailModal({ app, onClose }: Props) {
               }}
             >
               <Download size={14} strokeWidth={2.25} />
-              Tải xuống
-            </a>
+              Đến trang tải về
+            </Link>
+          ) : isScheduled ? (
+            <Link
+              href={`/downloads#${app.id}`}
+              onClick={onClose}
+              className="inline-flex items-center gap-2 px-4 h-10 rounded-md font-semibold text-sm border"
+              style={{
+                background: 'var(--color-surface-muted)',
+                color: 'var(--color-text-primary)',
+                borderColor: 'var(--color-border-default)',
+              }}
+            >
+              <Calendar size={14} strokeWidth={2.25} />
+              Xem lịch phát hành
+            </Link>
           ) : (
             <button
               type="button"

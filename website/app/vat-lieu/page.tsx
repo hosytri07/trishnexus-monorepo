@@ -3,7 +3,7 @@
 /**
  * /vat-lieu — Phase 19.20 — Vật liệu xây dựng catalog.
  */
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { ArrowLeft, Package, Search, X } from 'lucide-react';
 import {
@@ -12,15 +12,21 @@ import {
   CATEGORY_CONFIGS,
   MATERIALS,
 } from '@/data/materials';
+import { fetchMaterials } from '@/lib/databases-fetch';
 
 export default function VatLieuPage() {
+  const [materials, setMaterials] = useState<MaterialItem[]>(MATERIALS);
   const [activeCategory, setActiveCategory] = useState<MaterialCategory | 'all'>('all');
   const [search, setSearch] = useState('');
   const [selected, setSelected] = useState<MaterialItem | null>(null);
 
+  useEffect(() => {
+    fetchMaterials().then(setMaterials);
+  }, []);
+
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
-    return MATERIALS.filter((m) => {
+    return materials.filter((m) => {
       if (activeCategory !== 'all' && m.category !== activeCategory) return false;
       if (!q) return true;
       return (
@@ -30,7 +36,7 @@ export default function VatLieuPage() {
         (m.brands ?? []).some((b) => b.toLowerCase().includes(q))
       );
     });
-  }, [activeCategory, search]);
+  }, [activeCategory, search, materials]);
 
   const categories = Object.values(CATEGORY_CONFIGS);
 
@@ -54,7 +60,7 @@ export default function VatLieuPage() {
             className="inline-flex items-center px-2 h-5 rounded text-[10px] font-bold uppercase tracking-wide"
             style={{ background: 'var(--color-accent-soft)', color: 'var(--color-accent-primary)' }}
           >
-            {MATERIALS.length} loại
+            {materials.length} loại
           </span>
         </div>
         <p className="text-base" style={{ color: 'var(--color-text-secondary)' }}>
@@ -84,11 +90,11 @@ export default function VatLieuPage() {
         <Chip
           active={activeCategory === 'all'}
           onClick={() => setActiveCategory('all')}
-          label={`Tất cả (${MATERIALS.length})`}
+          label={`Tất cả (${materials.length})`}
           color="#9CA3AF"
         />
         {categories.map((c) => {
-          const count = MATERIALS.filter((m) => m.category === c.id).length;
+          const count = materials.filter((m) => m.category === c.id).length;
           return (
             <Chip
               key={c.id}

@@ -2,6 +2,8 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { ArrowLeft, Copy, Link2, Loader2 } from 'lucide-react';
+import { getIdToken } from 'firebase/auth';
+import { auth } from '@/lib/firebase';
 
 export default function RutGonLinkPage() {
   const [url, setUrl] = useState('');
@@ -17,9 +19,19 @@ export default function RutGonLinkPage() {
     setError(null);
     setShort(null);
     try {
+      // Optional: gửi ID token nếu đã login để track created_by_uid
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      if (auth?.currentUser) {
+        try {
+          const t = await getIdToken(auth.currentUser);
+          headers.Authorization = `Bearer ${t}`;
+        } catch {
+          // ignore, anonymous OK
+        }
+      }
       const res = await fetch('/api/shorten', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers,
         body: JSON.stringify({ url: url.trim() }),
       });
       const data = await res.json();
@@ -54,7 +66,7 @@ export default function RutGonLinkPage() {
           </h1>
         </div>
         <p className="text-base" style={{ color: 'var(--color-text-secondary)' }}>
-          Rút gọn URL dài thành link ngắn dễ chia sẻ. Dùng dịch vụ public is.gd / TinyURL — không lưu URL của anh.
+          Rút gọn URL dài thành link ngắn dễ chia sẻ. Link tạo trên domain trishteam.io.vn — vĩnh viễn không expire.
         </p>
       </header>
 
@@ -104,7 +116,7 @@ export default function RutGonLinkPage() {
       </section>
 
       <p className="text-xs" style={{ color: 'var(--color-text-muted)' }}>
-        💡 Link ngắn vĩnh viễn (is.gd / TinyURL không expire). Tránh dùng cho URL nhạy cảm vì service public có thể log.
+        💡 Link ngắn lưu trên Firestore TrishTEAM, vĩnh viễn không expire, có thể track click count. Đăng nhập để track ai tạo link.
       </p>
     </main>
   );

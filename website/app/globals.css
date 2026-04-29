@@ -48,6 +48,36 @@ html {
   outline-offset: 2px;
 }
 
+/*
+ * === Phase 19.22 — Form controls dropdown ===
+ * Browser native <select> dropdown panel mặc định dùng OS theme. Trong dark
+ * mode website, options có color text trắng → render trên panel trắng OS →
+ * không đọc được. Set color-scheme báo browser pick theme phù hợp.
+ *
+ * Áp cho tất cả select/input/textarea trong site — nhất quán toàn bộ.
+ */
+select,
+input[type='date'],
+input[type='datetime-local'],
+input[type='time'],
+input[type='month'],
+input[type='week'],
+input[type='color'],
+input[type='number'] {
+  color-scheme: dark light;
+}
+
+/* Force option text contrast */
+select option {
+  color: #111;
+  background: #fff;
+}
+
+[data-theme='dark'] select option {
+  color: #f3f4f6;
+  background: #1f1d1a;
+}
+
 /* ============================================================
    Blog Markdown Prose — Phase 19.2
    ============================================================ */

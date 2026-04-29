@@ -3,7 +3,7 @@
 /**
  * /duong-vn — Phase 19.20 — Database đường VN.
  */
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { ArrowLeft, MapPin, Route, Search, X } from 'lucide-react';
 import {
@@ -13,15 +13,21 @@ import {
   ROADS,
   STATUS_LABELS,
 } from '@/data/roads-vn';
+import { fetchRoads } from '@/lib/databases-fetch';
 
 export default function DuongVnPage() {
+  const [roads, setRoads] = useState<Road[]>(ROADS);
   const [activeType, setActiveType] = useState<RoadType | 'all'>('all');
   const [search, setSearch] = useState('');
   const [selected, setSelected] = useState<Road | null>(null);
 
+  useEffect(() => {
+    fetchRoads().then(setRoads);
+  }, []);
+
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
-    return ROADS.filter((r) => {
+    return roads.filter((r) => {
       if (activeType !== 'all' && r.type !== activeType) return false;
       if (!q) return true;
       return (
@@ -32,7 +38,7 @@ export default function DuongVnPage() {
         r.provinces.some((p) => p.toLowerCase().includes(q))
       );
     });
-  }, [activeType, search]);
+  }, [activeType, search, roads]);
 
   return (
     <main className="max-w-5xl mx-auto px-6 py-8">
@@ -50,7 +56,7 @@ export default function DuongVnPage() {
             className="inline-flex items-center px-2 h-5 rounded text-[10px] font-bold uppercase tracking-wide"
             style={{ background: 'var(--color-accent-soft)', color: 'var(--color-accent-primary)' }}
           >
-            {ROADS.length} tuyến
+            {roads.length} tuyến
           </span>
         </div>
         <p className="text-base" style={{ color: 'var(--color-text-secondary)' }}>
@@ -71,9 +77,9 @@ export default function DuongVnPage() {
       </div>
 
       <div className="flex flex-wrap gap-2 mb-5">
-        <Chip active={activeType === 'all'} onClick={() => setActiveType('all')} label={`Tất cả (${ROADS.length})`} color="#9CA3AF" />
+        <Chip active={activeType === 'all'} onClick={() => setActiveType('all')} label={`Tất cả (${roads.length})`} color="#9CA3AF" />
         {Object.values(ROAD_TYPE_CONFIGS).map((c) => {
-          const count = ROADS.filter((r) => r.type === c.type).length;
+          const count = roads.filter((r) => r.type === c.type).length;
           if (count === 0) return null;
           return (
             <Chip

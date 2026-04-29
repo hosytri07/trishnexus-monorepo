@@ -85,6 +85,7 @@ function toRow(id: string, data: Record<string, unknown>): AnnRow {
 
 export default function AdminAnnouncementsPage() {
   const { user: me } = useAuth();
+  const [ConfirmDialog, askConfirm] = useConfirm();
   const [rows, setRows] = useState<AnnRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);

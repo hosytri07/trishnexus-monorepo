@@ -74,11 +74,18 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'invalid_json' }, { status: 400 });
   }
   const uid = body.uid?.trim();
-  const role = body.role === 'admin' ? 'admin' : body.role === 'user' ? 'user' : null;
+  const role =
+    body.role === 'admin'
+      ? 'admin'
+      : body.role === 'user'
+        ? 'user'
+        : body.role === 'trial'
+          ? 'trial'
+          : null;
   if (!uid || !role) {
     return NextResponse.json({ error: 'missing_fields' }, { status: 400 });
   }
-  if (uid === caller.decoded.uid && role === 'user') {
+  if (uid === caller.decoded.uid && role !== 'admin') {
     return NextResponse.json(
       { error: 'cannot_demote_self' },
       { status: 422 },
@@ -98,10 +105,15 @@ export async function POST(req: NextRequest) {
     await auth.setCustomUserClaims(uid, claims);
 
     // 2. Update Firestore doc
+    const planMap: Record<string, string> = {
+      admin: 'Admin',
+      user: 'Pro',
+      trial: 'Trial',
+    };
     await db.collection('users').doc(uid).set(
       {
         role,
-        plan: role === 'admin' ? 'Admin' : 'Free',
+        plan: planMap[role] ?? 'Free',
         updatedAt: FieldValue.serverTimestamp(),
       },
       { merge: true },

@@ -1,9 +1,8 @@
 @echo off
 chcp 65001 >nul 2>&1
-title TrishNexus - Bat dau lam viec
+title TrishNexus - Bat dau phien
 
 REM === Tu dong tim monorepo ===
-REM File nay co the dat o USB root HOAC trong monorepo/scripts/
 if exist "%~dp0..\.git" (
     cd /d "%~dp0.."
 ) else if exist "%~dp0trishnexus-monorepo\.git" (
@@ -11,23 +10,59 @@ if exist "%~dp0..\.git" (
 ) else (
     echo.
     echo  [LOI] Khong tim thay trishnexus-monorepo.
-    echo        Dat file .bat nay o USB root hoac trong monorepo\scripts\
+    echo        Dat file .bat nay o monorepo\scripts\
     echo.
     pause
     exit /b 1
 )
 
+REM === Detect machine label (home / office) ===
+set "MACHINE=unknown"
+if exist ".machine-label" (
+    set /p MACHINE=<.machine-label
+) else (
+    cls
+    echo.
+    echo  ============================================
+    echo     LAN DAU TIEN TREN MAY NAY
+    echo  ============================================
+    echo.
+    echo   May nay la may NHA hay may CO QUAN?
+    echo.
+    echo     [1] May NHA
+    echo     [2] May CO QUAN
+    echo.
+    set /p choice="  Chon (1/2): "
+    if "%choice%"=="1" (
+        echo home> .machine-label
+        set "MACHINE=home"
+    ) else if "%choice%"=="2" (
+        echo office> .machine-label
+        set "MACHINE=office"
+    ) else (
+        echo unknown> .machine-label
+        set "MACHINE=unknown"
+    )
+)
+
 cls
 echo.
 echo  ============================================
-echo     TrishNexus  --  BAT DAU NGAY LAM VIEC
+if "%MACHINE%"=="home" (
+    echo     TrishNexus  --  PHIEN MAY NHA
+) else if "%MACHINE%"=="office" (
+    echo     TrishNexus  --  PHIEN MAY CO QUAN
+) else (
+    echo     TrishNexus  --  BAT DAU PHIEN
+)
 echo  ============================================
 echo.
 echo   Project: %cd%
+echo   Computer: %COMPUTERNAME%
 echo.
 echo  --------------------------------------------
 echo.
-echo   [1/2] Keo code moi nhat tu GitHub...
+echo   [1/3] Keo code moi nhat tu GitHub...
 echo.
 git pull origin main
 if errorlevel 1 (
@@ -47,7 +82,6 @@ if errorlevel 1 (
 echo.
 echo   [2/3] Cai node_modules (pnpm install)...
 echo.
-REM Chi chay pnpm install neu co pnpm-workspace.yaml (monorepo Phase 14+)
 if exist pnpm-workspace.yaml (
     where pnpm >nul 2>&1
     if errorlevel 1 (
@@ -59,44 +93,36 @@ if exist pnpm-workspace.yaml (
     if errorlevel 1 (
         echo.
         echo  --------------------------------------------
-        echo   [!] pnpm install that bai. Co the do:
-        echo       - Mat internet
-        echo       - Node version qua cu (can ^>= 18)
-        echo.
-        echo   Mo Cowork Desktop va nhan tin cho Claude de fix.
+        echo   [!] pnpm install that bai.
+        echo       Mo Cowork Desktop va nhan tin cho Claude.
         echo  --------------------------------------------
         echo.
         pause
         exit /b 1
     )
-) else (
-    echo   (Khong phai monorepo Node - bo qua)
 )
 
 echo.
-echo   [3/3] Kiem tra file con dang do...
+echo   [3/3] Kiem tra file dang do...
 echo.
 git status --short
 echo.
 echo  ============================================
-echo     SAN SANG  --  Mo Cowork Desktop!
+if "%MACHINE%"=="home" (
+    echo     SAN SANG  --  PHIEN MAY NHA
+) else if "%MACHINE%"=="office" (
+    echo     SAN SANG  --  PHIEN MAY CO QUAN
+) else (
+    echo     SAN SANG
+)
 echo  ============================================
 echo.
-echo   Mo chat moi -^> paste cau hoi:
+echo   Mo Cowork Desktop ^> chat moi ^> paste:
 echo.
-echo     "Doc handoff de tiep tuc project:"
-echo     "docs/HANDOFF-WEBSITE-PHASE-19.md"
+echo     "tiep tuc"
 echo.
-echo     (Neu lam desktop apps thi doc:
-echo      docs/HANDOFF-TRISHLIBRARY-3.0.md)
-echo.
-echo   Claude se doc handoff va biet phai lam gi tiep.
-echo.
-echo   Neu can deploy Firestore rules moi:
-echo     scripts\DEPLOY-RULES.bat
-echo.
-echo   Neu can chay TrishAdmin (test phase 18.7+):
-echo     scripts\RUN-TRISHADMIN.bat
+echo   Claude se doc docs/HANDOFF-MASTER.md va biet
+echo   phai lam gi tiep theo.
 echo.
 echo   Cua so nay co the dong.
 echo.

@@ -15,7 +15,6 @@ import { ArrowLeft, Search, Signpost, X } from 'lucide-react';
 import { collection, onSnapshot } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import {
-  type SignGroup,
   type TrafficSign,
   SIGN_GROUP_CONFIGS,
   fetchAllSigns,
@@ -27,7 +26,6 @@ import { buildImageUrl } from '@/lib/cloudinary';
 export default function BienBaoPage() {
   const [allSigns, setAllSigns] = useState<TrafficSign[] | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
-  const [activeGroup, setActiveGroup] = useState<SignGroup | 'all'>('all');
   const [search, setSearch] = useState('');
   const [selected, setSelected] = useState<TrafficSign | null>(null);
   const [overrides, setOverrides] = useState<Record<string, string>>({});
@@ -59,15 +57,14 @@ export default function BienBaoPage() {
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
     return (allSigns ?? []).filter((s) => {
-      if (activeGroup !== 'all' && s.group !== activeGroup) return false;
       if (!q) return true;
       return (
         s.code.toLowerCase().includes(q) ||
         s.name.toLowerCase().includes(q) ||
-        s.meaning.toLowerCase().includes(q)
+        (s.meaning ?? '').toLowerCase().includes(q)
       );
     });
-  }, [activeGroup, search, allSigns]);
+  }, [search, allSigns]);
 
   const groups = Object.values(SIGN_GROUP_CONFIGS);
 
@@ -139,34 +136,35 @@ export default function BienBaoPage() {
         />
       </div>
 
-      {/* Group filter chips */}
-      <div className="flex flex-wrap gap-2 mb-6">
-        <FilterChip
-          active={activeGroup === 'all'}
-          onClick={() => setActiveGroup('all')}
-          label={`Tất cả (${(allSigns?.length ?? 0)})`}
-          color="#9CA3AF"
-        />
+      {/* Quick nav jump - 7 nhóm */}
+      <nav className="flex flex-wrap gap-2 mb-6 sticky top-0 z-10 py-2" style={{ background: 'var(--color-surface-bg, transparent)' }}>
         {groups.map((g) => {
           const count = (allSigns ?? []).filter((s) => s.group === g.group).length;
           return (
-            <FilterChip
+            <a
               key={g.group}
-              active={activeGroup === g.group}
-              onClick={() => setActiveGroup(g.group)}
-              label={`${g.shortName} (${count})`}
-              color={g.color}
-            />
+              href={`#${g.group}`}
+              className="inline-flex items-center px-3 h-7 rounded-full text-xs font-semibold transition-all hover:opacity-80"
+              style={{
+                background: g.color + '14',
+                color: g.color,
+                border: `1px solid ${g.color}33`,
+              }}
+            >
+              {g.shortName} <span className="ml-1.5 opacity-70">({count})</span>
+            </a>
           );
         })}
-      </div>
+      </nav>
 
-      {/* Result count */}
-      <p className="text-xs mb-4" style={{ color: 'var(--color-text-muted)' }}>
-        {filtered.length} biển khớp
-      </p>
+      {/* Result count khi search */}
+      {search.trim() && (
+        <p className="text-xs mb-4" style={{ color: 'var(--color-text-muted)' }}>
+          {filtered.length} biển khớp "{search}"
+        </p>
+      )}
 
-      {/* Grid */}
+      {/* Section riêng cho từng nhóm */}
       {filtered.length === 0 ? (
         <div
           className="rounded-xl border p-10 text-center"
@@ -177,15 +175,48 @@ export default function BienBaoPage() {
           </p>
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-          {filtered.map((sign) => (
-            <SignCard
-              key={sign.code}
-              sign={sign}
-              cloudinaryId={overrides[sign.code]}
-              onClick={() => setSelected(sign)}
-            />
-          ))}
+        <div className="space-y-10">
+          {groups.map((g) => {
+            const groupSigns = filtered.filter((s) => s.group === g.group);
+            if (groupSigns.length === 0) return null;
+            return (
+              <section key={g.group} id={g.group} className="scroll-mt-4">
+                <header
+                  className="flex items-baseline gap-3 mb-4 pb-3 border-b-2"
+                  style={{ borderColor: g.color }}
+                >
+                  <h2
+                    className="text-2xl md:text-3xl font-bold"
+                    style={{ color: g.color }}
+                  >
+                    {g.name}
+                  </h2>
+                  <span
+                    className="text-sm font-semibold"
+                    style={{ color: 'var(--color-text-muted)' }}
+                  >
+                    {groupSigns.length} biển · {g.shape}
+                  </span>
+                </header>
+                <p
+                  className="text-sm mb-4"
+                  style={{ color: 'var(--color-text-secondary)' }}
+                >
+                  {g.description}
+                </p>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                  {groupSigns.map((sign) => (
+                    <SignCard
+                      key={sign.code}
+                      sign={sign}
+                      cloudinaryId={overrides[sign.code]}
+                      onClick={() => setSelected(sign)}
+                    />
+                  ))}
+                </div>
+              </section>
+            );
+          })}
         </div>
       )}
 
@@ -198,33 +229,6 @@ export default function BienBaoPage() {
         />
       )}
     </main>
-  );
-}
-
-function FilterChip({
-  active,
-  onClick,
-  label,
-  color,
-}: {
-  active: boolean;
-  onClick: () => void;
-  label: string;
-  color: string;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className="inline-flex items-center px-3 h-7 rounded-full text-xs font-semibold transition-all"
-      style={{
-        background: active ? color + '22' : 'var(--color-surface-bg_elevated)',
-        color: active ? color : 'var(--color-text-muted)',
-        border: `1px solid ${active ? color + '66' : 'var(--color-border-subtle)'}`,
-      }}
-    >
-      {label}
-    </button>
   );
 }
 
@@ -282,7 +286,7 @@ function SignCard({
         {sign.name}
       </h3>
       <p className="text-xs line-clamp-3" style={{ color: 'var(--color-text-secondary)' }}>
-        {sign.meaning}
+        {sign.meaning ?? ''}
       </p>
     </button>
   );
@@ -362,7 +366,7 @@ function SignDetailModal({
         )}
 
         <div className="space-y-3 text-sm" style={{ color: 'var(--color-text-primary)' }}>
-          <Section label="Ý nghĩa" content={sign.meaning} />
+          <Section label="Ý nghĩa" content={sign.meaning ?? ''} />
           {sign.scope && <Section label="Hiệu lực" content={sign.scope} />}
           {sign.penalty && (
             <Section

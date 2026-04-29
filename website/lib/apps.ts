@@ -32,67 +32,61 @@ import {
 // Re-export types để caller website cũ không phải đổi import path.
 export type { AppStatus, LoginRequired, EcosystemInfo };
 export type AppRegistryEntry = CoreAppRegistryEntry;
-export type AppForWebsite = AppForUi;
+export type AppForWebsite = AppForUi & { release_at?: string };
 
 const REGISTRY = registry as unknown as AppRegistry;
 
 /**
- * TrishLauncher KHÔNG có trong public/apps-registry.json (registry là
- * catalog 9 child apps mà launcher quản lý — không bao gồm chính nó).
- * Website homepage cần show launcher như 1 card → prepend entry này
- * trước 9 apps khác để mergeRegistry kết hợp với APP_META.
- *
- * URL + SHA256 sync với GitHub Release `launcher-v2.0.1`. Khi bump
- * launcher version → update 3 field: version, url, sha256.
- */
-const TRISHLAUNCHER_ENTRY = {
-  id: 'trishlauncher',
-  name: 'TrishLauncher',
-  tagline: 'Hệ sinh thái năng suất cá nhân — cài đặt và quản lý 9 ứng dụng TrishTEAM qua 1 entry',
-  logo_url: 'https://trishteam.io.vn/logos/TrishLauncher/icon-256.png',
-  version: '2.0.1',
-  size_bytes: 5_500_000,
-  status: 'released' as const,
-  login_required: 'none' as const,
-  platforms: ['windows_x64' as const],
-  screenshots: [],
-  changelog_url: 'https://github.com/hosytri07/trishnexus-monorepo/releases/tag/launcher-v2.0.1',
-  download: {
-    windows_x64: {
-      url: 'https://github.com/hosytri07/trishnexus-monorepo/releases/download/launcher-v2.0.1/TrishLauncher_2.0.1_x64-setup.exe',
-      sha256: '16657ef916ba7ad6eedf1c0ef036069e4abb1ad4a6216e60a1e145d05cf586a9',
-      installer_args: [],
-    },
-  },
-};
-
-/**
- * Phase 19.1 — chỉ trả về apps "alive" (released + coming_soon), bỏ deprecated.
- * Sau khi gộp 4 app (Note/Image/Search/Type) vào TrishLibrary 3.0, registry vẫn
- * giữ entry cũ với status='deprecated' để launcher hiện thông báo migration —
- * nhưng homepage website KHÔNG nên show vì gây nhầm lẫn cho user mới.
- *
- * Prepend TrishLauncher (không có trong registry vì nó là hub).
- *
- * Kết quả: 6 app cho ecosystem widget (Launcher · Library · Font · Check · Clean · Design).
+ * Phase 19.22 — Update workflow:
+ *   - TrishLauncher giờ ĐÃ có trong public/apps-registry.json (cùng các app khác)
+ *     không cần prepend hardcode nữa.
+ *   - Status mới `scheduled`: app code đã xong, release_at đặt ngày 04/05/2026.
+ *     Trước thời điểm đó UI hiện countdown, sau đó tự "release" (cho tải).
  */
 export function getAppsForWebsite(): AppForWebsite[] {
-  const augmented: AppRegistry = {
-    ...REGISTRY,
-    apps: [TRISHLAUNCHER_ENTRY as CoreAppRegistryEntry, ...REGISTRY.apps],
-  };
-  const merged = mergeRegistry(augmented, APP_META);
+  const merged = mergeRegistry(REGISTRY, APP_META);
   return merged.filter((a) => a.status !== 'deprecated');
 }
 
-/** Variant trả về cả deprecated app — dùng cho /downloads page (vẫn cần
- *  hiện link cho user cũ tải bản v2 nếu muốn). */
 export function getAllAppsIncludingDeprecated(): AppForWebsite[] {
-  const augmented: AppRegistry = {
-    ...REGISTRY,
-    apps: [TRISHLAUNCHER_ENTRY as CoreAppRegistryEntry, ...REGISTRY.apps],
-  };
-  return mergeRegistry(augmented, APP_META);
+  return mergeRegistry(REGISTRY, APP_META);
+}
+
+/**
+ * Check app có thể tải được chưa.
+ *   - `released` → luôn available
+ *   - `scheduled` → check release_at đã đến chưa
+ *   - khác → false
+ */
+export function isReleaseAvailable(app: AppForWebsite): boolean {
+  if (app.status === 'released') return true;
+  if ((app.status as string) === 'scheduled') {
+    const releaseAt = (app as { release_at?: string }).release_at;
+    if (!releaseAt) return false;
+    return Date.now() >= new Date(releaseAt).getTime();
+  }
+  return false;
+}
+
+/** Format thời gian còn lại đến release_at. Vd "Còn 5 ngày 12 giờ". */
+export function formatCountdown(releaseAt: string | undefined | null): string {
+  if (!releaseAt) return '';
+  const now = Date.now();
+  const target = new Date(releaseAt).getTime();
+  if (isNaN(target)) return '';
+  const diff = target - now;
+  if (diff <= 0) return 'Đã phát hành';
+  const days = Math.floor(diff / 86_400_000);
+  const hours = Math.floor((diff % 86_400_000) / 3_600_000);
+  const mins = Math.floor((diff % 3_600_000) / 60_000);
+  if (days > 0) return `Còn ${days} ngày ${hours} giờ`;
+  if (hours > 0) return `Còn ${hours} giờ ${mins} phút`;
+  return `Còn ${mins} phút`;
+}
+
+/** Lấy release_at (ISO string) từ app entry. */
+export function getReleaseAt(app: AppForWebsite): string | null {
+  return (app as { release_at?: string }).release_at ?? null;
 }
 
 export function getAppById(id: string): AppForWebsite | null {

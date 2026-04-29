@@ -3,7 +3,7 @@
 /**
  * /dinh-muc — Phase 19.20 — Định mức xây dựng (rút gọn).
  */
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { ArrowLeft, Calculator, Search, X } from 'lucide-react';
 import {
@@ -12,16 +12,22 @@ import {
   CONSTRUCTION_NORMS,
   NORM_CATEGORIES,
 } from '@/data/dinh-muc';
+import { fetchConstructionNorms } from '@/lib/databases-fetch';
 
 export default function DinhMucPage() {
+  const [norms, setNorms] = useState<ConstructionNorm[]>(CONSTRUCTION_NORMS);
   const [activeCat, setActiveCat] = useState<NormCategory | 'all'>('all');
   const [search, setSearch] = useState('');
   const [selected, setSelected] = useState<ConstructionNorm | null>(null);
   const [qty, setQty] = useState<number>(1);
 
+  useEffect(() => {
+    fetchConstructionNorms().then(setNorms);
+  }, []);
+
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
-    return CONSTRUCTION_NORMS.filter((n) => {
+    return norms.filter((n) => {
       if (activeCat !== 'all' && n.category !== activeCat) return false;
       if (!q) return true;
       return (
@@ -30,7 +36,7 @@ export default function DinhMucPage() {
         n.description.toLowerCase().includes(q)
       );
     });
-  }, [activeCat, search]);
+  }, [activeCat, search, norms]);
 
   const cats = Object.values(NORM_CATEGORIES);
 
@@ -54,7 +60,7 @@ export default function DinhMucPage() {
             className="inline-flex items-center px-2 h-5 rounded text-[10px] font-bold uppercase tracking-wide"
             style={{ background: 'var(--color-accent-soft)', color: 'var(--color-accent-primary)' }}
           >
-            {CONSTRUCTION_NORMS.length} mã
+            {norms.length} mã
           </span>
         </div>
         <p className="text-base" style={{ color: 'var(--color-text-secondary)' }}>
@@ -82,11 +88,11 @@ export default function DinhMucPage() {
         <Chip
           active={activeCat === 'all'}
           onClick={() => setActiveCat('all')}
-          label={`Tất cả (${CONSTRUCTION_NORMS.length})`}
+          label={`Tất cả (${norms.length})`}
           color="#9CA3AF"
         />
         {cats.map((c) => {
-          const count = CONSTRUCTION_NORMS.filter((n) => n.category === c.id).length;
+          const count = norms.filter((n) => n.category === c.id).length;
           return (
             <Chip
               key={c.id}

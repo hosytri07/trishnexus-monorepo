@@ -89,6 +89,10 @@ export function statusLabel(status: AppStatus): string {
       return 'Beta';
     case 'coming_soon':
       return 'Sắp ra mắt';
+    case 'scheduled':
+      return 'Đặt lịch';
+    case 'deprecated':
+      return 'Đã gộp';
     default:
       return status;
   }

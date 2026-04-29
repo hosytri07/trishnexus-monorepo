@@ -788,6 +788,7 @@ export function QrGeneratorWidget() {
                     background: 'var(--color-surface-muted)',
                     border: '1px solid var(--color-border-default)',
                     color: 'var(--color-text-primary)',
+                    colorScheme: 'dark light',
                   }}
                 >
                   {SIZE_OPTIONS.map((s) => (
@@ -813,6 +814,7 @@ export function QrGeneratorWidget() {
                     background: 'var(--color-surface-muted)',
                     border: '1px solid var(--color-border-default)',
                     color: 'var(--color-text-primary)',
+                    colorScheme: 'dark light',
                   }}
                 >
                   <option value="L">L · 7%</option>

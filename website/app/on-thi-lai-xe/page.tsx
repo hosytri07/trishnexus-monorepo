@@ -33,7 +33,6 @@ import {
   buildExam,
   evaluateExam,
 } from '@/data/driving-questions';
-import { useConfirm } from '@/components/confirm-modal';
 
 type View = 'picker' | 'quiz' | 'result';
 
@@ -171,7 +170,6 @@ export default function DrivingExamPage() {
 function PickerView({ onStart }: { onStart: (m: DrivingMode) => void }) {
   return (
     <main className="max-w-4xl mx-auto px-6 py-10">
-      <ConfirmDialog />
       <Link
         href="/"
         className="inline-flex items-center gap-2 mb-6 text-sm transition-opacity hover:opacity-80"
@@ -343,13 +341,10 @@ function QuizView({ exam, onAnswer, onNext, onPrev, onJump, onSubmit, onReset }:
         </div>
         <button
           type="button"
-          onClick={async () => {
-            const ok = await askConfirm({
-              title: 'Bỏ đề thi?',
-              message: 'Tiến độ làm bài hiện tại sẽ mất. Hành động không thể khôi phục.',
-              okLabel: 'Bỏ đề',
-              danger: true,
-            });
+          onClick={() => {
+            const ok = window.confirm(
+              'Bỏ đề thi? Tiến độ làm bài hiện tại sẽ mất. Hành động không thể khôi phục.',
+            );
             if (ok) onReset();
           }}
           className="text-xs px-2 h-7 rounded inline-flex items-center gap-1"
@@ -464,13 +459,11 @@ function QuizView({ exam, onAnswer, onNext, onPrev, onJump, onSubmit, onReset }:
         {exam.currentIdx === exam.questions.length - 1 ? (
           <button
             type="button"
-            onClick={async () => {
+            onClick={() => {
               if (answeredCount < exam.questions.length) {
-                const ok = await askConfirm({
-                  title: 'Nộp bài?',
-                  message: `Bạn còn ${exam.questions.length - answeredCount} câu chưa trả lời.`,
-                  okLabel: 'Nộp bài',
-                });
+                const ok = window.confirm(
+                  `Nộp bài? Bạn còn ${exam.questions.length - answeredCount} câu chưa trả lời.`,
+                );
                 if (!ok) return;
               }
               onSubmit();

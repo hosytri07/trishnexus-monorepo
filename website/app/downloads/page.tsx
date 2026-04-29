@@ -1,31 +1,32 @@
 import Link from 'next/link';
 import { ArrowLeft } from 'lucide-react';
+import { fetchAppsServer } from '@/lib/apps-server';
 import { DownloadCards } from './DownloadCards';
 import { OtherAppsSection } from './OtherAppsSection';
 import { DownloadsSidebar } from './DownloadsSidebar';
 
 /**
- * Phase 15.0.q/r — /downloads page với sticky sidebar TOC.
+ * Phase 19.22 — /downloads page với fetch Firestore /apps_meta server-side.
  *
- * Layout 2-column:
- *   - Sidebar (lg≥1024): list apps đã phát hành, anchor link nhảy section
- *   - Main: TrishLauncher (primary OS-detect) + Apps đã phát hành (dynamic
- *     từ registry — TrishCheck v1, future apps)
+ * Server component async fetch app metadata 1 lần, pass props xuống
+ * client components → tránh duplicate fetch + đảm bảo data nhất quán.
  *
- * Mobile (<lg): sidebar thành scroll-x list ngang ở top.
- *
- * Source data: website/public/apps-registry.json (qua lib/apps.ts).
- * Khi admin push app mới với status='released' → page tự cập nhật, không
- * cần deploy code lại.
+ * Khi admin sửa qua /admin/apps → reload trang là thấy ngay.
  */
 
 export const metadata = {
   title: 'Tải về — TrishTEAM',
   description:
-    'Tải TrishLauncher và các ứng dụng TrishTEAM đã phát hành. Miễn phí, không cần đăng nhập.',
+    'Tải TrishLauncher và các ứng dụng TrishTEAM. Miễn phí, không cần đăng nhập.',
 };
 
-export default function DownloadsPage() {
+// Disable static generation — luôn fetch fresh data từ Firestore
+export const dynamic = 'force-dynamic';
+
+export default async function DownloadsPage() {
+  const apps = await fetchAppsServer();
+  const launcher = apps.find((a) => a.id === 'trishlauncher') ?? null;
+
   return (
     <main className="min-h-screen px-4 sm:px-8 py-12 max-w-6xl mx-auto">
       <Link
@@ -39,7 +40,7 @@ export default function DownloadsPage() {
 
       <div className="grid grid-cols-1 lg:grid-cols-[200px_1fr] gap-8">
         {/* Sidebar */}
-        <DownloadsSidebar />
+        <DownloadsSidebar apps={apps} />
 
         {/* Main content */}
         <div className="min-w-0">
@@ -58,7 +59,7 @@ export default function DownloadsPage() {
             style={{ color: 'var(--color-text-secondary)' }}
           >
             TrishLauncher là cổng vào hệ sinh thái — cài đặt + cập nhật + khởi
-            chạy 9 ứng dụng desktop trong một giao diện. Dưới là các app đã
+            chạy 6 ứng dụng desktop trong một giao diện. Dưới là các app đã
             phát hành riêng. Miễn phí, không cần đăng nhập.
           </p>
           <p className="text-sm mb-10" style={{ color: 'var(--color-text-muted)' }}>
@@ -67,23 +68,25 @@ export default function DownloadsPage() {
             để tiếp tục.
           </p>
 
-          {/* TrishLauncher section — anchor target */}
-          <section id="trishlauncher" className="mb-12 scroll-mt-20">
-            <div className="flex items-baseline justify-between mb-4">
-              <h2
-                className="text-xl font-bold"
-                style={{ color: 'var(--color-text-primary)' }}
-              >
-                🚀 TrishLauncher
-              </h2>
-              <span className="text-xs" style={{ color: 'var(--color-text-muted)' }}>
-                v2.0.1 · Khuyên dùng
-              </span>
-            </div>
-            <DownloadCards />
-          </section>
+          {/* TrishLauncher section */}
+          {launcher ? (
+            <section id="trishlauncher" className="mb-12 scroll-mt-20">
+              <div className="flex items-baseline justify-between mb-4">
+                <h2
+                  className="text-xl font-bold"
+                  style={{ color: 'var(--color-text-primary)' }}
+                >
+                  🚀 TrishLauncher
+                </h2>
+                <span className="text-xs" style={{ color: 'var(--color-text-muted)' }}>
+                  v{launcher.version} · Khuyên dùng
+                </span>
+              </div>
+              <DownloadCards launcher={launcher} />
+            </section>
+          ) : null}
 
-          {/* Apps đã phát hành section — mỗi app có id riêng */}
+          {/* Apps đã phát hành section */}
           <section>
             <h2
               className="text-xl font-bold mb-4"
@@ -91,7 +94,7 @@ export default function DownloadsPage() {
             >
               Apps đã phát hành
             </h2>
-            <OtherAppsSection />
+            <OtherAppsSection apps={apps} />
           </section>
         </div>
       </div>

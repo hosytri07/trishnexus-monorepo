@@ -30,6 +30,9 @@ import {
   Signpost,
   Waypoints,
   Newspaper,
+  Library,
+  Database,
+  Package,
 } from 'lucide-react';
 import { useAuth } from '@/lib/auth-context';
 
@@ -50,6 +53,9 @@ const NAV: NavItem[] = [
   { href: '/admin/audit', label: 'Nhật ký', icon: History },
   { href: '/admin/storage', label: 'Storage', icon: HardDrive },
   { href: '/admin/posts', label: 'Bài blog', icon: Newspaper },
+  { href: '/admin/library', label: 'Thư viện TrishTEAM', icon: Library },
+  { href: '/admin/databases', label: 'Database VN', icon: Database },
+  { href: '/admin/apps', label: 'Apps Desktop', icon: Package },
   { href: '/admin/signs', label: 'Ảnh biển báo', icon: Signpost },
   { href: '/admin/bridges', label: 'Ảnh cầu', icon: Waypoints },
 ];

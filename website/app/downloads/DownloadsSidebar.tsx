@@ -13,7 +13,7 @@
 
 import { useEffect, useState } from 'react';
 import { Rocket, Activity, Trash2, Image as ImageIcon, NotebookPen, Type, FileText, Library, Search, Compass } from 'lucide-react';
-import { getAppsForWebsite, type AppForWebsite } from '@/lib/apps';
+import { type AppForWebsite } from '@/lib/apps';
 
 const ICON_MAP: Record<string, typeof Rocket> = {
   Rocket, Activity, Trash2, Image: ImageIcon, NotebookPen, Type, FileText, Library, Search, Compass,
@@ -23,14 +23,11 @@ function getIcon(name: string) {
   return ICON_MAP[name] ?? Rocket;
 }
 
-export function DownloadsSidebar() {
+export function DownloadsSidebar({ apps }: { apps: AppForWebsite[] }) {
   const [activeId, setActiveId] = useState<string>('trishlauncher');
 
-  // Released apps (launcher + child apps), sorted: launcher first
-  const apps = getAppsForWebsite();
-  const released = apps.filter(
-    (a) => a.status === 'released' && Boolean(a.download?.windows_x64?.url),
-  );
+  // Apps hiển thị: tất cả app không deprecated (gồm scheduled + released)
+  const released = apps.filter((a) => a.status !== 'deprecated');
   // Đảm bảo trishlauncher đứng đầu nếu có
   const launcher = released.find((a) => a.id === 'trishlauncher');
   const others = released.filter((a) => a.id !== 'trishlauncher');

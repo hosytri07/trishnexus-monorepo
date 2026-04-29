@@ -36,11 +36,11 @@ export function QuickNotesWidget() {
       icon={<NotebookPen size={16} strokeWidth={2} />}
       action={
         <Link
-          href="/notes"
+          href="/ghi-chu"
           className="inline-flex items-center gap-1 text-xs font-medium transition-colors hover:opacity-80"
           style={{ color: 'var(--color-text-link)' }}
         >
-          Mở TrishNotes
+          Mở Ghi chú
           <ExternalLink size={12} strokeWidth={2} />
         </Link>
       }

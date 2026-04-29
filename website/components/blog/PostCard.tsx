@@ -24,7 +24,7 @@ export function PostCard({ post, variant = 'regular' }: Props) {
   if (variant === 'feature') {
     return (
       <Link
-        href={`/blog/${post.slug}`}
+        href={`/blog/${post.id}`}
         className="group grid grid-cols-1 md:grid-cols-[5fr_6fr] gap-0 rounded-xl overflow-hidden border transition-all hover:scale-[1.005]"
         style={{
           background: 'var(--color-surface-card)',
@@ -56,7 +56,7 @@ export function PostCard({ post, variant = 'regular' }: Props) {
 
   return (
     <Link
-      href={`/blog/${post.slug}`}
+      href={`/blog/${post.id}`}
       className="group flex flex-col rounded-xl overflow-hidden border transition-all hover:scale-[1.01]"
       style={{
         background: 'var(--color-surface-card)',

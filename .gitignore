@@ -45,3 +45,6 @@ target-desktop/
 Cargo.lock.bk
 .vercel
 .env*.local
+
+# Machine label (per-machine, not synced via git)
+.machine-label

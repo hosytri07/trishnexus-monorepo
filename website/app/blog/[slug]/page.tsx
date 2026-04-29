@@ -18,7 +18,7 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { ArrowLeft, Calendar, Clock, Tag } from 'lucide-react';
 import {
-  getPostBySlug,
+  getPostById,
   listPublishedPosts,
   formatPublishDate,
   readingTime,
@@ -33,7 +33,8 @@ interface PageProps {
 }
 
 export async function generateMetadata({ params }: PageProps) {
-  const post = await getPostBySlug(params.slug);
+  // Phase 19.22 — params.slug giờ chứa ID 13-digit (số). Fallback slug cho legacy.
+  const post = await getPostById(params.slug);
   if (!post) {
     return { title: 'Không tìm thấy bài viết — TrishTEAM' };
   }
@@ -61,7 +62,7 @@ export async function generateMetadata({ params }: PageProps) {
 }
 
 export default async function BlogPostPage({ params }: PageProps) {
-  const post = await getPostBySlug(params.slug);
+  const post = await getPostById(params.slug);
   if (!post) notFound();
 
   const minutes = readingTime(post.body_md);

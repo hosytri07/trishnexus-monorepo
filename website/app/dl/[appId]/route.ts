@@ -14,19 +14,7 @@
  * MVP chưa enable để giữ rules đơn giản).
  */
 import { NextResponse } from 'next/server';
-import registry from '@/public/apps-registry.json';
-
-interface AppEntry {
-  id: string;
-  status: string;
-  download?: Record<string, { url?: string }>;
-}
-
-const REGISTRY = registry as { apps: AppEntry[] };
-
-const TRISHLAUNCHER_FALLBACK = {
-  url: 'https://github.com/hosytri07/trishnexus-monorepo/releases/download/launcher-v2.0.1/TrishLauncher_2.0.1_x64-setup.exe',
-};
+import { fetchAppByIdServer } from '@/lib/apps-server';
 
 export async function GET(
   request: Request,
@@ -36,13 +24,9 @@ export async function GET(
   const url = new URL(request.url);
   const platform = url.searchParams.get('platform') ?? 'windows_x64';
 
-  // Special case: trishlauncher (không có trong registry, hardcode trong lib/apps.ts)
-  if (appId === 'trishlauncher') {
-    return NextResponse.redirect(TRISHLAUNCHER_FALLBACK.url, 302);
-  }
-
-  // Lookup app trong registry
-  const app = REGISTRY.apps.find((a) => a.id === appId);
+  // Phase 19.22 — fetch từ Firestore /apps_meta/{id} (admin có thể sửa qua /admin/apps).
+  // Fallback registry.json nếu Firestore trống/lỗi.
+  const app = await fetchAppByIdServer(appId);
   if (!app) {
     return NextResponse.json(
       { error: `App "${appId}" not found` },
@@ -53,21 +37,48 @@ export async function GET(
   if (app.status === 'deprecated') {
     return NextResponse.json(
       {
-        error: `App "${appId}" đã deprecated. Đã gộp vào TrishLibrary 3.0.`,
+        error: `App "${appId}" đã deprecated. Đã gộp vào TrishLibrary.`,
         suggested: '/dl/trishlibrary',
       },
       { status: 410 },
     );
   }
 
-  if (app.status !== 'released') {
+  // Phase 19.22 — scheduled: kiểm tra release_at
+  if (app.status === 'scheduled') {
+    const releaseAt = (app as { release_at?: string }).release_at;
+    if (!releaseAt) {
+      return NextResponse.json(
+        { error: `App "${appId}" chưa có ngày phát hành.` },
+        { status: 503 },
+      );
+    }
+    const target = new Date(releaseAt).getTime();
+    if (Date.now() < target) {
+      const formatted = new Date(releaseAt).toLocaleString('vi-VN', {
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+      });
+      return NextResponse.json(
+        {
+          error: `App "${appId}" sẽ phát hành lúc ${formatted}. Hiện chưa cho phép tải.`,
+          release_at: releaseAt,
+        },
+        { status: 423 },
+      );
+    }
+    // Đã qua release_at → cho phép tải
+  } else if (app.status !== 'released') {
     return NextResponse.json(
       { error: `App "${appId}" chưa release. Status: ${app.status}` },
       { status: 503 },
     );
   }
 
-  const dl = app.download?.[platform];
+  const dl = app.download?.[platform as keyof typeof app.download];
   if (!dl?.url) {
     return NextResponse.json(
       { error: `App "${appId}" không có bản tải cho platform "${platform}"` },

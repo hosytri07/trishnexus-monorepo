@@ -38,6 +38,7 @@ interface BridgeImageDoc {
 
 export default function AdminBridgesPage() {
   const { user } = useAuth();
+  const [ConfirmDialog, askConfirm] = useConfirm();
   const [allBridges, setAllBridges] = useState<VietnamBridge[] | null>(null);
   const [overrides, setOverrides] = useState<Record<string, BridgeImageDoc>>({});
   const [activeStructure, setActiveStructure] = useState<BridgeStructure | 'all'>('all');
