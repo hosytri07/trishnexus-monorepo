@@ -22,7 +22,7 @@ import {
   updateDoc,
   where,
 } from 'firebase/firestore';
-import { getFirebaseDb } from '@trishteam/auth';
+import { getFirebaseAuth, getFirebaseDb } from '@trishteam/auth';
 import {
   paths,
   type ActivationKey,
@@ -35,18 +35,104 @@ import { generateActivationKey, generateBroadcastId, generateKeyId } from './key
 // Users
 // ============================================================
 
-export async function listUsers(limit = 200): Promise<TrishUser[]> {
-  const db = getFirebaseDb();
-  const q = query(
-    collection(db, paths.users()),
-    orderBy('created_at', 'desc'),
-    fbLimit(limit),
-  );
-  const snap = await getDocs(q);
-  // Inject doc.id nếu doc không có field id (legacy docs Firestore Console)
-  return snap.docs.map((d) => {
-    const data = d.data() as Partial<TrishUser>;
-    return { ...data, id: data.id ?? d.id } as TrishUser;
+/**
+ * Phase 19.24 — Web API endpoint base URL.
+ * Trỏ về website đã deploy (Vercel) để fetch user list từ Firebase Auth + Firestore
+ * (qua Admin SDK). Override bằng env `VITE_TRISH_API_BASE` nếu cần test localhost.
+ */
+const TRISH_API_BASE =
+  (import.meta as { env?: Record<string, string | undefined> }).env
+    ?.VITE_TRISH_API_BASE ?? 'https://trishteam.io.vn';
+
+interface ApiListUsersResponse {
+  users: Array<{
+    uid: string;
+    email: string | null;
+    displayName: string | null;
+    phoneNumber: string | null;
+    photoURL: string | null;
+    emailVerified: boolean;
+    disabled: boolean;
+    createdAt: number | null;
+    lastSignedIn: number | null;
+    providers: string[];
+    customClaims: Record<string, unknown> | null;
+    firestore: {
+      role?: string;
+      plan?: string | null;
+      fullName?: string | null;
+      phone?: string | null;
+      display_name?: string | null;
+      key_activated_at?: number;
+      activated_key_id?: string | null;
+    } | null;
+  }>;
+  total: number;
+  truncated: boolean;
+}
+
+/**
+ * Phase 19.24 — listUsers giờ fetch từ web API `/api/admin/list-users`
+ * (Admin SDK listUsers) thay vì query Firestore trực tiếp.
+ *
+ * LÝ DO: User tạo qua Firebase Console hoặc signUp ở app khác có thể CHƯA có
+ * Firestore doc → query Firestore-only sẽ miss. Web API merge Auth list +
+ * Firestore docs nên đầy đủ.
+ *
+ * Header: Authorization: Bearer <ID token của admin hiện tại>
+ * Endpoint phải trả corsJson (CORS *) — đã add ở web Phase 19.24.
+ */
+export async function listUsers(limit = 500): Promise<TrishUser[]> {
+  const auth = getFirebaseAuth();
+  const current = auth.currentUser;
+  if (!current) {
+    throw new Error('Chưa đăng nhập — không lấy được ID token');
+  }
+  const token = await current.getIdToken(/* forceRefresh */ false);
+  const url = `${TRISH_API_BASE}/api/admin/list-users?max=${Math.min(Math.max(1, limit), 1000)}`;
+  const res = await fetch(url, {
+    method: 'GET',
+    headers: {
+      Authorization: `Bearer ${token}`,
+      Accept: 'application/json',
+    },
+  });
+  if (!res.ok) {
+    let detail = '';
+    try {
+      const body = (await res.json()) as { error?: string };
+      detail = body.error ?? '';
+    } catch {
+      /* ignore */
+    }
+    throw new Error(
+      `list-users API ${res.status}${detail ? ` — ${detail}` : ''}`,
+    );
+  }
+  const data = (await res.json()) as ApiListUsersResponse;
+
+  // Convert ApiUser → TrishUser shape (giữ tương thích UI hiện tại)
+  return data.users.map((u) => {
+    const fs = u.firestore ?? {};
+    const role: UserRole =
+      fs.role === 'admin' || fs.role === 'user' || fs.role === 'trial'
+        ? fs.role
+        : u.customClaims && (u.customClaims as { admin?: boolean }).admin === true
+          ? 'admin'
+          : 'trial';
+    return {
+      id: u.uid,
+      email: u.email ?? '',
+      display_name:
+        fs.display_name || fs.fullName || u.displayName || (u.email ?? '').split('@')[0] || '(không tên)',
+      role,
+      ...(u.photoURL ? { photo_url: u.photoURL } : {}),
+      ...(u.providers[0] ? { provider: u.providers[0] } : {}),
+      key_activated_at: fs.key_activated_at ?? 0,
+      ...(fs.activated_key_id ? { activated_key_id: fs.activated_key_id } : {}),
+      created_at: u.createdAt ?? 0,
+      ...(u.lastSignedIn ? { last_login_at: u.lastSignedIn } : {}),
+    } as TrishUser;
   });
 }
 
@@ -63,18 +149,50 @@ export interface ActorContext {
   email?: string;
 }
 
+/** Helper: lấy ID token của admin hiện tại để gửi web API. */
+async function getCurrentIdToken(): Promise<string> {
+  const auth = getFirebaseAuth();
+  const user = auth.currentUser;
+  if (!user) throw new Error('Chưa đăng nhập — không lấy được ID token');
+  return user.getIdToken(false);
+}
+
+/**
+ * Phase 19.24 — setUserRole giờ gọi web API `/api/admin/set-role` thay vì
+ * update Firestore trực tiếp. Lý do:
+ *   1. Set custom claim `admin: true` ở Firebase Auth (Firestore Rules dùng claim).
+ *   2. setDoc merge → handle user chưa có Firestore doc (tạo qua Console).
+ *   3. Audit log ghi server-side đồng nhất với web admin panel.
+ */
 export async function setUserRole(
   uid: string,
   role: UserRole,
   actor?: ActorContext,
   targetEmail?: string,
 ): Promise<void> {
-  const db = getFirebaseDb();
-  const ref = doc(db, paths.user(uid));
-  await updateDoc(ref, {
-    role,
-    role_updated_at: Date.now(),
+  const token = await getCurrentIdToken();
+  const res = await fetch(`${TRISH_API_BASE}/api/admin/set-role`, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${token}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ uid, role }),
   });
+  if (!res.ok) {
+    let detail = '';
+    try {
+      const body = (await res.json()) as { error?: string };
+      detail = body.error ?? '';
+    } catch {
+      /* ignore */
+    }
+    throw new Error(
+      `set-role API ${res.status}${detail ? ` — ${detail}` : ''}`,
+    );
+  }
+  // Audit phía client (best-effort) — server đã ghi /audit rồi nhưng giữ để
+  // local TrishAdmin audit panel cũng thấy ngay.
   if (actor) {
     await writeAudit({
       action: 'user.set_role',
@@ -95,12 +213,33 @@ export async function resetUserToTrial(
 ): Promise<void> {
   const db = getFirebaseDb();
   const ref = doc(db, paths.user(uid));
-  await updateDoc(ref, {
-    role: 'trial' as UserRole,
-    key_activated_at: 0,
-    activated_key_id: null,
-    role_updated_at: Date.now(),
-  });
+  // Phase 19.24 — dùng setDoc merge để hoạt động cả khi user chưa có Firestore doc
+  // (tạo từ Firebase Console). Sau đó gọi set-role API để clear admin claim.
+  await setDoc(
+    ref,
+    {
+      id: uid,
+      role: 'trial' as UserRole,
+      key_activated_at: 0,
+      activated_key_id: null,
+      role_updated_at: Date.now(),
+    },
+    { merge: true },
+  );
+  // Đồng bộ admin custom claim → false (best-effort, ko fatal nếu lỗi)
+  try {
+    const token = await getCurrentIdToken();
+    await fetch(`${TRISH_API_BASE}/api/admin/set-role`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ uid, role: 'trial' }),
+    });
+  } catch (err) {
+    console.warn('[trishadmin] resetUserToTrial: set-role API fail (non-fatal):', err);
+  }
   if (actor) {
     await writeAudit({
       action: 'user.reset_trial',
@@ -114,26 +253,43 @@ export async function resetUserToTrial(
 }
 
 /**
- * Xóa hẳn doc user khỏi Firestore.
+ * Phase 19.24 — XÓA HẲN user (Auth + Firestore + Storage avatar nếu có).
  *
- * Lưu ý: Firebase Auth user (email/password) vẫn tồn tại — cần Cloud Function
- * `firebase-admin.auth().deleteUser(uid)` để xóa hẳn. Xóa Firestore doc làm:
- *   - User mất role + data tracking
- *   - Lần login tiếp theo, ensureUserDoc() tự tạo lại với role 'trial'
+ * Gọi web API `/api/admin/delete-user` (Admin SDK) thay vì chỉ xóa Firestore doc.
+ * Trước Phase 19.24 chỉ xóa Firestore → user login lại tự tạo doc trial.
+ * Giờ xóa hẳn Auth user → user phải đăng ký lại từ đầu.
  *
- * Nếu cần ban hẳn → dùng Cloud Function block Auth.
+ * Tên hàm giữ `deleteUserDoc` cho backward compat với UI hiện tại.
  */
 export async function deleteUserDoc(
   uid: string,
   actor?: ActorContext,
   targetEmail?: string,
 ): Promise<void> {
-  const db = getFirebaseDb();
-  const ref = doc(db, paths.user(uid));
-  await deleteDoc(ref);
+  const token = await getCurrentIdToken();
+  const res = await fetch(`${TRISH_API_BASE}/api/admin/delete-user`, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${token}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ uid }),
+  });
+  if (!res.ok) {
+    let detail = '';
+    try {
+      const body = (await res.json()) as { error?: string };
+      detail = body.error ?? '';
+    } catch {
+      /* ignore */
+    }
+    throw new Error(
+      `delete-user API ${res.status}${detail ? ` — ${detail}` : ''}`,
+    );
+  }
   if (actor) {
     await writeAudit({
-      action: 'user.delete_doc',
+      action: 'user.delete',
       actor_uid: actor.uid,
       actor_email: actor.email,
       target_type: 'user',

@@ -18,12 +18,15 @@
  *   - Không cho admin tự gỡ quyền của chính mình (422).
  *   - Luôn log vào /audit/{autoId} để giữ chain of custody.
  */
-import { NextResponse, type NextRequest } from 'next/server';
+import { type NextRequest } from 'next/server';
 import { FieldValue } from 'firebase-admin/firestore';
 import { adminAuth, adminDb, adminReady } from '@/lib/firebase-admin';
+import { corsJson, corsOptions } from '@/lib/cors';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
+
+export const OPTIONS = corsOptions;
 
 interface Body {
   uid?: string;
@@ -53,7 +56,7 @@ async function verifyCaller(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   if (!adminReady()) {
-    return NextResponse.json(
+    return corsJson(
       {
         error:
           'Admin SDK chưa cấu hình. Set FIREBASE_SERVICE_ACCOUNT env hoặc dùng seed-admin.ts CLI.',
@@ -64,14 +67,14 @@ export async function POST(req: NextRequest) {
 
   const caller = await verifyCaller(req);
   if ('error' in caller) {
-    return NextResponse.json({ error: caller.error }, { status: caller.status });
+    return corsJson({ error: caller.error }, { status: caller.status });
   }
 
   let body: Body;
   try {
     body = (await req.json()) as Body;
   } catch {
-    return NextResponse.json({ error: 'invalid_json' }, { status: 400 });
+    return corsJson({ error: 'invalid_json' }, { status: 400 });
   }
   const uid = body.uid?.trim();
   const role =
@@ -83,10 +86,10 @@ export async function POST(req: NextRequest) {
           ? 'trial'
           : null;
   if (!uid || !role) {
-    return NextResponse.json({ error: 'missing_fields' }, { status: 400 });
+    return corsJson({ error: 'missing_fields' }, { status: 400 });
   }
   if (uid === caller.decoded.uid && role !== 'admin') {
-    return NextResponse.json(
+    return corsJson(
       { error: 'cannot_demote_self' },
       { status: 422 },
     );
@@ -99,7 +102,7 @@ export async function POST(req: NextRequest) {
     // 1. Set custom claim
     const existing = await auth.getUser(uid).catch(() => null);
     if (!existing) {
-      return NextResponse.json({ error: 'user_not_found' }, { status: 404 });
+      return corsJson({ error: 'user_not_found' }, { status: 404 });
     }
     const claims = { ...(existing.customClaims ?? {}), admin: role === 'admin' };
     await auth.setCustomUserClaims(uid, claims);
@@ -130,7 +133,7 @@ export async function POST(req: NextRequest) {
       createdAt: FieldValue.serverTimestamp(),
     });
 
-    return NextResponse.json({
+    return corsJson({
       ok: true,
       uid,
       role,
@@ -138,7 +141,7 @@ export async function POST(req: NextRequest) {
     });
   } catch (e) {
     console.error('[set-role] fail:', e);
-    return NextResponse.json(
+    return corsJson(
       { error: e instanceof Error ? e.message : String(e) },
       { status: 500 },
     );

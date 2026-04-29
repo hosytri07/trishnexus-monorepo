@@ -5,41 +5,58 @@
 
 :root,
 :root[data-theme='dark'] {
-  --bg: #0f1116;
-  --bg-soft: #161922;
-  --surface: #1c2030;
-  --surface-hover: #232838;
-  --border: #2a2f42;
+  /* Phase 19.24 — Unified với TrishLibrary 3.0 baseline */
+  --bg: #0f1115;
+  --bg-panel: #15181f;
+  --bg-soft: #1a1e27;
+  --bg-elev: #1e2330;
+  --fg: #e5e7eb;
+  --fg-muted: #9aa4b2;
+  --border: #2a2f3a;
   --border-strong: #3a4058;
-  --fg: #e8eaf2;
-  --fg-muted: #9aa0b4;
-  --accent: #38bdf8;
-  --accent-strong: #0ea5e9;
+  --accent: #22d3ee;
+  --accent-soft: #22d3ee22;
   --danger: #ef4444;
-  --warning: #f59e0b;
-  --success: #22c55e;
-  --info: #3b82f6;
-  --logo-bg: #ffffff;       /* Dark mode: nền trắng cho logo */
+  --warn: #fbbf24;
+  --ok: #4ade80;
+  --info: #60a5fa;
+  --logo-bg: #ffffff;
+  --mono: 'JetBrains Mono', 'Fira Code', 'SF Mono', Consolas, monospace;
+
+  /* Aliases cho legacy class TrishAdmin Phase 18.x — giữ refs cũ không vỡ */
+  --surface: var(--bg-panel);
+  --surface-hover: var(--bg-elev);
+  --accent-strong: #06b6d4;
+  --warning: var(--warn);
+  --success: var(--ok);
 
   color-scheme: dark;
 }
 
 :root[data-theme='light'] {
-  --bg: #fafaf9;
-  --bg-soft: #f1f5f9;
-  --surface: #ffffff;
-  --surface-hover: #e2e8f0;
-  --border: #cbd5e1;
+  /* Phase 19.24 — Unified với TrishLibrary 3.0 baseline (light mode) */
+  --bg: #f7f8fa;
+  --bg-panel: #ffffff;
+  --bg-soft: #f0f2f5;
+  --bg-elev: #ffffff;
+  --fg: #1a1d23;
+  --fg-muted: #5a6473;
+  --border: #d8dde4;
   --border-strong: #94a3b8;
-  --fg: #0f172a;
-  --fg-muted: #475569;
-  --accent: #0ea5e9;
-  --accent-strong: #0284c7;
+  --accent: #0891b2;
+  --accent-soft: #0891b220;
   --danger: #dc2626;
-  --warning: #d97706;
-  --success: #16a34a;
+  --warn: #d97706;
+  --ok: #16a34a;
   --info: #2563eb;
-  --logo-bg: transparent;   /* Light mode: logo không nền */
+  --logo-bg: transparent;
+
+  /* Aliases */
+  --surface: var(--bg-panel);
+  --surface-hover: var(--bg-soft);
+  --accent-strong: #0e7490;
+  --warning: var(--warn);
+  --success: var(--ok);
 
   color-scheme: light;
 }
@@ -142,6 +159,17 @@ code {
   font-size: 56px;
   display: block;
   line-height: 1;
+}
+.login-logo {
+  display: block;
+  width: 72px;
+  height: 72px;
+  object-fit: contain;
+  margin: 0 auto;
+  background: var(--logo-bg);
+  border-radius: 14px;
+  padding: 8px;
+  border: 1px solid var(--border);
 }
 .login-head h1 {
   margin: 8px 0 4px;
@@ -1282,3 +1310,574 @@ tr.row-revealed td:first-child {
   border-radius: 5px;
 }
 ::-webkit-scrollbar-thumb:hover { background: var(--border-strong); }
+
+/* ============================================================
+ * Phase 19.24 — Common panel styles
+ * ============================================================ */
+
+.panel-content {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+  padding: 1.5rem;
+  max-width: 1200px;
+}
+
+.panel-header h1 {
+  font-size: 1.5rem;
+  margin: 0 0 0.25rem;
+  color: var(--fg);
+}
+
+.panel-header p {
+  margin: 0;
+  font-size: 0.875rem;
+  color: var(--fg-muted);
+}
+
+.muted { color: var(--fg-muted); }
+.muted.small { font-size: 0.75rem; }
+
+/* === Alerts === */
+.alert {
+  padding: 0.75rem 1rem;
+  border-radius: 8px;
+  border: 1px solid;
+  font-size: 0.875rem;
+  line-height: 1.5;
+}
+.alert.small { padding: 0.5rem 0.75rem; font-size: 0.8125rem; }
+.alert-success {
+  background: color-mix(in srgb, var(--success) 12%, transparent);
+  border-color: color-mix(in srgb, var(--success) 35%, transparent);
+  color: var(--success);
+}
+.alert-warning {
+  background: color-mix(in srgb, var(--warning) 12%, transparent);
+  border-color: color-mix(in srgb, var(--warning) 35%, transparent);
+  color: var(--warning);
+}
+.alert-error {
+  background: color-mix(in srgb, var(--danger) 12%, transparent);
+  border-color: color-mix(in srgb, var(--danger) 35%, transparent);
+  color: var(--danger);
+}
+
+/* === Form sections === */
+.form-section {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 1rem 1.25rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.625rem;
+}
+
+.form-section label {
+  display: block;
+  font-size: 0.875rem;
+  color: var(--fg);
+}
+
+.form-section label.inline-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.form-section input[type='text'],
+.form-section input[type='password'],
+.form-section input[type='number'],
+.form-section select,
+.form-section textarea {
+  width: 100%;
+  margin-top: 0.25rem;
+  padding: 0.5rem 0.625rem;
+  background: var(--bg-soft);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--fg);
+  font-size: 0.875rem;
+  font-family: inherit;
+}
+
+.actions-row {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.btn-warning {
+  background: var(--warning);
+  color: #1a1a1a;
+  border: none;
+  padding: 0.5rem 1rem;
+  border-radius: 6px;
+  font-weight: 600;
+  cursor: pointer;
+  font-size: 0.875rem;
+}
+.btn-warning:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--warning) 85%, white);
+}
+.btn-warning:disabled { opacity: 0.5; cursor: not-allowed; }
+
+.btn-secondary {
+  background: var(--bg-soft);
+  color: var(--fg);
+  border: 1px solid var(--border-strong);
+  padding: 0.5rem 1rem;
+  border-radius: 6px;
+  font-weight: 600;
+  cursor: pointer;
+  font-size: 0.875rem;
+}
+.btn-secondary:hover:not(:disabled) { background: var(--surface-hover); }
+.btn-secondary:disabled { opacity: 0.5; cursor: not-allowed; }
+
+/* === Progress bar === */
+.progress-card {
+  background: var(--surface);
+  border: 1px solid var(--accent);
+  border-radius: 8px;
+  padding: 0.75rem 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+.progress-msg { font-size: 0.875rem; color: var(--fg); }
+.progress-bar {
+  width: 100%;
+  height: 8px;
+  background: var(--bg-soft);
+  border-radius: 4px;
+  overflow: hidden;
+}
+.progress-fill {
+  height: 100%;
+  background: var(--accent);
+  transition: width 0.2s ease;
+}
+.progress-fill.progress-ok { background: var(--success); }
+.progress-fill.progress-warn { background: var(--warning); }
+.progress-fill.progress-err { background: var(--danger); }
+.progress-pct {
+  font-family: ui-monospace, monospace;
+  font-size: 0.75rem;
+  color: var(--fg-muted);
+  text-align: right;
+}
+
+/* === Data table === */
+.data-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.875rem;
+}
+.data-table th {
+  text-align: left;
+  padding: 0.625rem 0.75rem;
+  background: var(--bg-soft);
+  color: var(--fg-muted);
+  font-weight: 600;
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  border-bottom: 1px solid var(--border);
+}
+.data-table td {
+  padding: 0.625rem 0.75rem;
+  border-bottom: 1px solid var(--border);
+  color: var(--fg);
+}
+.data-table tbody tr:hover { background: var(--surface-hover); }
+.data-table .path-cell {
+  font-family: ui-monospace, monospace;
+  font-size: 0.8125rem;
+  word-break: break-all;
+}
+
+/* === Backup panel specifics === */
+.status-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 1rem 1.25rem;
+}
+.status-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  font-size: 0.875rem;
+}
+.restore-preview {
+  background: color-mix(in srgb, var(--warning) 8%, var(--surface));
+  border: 2px solid var(--warning);
+  border-radius: 8px;
+  padding: 1rem 1.25rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.625rem;
+}
+.collection-list {
+  list-style: none;
+  padding: 0;
+  margin: 0.5rem 0;
+  max-height: 240px;
+  overflow-y: auto;
+  font-size: 0.8125rem;
+}
+.collection-list li {
+  padding: 0.25rem 0;
+  border-bottom: 1px dotted var(--border);
+}
+.history-section h3,
+.info-card p:first-child {
+  margin: 0 0 0.5rem;
+  font-size: 1rem;
+}
+.info-card {
+  background: var(--bg-soft);
+  border: 1px dashed var(--border);
+  border-radius: 6px;
+  padding: 0.875rem 1rem;
+}
+.info-card p { margin: 0.25rem 0; }
+
+/* === Database VN panel specifics === */
+.db-vn-tabs {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 0.5rem;
+}
+.db-vn-tab {
+  display: flex;
+  gap: 0.625rem;
+  padding: 0.75rem;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  cursor: pointer;
+  text-align: left;
+  color: var(--fg);
+  align-items: center;
+}
+.db-vn-tab:hover { background: var(--surface-hover); }
+.db-vn-tab.active {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 10%, var(--surface));
+}
+.db-vn-tab-icon { font-size: 1.5rem; }
+.db-vn-tab-text { display: flex; flex-direction: column; min-width: 0; }
+.db-vn-tab-text strong { font-size: 0.875rem; }
+
+.db-vn-actionbar {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+  flex-wrap: wrap;
+}
+.db-vn-search {
+  flex: 1;
+  min-width: 200px;
+  padding: 0.5rem 0.75rem;
+  background: var(--bg-soft);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--fg);
+  font-size: 0.875rem;
+}
+
+.db-vn-layout {
+  display: grid;
+  grid-template-columns: 320px 1fr;
+  gap: 1rem;
+  min-height: 500px;
+}
+@media (max-width: 900px) {
+  .db-vn-layout { grid-template-columns: 1fr; }
+}
+.db-vn-list {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 0.5rem;
+  max-height: 700px;
+  overflow-y: auto;
+}
+.db-vn-items { list-style: none; padding: 0; margin: 0; }
+.db-vn-item {
+  display: flex;
+  align-items: stretch;
+  border-radius: 6px;
+  margin-bottom: 0.25rem;
+  overflow: hidden;
+}
+.db-vn-item.active { background: color-mix(in srgb, var(--accent) 14%, transparent); }
+.db-vn-item-main {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  text-align: left;
+  padding: 0.625rem 0.75rem;
+  background: transparent;
+  border: none;
+  color: var(--fg);
+  cursor: pointer;
+  min-width: 0;
+}
+.db-vn-item-main:hover { background: var(--surface-hover); }
+.db-vn-item-main strong { font-size: 0.875rem; word-break: break-word; }
+.db-vn-item-main span { color: var(--fg-muted); font-size: 0.75rem; margin-top: 0.125rem; }
+.db-vn-item-main code { font-size: 0.6875rem; color: var(--fg-muted); }
+.db-vn-item-delete {
+  width: 36px;
+  background: transparent;
+  border: none;
+  color: var(--fg-muted);
+  cursor: pointer;
+  font-size: 1rem;
+}
+.db-vn-item-delete:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--danger) 15%, transparent);
+  color: var(--danger);
+}
+.db-vn-editor {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  min-height: 400px;
+}
+.db-vn-editor-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.db-vn-editor-header h3 { margin: 0; font-size: 1rem; }
+.db-vn-json-editor {
+  flex: 1;
+  min-height: 400px;
+  padding: 0.625rem 0.75rem;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--fg);
+  font-family: ui-monospace, 'SF Mono', monospace;
+  font-size: 0.8125rem;
+  line-height: 1.5;
+  resize: vertical;
+}
+.db-vn-editor-actions {
+  display: flex;
+  gap: 0.5rem;
+}
+.db-vn-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  text-align: center;
+  gap: 1rem;
+}
+.schema-hint {
+  background: var(--bg-soft);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 0.5rem 0.75rem;
+  font-size: 0.8125rem;
+}
+.schema-hint summary { cursor: pointer; color: var(--fg-muted); }
+.schema-hint pre {
+  margin: 0.5rem 0 0;
+  padding: 0.5rem;
+  background: var(--bg);
+  border-radius: 4px;
+  overflow-x: auto;
+  font-size: 0.75rem;
+}
+
+/* === Bulk Import panel === */
+.preview-table-wrap {
+  max-height: 400px;
+  overflow: auto;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+}
+.preview-table { font-size: 0.8125rem; }
+.preview-table th, .preview-table td { white-space: nowrap; }
+.file-path {
+  font-family: ui-monospace, monospace;
+  font-size: 0.75rem;
+  word-break: break-all;
+}
+.import-confirm {
+  border: 2px solid var(--warning);
+  background: color-mix(in srgb, var(--warning) 5%, var(--surface));
+}
+.result-stats {
+  display: flex;
+  gap: 1.5rem;
+  padding: 0.75rem 0;
+}
+.stat-item {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+.stat-value {
+  font-size: 1.75rem;
+  font-weight: 700;
+  font-family: ui-monospace, monospace;
+}
+.stat-value.ok { color: var(--success); }
+.stat-value.warn { color: var(--warning); }
+.stat-value.err { color: var(--danger); }
+.error-list {
+  list-style: none;
+  padding: 0;
+  margin: 0.5rem 0;
+  max-height: 240px;
+  overflow-y: auto;
+  font-size: 0.8125rem;
+}
+.error-list li {
+  padding: 0.25rem 0;
+  border-bottom: 1px dotted var(--border);
+}
+
+/* === Storage panel === */
+.creds-summary {
+  display: flex;
+  gap: 0.75rem;
+  align-items: center;
+  flex-wrap: wrap;
+}
+.usage-bar-row {
+  display: flex;
+  flex-direction: column;
+  gap: 0.375rem;
+  margin-bottom: 0.75rem;
+}
+.usage-bar-label {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.875rem;
+}
+
+/* ============================================================
+ * Phase 19.24 — Login + AdminBlocked extras
+ * ============================================================ */
+
+.login-remember {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--fg-muted);
+  cursor: pointer;
+  user-select: none;
+}
+.login-remember input[type='checkbox'] {
+  width: auto;
+  margin: 0;
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+
+.login-brand {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-bottom: 18px;
+}
+.login-brand .login-logo {
+  margin: 0;
+  width: 56px;
+  height: 56px;
+  padding: 6px;
+  border-radius: 12px;
+}
+.login-brand h1 {
+  margin: 0 0 2px;
+  font-size: 20px;
+  font-weight: 700;
+}
+.login-brand p {
+  margin: 0;
+}
+
+.btn-danger.btn-ghost {
+  background: transparent;
+  border-color: var(--danger);
+  color: var(--danger);
+}
+
+/* === Phase 19.24 — Login modes (signin / signup / forgot) === */
+
+.login-mode-title {
+  margin: 0 0 6px;
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--fg);
+}
+
+.login-banner {
+  padding: 9px 12px;
+  border-radius: 6px;
+  font-size: 13px;
+  margin-bottom: 14px;
+  border: 1px solid;
+}
+.login-banner-error {
+  background: rgba(239, 68, 68, 0.1);
+  border-color: rgba(239, 68, 68, 0.3);
+  color: #fca5a5;
+}
+.login-banner-info {
+  background: rgba(34, 211, 238, 0.1);
+  border-color: rgba(34, 211, 238, 0.3);
+  color: var(--accent);
+}
+
+.login-warning {
+  background: rgba(251, 191, 36, 0.08);
+  border: 1px solid rgba(251, 191, 36, 0.25);
+  border-radius: 6px;
+  padding: 8px 10px;
+  line-height: 1.5;
+}
+.login-warning a {
+  color: var(--accent);
+  text-decoration: underline;
+}
+
+.login-links {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  margin-top: 4px;
+  font-size: 13px;
+}
+.link-btn {
+  background: none;
+  border: none;
+  color: var(--accent);
+  cursor: pointer;
+  font-size: inherit;
+  padding: 4px 6px;
+  font-family: inherit;
+}
+.link-btn:hover:not(:disabled) {
+  text-decoration: underline;
+}
+.link-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}

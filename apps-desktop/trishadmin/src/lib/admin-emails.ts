@@ -9,6 +9,7 @@
 export const ADMIN_EMAILS: ReadonlyArray<string> = [
   'trishteam.official@gmail.com',
   'hosytri77@gmail.com',
+  'hosytri@trishteam.io.vn',
 ];
 
 /** Normalize email cho compare (lowercase + trim). */

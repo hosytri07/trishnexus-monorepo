@@ -11,12 +11,15 @@
  *   4. Xóa Firestore /users/{uid} doc (best-effort).
  *   5. Audit log /audit/{autoId}.
  */
-import { NextResponse, type NextRequest } from 'next/server';
+import { type NextRequest } from 'next/server';
 import { FieldValue } from 'firebase-admin/firestore';
 import { adminAuth, adminDb, adminReady } from '@/lib/firebase-admin';
+import { corsJson, corsOptions } from '@/lib/cors';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
+
+export const OPTIONS = corsOptions;
 
 async function verifyAdmin(req: NextRequest) {
   const authz = req.headers.get('authorization') ?? '';
@@ -41,7 +44,7 @@ async function verifyAdmin(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   if (!adminReady()) {
-    return NextResponse.json(
+    return corsJson(
       { error: 'Admin SDK chưa cấu hình.' },
       { status: 501 },
     );
@@ -49,21 +52,21 @@ export async function POST(req: NextRequest) {
 
   const caller = await verifyAdmin(req);
   if ('error' in caller) {
-    return NextResponse.json({ error: caller.error }, { status: caller.status });
+    return corsJson({ error: caller.error }, { status: caller.status });
   }
 
   let body: { uid?: string };
   try {
     body = (await req.json()) as { uid?: string };
   } catch {
-    return NextResponse.json({ error: 'invalid_json' }, { status: 400 });
+    return corsJson({ error: 'invalid_json' }, { status: 400 });
   }
   const uid = body.uid?.trim();
   if (!uid) {
-    return NextResponse.json({ error: 'missing_uid' }, { status: 400 });
+    return corsJson({ error: 'missing_uid' }, { status: 400 });
   }
   if (uid === caller.decoded.uid) {
-    return NextResponse.json(
+    return corsJson(
       { error: 'cannot_delete_self' },
       { status: 422 },
     );
@@ -76,7 +79,7 @@ export async function POST(req: NextRequest) {
     // Lookup target trước để có email cho audit
     const target = await auth.getUser(uid).catch(() => null);
     if (!target) {
-      return NextResponse.json({ error: 'user_not_found' }, { status: 404 });
+      return corsJson({ error: 'user_not_found' }, { status: 404 });
     }
     const targetEmail = target.email ?? null;
 
@@ -100,10 +103,10 @@ export async function POST(req: NextRequest) {
       createdAt: FieldValue.serverTimestamp(),
     });
 
-    return NextResponse.json({ ok: true, uid, email: targetEmail });
+    return corsJson({ ok: true, uid, email: targetEmail });
   } catch (e) {
     console.error('[delete-user] fail:', e);
-    return NextResponse.json(
+    return corsJson(
       { error: e instanceof Error ? e.message : String(e) },
       { status: 500 },
     );

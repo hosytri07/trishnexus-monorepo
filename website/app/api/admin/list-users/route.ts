@@ -13,11 +13,14 @@
  *   emailVerified, disabled, createdAt, lastSignedIn, providers,
  *   firestore: { role, plan, fullName, phone, ... } | null }] }
  */
-import { NextResponse, type NextRequest } from 'next/server';
+import { type NextRequest } from 'next/server';
 import { adminAuth, adminDb, adminReady } from '@/lib/firebase-admin';
+import { corsJson, corsOptions } from '@/lib/cors';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
+
+export const OPTIONS = corsOptions;
 
 async function verifyAdmin(req: NextRequest) {
   const authz = req.headers.get('authorization') ?? '';
@@ -42,7 +45,7 @@ async function verifyAdmin(req: NextRequest) {
 
 export async function GET(req: NextRequest) {
   if (!adminReady()) {
-    return NextResponse.json(
+    return corsJson(
       { error: 'Admin SDK chưa cấu hình. Set FIREBASE_SERVICE_ACCOUNT hoặc GOOGLE_APPLICATION_CREDENTIALS env.' },
       { status: 501 },
     );
@@ -50,7 +53,7 @@ export async function GET(req: NextRequest) {
 
   const caller = await verifyAdmin(req);
   if ('error' in caller) {
-    return NextResponse.json({ error: caller.error }, { status: caller.status });
+    return corsJson({ error: caller.error }, { status: caller.status });
   }
 
   const url = new URL(req.url);
@@ -112,14 +115,14 @@ export async function GET(req: NextRequest) {
       };
     });
 
-    return NextResponse.json({
+    return corsJson({
       users,
       total: users.length,
       truncated: list.pageToken != null,
     });
   } catch (e) {
     console.error('[list-users] fail:', e);
-    return NextResponse.json(
+    return corsJson(
       { error: e instanceof Error ? e.message : String(e) },
       { status: 500 },
     );

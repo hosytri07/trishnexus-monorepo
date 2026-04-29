@@ -23,6 +23,10 @@ import { LibraryCuratorPanel } from './components/LibraryCuratorPanel.js';
 import { FeedbackPanel } from './components/FeedbackPanel.js';
 import { AuditPanel } from './components/AuditPanel.js';
 import { PostsPanel } from './components/PostsPanel.js';
+import { BackupPanel } from './components/BackupPanel.js';
+import { DatabaseVnPanel } from './components/DatabaseVnPanel.js';
+import { BulkImportPanel } from './components/BulkImportPanel.js';
+import { StoragePanel } from './components/StoragePanel.js';
 import { getAppVersion } from './tauri-bridge.js';
 import logoUrl from './assets/logo.png';
 
@@ -36,6 +40,10 @@ type Panel =
   | 'feedback'
   | 'audit'
   | 'registry'
+  | 'database_vn'
+  | 'bulk_import'
+  | 'backup'
+  | 'storage'
   | 'settings';
 
 interface NavGroup {
@@ -61,6 +69,7 @@ const NAV_GROUPS: NavGroup[] = [
       { id: 'library_curator', label: 'TrishTEAM Library' },
       { id: 'posts', label: 'Posts / News' },
       { id: 'broadcasts', label: 'Broadcasts' },
+      { id: 'database_vn', label: '🇻🇳 Database VN' },
     ],
   },
   {
@@ -74,6 +83,9 @@ const NAV_GROUPS: NavGroup[] = [
     label: 'Hệ thống',
     items: [
       { id: 'registry', label: 'Apps Registry' },
+      { id: 'bulk_import', label: '📥 Bulk Import' },
+      { id: 'storage', label: '☁ Storage' },
+      { id: 'backup', label: '💾 Backup / Restore' },
       { id: 'settings', label: 'Cài đặt' },
     ],
   },
@@ -199,6 +211,10 @@ export function App(): JSX.Element {
         {active === 'feedback' && <FeedbackPanel />}
         {active === 'audit' && <AuditPanel />}
         {active === 'registry' && <RegistryPanel />}
+        {active === 'database_vn' && <DatabaseVnPanel />}
+        {active === 'bulk_import' && <BulkImportPanel />}
+        {active === 'storage' && <StoragePanel />}
+        {active === 'backup' && <BackupPanel />}
         {active === 'settings' && <SettingsPanel />}
       </main>
     </div>
