@@ -14,7 +14,7 @@
  * Schema mapping: dòng đầu là header → map field name. Field "id" bắt buộc.
  */
 
-import { collection, doc, setDoc, writeBatch } from 'firebase/firestore';
+import { doc, writeBatch } from 'firebase/firestore';
 import { getFirebaseDb } from '@trishteam/auth';
 
 export interface ParsedRow {

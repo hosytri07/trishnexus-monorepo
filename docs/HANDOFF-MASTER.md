@@ -51,7 +51,10 @@ Double-click `scripts\START.bat` → tự pull GitHub + pnpm install + show stat
 4. **Set GitHub secret** `FIREBASE_SERVICE_ACCOUNT_BASE64` để workflow backup chạy được
 5. **Git renormalize** sau khi có .gitattributes mới: `git add --renormalize . && git commit -m "chore: normalize CRLF via .gitattributes"`
 6. **Commit + push** — cleanup, telemetry, panels (~30 file)
-7. **Tag release TrishAdmin** (sau khi smoke test): `git tag trishadmin-v1.1.0 && git push --tags`
+7. **Build TrishAdmin local** (KHÔNG push tag — app private):
+   `pnpm -C apps-desktop\trishadmin tauri build`
+   File output: `apps-desktop\trishadmin\src-tauri\target\release\bundle\nsis\TrishAdmin_1.1.0_x64-setup.exe`
+   Trí phân phối thủ công (USB/email/cloud private)
 
 **Roadmap kế tiếp:**
 

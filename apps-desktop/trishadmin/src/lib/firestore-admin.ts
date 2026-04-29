@@ -375,7 +375,7 @@ export async function createKeys(
       created_at: now,
       created_by_uid: input.createdByUid,
     };
-    await setDoc(doc(db, paths.key(id)), stripUndefined(k as Record<string, unknown>));
+    await setDoc(doc(db, paths.key(id)), stripUndefined(k as unknown as Record<string, unknown>));
     out.push(k);
   }
   if (actor) {
@@ -679,7 +679,7 @@ export async function createLibraryFolder(
   };
   await setDoc(
     doc(db, paths.trishteamLibraryFolder(id)),
-    stripUndefined(f as Record<string, unknown>),
+    stripUndefined(f as unknown as Record<string, unknown>),
   );
   return f;
 }
@@ -690,7 +690,7 @@ export async function updateLibraryFolder(
 ): Promise<void> {
   const db = getFirebaseDb();
   await updateDoc(doc(db, paths.trishteamLibraryFolder(id)), {
-    ...stripUndefined(patch as Record<string, unknown>),
+    ...stripUndefined(patch as unknown as Record<string, unknown>),
     updated_at: Date.now(),
   });
 }
@@ -749,7 +749,7 @@ export async function createLibraryLink(
   };
   await setDoc(
     doc(db, paths.trishteamLibraryLink(input.folderId, id)),
-    stripUndefined(l as Record<string, unknown>),
+    stripUndefined(l as unknown as Record<string, unknown>),
   );
   // Touch folder updated_at để client biết folder có thay đổi
   await updateDoc(doc(db, paths.trishteamLibraryFolder(input.folderId)), {
@@ -768,7 +768,7 @@ export async function updateLibraryLink(
 ): Promise<void> {
   const db = getFirebaseDb();
   await updateDoc(doc(db, paths.trishteamLibraryLink(folderId, linkId)), {
-    ...stripUndefined(patch as Record<string, unknown>),
+    ...stripUndefined(patch as unknown as Record<string, unknown>),
     updated_at: Date.now(),
   });
 }
@@ -858,7 +858,7 @@ export interface AuditEntry {
 export async function writeAudit(input: Omit<AuditEntry, 'id' | 'created_at'>): Promise<void> {
   const db = getFirebaseDb();
   const entry = {
-    ...stripUndefined(input as Record<string, unknown>),
+    ...stripUndefined(input as unknown as Record<string, unknown>),
     created_at: Date.now(),
     _server_created_at: serverTimestamp(),
   };
@@ -956,7 +956,7 @@ export async function createPost(input: CreatePostInput): Promise<Post> {
     updated_at: now,
     author_uid: input.authorUid,
   };
-  await setDoc(doc(db, `posts/${id}`), stripUndefined(p as Record<string, unknown>));
+  await setDoc(doc(db, `posts/${id}`), stripUndefined(p as unknown as Record<string, unknown>));
   return p;
 }
 
@@ -973,7 +973,8 @@ export async function updatePost(
   if (patch.status === 'published' && !patch.publish_at) {
     next.publish_at = Date.now();
   }
-  await updateDoc(doc(db, `posts/${id}`), stripUndefined(next));
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  await updateDoc(doc(db, `posts/${id}`), stripUndefined(next) as any);
 }
 
 export async function deletePost(id: string): Promise<void> {

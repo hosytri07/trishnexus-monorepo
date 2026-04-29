@@ -18,7 +18,6 @@ import {
   getDoc,
   getDocs,
   setDoc,
-  writeBatch,
 } from 'firebase/firestore';
 import { getFirebaseDb } from '@trishteam/auth';
 

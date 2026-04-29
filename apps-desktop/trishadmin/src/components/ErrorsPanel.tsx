@@ -15,7 +15,6 @@ import {
   limit,
   orderBy,
   query,
-  where,
   getDocs,
   type DocumentData,
 } from 'firebase/firestore';
