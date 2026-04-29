@@ -1,0 +1,206 @@
+# ============================================================
+# Phase 20.8 — Tự động build .exe + tạo GitHub Release khi push tag.
+# ============================================================
+#
+# Cách dùng:
+#   git tag trishlauncher-v1.0.0
+#   git push --tags
+#
+# Pattern tag: `<app-id>-v<version>`
+#   - app-id phải khớp folder trong apps-desktop/ (trishlauncher, trishlibrary,
+#     trishadmin, trishfont, trishcheck, trishclean, trishdesign)
+#   - version SemVer (1.0.0, 2.1.3-beta.1, ...)
+#
+# Workflow này:
+#   1. Parse tag → tách app-id + version
+#   2. Setup pnpm 9 + Rust stable + Tauri OS deps (Windows runner)
+#   3. pnpm install ở root (cài deps cả monorepo)
+#   4. cd apps-desktop/<app-id> && pnpm tauri build --bundles nsis
+#   5. Tạo GitHub Release từ tag + upload .exe NSIS installer
+#
+# Free trên public repo (GitHub Actions unlimited minutes cho public).
+
+name: Release App
+
+on:
+  push:
+    tags:
+      # Match: trishlauncher-v1.0.0, trishlibrary-v2.0.0-beta.1, ...
+      - 'trish*-v*'
+
+  # Cho phép trigger thủ công từ Actions tab (test workflow trước khi tag)
+  workflow_dispatch:
+    inputs:
+      app_id:
+        description: 'App ID (vd: trishlauncher)'
+        required: true
+        type: choice
+        options:
+          - trishlauncher
+          - trishlibrary
+          - trishadmin
+          - trishfont
+          - trishcheck
+          - trishclean
+          - trishdesign
+      version:
+        description: 'Version (vd: 1.0.0)'
+        required: true
+        type: string
+      draft:
+        description: 'Tạo release dạng draft (không publish ngay)'
+        required: false
+        type: boolean
+        default: true
+
+permissions:
+  contents: write # Cần để tạo GitHub Release
+
+jobs:
+  build:
+    name: Build ${{ github.ref_name || inputs.app_id }} for Windows
+    runs-on: windows-latest
+    timeout-minutes: 45
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Parse tag (app_id + version)
+        id: parse
+        shell: bash
+        run: |
+          if [ -n "${{ inputs.app_id }}" ]; then
+            APP_ID="${{ inputs.app_id }}"
+            VERSION="${{ inputs.version }}"
+            TAG="${APP_ID}-v${VERSION}"
+          else
+            TAG="${GITHUB_REF#refs/tags/}"
+            APP_ID="${TAG%-v*}"
+            VERSION="${TAG##*-v}"
+          fi
+          echo "Tag: $TAG"
+          echo "App: $APP_ID"
+          echo "Version: $VERSION"
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "app_id=$APP_ID" >> "$GITHUB_OUTPUT"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Verify app folder exists
+        shell: bash
+        run: |
+          APP_ID="${{ steps.parse.outputs.app_id }}"
+          if [ ! -d "apps-desktop/$APP_ID" ]; then
+            echo "::error::Folder apps-desktop/$APP_ID không tồn tại"
+            exit 1
+          fi
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'pnpm'
+
+      - name: Setup Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-pc-windows-msvc
+
+      - name: Cache Cargo target
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            apps-desktop/${{ steps.parse.outputs.app_id }}/src-tauri/target
+          key: cargo-${{ runner.os }}-${{ steps.parse.outputs.app_id }}-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            cargo-${{ runner.os }}-${{ steps.parse.outputs.app_id }}-
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build Tauri app (NSIS .exe only)
+        working-directory: apps-desktop/${{ steps.parse.outputs.app_id }}
+        run: pnpm tauri build --bundles nsis
+        env:
+          # Tauri 2 CI mode: tắt prompts/interactive
+          CI: 'true'
+
+      - name: Locate built .exe
+        id: locate
+        shell: bash
+        working-directory: apps-desktop/${{ steps.parse.outputs.app_id }}
+        run: |
+          # NSIS output: src-tauri/target/release/bundle/nsis/<ProductName>_<version>_x64-setup.exe
+          NSIS_DIR="src-tauri/target/release/bundle/nsis"
+          if [ ! -d "$NSIS_DIR" ]; then
+            echo "::error::NSIS output dir không tồn tại: $NSIS_DIR"
+            ls -la src-tauri/target/release/bundle/ || true
+            exit 1
+          fi
+          EXE_PATH=$(find "$NSIS_DIR" -name '*-setup.exe' | head -n 1)
+          if [ -z "$EXE_PATH" ]; then
+            echo "::error::Không tìm thấy file -setup.exe trong $NSIS_DIR"
+            ls -la "$NSIS_DIR"
+            exit 1
+          fi
+          echo "Built: $EXE_PATH"
+          echo "exe_path=$EXE_PATH" >> "$GITHUB_OUTPUT"
+          echo "exe_name=$(basename "$EXE_PATH")" >> "$GITHUB_OUTPUT"
+
+      - name: Compute SHA256
+        id: hash
+        shell: bash
+        working-directory: apps-desktop/${{ steps.parse.outputs.app_id }}
+        run: |
+          HASH=$(sha256sum "${{ steps.locate.outputs.exe_path }}" | awk '{print $1}')
+          echo "sha256=$HASH" >> "$GITHUB_OUTPUT"
+          echo "SHA256: $HASH"
+
+      - name: Upload artifact (luôn lưu — kể cả release fail)
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.parse.outputs.app_id }}-${{ steps.parse.outputs.version }}-windows-x64
+          path: apps-desktop/${{ steps.parse.outputs.app_id }}/${{ steps.locate.outputs.exe_path }}
+          retention-days: 30
+
+      - name: Create GitHub Release + upload .exe
+        # Skip nếu workflow_dispatch + draft=false; tag push luôn create release
+        if: github.event_name == 'push' || inputs.draft != true
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.parse.outputs.tag }}
+          name: ${{ steps.parse.outputs.app_id }} v${{ steps.parse.outputs.version }}
+          draft: ${{ github.event_name == 'workflow_dispatch' && inputs.draft || false }}
+          generate_release_notes: true
+          body: |
+            ## ${{ steps.parse.outputs.app_id }} v${{ steps.parse.outputs.version }}
+
+            **Windows installer (.exe):** [${{ steps.locate.outputs.exe_name }}](https://github.com/${{ github.repository }}/releases/download/${{ steps.parse.outputs.tag }}/${{ steps.locate.outputs.exe_name }})
+
+            **SHA256:** `${{ steps.hash.outputs.sha256 }}`
+
+            ---
+
+            ### Cài đặt
+
+            1. Tải file `.exe` ở trên
+            2. Chạy file → cài đặt qua NSIS wizard
+            3. Hoặc cài qua **TrishLauncher** (nếu đã có): bấm **Cập nhật** trên card → tự download bản này
+
+            ### Verify checksum (tuỳ chọn)
+
+            ```powershell
+            Get-FileHash ${{ steps.locate.outputs.exe_name }} -Algorithm SHA256
+            ```
+
+            Phải khớp với SHA256 ở trên.
+          files: apps-desktop/${{ steps.parse.outputs.app_id }}/${{ steps.locate.outputs.exe_path }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

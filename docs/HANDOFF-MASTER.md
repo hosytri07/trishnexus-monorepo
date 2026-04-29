@@ -47,23 +47,39 @@ Double-click `scripts\START.bat` → tự pull GitHub + pnpm install + show stat
 ✅ Phase 19.24  TrishAdmin desktop parity (DONE)
                 - BackupPanel · DatabaseVnPanel · BulkImportPanel · StoragePanel
 
-🟡 Phase 20     TrishLauncher Sync (Trí đổi hướng — Zalo MiniApp gác lại)
-                ⏳ 20.1 Audit launcher: schema_version, registry URL, install paths
-                ⏳ 20.2 Sync apps-registry.json với app desktop release thật
-                ⏳ 20.3 Test detect installed → button "Mở" / "Cài đặt"
-                ⏳ 20.4 Tray Quick-launch refresh đầy đủ
+✅ Phase 20     TrishLauncher Sync + Web optimization (DONE 2026-04-29)
+                ✅ 20.1 Audit + chốt scope
+                ✅ 20.2 Fix schema/URL/version/CORS launcher + web /api/apps-registry
+                ✅ 20.3 Manual update button (force fetch + per-app "Cập nhật")
+                ✅ 20.4 /downloads sync Firestore (đã có từ 19.22)
+                ✅ 20.5 SEO + sitemap dynamic blog + Vercel Analytics
+                ✅ 20.6 PWA (đã có từ 11.9)
+                ✅ 20.7 Audit Firestore rules (0 gap)
+                ✅ 20.8 CI/CD release-app.yml + NSIS-only bundles
+                — Phụ trợ:
+                  • TrishLauncher: tray tooltip "Hệ sinh thái TrishTEAM",
+                    minimize-to-tray toggle (mặc định OFF), bỏ nút "Đăng nhập",
+                    ẩn 4 app deprecated, Việt hóa label
+                  • Apps shown: 5 (TrishFont/Clean/Check/Library/Design),
+                    TrishAdmin ẨN, TrishLauncher self-exclude
+                  • Apps registry source: www.trishteam.io.vn/api/apps-registry
+                    (live Firestore /apps_meta), fallback static JSON
+                  • Bỏ apps-zalo/main scaffold (Trí ko cần, đã xóa folder)
 
-⏳ Phase 21     TrishDesign desktop
+⏳ Phase 21     TrishDesign desktop (chưa start)
                 - AutoCAD plugin
                 - AI RAG TCVN/AASHTO
                 - Dự toán + bản vẽ kỹ sư
+
+⏳ Còn lại (free, ưu tiên thấp hơn):
+                - Sentry crash reporter (free 5k/tháng)
+                - Backup auto cron (GitHub Actions weekly)
+                - Test coverage vitest packages/core
+                - Code-signing (skip — không free, EV ~250$/năm)
 ```
 
-Trí gõ 1 trong 2 lệnh sau để pick task tiếp:
-- `Zalo miniapp` → Phase 20
-- `TrishDesign` → Phase 21
-
-**Trước khi build TrishAdmin:** anh cần `cd apps-desktop\trishadmin; pnpm install; pnpm tauri dev` để test 4 panel mới. Nếu OK thì `pnpm tauri build` ra `.exe`.
+**Phase 20 release flow** — `git tag <appid>-v<version> && git push --tags` →
+GitHub Actions tự build NSIS .exe + tạo Release. Xem `docs/RELEASE-PROCESS.md`.
 
 ### Test checklist localhost:3000
 
