@@ -16,6 +16,9 @@ type Dict = Record<string, string>;
 const VI: Dict = {
   'topbar.website': 'Mở website',
   'topbar.settings': 'Cài đặt',
+  'topbar.check_updates': 'Kiểm tra cập nhật',
+  'topbar.check_updates_title':
+    'Tải lại danh sách app từ server (bỏ qua cache). Sau đó bấm "Cập nhật" trên card đã cài để tải bản mới.',
   'sysbar.connected': 'Đã kết nối',
   'sysbar.offline': 'Offline — dùng bản gốc',
   'footer.apps_released': 'phần mềm đã phát hành',
@@ -53,6 +56,9 @@ const VI: Dict = {
 const EN: Dict = {
   'topbar.website': 'Open website',
   'topbar.settings': 'Settings',
+  'topbar.check_updates': 'Check for updates',
+  'topbar.check_updates_title':
+    'Reload app list from server (bypass cache). Then click "Update" on installed card to download new version.',
   'sysbar.connected': 'Connected',
   'sysbar.offline': 'Offline — using bundled',
   'footer.apps_released': 'apps released',

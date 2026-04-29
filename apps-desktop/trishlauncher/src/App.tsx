@@ -80,6 +80,10 @@ export function App(): JSX.Element {
     () => new Map(),
   );
 
+  // Phase 20.3 — manual update flow state
+  const [refreshing, setRefreshing] = useState(false);
+  const [toast, setToast] = useState<string | null>(null);
+
   // Phase 14.5.5.e — Settings state (theme/language/registry/autoUpdate).
   // Lazy-init từ localStorage để tránh flash theme sai ở render đầu.
   const [settings, setSettings] = useState<Settings>(() => loadSettings());
@@ -266,6 +270,55 @@ export function App(): JSX.Element {
     }
   };
 
+  /**
+   * Phase 20.3 — Secondary action cho card đã cài: mở download URL để
+   * user tải bản mới (NSIS ghi đè bản cũ tự động).
+   */
+  const handleUpdate = (app: AppForUi): void => {
+    const target = app.download[platform];
+    if (target?.url) {
+      void openExternal(target.url);
+      setToast(`Đang mở trình duyệt để tải bản mới của ${app.name}…`);
+      setTimeout(() => setToast(null), 4000);
+    }
+  };
+
+  /**
+   * Phase 20.3 — Force refetch registry (bỏ cache 60s từ API). Hiển thị
+   * spinner trên button + toast feedback. Nếu fail → fallback chain trong
+   * loadRegistry tự xử (live API → static → seed).
+   */
+  const handleCheckUpdates = async (): Promise<void> => {
+    if (refreshing) return;
+    setRefreshing(true);
+    setToast(null);
+    try {
+      // Append cache-buster query để Vercel CDN không trả response cache
+      const url = settings.registryUrl
+        ? settings.registryUrl
+        : `https://www.trishteam.io.vn/api/apps-registry?t=${Date.now()}`;
+      const result = await loadRegistry(url);
+      setRegistryResult(result);
+      if (result.source === 'remote' && result.fetchedAt) {
+        setLastFetchMs(result.fetchedAt);
+      }
+      if (result.error) {
+        setToast(`⚠ Không tải được registry mới: ${result.error}`);
+      } else {
+        setToast(
+          `✓ Đã cập nhật danh sách. Bấm "Cập nhật" trên card đã cài để tải bản mới.`,
+        );
+      }
+    } catch (err) {
+      setToast(
+        `⚠ Lỗi: ${err instanceof Error ? err.message : String(err)}`,
+      );
+    } finally {
+      setRefreshing(false);
+      setTimeout(() => setToast(null), 5000);
+    }
+  };
+
   return (
     <div className="shell">
       <header className="topbar">
@@ -288,6 +341,15 @@ export function App(): JSX.Element {
         <div className="topbar-actions">
           <button
             className="btn btn-ghost"
+            onClick={() => void handleCheckUpdates()}
+            disabled={refreshing}
+            title={tr('topbar.check_updates_title')}
+          >
+            {refreshing ? '⏳ ' : '🔄 '}
+            {tr('topbar.check_updates')}
+          </button>
+          <button
+            className="btn btn-ghost"
             onClick={() => setSettingsOpen(true)}
           >
             {tr('topbar.settings')}
@@ -300,6 +362,8 @@ export function App(): JSX.Element {
           </button>
         </div>
       </header>
+
+      {toast && <div className="toast">{toast}</div>}
 
       <section className="sysbar">
         <span>
@@ -347,6 +411,7 @@ export function App(): JSX.Element {
             platform={platform}
             detect={installMap.get(app.id) ?? null}
             onInstall={() => handleInstall(app)}
+            onUpdate={() => handleUpdate(app)}
             onOpenDetail={() => setSelectedAppId(app.id)}
           />
         ))}
@@ -402,6 +467,7 @@ interface AppCardProps {
   platform: Platform;
   detect: InstallDetection | null;
   onInstall: () => void;
+  onUpdate: () => void;
   onOpenDetail: () => void;
 }
 
@@ -410,6 +476,7 @@ function AppCard({
   platform,
   detect,
   onInstall,
+  onUpdate,
   onOpenDetail,
 }: AppCardProps): JSX.Element {
   const iconUrl = iconFor(app.id);
@@ -488,6 +555,20 @@ function AppCard({
         >
           Chi tiết
         </button>
+        {/* Phase 20.3 — Card đã cài có button "Cập nhật" cạnh "Mở":
+            user click → mở download URL trình duyệt → tải bản mới về →
+            installer NSIS ghi đè bản cũ. Card chưa cài thì chỉ có button
+            chính (Tải về / Còn N ngày / etc). */}
+        {isInstalled && Boolean(app.download[platform]?.url) && (
+          <button
+            type="button"
+            className="btn btn-ghost"
+            onClick={onUpdate}
+            title="Tải bản mới nhất từ website (NSIS sẽ ghi đè bản cũ)"
+          >
+            🔄 Cập nhật
+          </button>
+        )}
         <button
           type="button"
           className="btn btn-primary"

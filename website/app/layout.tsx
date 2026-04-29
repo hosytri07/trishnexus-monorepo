@@ -11,6 +11,8 @@ import { WebVitalsReporter } from '@/components/web-vitals-reporter';
 import { ErrorReporter } from '@/components/error-reporter';
 import { ErrorBoundary } from '@/components/error-boundary';
 import { UmamiTracker } from '@/components/umami-tracker';
+import { Analytics } from '@vercel/analytics/react';
+import { SpeedInsights } from '@vercel/speed-insights/next';
 
 /**
  * Be Vietnam Pro — font chính cho cả display (tiêu đề) lẫn body.
@@ -191,6 +193,11 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             <ErrorReporter />
             {/* Phase 16.6: Umami privacy analytics (flag-gated by env). */}
             <UmamiTracker />
+            {/* Phase 20.5: Vercel Analytics + Speed Insights (free Hobby
+                tier, 10k events/tháng). Tự enable khi deploy lên Vercel,
+                dev local no-op. Privacy: cookie-less, không PII. */}
+            <Analytics />
+            <SpeedInsights />
           </AuthProvider>
         </ThemeProvider>
       </body>
