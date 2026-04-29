@@ -163,3 +163,25 @@ export async function updateTrayQuickLaunch(
     console.warn('[trishlauncher] update_tray_quick_launch failed:', err);
   }
 }
+
+// ============================================================
+// Phase 20.2 — Minimize-to-tray (Rust side)
+// ============================================================
+
+/**
+ * Push setting `minimizeToTray` xuống Rust state. Rust `on_window_event`
+ * sẽ đọc state này khi user bấm X:
+ *   - true  → window.hide() + prevent_close() → ẩn vào tray
+ *   - false → để Tauri close hẳn (default)
+ *
+ * App.tsx gọi mỗi khi user lưu Settings để Rust luôn có giá trị mới nhất.
+ * Browser dev: no-op để pnpm dev không warn.
+ */
+export async function setMinimizeToTrayEnabled(enabled: boolean): Promise<void> {
+  if (!isInTauri()) return;
+  try {
+    await invoke<void>('set_close_to_tray', { enabled });
+  } catch (err) {
+    console.warn('[trishlauncher] set_close_to_tray failed:', err);
+  }
+}

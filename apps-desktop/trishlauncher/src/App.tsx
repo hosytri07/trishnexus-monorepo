@@ -21,6 +21,7 @@ import {
   detectInstall,
   launchPath,
   updateTrayQuickLaunch,
+  setMinimizeToTrayEnabled,
   type SysInfo,
   type QuickLaunchItem,
   FALLBACK_SYS_INFO,
@@ -142,6 +143,12 @@ export function App(): JSX.Element {
     void getAppVersion().then(setVersion);
   }, []);
 
+  // Phase 20.2 — Push minimize-to-tray flag xuống Rust mỗi khi user lưu
+  // setting. Rust on_window_event đọc flag để quyết định prevent_close.
+  useEffect(() => {
+    void setMinimizeToTrayEnabled(settings.minimizeToTray);
+  }, [settings.minimizeToTray]);
+
   const platform = useMemo(() => detectPlatform(sys), [sys]);
 
   /**
@@ -155,17 +162,40 @@ export function App(): JSX.Element {
     [registryResult.registry],
   );
 
+  // Phase 20.2 — Lọc khỏi grid:
+  //   - trishlauncher: launcher không show chính nó
+  //   - status='deprecated': các app đã gộp vào TrishLibrary (TrishNote/Image/
+  //     Search/Type) → user không cần thấy entry riêng. Registry vẫn giữ entry
+  //     deprecated cho web /downloads và backward compat, launcher ẩn đi.
   const compatApps = useMemo(
-    () => filterByPlatform(apps, platform),
+    () =>
+      filterByPlatform(apps, platform).filter(
+        (a) => a.id !== 'trishlauncher' && a.status !== 'deprecated',
+      ),
     [apps, platform],
   );
 
   // Phase 14.7.h — Footer hiển thị tiến độ "x/y phần mềm đã phát hành".
-  // Đếm app status='released' (loại bỏ 'beta', 'coming_soon'). Khi từng
-  // app launch lên CDN thật → đổi `apps-registry.json` field `status`
-  // → footer cập nhật ngay không cần ship lại launcher.
-  const releasedCount = useMemo(
-    () => apps.filter((a) => a.status === 'released').length,
+  // Phase 20.2 — Đếm app "user có thể tải" = released hoặc scheduled đã
+  // qua release_at. Không tính 'coming_soon' (chưa code) và 'deprecated'
+  // (đã gộp). Cũng loại trishlauncher (không count chính mình).
+  const releasedCount = useMemo(() => {
+    const now = Date.now();
+    return apps.filter((a) => {
+      if (a.id === 'trishlauncher') return false;
+      if (a.status === 'released') return true;
+      if (a.status === 'scheduled' && a.release_at) {
+        return new Date(a.release_at).getTime() <= now;
+      }
+      return false;
+    }).length;
+  }, [apps]);
+
+  // Total apps tracked (loại deprecated + trishlauncher khỏi denominator).
+  const totalApps = useMemo(
+    () =>
+      apps.filter((a) => a.status !== 'deprecated' && a.id !== 'trishlauncher')
+        .length,
     [apps],
   );
 
@@ -322,20 +352,13 @@ export function App(): JSX.Element {
         ))}
       </main>
 
+      {/* Phase 20.2 — Bỏ nút "Đăng nhập TrishTEAM" footer. Launcher chỉ là
+          hub khám phá + cài đặt app, không có Firebase Auth. App nào cần
+          đăng nhập (Library/Design) sẽ tự handle login bên trong app đó. */}
       <footer className="foot">
         <span>
-          {releasedCount}/{apps.length} {tr('footer.apps_released')}
+          {releasedCount}/{totalApps} {tr('footer.apps_released')}
         </span>
-        <button
-          type="button"
-          className="foot-link"
-          onClick={() =>
-            void openExternal('https://www.trishteam.io.vn/login')
-          }
-          title="Đăng nhập / kích hoạt key trên web TrishTEAM"
-        >
-          🔑 Đăng nhập TrishTEAM
-        </button>
         <span className="muted">
           © 2026 TrishTEAM · {registryResult.registry.ecosystem.website}
         </span>

@@ -38,6 +38,10 @@ const VI: Dict = {
   'settings.update.off': 'Tắt',
   'settings.update.daily': 'Hàng ngày',
   'settings.update.weekly': 'Hàng tuần',
+  'settings.tray.label': 'Khi đóng cửa sổ',
+  'settings.tray.toggle': 'Ẩn vào khay hệ thống thay vì thoát',
+  'settings.tray.hint':
+    'Bật: bấm X sẽ ẩn launcher xuống khay (tray) — click icon tray để mở lại. Tắt: bấm X thoát hẳn.',
   'card.detail': 'Chi tiết',
   'card.installed_badge': 'Đã cài',
   'card.installed_title': 'Đã cài đặt',
@@ -71,6 +75,10 @@ const EN: Dict = {
   'settings.update.off': 'Off',
   'settings.update.daily': 'Daily',
   'settings.update.weekly': 'Weekly',
+  'settings.tray.label': 'When closing window',
+  'settings.tray.toggle': 'Hide to system tray instead of quitting',
+  'settings.tray.hint':
+    'On: clicking X minimizes launcher to tray — click the tray icon to bring it back. Off: clicking X quits the app.',
   'card.detail': 'Details',
   'card.installed_badge': 'Installed',
   'card.installed_title': 'Already installed',

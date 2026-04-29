@@ -317,9 +317,26 @@ pub struct QuickLaunchItem {
 /// State lưu trong `app.manage()` để on_menu_event tra path từ id
 /// khi user click submenu. Mutex vì TrayIconEvent / MenuEvent chạy
 /// trên main thread nhưng frontend update qua IPC có thể từ worker.
+///
+/// Phase 20.2 — thêm `minimize_to_tray` flag. Default `false` (bấm X
+/// → đóng hẳn), frontend gọi `set_close_to_tray` mỗi khi user lưu
+/// Settings để cập nhật.
 #[derive(Default)]
 struct TrayState {
     quick_launch: Mutex<Vec<QuickLaunchItem>>,
+    minimize_to_tray: Mutex<bool>,
+}
+
+/// Phase 20.2 — Frontend push setting xuống Rust để on_window_event đọc
+/// được khi user bấm X. Mặc định false → đóng hẳn.
+#[tauri::command]
+fn set_close_to_tray(state: tauri::State<'_, TrayState>, enabled: bool) -> Result<(), String> {
+    let mut guard = state
+        .minimize_to_tray
+        .lock()
+        .map_err(|_| "minimize_to_tray lock poisoned".to_string())?;
+    *guard = enabled;
+    Ok(())
 }
 
 /// Build menu chính + submenu Quick-launch với N item. Tách function
@@ -453,7 +470,8 @@ pub fn run() {
             detect_install,
             launch_path,
             update_tray_quick_launch,
-            fetch_registry_text
+            fetch_registry_text,
+            set_close_to_tray
         ])
         .setup(|app| {
             // Build menu rỗng trước → sau detect_install frontend sẽ push
@@ -466,7 +484,7 @@ pub fn run() {
                 .cloned()
                 .ok_or("default window icon missing")?;
             let _tray = TrayIconBuilder::with_id("main")
-                .tooltip("TrishLauncher — 10 ứng dụng tiện ích")
+                .tooltip("TrishLauncher — Hệ sinh thái TrishTEAM")
                 .icon(icon)
                 .menu(&initial_menu)
                 .show_menu_on_left_click(false)
@@ -525,12 +543,22 @@ pub fn run() {
             Ok(())
         })
         .on_window_event(|window, event| {
-            // Close (X) → ẩn xuống tray thay vì quit. User thoát hẳn qua
-            // menu "Thoát" trên tray.
+            // Phase 20.2 — đọc setting `minimize_to_tray` từ TrayState. True
+            // = ẩn xuống tray + prevent close. False = để Tauri close hẳn
+            // (default). Frontend gọi `set_close_to_tray` mỗi lần user lưu
+            // Settings để cập nhật flag này.
             if window.label() == "main" {
                 if let WindowEvent::CloseRequested { api, .. } = event {
-                    let _ = window.hide();
-                    api.prevent_close();
+                    let app = window.app_handle();
+                    let should_hide = app
+                        .try_state::<TrayState>()
+                        .and_then(|s| s.minimize_to_tray.lock().ok().map(|g| *g))
+                        .unwrap_or(false);
+                    if should_hide {
+                        let _ = window.hide();
+                        api.prevent_close();
+                    }
+                    // else: để Tauri tiếp tục quit như mặc định
                 }
             }
         })

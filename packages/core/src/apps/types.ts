@@ -98,4 +98,9 @@ export type AppRegistry = {
   updated_at: string;
   ecosystem: EcosystemInfo;
   apps: AppRegistryEntry[];
+  /**
+   * Phase 19.22 / 20.2 — Default release timestamp khi entry không tự set
+   * `release_at`. UI có thể fallback sang đây cho countdown chung.
+   */
+  release_at_default?: string;
 };

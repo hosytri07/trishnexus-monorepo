@@ -47,11 +47,11 @@ Double-click `scripts\START.bat` → tự pull GitHub + pnpm install + show stat
 ✅ Phase 19.24  TrishAdmin desktop parity (DONE)
                 - BackupPanel · DatabaseVnPanel · BulkImportPanel · StoragePanel
 
-⏳ Phase 20     Zalo MiniApp (React + ZMP SDK)
-                - Login Zalo OA
-                - Read blog + database VN
-                - Quiz lái xe + cert XD
-                - Push notification
+🟡 Phase 20     TrishLauncher Sync (Trí đổi hướng — Zalo MiniApp gác lại)
+                ⏳ 20.1 Audit launcher: schema_version, registry URL, install paths
+                ⏳ 20.2 Sync apps-registry.json với app desktop release thật
+                ⏳ 20.3 Test detect installed → button "Mở" / "Cài đặt"
+                ⏳ 20.4 Tray Quick-launch refresh đầy đủ
 
 ⏳ Phase 21     TrishDesign desktop
                 - AutoCAD plugin

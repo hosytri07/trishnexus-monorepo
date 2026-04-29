@@ -39,10 +39,15 @@ import { generateActivationKey, generateBroadcastId, generateKeyId } from './key
  * Phase 19.24 — Web API endpoint base URL.
  * Trỏ về website đã deploy (Vercel) để fetch user list từ Firebase Auth + Firestore
  * (qua Admin SDK). Override bằng env `VITE_TRISH_API_BASE` nếu cần test localhost.
+ *
+ * LƯU Ý: phải dùng `www.trishteam.io.vn` (canonical), KHÔNG dùng apex
+ * `trishteam.io.vn` vì Vercel redirect 307 apex → www. CORS preflight
+ * (OPTIONS) không follow redirect → fail "Redirect is not allowed for a
+ * preflight request".
  */
 const TRISH_API_BASE =
   (import.meta as { env?: Record<string, string | undefined> }).env
-    ?.VITE_TRISH_API_BASE ?? 'https://trishteam.io.vn';
+    ?.VITE_TRISH_API_BASE ?? 'https://www.trishteam.io.vn';
 
 interface ApiListUsersResponse {
   users: Array<{

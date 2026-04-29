@@ -159,13 +159,15 @@ service cloud.firestore {
 
     // --- Phase 15.2/16.2 — /trishteam_library/{folderId} (admin curated) ---
     // Top-level collection (path 1 segment để Firestore valid odd-segments).
-    // Admin tạo/sửa/xóa folders + links. Mọi user đã login (kể cả trial) read.
+    // Phase 20.2 — đổi public read để Zalo Mini App MVP (chưa có Firebase Auth)
+    // có thể đọc tài nguyên admin curated. Triết lý: thư viện là chia sẻ cộng đồng.
+    // Admin tạo/sửa/xóa folders + links.
     match /trishteam_library/{folderId} {
-      allow read: if signedIn();
+      allow read: if true;
       allow create, update, delete: if isAdmin();
     }
     match /trishteam_library/{folderId}/links/{linkId} {
-      allow read: if signedIn();
+      allow read: if true;
       allow create, update, delete: if isAdmin();
     }
 

@@ -144,11 +144,16 @@ body {
   color: var(--amber);
 }
 
+/* Phase 20.2 — max-width + center để fullscreen không trải dàn cards mỏng
+   thành 7-8 cột. 1400px tương đương MacBook 14"/Windows phổ biến → 4-5 cột. */
 .grid {
   flex: 1;
+  width: 100%;
+  max-width: 1400px;
+  margin: 0 auto;
   padding: 24px;
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
   gap: 16px;
 }
 
@@ -272,6 +277,17 @@ body {
 .badge-coming_soon {
   background: rgba(37, 99, 235, 0.12);
   color: var(--blue);
+}
+
+/* Phase 20.2 — 'scheduled' (đã code chờ release_at) + 'deprecated' (đã gộp). */
+.badge-scheduled {
+  background: rgba(34, 211, 238, 0.14);
+  color: #22d3ee;
+}
+.badge-deprecated {
+  background: rgba(148, 163, 184, 0.16);
+  color: #94a3b8;
+  font-style: italic;
 }
 
 /* Phase 14.5.5.c — badge "Đã cài" xanh đậm hơn badge-released để user
@@ -798,4 +814,30 @@ body {
   font-size: 12px;
   color: var(--muted);
   line-height: 1.5;
+}
+
+/* Phase 20.2 — toggle row cho minimize-to-tray. */
+.settings-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  cursor: pointer;
+  user-select: none;
+  background: var(--surface);
+}
+.settings-toggle:hover {
+  border-color: var(--accent);
+}
+.settings-toggle input[type='checkbox'] {
+  accent-color: var(--accent);
+  width: 18px;
+  height: 18px;
+  margin: 0;
+}
+.settings-toggle-text {
+  font-size: 13px;
+  font-weight: 500;
 }

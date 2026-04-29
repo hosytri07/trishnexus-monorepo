@@ -110,9 +110,9 @@ export function loginRequiredLabel(kind: LoginRequired): string {
     case 'user':
       return 'Cần đăng nhập';
     case 'admin':
-      return 'Chỉ admin';
+      return 'Chỉ quản trị viên';
     case 'dev':
-      return 'Chỉ dev nội bộ';
+      return 'Chỉ nội bộ phát triển';
     default:
       return kind;
   }
@@ -133,17 +133,17 @@ export function loginRequiredBadge(kind: LoginRequired): {
 } {
   switch (kind) {
     case 'none':
-      return { emoji: '🆓', label: 'Free', color: 'green' };
+      return { emoji: '🆓', label: 'Miễn phí', color: 'green' };
     case 'trial':
       return { emoji: '🔑', label: 'Cần đăng nhập', color: 'orange' };
     case 'paid':
-      return { emoji: '💎', label: 'Cần key', color: 'red' };
+      return { emoji: '💎', label: 'Cần kích hoạt key', color: 'red' };
     case 'user':
-      return { emoji: '👤', label: 'Login', color: 'orange' };
+      return { emoji: '👤', label: 'Cần đăng nhập', color: 'orange' };
     case 'admin':
-      return { emoji: '👑', label: 'Admin', color: 'purple' };
+      return { emoji: '👑', label: 'Quản trị viên', color: 'purple' };
     case 'dev':
-      return { emoji: '🛠', label: 'Dev', color: 'gray' };
+      return { emoji: '🛠', label: 'Nội bộ', color: 'gray' };
     default:
       return { emoji: '❓', label: kind, color: 'gray' };
   }

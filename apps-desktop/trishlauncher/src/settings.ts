@@ -20,6 +20,13 @@ export interface Settings {
   /** Base URL cho registry JSON (mirror/staging). Rỗng = dùng seed built-in. */
   registryUrl: string;
   autoUpdateInterval: UpdateInterval;
+  /**
+   * Phase 20.2 — Khi bấm X cửa sổ launcher: true = ẩn vào system tray
+   * (vẫn chạy ngầm, click icon tray để mở lại); false = đóng hẳn (mặc
+   * định, hành xử thông thường). Tránh user "mất" launcher khi không
+   * biết tray.
+   */
+  minimizeToTray: boolean;
 }
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -27,6 +34,7 @@ export const DEFAULT_SETTINGS: Settings = {
   language: 'vi',
   registryUrl: '',
   autoUpdateInterval: 'weekly',
+  minimizeToTray: false,
 };
 
 const STORAGE_KEY = 'trishlauncher:settings:v1';
@@ -57,6 +65,10 @@ export function loadSettings(): Settings {
         typeof parsed.registryUrl === 'string'
           ? parsed.registryUrl.trim()
           : DEFAULT_SETTINGS.registryUrl,
+      minimizeToTray:
+        typeof parsed.minimizeToTray === 'boolean'
+          ? parsed.minimizeToTray
+          : DEFAULT_SETTINGS.minimizeToTray,
     };
   } catch (err) {
     console.warn('[trishlauncher] loadSettings corrupt, reset:', err);

@@ -31,10 +31,25 @@ import { fetchRegistryText } from './tauri-bridge.js';
  * Launcher hoạt động "out of the box" — chỉ admin/dev mới đổi qua
  * TrishAdmin (chưa build) hoặc localStorage manual.
  */
+/**
+ * Phase 20.2 — Endpoint live đọc Firestore `/apps_meta` (admin sửa qua
+ * /admin/apps → launcher next-fetch sẽ thấy ngay). Static file
+ * `/apps-registry.json` giữ làm fallback nếu API down.
+ *
+ * Dùng www.trishteam.io.vn (canonical) — apex redirect 307 → www.
+ */
 export const DEFAULT_REGISTRY_URL =
-  'https://trishteam.io.vn/apps-registry.json';
+  'https://www.trishteam.io.vn/api/apps-registry';
+export const FALLBACK_REGISTRY_URL =
+  'https://www.trishteam.io.vn/apps-registry.json';
 
-const EXPECTED_SCHEMA_VERSION = 2;
+/**
+ * Phase 20.2 — Bumped 2 → 3 sau khi `apps-registry.json` thêm field
+ * `release_at_default` + `release_at` per-app + `apps_meta` Firestore mirror.
+ * Validator chỉ kiểm tra `>= 2` (forward-compatible) thay vì equality strict
+ * — nếu tương lai bump thêm field optional, launcher cũ vẫn parse được.
+ */
+const MIN_SCHEMA_VERSION = 2;
 
 export interface RegistryLoadResult {
   registry: AppRegistry;
@@ -54,7 +69,10 @@ export interface RegistryLoadResult {
 function isValidRegistry(data: unknown): data is AppRegistry {
   if (!data || typeof data !== 'object') return false;
   const r = data as Record<string, unknown>;
-  if (r.schema_version !== EXPECTED_SCHEMA_VERSION) return false;
+  // Phase 20.2 — accept >= MIN_SCHEMA_VERSION cho phép forward-compat.
+  if (typeof r.schema_version !== 'number' || r.schema_version < MIN_SCHEMA_VERSION) {
+    return false;
+  }
   if (!Array.isArray(r.apps)) return false;
   if (!r.ecosystem || typeof r.ecosystem !== 'object') return false;
   return true;
@@ -91,6 +109,7 @@ export async function loadRegistry(
   const url =
     overrideUrl && overrideUrl.trim() ? overrideUrl.trim() : DEFAULT_REGISTRY_URL;
 
+  // 1. Thử endpoint live (API Firestore)
   try {
     const remote = await fetchRemote(url);
     return {
@@ -101,7 +120,27 @@ export async function loadRegistry(
     };
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
-    console.warn('[trishlauncher] registry fetch fail, using seed:', message);
+    console.warn('[trishlauncher] live API fail, try static fallback:', message);
+
+    // 2. Fallback: static apps-registry.json (chỉ khi user không override URL)
+    if (!overrideUrl || !overrideUrl.trim()) {
+      try {
+        const fallback = await fetchRemote(FALLBACK_REGISTRY_URL);
+        return {
+          registry: fallback,
+          source: 'remote',
+          fetchedAt: Date.now(),
+          error: null,
+        };
+      } catch (err2) {
+        console.warn(
+          '[trishlauncher] static fallback also fail, using seed:',
+          err2 instanceof Error ? err2.message : String(err2),
+        );
+      }
+    }
+
+    // 3. Cuối: seed built-in
     return {
       registry: SEED_REGISTRY,
       source: 'seed',

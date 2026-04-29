@@ -53,6 +53,8 @@ export function SettingsModal({
     setDraft((d) => ({ ...d, language }));
   const updateUpdate = (autoUpdateInterval: UpdateInterval): void =>
     setDraft((d) => ({ ...d, autoUpdateInterval }));
+  const updateTray = (minimizeToTray: boolean): void =>
+    setDraft((d) => ({ ...d, minimizeToTray }));
 
   return (
     <div
@@ -152,6 +154,22 @@ export function SettingsModal({
               <option value="daily">{tr('settings.update.daily')}</option>
               <option value="weekly">{tr('settings.update.weekly')}</option>
             </select>
+          </div>
+
+          {/* Phase 20.2 — Minimize-to-tray toggle -------------------- */}
+          <div className="modal-section settings-section">
+            <h3>{tr('settings.tray.label')}</h3>
+            <label className="settings-toggle">
+              <input
+                type="checkbox"
+                checked={draft.minimizeToTray}
+                onChange={(e) => updateTray(e.target.checked)}
+              />
+              <span className="settings-toggle-text">
+                {tr('settings.tray.toggle')}
+              </span>
+            </label>
+            <p className="settings-hint">{tr('settings.tray.hint')}</p>
           </div>
         </section>
 
