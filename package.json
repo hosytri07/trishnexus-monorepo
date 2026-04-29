@@ -12,6 +12,8 @@
     "build:packages": "pnpm -r --filter './packages/*' build",
     "typecheck": "pnpm -r typecheck",
     "clean": "pnpm -r exec rm -rf dist node_modules/.cache",
+    "test": "pnpm --filter @trishteam/core test",
+    "test:coverage": "pnpm --filter @trishteam/core coverage",
     "qa:doctor": "node scripts/qa/doctor.mjs",
     "qa:doctor:quick": "node scripts/qa/doctor.mjs --quick",
     "qa:rust": "node scripts/qa/rust-audit.mjs",
@@ -25,8 +27,7 @@
   "workspaces": [
     "website",
     "packages/*",
-    "apps-desktop/*",
-    "apps-zalo/*"
+    "apps-desktop/*"
   ],
   "dependencies": {
     "@tauri-apps/api": "^2.10.1",

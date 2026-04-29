@@ -27,6 +27,8 @@ import { BackupPanel } from './components/BackupPanel.js';
 import { DatabaseVnPanel } from './components/DatabaseVnPanel.js';
 import { BulkImportPanel } from './components/BulkImportPanel.js';
 import { StoragePanel } from './components/StoragePanel.js';
+import { ErrorsPanel } from './components/ErrorsPanel.js';
+import { VitalsPanel } from './components/VitalsPanel.js';
 import { getAppVersion } from './tauri-bridge.js';
 import logoUrl from './assets/logo.png';
 
@@ -39,6 +41,8 @@ type Panel =
   | 'broadcasts'
   | 'feedback'
   | 'audit'
+  | 'errors'
+  | 'vitals'
   | 'registry'
   | 'database_vn'
   | 'bulk_import'
@@ -77,6 +81,13 @@ const NAV_GROUPS: NavGroup[] = [
     items: [
       { id: 'feedback', label: 'Feedback' },
       { id: 'audit', label: 'Audit log' },
+    ],
+  },
+  {
+    label: 'Quan sát',
+    items: [
+      { id: 'errors', label: '🐞 Errors' },
+      { id: 'vitals', label: '📊 Vitals' },
     ],
   },
   {
@@ -210,6 +221,8 @@ export function App(): JSX.Element {
         )}
         {active === 'feedback' && <FeedbackPanel />}
         {active === 'audit' && <AuditPanel />}
+        {active === 'errors' && <ErrorsPanel />}
+        {active === 'vitals' && <VitalsPanel />}
         {active === 'registry' && <RegistryPanel />}
         {active === 'database_vn' && <DatabaseVnPanel />}
         {active === 'bulk_import' && <BulkImportPanel />}

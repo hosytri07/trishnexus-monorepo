@@ -1,0 +1,76 @@
+# TrishTEAM monorepo — .gitattributes
+# Mục đích: chuẩn hóa line endings để tránh "313 file giả-modified" khi check git
+# từ Linux/CI sandbox sau khi Trí save từ Windows. Mọi text file lưu LF trong git;
+# Windows checkout tự convert thành CRLF (do core.autocrlf=true mặc định trên Win).
+
+# Mặc định: tự nhận diện text vs binary, line endings = LF trong git
+* text=auto eol=lf
+
+# === FILE TEXT (force LF — không bao giờ CRLF kể cả trên Windows) ===
+*.ts        text eol=lf
+*.tsx       text eol=lf
+*.js        text eol=lf
+*.jsx       text eol=lf
+*.mjs       text eol=lf
+*.cjs       text eol=lf
+*.json      text eol=lf
+*.jsonc     text eol=lf
+*.md        text eol=lf
+*.mdx       text eol=lf
+*.yml       text eol=lf
+*.yaml      text eol=lf
+*.toml      text eol=lf
+*.css       text eol=lf
+*.scss      text eol=lf
+*.html      text eol=lf
+*.svg       text eol=lf
+*.rs        text eol=lf
+*.py        text eol=lf
+*.sh        text eol=lf
+*.sql       text eol=lf
+*.txt       text eol=lf
+.gitignore  text eol=lf
+.gitattributes text eol=lf
+.editorconfig text eol=lf
+.npmrc      text eol=lf
+*.lock      text eol=lf
+pnpm-lock.yaml text eol=lf -diff -merge
+package-lock.json text eol=lf -diff -merge
+Cargo.lock  text eol=lf -diff -merge
+
+# === FILE BAT/PS1 — Windows yêu cầu CRLF ===
+*.bat       text eol=crlf
+*.cmd       text eol=crlf
+*.ps1       text eol=crlf
+
+# === FILE BINARY — không diff, không convert ===
+*.png       binary
+*.jpg       binary
+*.jpeg      binary
+*.gif       binary
+*.ico       binary
+*.icns      binary
+*.webp      binary
+*.pdf       binary
+*.docx      binary
+*.xlsx      binary
+*.pptx      binary
+*.zip       binary
+*.tar       binary
+*.tar.gz    binary
+*.exe       binary
+*.dll       binary
+*.so        binary
+*.dylib     binary
+*.msi       binary
+*.ttf       binary
+*.otf       binary
+*.woff      binary
+*.woff2     binary
+*.eot       binary
+*.shx       binary
+*.tpack     binary
+
+# === FILE JSON BIG (gzip-friendly nhưng vẫn diff text) ===
+website/public/cert-bxd163.json text eol=lf
+website/public/bridges-vn.json text eol=lf

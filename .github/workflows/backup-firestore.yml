@@ -1,0 +1,122 @@
+# ============================================================
+# Phase 21 prep — Backup Firestore weekly
+# ============================================================
+#
+# Workflow chạy mỗi Chủ Nhật 02:00 UTC (~ 09:00 GMT+7).
+# Export collections từ Firestore qua firebase-tools → upload artifact (retention 90 ngày).
+#
+# Setup secret:
+#   1. GitHub repo Settings → Secrets and variables → Actions
+#   2. New secret FIREBASE_SERVICE_ACCOUNT_BASE64 = base64 của secrets/service-account.json
+#      Cách lấy: certutil -encode secrets/service-account.json secrets/sa.b64
+#                hoặc: powershell -c "[Convert]::ToBase64String([IO.File]::ReadAllBytes('secrets/service-account.json'))"
+#
+# Trigger thủ công: Actions tab → "Backup Firestore" → Run workflow
+# ============================================================
+
+name: Backup Firestore
+
+on:
+  schedule:
+    # Cron 02:00 UTC mỗi Chủ Nhật = 09:00 sáng Chủ Nhật ở VN
+    - cron: '0 2 * * 0'
+
+  workflow_dispatch:
+    inputs:
+      collections:
+        description: 'Collection cần backup (cách nhau bằng dấu phẩy, để trống = tất cả)'
+        required: false
+        type: string
+        default: 'users,apps_meta,posts,audit_log,activate_keys,broadcasts,bridges_vn,bien_bao_vn,errors,vitals'
+
+permissions:
+  contents: read
+
+jobs:
+  backup:
+    name: Export Firestore → Artifact
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install firebase-tools
+        run: npm install -g firebase-tools@13
+
+      - name: Decode service account
+        env:
+          FIREBASE_SA_B64: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_BASE64 }}
+        run: |
+          if [ -z "$FIREBASE_SA_B64" ]; then
+            echo "::error::FIREBASE_SERVICE_ACCOUNT_BASE64 secret chưa set"
+            exit 1
+          fi
+          mkdir -p secrets
+          echo "$FIREBASE_SA_B64" | base64 -d > secrets/service-account.json
+          echo "GOOGLE_APPLICATION_CREDENTIALS=$(pwd)/secrets/service-account.json" >> $GITHUB_ENV
+
+      - name: Setup backup directory
+        run: |
+          mkdir -p backup
+          echo "BACKUP_DATE=$(date -u +%Y-%m-%d)" >> $GITHUB_ENV
+
+      - name: Export collections (firestore-export-import via Node)
+        env:
+          GOOGLE_APPLICATION_CREDENTIALS: ${{ env.GOOGLE_APPLICATION_CREDENTIALS }}
+          BACKUP_COLLECTIONS: ${{ inputs.collections || 'users,apps_meta,posts,audit_log,activate_keys,broadcasts,bridges_vn,bien_bao_vn,errors,vitals' }}
+        run: |
+          cat > backup-script.mjs <<'EOF'
+          import { initializeApp, cert } from 'firebase-admin/app';
+          import { getFirestore } from 'firebase-admin/firestore';
+          import fs from 'node:fs/promises';
+          import path from 'node:path';
+
+          const sa = JSON.parse(await fs.readFile(process.env.GOOGLE_APPLICATION_CREDENTIALS, 'utf8'));
+          initializeApp({ credential: cert(sa) });
+          const db = getFirestore();
+
+          const cols = (process.env.BACKUP_COLLECTIONS || '').split(',').map((s) => s.trim()).filter(Boolean);
+          const date = process.env.BACKUP_DATE;
+          const outDir = path.join('backup', date);
+          await fs.mkdir(outDir, { recursive: true });
+
+          const summary = { date, collections: {} };
+
+          for (const colName of cols) {
+            try {
+              const snap = await db.collection(colName).get();
+              const docs = snap.docs.map((d) => ({ id: d.id, data: d.data() }));
+              const filePath = path.join(outDir, `${colName}.json`);
+              await fs.writeFile(filePath, JSON.stringify(docs, null, 2));
+              summary.collections[colName] = { count: docs.length, file: filePath };
+              console.log(`[OK] ${colName}: ${docs.length} doc → ${filePath}`);
+            } catch (e) {
+              console.error(`[ERR] ${colName}: ${e.message}`);
+              summary.collections[colName] = { error: e.message };
+            }
+          }
+
+          await fs.writeFile(path.join(outDir, '_summary.json'), JSON.stringify(summary, null, 2));
+          console.log('Summary:', JSON.stringify(summary, null, 2));
+          EOF
+
+          npm install firebase-admin@12 --no-save
+          node backup-script.mjs
+
+      - name: Upload backup artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: firestore-backup-${{ env.BACKUP_DATE }}
+          path: backup/
+          retention-days: 90
+
+      - name: Cleanup secrets
+        if: always()
+        run: rm -f secrets/service-account.json

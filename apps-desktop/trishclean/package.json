@@ -15,6 +15,7 @@
   },
   "dependencies": {
     "@trishteam/core": "workspace:*",
+    "@trishteam/telemetry": "workspace:*",
     "@tauri-apps/api": "^2.0.0",
     "@tauri-apps/plugin-dialog": "^2.0.0",
     "react": "18.3.1",

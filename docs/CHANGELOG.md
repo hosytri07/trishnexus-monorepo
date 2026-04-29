@@ -1283,3 +1283,51 @@ Nếu đã chạy preview environment:
 
 Các phase 11.6 → 16.6 đã hoàn tất ở môi trường preview. Xem
 `docs/ROADMAP.md` cho chi tiết theo sub-phase.
+
+---
+
+## [1.x] — Phase 17-20 PRODUCTION (2026-04-25 → 2026-04-29)
+
+> **Source of truth chi tiết**: `docs/HANDOFF-MASTER.md` (cập nhật mỗi phiên).
+> File này chỉ ghi tóm tắt phase đã release.
+
+### Phase 17 — Desktop apps Tauri 2 release (25-27/04/2026)
+- **TrishLauncher v2.0.0-1** — Hub Tauri 2 + tray + auto-update + per-app "Cập nhật"
+- **TrishCheck v2.0.0-1** — System info + benchmark + GPU detect
+- **TrishClean v2.0.0-1** — Cleaner + undo 7 ngày + staged delete
+- **TrishFont v2.0.0-1** — Font manager + Pair AI + AutoCAD .shx
+- **TrishLibrary v3.0.0** — All-in-one gộp 4 module (Thư viện · Ghi chú · Tài liệu · Ảnh) + 13 PDF Tools + Tantivy search + Tesseract OCR + cross-module Ctrl+K
+- 4 app cũ (TrishNote, TrishImage, TrishSearch, TrishType) deprecated → gộp vào TrishLibrary 3.0
+
+### Phase 18 — TrishAdmin v1.1 (27/04/2026, code done, chưa release)
+- 9 panel: Dashboard / Users / Keys / Posts / Audit / Library / Broadcasts / Registry / Settings
+- 4 panel mới Phase 19.24: Backup / DatabaseVn / BulkImport / Storage
+
+### Phase 19 — Website production (27-29/04/2026)
+- 19.1-19.18: Slim layout, Firebase login, blog, admin panel, 404 custom
+- 19.20: 6 database (biển báo 451 / cầu 7549 / đường / quy chuẩn / định mức / vật liệu) + 4 quiz + công cụ VN2000 + Ctrl+K + sitemap
+- 19.21: Cert exam BXD 163/2025 (8081 câu, 3.7MB lazy fetch, 25 câu/đề, 60 phút, đậu ≥18)
+- 19.22: Web admin hoàn thiện (CRUD users, databases, apps, library, blog ID sequence, countdown realtime, URL shortener TrishTEAM, banner Firestore)
+- **19.23: ✅ DEPLOYED PRODUCTION https://trishteam.io.vn** (12 env vars Vercel, base64 service account, ENABLE_EXPERIMENTAL_COREPACK)
+- 19.24: TrishAdmin desktop parity — 4 panel mới (Backup/DatabaseVn/BulkImport/Storage), CSS bổ sung 459 dòng
+
+### Phase 20 — TrishLauncher Sync + Web optimization (29/04/2026)
+- 20.1 Audit + chốt scope
+- 20.2 Fix schema/URL/version/CORS launcher + web /api/apps-registry
+- 20.3 Manual update button (force fetch + per-app "Cập nhật")
+- 20.4 /downloads sync Firestore (đã có từ 19.22)
+- 20.5 SEO + sitemap dynamic blog + Vercel Analytics
+- 20.6 PWA (đã có từ 11.9)
+- 20.7 Audit Firestore rules (0 gap)
+- 20.8 CI/CD release-app.yml + NSIS-only bundles
+- Phụ trợ Launcher: tray tooltip, minimize-to-tray toggle (mặc định OFF), bỏ "Đăng nhập", ẩn 4 app deprecated, Việt hóa, self-exclude
+
+### Phase 21 prep — cleanup + observability (29/04/2026)
+- A. Cleanup: xóa 4 deprecated apps folder + apps/ Python legacy + 3 workflow .tpack legacy + move release-notes
+- B. Sync: apps-registry.json static fallback đồng bộ version v2.0.0-1 / 3.0.0; .gitattributes chuẩn hóa CRLF; CHANGELOG + ROADMAP cập nhật Phase 17-20
+- C. Telemetry: tạo @trishteam/telemetry package + wire 7 app + Errors/Vitals panel TrishAdmin
+- D. Observability: backup Firestore weekly cron + Sentry wire + vitest coverage baseline
+
+### Pending sau Phase 21 prep
+- Phase 21 TrishDesign (AutoCAD plugin + AI RAG TCVN/AASHTO)
+- TrishAdmin tag + release v1.1.0 (sau khi telemetry wire)

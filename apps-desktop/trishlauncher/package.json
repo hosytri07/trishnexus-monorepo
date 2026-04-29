@@ -17,6 +17,7 @@
     "@trishteam/core": "workspace:*",
     "@trishteam/ui": "workspace:*",
     "@trishteam/adapters": "workspace:*",
+    "@trishteam/telemetry": "workspace:*",
     "@tauri-apps/api": "^2.0.0",
     "@tauri-apps/plugin-opener": "^2.0.0",
     "react": "18.3.1",

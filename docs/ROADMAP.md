@@ -1432,3 +1432,41 @@ Không port hết 10 app — chỉ chọn những phần value cao cho mobile + 
 
 > **Tổng còn lại**: ~4-5 tháng làm nghiêm túc. Con số này là upper bound —
 > Phase 14 có thể chạy song song 2-3 app với sự hỗ trợ AI.
+
+---
+
+## 🆕 CẬP NHẬT 2026-04-29 — File này đã ARCHIVE
+
+> **Source of truth hiện tại**: `docs/HANDOFF-MASTER.md`
+> File này giữ làm reference cho Phase 11-17. Thông tin Phase 18-20 production
+> + Phase 21 roadmap đã đưa vào HANDOFF-MASTER.
+
+### Tóm tắt tiến trình thực tế
+
+| Phase | Status | Note |
+| ----- | ------ | ---- |
+| 11.x-13.x | ✅ Done | Website auth/blog/admin |
+| 14.x-15.x | ✅ Done | TrishLauncher v2 + 3 desktop app đầu |
+| 16.x | ✅ Done | Firebase Auth + role-based + sync |
+| 17.x | ✅ Done | 5 app code mới (Clean/Note/Search/Image/Type → gộp vào Library) |
+| 18.x | ✅ Done | TrishLibrary 3.0.0 + TrishAdmin v1.1 code |
+| 18.8.b/c | ⏳ TODO | Telemetry package + wire — Phase 21 prep |
+| 19.x | ✅ Done | Website slim + 6 database + 4 quiz + công cụ + sitemap + PWA |
+| 19.22-19.23 | ✅ DEPLOYED | https://trishteam.io.vn live (12 env vars, base64 SA) |
+| 19.24 | ✅ Done | TrishAdmin parity 4 panel mới (Backup/DatabaseVn/BulkImport/Storage) |
+| 20.x | ✅ Done | TrishLauncher sync + Web optimization (8 sub-task) |
+| **21.x** | ⏳ Next | TrishDesign desktop — AutoCAD plugin + AI RAG TCVN/AASHTO + dự toán |
+
+### Architecture đã chốt khác với roadmap cũ
+- **Bỏ kiến trúc Python/Qt + .tpack** — chuyển hẳn sang Tauri 2 + Rust + React + NSIS installer
+- **Bỏ Zalo Mini App** (Phase 15 cũ) — không trong scope hiện tại
+- **Bỏ EV code-signing** (~$250/năm) — Trí chấp nhận SmartScreen warning ban đầu
+- **Storage**: Firestore (metadata) + Cloudinary 25GB (assets) + GitHub Releases (.exe). KHÔNG dùng Firebase Storage (Spark plan disable)
+
+### Gộp app
+4 app TrishNote/TrishImage/TrishSearch/TrishType → 4 module trong TrishLibrary 3.0:
+- 📚 Thư viện (Library)
+- 📝 Ghi chú (Note)
+- 📄 Tài liệu (Type)
+- 🖼 Ảnh (Image)
++ Search built-in qua Tantivy

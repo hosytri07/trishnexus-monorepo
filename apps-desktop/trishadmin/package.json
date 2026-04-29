@@ -1,6 +1,6 @@
 {
   "name": "@trishteam/trishadmin",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "private": true,
   "description": "TrishAdmin — quản lý hệ sinh thái TrishTEAM. Quản lý users, sinh activate keys, push notifications, edit apps registry. CHỈ dành cho admin, không phân phối public.",
   "type": "module",
@@ -17,6 +17,7 @@
     "@trishteam/auth": "workspace:*",
     "@trishteam/core": "workspace:*",
     "@trishteam/data": "workspace:*",
+    "@trishteam/telemetry": "workspace:*",
     "@tauri-apps/api": "^2.0.0",
     "@tauri-apps/plugin-dialog": "^2.0.0",
     "@tauri-apps/plugin-opener": "^2.0.0",

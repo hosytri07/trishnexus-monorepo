@@ -1,30 +1,31 @@
 {
   "schema_version": 3,
-  "updated_at": "2026-04-28T22:00+07:00",
+  "updated_at": "2026-04-29T08:00+07:00",
   "ecosystem": {
     "name": "TrishTEAM",
-    "tagline": "Hệ sinh thái năng suất cá nhân",
+    "tagline": "Hệ sinh thái phần mềm + tri thức + công cụ cho kỹ sư xây dựng / giao thông Việt Nam",
     "logo_url": "https://trishteam.io.vn/logo.svg",
     "website": "https://trishteam.io.vn"
   },
-  "release_at_default": "2026-05-04T09:00:00+07:00",
+  "release_at_default": "2026-06-01T09:00:00+07:00",
+  "_note": "Đây là FALLBACK static. Live source là Firestore /apps_meta qua /api/apps-registry. Sync khi có release mới.",
   "apps": [
     {
       "id": "trishlauncher",
       "name": "TrishLauncher",
-      "tagline": "Hub trung tâm — cài đặt + cập nhật + chạy 9 app TrishTEAM trong 1 nơi",
+      "tagline": "Hub trung tâm — cài đặt + cập nhật + chạy 5 app TrishTEAM trong 1 nơi",
       "logo_url": "https://trishteam.io.vn/logos/trishlauncher.png",
-      "version": "1.0.0",
+      "version": "2.0.0-1",
       "size_bytes": 0,
-      "status": "scheduled",
-      "release_at": "2026-05-04T09:00:00+07:00",
+      "status": "released",
+      "release_at": "2026-04-25T09:00:00+07:00",
       "login_required": "none",
       "platforms": ["windows_x64"],
       "screenshots": [],
-      "changelog_url": "https://github.com/hosytri07/trishnexus-monorepo/releases/tag/trishlauncher-v1.0.0",
+      "changelog_url": "https://github.com/hosytri07/trishnexus-monorepo/releases/tag/trishlauncher-v2.0.0-1",
       "download": {
         "windows_x64": {
-          "url": "https://github.com/hosytri07/trishnexus-monorepo/releases/download/trishlauncher-v1.0.0/TrishLauncher_1.0.0_x64-setup.exe",
+          "url": "https://github.com/hosytri07/trishnexus-monorepo/releases/download/trishlauncher-v2.0.0-1/TrishLauncher_2.0.0-1_x64-setup.exe",
           "sha256": "",
           "installer_args": []
         }
@@ -35,17 +36,17 @@
       "name": "TrishFont",
       "tagline": "Quản lý font tiếng Việt + AutoCAD .shx + Pair AI gợi ý font đôi",
       "logo_url": "https://trishteam.io.vn/logos/trishfont.png",
-      "version": "1.0.0",
+      "version": "2.0.0-1",
       "size_bytes": 0,
-      "status": "scheduled",
-      "release_at": "2026-05-04T09:00:00+07:00",
+      "status": "released",
+      "release_at": "2026-04-25T09:00:00+07:00",
       "login_required": "none",
       "platforms": ["windows_x64"],
       "screenshots": [],
-      "changelog_url": "https://github.com/hosytri07/trishnexus-monorepo/releases/tag/trishfont-v1.0.0",
+      "changelog_url": "https://github.com/hosytri07/trishnexus-monorepo/releases/tag/trishfont-v2.0.0-1",
       "download": {
         "windows_x64": {
-          "url": "https://github.com/hosytri07/trishnexus-monorepo/releases/download/trishfont-v1.0.0/TrishFont_1.0.0_x64-setup.exe",
+          "url": "https://github.com/hosytri07/trishnexus-monorepo/releases/download/trishfont-v2.0.0-1/TrishFont_2.0.0-1_x64-setup.exe",
           "sha256": "",
           "installer_args": []
         }
@@ -56,17 +57,17 @@
       "name": "TrishClean",
       "tagline": "Dọn file/cache an toàn — staged delete + undo 7 ngày",
       "logo_url": "https://trishteam.io.vn/logos/trishclean.png",
-      "version": "1.0.0",
+      "version": "2.0.0-1",
       "size_bytes": 0,
-      "status": "scheduled",
-      "release_at": "2026-05-04T09:00:00+07:00",
+      "status": "released",
+      "release_at": "2026-04-25T09:00:00+07:00",
       "login_required": "none",
       "platforms": ["windows_x64"],
       "screenshots": [],
-      "changelog_url": "https://github.com/hosytri07/trishnexus-monorepo/releases/tag/trishclean-v1.0.0",
+      "changelog_url": "https://github.com/hosytri07/trishnexus-monorepo/releases/tag/trishclean-v2.0.0-1",
       "download": {
         "windows_x64": {
-          "url": "https://github.com/hosytri07/trishnexus-monorepo/releases/download/trishclean-v1.0.0/TrishClean_1.0.0_x64-setup.exe",
+          "url": "https://github.com/hosytri07/trishnexus-monorepo/releases/download/trishclean-v2.0.0-1/TrishClean_2.0.0-1_x64-setup.exe",
           "sha256": "",
           "installer_args": []
         }
@@ -77,17 +78,17 @@
       "name": "TrishCheck",
       "tagline": "Kiểm tra hệ thống + benchmark CPU/RAM/disk + so sánh với 25 app phổ biến",
       "logo_url": "https://trishteam.io.vn/logos/trishcheck.png",
-      "version": "1.0.0",
+      "version": "2.0.0-1",
       "size_bytes": 0,
-      "status": "scheduled",
-      "release_at": "2026-05-04T09:00:00+07:00",
+      "status": "released",
+      "release_at": "2026-04-25T09:00:00+07:00",
       "login_required": "none",
       "platforms": ["windows_x64"],
       "screenshots": [],
-      "changelog_url": "https://github.com/hosytri07/trishnexus-monorepo/releases/tag/trishcheck-v1.0.0",
+      "changelog_url": "https://github.com/hosytri07/trishnexus-monorepo/releases/tag/trishcheck-v2.0.0-1",
       "download": {
         "windows_x64": {
-          "url": "https://github.com/hosytri07/trishnexus-monorepo/releases/download/trishcheck-v1.0.0/TrishCheck_1.0.0_x64-setup.exe",
+          "url": "https://github.com/hosytri07/trishnexus-monorepo/releases/download/trishcheck-v2.0.0-1/TrishCheck_2.0.0-1_x64-setup.exe",
           "sha256": "",
           "installer_args": []
         }
@@ -98,17 +99,17 @@
       "name": "TrishLibrary",
       "tagline": "All-in-one: 📚 Thư viện · 📝 Ghi chú · 📄 Tài liệu · 🖼 Ảnh (PDF Tools + chuyển đổi đa định dạng)",
       "logo_url": "https://trishteam.io.vn/logos/trishlibrary.png",
-      "version": "1.0.0",
+      "version": "3.0.0",
       "size_bytes": 0,
-      "status": "scheduled",
-      "release_at": "2026-05-04T09:00:00+07:00",
+      "status": "released",
+      "release_at": "2026-04-27T09:00:00+07:00",
       "login_required": "trial",
       "platforms": ["windows_x64"],
       "screenshots": [],
-      "changelog_url": "https://github.com/hosytri07/trishnexus-monorepo/releases/tag/trishlibrary-v1.0.0",
+      "changelog_url": "https://github.com/hosytri07/trishnexus-monorepo/releases/tag/trishlibrary-v3.0.0",
       "download": {
         "windows_x64": {
-          "url": "https://github.com/hosytri07/trishnexus-monorepo/releases/download/trishlibrary-v1.0.0/TrishLibrary_1.0.0_x64-setup.exe",
+          "url": "https://github.com/hosytri07/trishnexus-monorepo/releases/download/trishlibrary-v3.0.0/TrishLibrary_3.0.0_x64-setup.exe",
           "sha256": "",
           "installer_args": []
         }
@@ -117,19 +118,19 @@
     {
       "id": "trishdesign",
       "name": "TrishDesign",
-      "tagline": "Bộ công cụ thiết kế hạ tầng giao thông cho kỹ sư XD-GT",
+      "tagline": "Bộ công cụ khảo sát & thiết kế hạ tầng giao thông — AutoCAD plugin + AI RAG TCVN/AASHTO",
       "logo_url": "https://trishteam.io.vn/logos/trishdesign.png",
-      "version": "1.0.0",
+      "version": "0.0.0",
       "size_bytes": 0,
       "status": "scheduled",
-      "release_at": "2026-05-04T09:00:00+07:00",
+      "release_at": "2026-06-01T09:00:00+07:00",
       "login_required": "user",
       "platforms": ["windows_x64"],
       "screenshots": [],
-      "changelog_url": "https://github.com/hosytri07/trishnexus-monorepo/releases/tag/trishdesign-v1.0.0",
+      "changelog_url": "",
       "download": {
         "windows_x64": {
-          "url": "https://github.com/hosytri07/trishnexus-monorepo/releases/download/trishdesign-v1.0.0/TrishDesign_1.0.0_x64-setup.exe",
+          "url": "",
           "sha256": "",
           "installer_args": []
         }
@@ -138,9 +139,9 @@
     {
       "id": "trishnote",
       "name": "TrishNote",
-      "tagline": "👉 Đã tích hợp vào TrishLibrary 1.0 (module Ghi chú). Tải TrishLibrary để dùng.",
+      "tagline": "👉 Đã tích hợp vào TrishLibrary 3.0 (module Ghi chú). Tải TrishLibrary để dùng.",
       "logo_url": "https://trishteam.io.vn/logos/trishnote.png",
-      "version": "1.0.0",
+      "version": "0.0.0",
       "size_bytes": 0,
       "status": "deprecated",
       "login_required": "none",
@@ -152,9 +153,9 @@
     {
       "id": "trishimage",
       "name": "TrishImage",
-      "tagline": "👉 Đã tích hợp vào TrishLibrary 1.0 (module Ảnh). Tải TrishLibrary để dùng.",
+      "tagline": "👉 Đã tích hợp vào TrishLibrary 3.0 (module Ảnh). Tải TrishLibrary để dùng.",
       "logo_url": "https://trishteam.io.vn/logos/trishimage.png",
-      "version": "1.0.0",
+      "version": "0.0.0",
       "size_bytes": 0,
       "status": "deprecated",
       "login_required": "none",
@@ -166,9 +167,9 @@
     {
       "id": "trishsearch",
       "name": "TrishSearch",
-      "tagline": "👉 Đã tích hợp vào TrishLibrary 1.0 (Search built-in). Tải TrishLibrary để dùng.",
+      "tagline": "👉 Đã tích hợp vào TrishLibrary 3.0 (Search built-in Tantivy). Tải TrishLibrary để dùng.",
       "logo_url": "https://trishteam.io.vn/logos/trishsearch.png",
-      "version": "1.0.0",
+      "version": "0.0.0",
       "size_bytes": 0,
       "status": "deprecated",
       "login_required": "none",
@@ -180,9 +181,9 @@
     {
       "id": "trishtype",
       "name": "TrishType",
-      "tagline": "👉 Đã tích hợp vào TrishLibrary 1.0 (module Tài liệu). Tải TrishLibrary để dùng.",
+      "tagline": "👉 Đã tích hợp vào TrishLibrary 3.0 (module Tài liệu). Tải TrishLibrary để dùng.",
       "logo_url": "https://trishteam.io.vn/logos/trishtype.png",
-      "version": "1.0.0",
+      "version": "0.0.0",
       "size_bytes": 0,
       "status": "deprecated",
       "login_required": "none",

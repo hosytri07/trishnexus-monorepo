@@ -2,7 +2,7 @@
 
 > **ĐỌC FILE NÀY ĐẦU TIÊN MỌI PHIÊN MỚI.** Đây là file handoff DUY NHẤT của hệ sinh thái — gộp từ HANDOFF-WEBSITE-PHASE-19, HANDOFF-TRISHLIBRARY-3.0, SESSION-HANDOFF cũ.
 >
-> **Cập nhật:** 2026-04-29 (Phase 19.22 + 19.23 PRODUCTION DEPLOYED — https://trishteam.io.vn live)
+> **Cập nhật:** 2026-04-29 (Phase 21 prep DONE — cleanup + telemetry + observability sẵn sàng cho TrishDesign)
 > **Chủ dự án:** Trí (hosytri77@gmail.com / trishteam.official@gmail.com) — kỹ sư hạ tầng giao thông Đà Nẵng. Không phải dev. Giao tiếp tiếng Việt, tránh jargon.
 
 ---
@@ -35,11 +35,23 @@ Double-click `scripts\START.bat` → tự pull GitHub + pnpm install + show stat
 
 ### Bước 2 — Xác định việc tiếp
 
-**Tình trạng cuối phiên (29/04/2026):**
-- ✅ Phase 19.22 hoàn thiện toàn bộ web admin
-- ✅ Phase 19.23 DEPLOYED production lên https://trishteam.io.vn (12 env vars set Vercel, base64 service account)
-- ✅ Reset code reset đã loại khỏi web (Trí muốn backup/restore làm ở TrishAdmin)
+**Tình trạng cuối phiên (29/04/2026 — phiên Phase 21 prep):**
+- ✅ Phase 19.22-19.24 + Phase 20 production deployed
+- ✅ **Phase 21 prep DONE** — cleanup + telemetry + observability:
+  - A. Cleanup: tạo `scripts\CLEANUP-PHASE21-PREP.bat` (Trí cần chạy thủ công)
+  - B. Sync: apps-registry.json đồng bộ v2.0.0-1/3.0.0; .gitattributes chuẩn hóa CRLF; CHANGELOG + ROADMAP cập nhật
+  - C. Telemetry: tạo `@trishteam/telemetry` + wire 7 desktop app + Errors/Vitals panel TrishAdmin + bump v1.1.0
+  - D. Observability: workflow `backup-firestore.yml` weekly cron + doc Sentry setup + vitest threshold
 - ⏳ Demo data Firestore — Trí xóa thủ công qua Firebase Console nếu chưa
+
+**Việc Trí cần làm cuối phiên này:**
+1. **Chạy `scripts\CLEANUP-PHASE21-PREP.bat`** — xóa 4 deprecated apps + apps/ legacy + 3 workflow legacy + move release-notes
+2. **`pnpm install`** ở root — link `@trishteam/telemetry` workspace package vào 7 app
+3. **Test 1 app** dev (vd `pnpm -C apps-desktop\trishlauncher tauri dev`) — confirm telemetry không crash
+4. **Set GitHub secret** `FIREBASE_SERVICE_ACCOUNT_BASE64` để workflow backup chạy được
+5. **Git renormalize** sau khi có .gitattributes mới: `git add --renormalize . && git commit -m "chore: normalize CRLF via .gitattributes"`
+6. **Commit + push** — cleanup, telemetry, panels (~30 file)
+7. **Tag release TrishAdmin** (sau khi smoke test): `git tag trishadmin-v1.1.0 && git push --tags`
 
 **Roadmap kế tiếp:**
 
@@ -66,15 +78,20 @@ Double-click `scripts\START.bat` → tự pull GitHub + pnpm install + show stat
                     (live Firestore /apps_meta), fallback static JSON
                   • Bỏ apps-zalo/main scaffold (Trí ko cần, đã xóa folder)
 
+✅ Phase 21 prep  Cleanup + Telemetry + Observability (DONE 2026-04-29)
+                — A. Cleanup: scripts/CLEANUP-PHASE21-PREP.bat
+                — B. Sync: apps-registry.json v2.0.0-1/3.0.0 + .gitattributes + CHANGELOG/ROADMAP
+                — C. Telemetry: packages/telemetry + wire 7 app + Errors/Vitals panel TrishAdmin
+                — D. Observability: backup-firestore.yml weekly + docs/SENTRY-SETUP.md + vitest threshold
+
 ⏳ Phase 21     TrishDesign desktop (chưa start)
                 - AutoCAD plugin
                 - AI RAG TCVN/AASHTO
                 - Dự toán + bản vẽ kỹ sư
 
 ⏳ Còn lại (free, ưu tiên thấp hơn):
-                - Sentry crash reporter (free 5k/tháng)
-                - Backup auto cron (GitHub Actions weekly)
-                - Test coverage vitest packages/core
+                - Sentry SDK wire thực sự (doc đã có, chờ Trí tạo Sentry account + DSN)
+                - Rust panic hook setup_panic_hook() trong src-tauri/src/lib.rs của 7 app
                 - Code-signing (skip — không free, EV ~250$/năm)
 ```
 
@@ -345,8 +362,9 @@ Trước khi Trí bấm `END.bat`:
 | **19.22** | Web admin hoàn thiện: /admin/users CRUD, /admin/databases, /admin/apps, /admin/library, blog ID sequence, countdown realtime, blog preview widget, URL shortener TrishTEAM, banner Firestore, logo bg trắng đồng nhất, Việt hóa | 28-29/04 |
 | **19.23** | ✅ **DEPLOYED PRODUCTION** https://trishteam.io.vn (12 env vars Vercel, base64 service account, ENABLE_EXPERIMENTAL_COREPACK) | 29/04 nhà |
 | **19.24** | ✅ TrishAdmin desktop parity — 4 panel mới: BackupPanel (export/import JSON, audit), DatabaseVnPanel (4 collection JSON editor), BulkImportPanel (CSV/TSV → Firestore batch), StoragePanel (Cloudinary quota + folders + top files). CSS bổ sung 459 dòng. | 29/04 nhà |
-| **20.x** | ⏳ Zalo MiniApp (React + ZMP SDK + Zalo OA login) | TODO |
-| **21.x** | ⏳ TrishDesign desktop (AutoCAD + AI RAG TCVN) | TODO |
+| **20.x** | ✅ TrishLauncher Sync + Web optimization (8 sub-task) | 29/04 |
+| **21.prep** | ✅ Cleanup + Telemetry + Observability — packages/telemetry, ErrorsPanel + VitalsPanel TrishAdmin v1.1.0, backup-firestore.yml weekly, docs SENTRY-SETUP, .gitattributes CRLF | 29/04 |
+| **21.x** | ⏳ TrishDesign desktop (AutoCAD + AI RAG TCVN/AASHTO) | TODO |
 
 ---
 

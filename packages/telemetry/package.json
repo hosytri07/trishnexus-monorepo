@@ -1,0 +1,21 @@
+{
+  "name": "@trishteam/telemetry",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Telemetry shared package — reportError() + reportVital() + capture window/Tauri panic. Cross-platform: web (fetch), desktop (Tauri invoke + REST fallback). Phase 21 prep (2026-04-29).",
+  "type": "module",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts",
+    "./browser": "./src/browser.ts",
+    "./tauri": "./src/tauri.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "build": "tsc"
+  },
+  "devDependencies": {
+    "typescript": "5.4.5"
+  }
+}
