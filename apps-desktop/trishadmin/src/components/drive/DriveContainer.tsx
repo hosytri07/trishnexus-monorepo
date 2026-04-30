@@ -12,7 +12,7 @@
  */
 
 import { useEffect, useState } from 'react';
-import { Upload, Folder, Settings, Search, BookOpen, Share2, LayoutDashboard, Trash } from 'lucide-react';
+import { Upload, Folder, Settings, Search, BookOpen, Share2, LayoutDashboard, Trash, Send } from 'lucide-react';
 import { invoke } from '@tauri-apps/api/core';
 import { useAuth } from '@trishteam/auth/react';
 import { SetupWizard } from './SetupWizard';
@@ -22,9 +22,10 @@ import { SharesPage } from './SharesPage';
 import { DashboardPage } from './DashboardPage';
 import { TrashPage } from './TrashPage';
 import { HelpPage } from './HelpPage';
+import { RequestsPanel } from './RequestsPanel';
 import logoUrl from '../../assets/logo.png';
 
-type Page = 'dashboard' | 'files' | 'upload' | 'shares' | 'trash' | 'help' | 'settings';
+type Page = 'dashboard' | 'files' | 'upload' | 'shares' | 'trash' | 'requests' | 'help' | 'settings';
 
 interface PublicCreds {
   has_creds: boolean;
@@ -145,6 +146,7 @@ function MainShell({
         <TabBtn icon={Upload} label="Upload" active={page === 'upload'} onClick={() => setPage('upload')} />
         <TabBtn icon={Share2} label="Link share" active={page === 'shares'} onClick={() => setPage('shares')} />
         <TabBtn icon={Trash} label="Thùng rác" active={page === 'trash'} onClick={() => setPage('trash')} />
+        <TabBtn icon={Send} label="Yêu cầu file" active={page === 'requests'} onClick={() => setPage('requests')} />
         <TabBtn icon={BookOpen} label="Hướng dẫn" active={page === 'help'} onClick={() => setPage('help')} />
         <TabBtn icon={Settings} label="Cài đặt Drive" active={page === 'settings'} onClick={() => setPage('settings')} />
       </nav>
@@ -173,6 +175,7 @@ function MainShell({
         )}
         {page === 'shares' && <SharesPage uid={uid} />}
         {page === 'trash' && <TrashPage uid={uid} />}
+        {page === 'requests' && <RequestsPanel />}
         {page === 'help' && <HelpPage />}
         {page === 'settings' && <SettingsPage uid={uid} onReset={reloadCreds} />}
        </div>
