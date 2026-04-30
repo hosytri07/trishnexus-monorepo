@@ -11,7 +11,7 @@
 import { useEffect, useState } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import {
-  Settings as SettingsIcon, X, Sun, Moon, MinusSquare, Power,
+  Settings as SettingsIcon, X, Sun, Moon, MinusSquare, Power, Trash2,
   Info, Bell, Folder, Gauge,
 } from 'lucide-react';
 

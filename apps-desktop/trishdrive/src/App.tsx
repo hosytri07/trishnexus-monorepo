@@ -16,7 +16,7 @@
  */
 
 import { useEffect, useState } from 'react';
-import { Download, BookOpen, History, HelpCircle, LogOut, Sun, Moon, Settings, Shield } from 'lucide-react';
+import { Download, BookOpen, History, HelpCircle, LogOut, Sun, Moon, Settings, Shield, WifiOff } from 'lucide-react';
 import { listen } from '@tauri-apps/api/event';
 import { invoke } from '@tauri-apps/api/core';
 import { AuthProvider, useAuth } from '@trishteam/auth/react';
@@ -74,11 +74,28 @@ function MainShell({ theme, setTheme }: { theme: 'light' | 'dark'; setTheme: (t:
   const [refreshTick, setRefreshTick] = useState(0);
   const [showSettings, setShowSettings] = useState(false);
   const [version, setVersion] = useState('1.0.0');
+  const [isOnline, setIsOnline] = useState<boolean>(typeof navigator !== 'undefined' ? navigator.onLine : true);
+
+  // Phase 26.4.B — listen online/offline events
+  useEffect(() => {
+    const onOnline = () => setIsOnline(true);
+    const onOffline = () => setIsOnline(false);
+    window.addEventListener('online', onOnline);
+    window.addEventListener('offline', onOffline);
+    return () => {
+      window.removeEventListener('online', onOnline);
+      window.removeEventListener('offline', onOffline);
+    };
+  }, []);
 
   useEffect(() => {
     void invoke<string>('app_version').then(setVersion).catch(() => {});
     // Phase 26.2.D — sync speed limit từ localStorage → Rust state lúc app start
     void invoke('set_speed_limit', { mbps: loadSpeedLimit() }).catch(() => {});
+    // Phase 26.6.A — request Notification permission lúc app start
+    if ('Notification' in window && Notification.permission === 'default') {
+      void Notification.requestPermission().catch(() => {});
+    }
   }, []);
 
   // Phase 26.5.A — listen nav-to-tab event từ tray menu (vd "Xem lịch sử")
@@ -186,6 +203,25 @@ function MainShell({ theme, setTheme }: { theme: 'light' | 'dark'; setTheme: (t:
           version={version}
           availableFolders={loadKnownFolders()}
         />
+      )}
+
+      {/* Phase 26.4.B — Offline banner */}
+      {!isOnline && (
+        <div
+          style={{
+            background: 'linear-gradient(90deg, #f59e0b, #dc2626)',
+            color: 'white',
+            padding: '8px 22px',
+            fontSize: 12,
+            fontWeight: 600,
+            display: 'flex',
+            alignItems: 'center',
+            gap: 8,
+          }}
+        >
+          <WifiOff className="h-4 w-4" />
+          Đang offline — Thư viện TrishTEAM + Tải file tạm không khả dụng. Lịch sử + file đã tải vẫn xem được.
+        </div>
       )}
 
       {/* Top tab nav */}

@@ -50,6 +50,17 @@ const nextConfig = {
       { key: 'Access-Control-Allow-Headers', value: 'Accept, Content-Type' },
       { key: 'Cache-Control', value: 'public, max-age=0, s-maxage=300, stale-while-revalidate=86400' },
     ];
+    // Phase 26.1.G + 26.5.D — CORS cho /api/drive/* (TrishDrive Tauri WebView
+    // cross-origin từ tauri.localhost → trishteam.io.vn). Route handler tự set
+    // CORS headers KHÔNG đủ vì Vercel/Next.js có thể redirect OPTIONS request
+    // (trailing slash, www→bare). Set ở layer Next.js headers config để mọi
+    // request /api/drive/* (GET/POST/PATCH + OPTIONS) đều có CORS headers ngay.
+    const driveApiCorsHeaders = [
+      { key: 'Access-Control-Allow-Origin', value: '*' },
+      { key: 'Access-Control-Allow-Methods', value: 'GET, POST, PATCH, OPTIONS' },
+      { key: 'Access-Control-Allow-Headers', value: 'Accept, Content-Type, Authorization' },
+      { key: 'Access-Control-Max-Age', value: '600' },
+    ];
     return [
       {
         // Public registry — TrishLauncher desktop fetch cross-origin.
@@ -57,10 +68,14 @@ const nextConfig = {
         headers: corsHeaders,
       },
       {
-        // Phase 15.0.l — Min-spec data cho TrishCheck. Admin có thể edit
-        // file trong website/public/min-specs.json để update spec mới.
+        // Phase 15.0.l — Min-spec data cho TrishCheck.
         source: '/min-specs.json',
         headers: corsHeaders,
+      },
+      {
+        // Phase 26 — CORS cho TrishDrive User app + admin gọi /api/drive/*
+        source: '/api/drive/:path*',
+        headers: driveApiCorsHeaders,
       },
     ];
   },

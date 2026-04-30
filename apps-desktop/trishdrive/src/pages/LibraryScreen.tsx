@@ -97,6 +97,33 @@ export function LibraryScreen(): JSX.Element {
             setToastFolderHits(Array.from(new Set(folderHits)));
           }
           setTimeout(() => { setToastNewCount(0); setToastFolderHits([]); }, 10000);
+
+          // Phase 26.6.A — System notification (Windows toast / macOS banner)
+          if ('Notification' in window && Notification.permission === 'granted') {
+            const isSubscribed = folderHits.length > 0;
+            const title = isSubscribed
+              ? `🔔 ${newlyAdded.length} file mới trong folder bạn theo dõi!`
+              : `📚 ${newlyAdded.length} file mới trong Thư viện TrishTEAM`;
+            const body = isSubscribed
+              ? `Folder: ${folderHits.join(', ')}\n${newlyAdded.slice(0, 3).map(i => `• ${i.file_name}`).join('\n')}`
+              : `${newlyAdded.slice(0, 3).map(i => `• ${i.file_name}`).join('\n')}${newlyAdded.length > 3 ? `\n+ ${newlyAdded.length - 3} file khác` : ''}`;
+            try {
+              const notif = new Notification(title, {
+                body,
+                tag: 'trishdrive-library-update',
+                requireInteraction: isSubscribed, // folder subscribed: giữ notif tới khi user click
+                silent: false,
+              });
+              notif.onclick = () => {
+                // Focus app window + scroll Library top
+                window.focus();
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+                setToastNewCount(0);
+                setToastFolderHits([]);
+                notif.close();
+              };
+            } catch { /* notification API có thể fail trên 1 số platform */ }
+          }
         }
       }
       setLastTokens(newTokens);
