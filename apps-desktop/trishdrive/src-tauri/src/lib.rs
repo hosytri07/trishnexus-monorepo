@@ -115,6 +115,29 @@ fn history_clear(app: tauri::AppHandle, id: String) -> Result<(), String> {
     Ok(())
 }
 
+/// Phase 26.4.D — Auto cleanup history records cũ > N ngày.
+/// KHÔNG xoá file vật lý disk (vì user save vào folder ngoài app).
+/// Chỉ xoá record SQLite. File bookmark được giữ lại bất kể tuổi.
+#[tauri::command]
+fn history_cleanup_old(app: tauri::AppHandle, days_threshold: i64) -> Result<i64, String> {
+    if days_threshold <= 0 {
+        return Err("days_threshold phải > 0".to_string());
+    }
+    let cutoff = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_millis() as i64)
+        .unwrap_or(0)
+        - days_threshold * 24 * 3600 * 1000;
+
+    let path = db::db_path(&app)?;
+    let conn = db::open(&path).map_err(|e| format!("db: {}", e))?;
+    let count = conn.execute(
+        "DELETE FROM download_history WHERE downloaded_at < ? AND bookmarked = 0",
+        [cutoff],
+    ).map_err(|e| format!("cleanup: {}", e))? as i64;
+    Ok(count)
+}
+
 #[tauri::command]
 fn history_update_meta(
     app: tauri::AppHandle,
@@ -560,11 +583,52 @@ async fn share_queue_download(
 }
 
 // ============================================================
+// Phase 26.3.B — Preview inline (download to %TEMP% + OS viewer)
+// ============================================================
+
+/// Lấy path %TEMP%/trishdrive-preview/ (auto-create). Frontend dùng để build
+/// dest_path khi preview file (vd: %TEMP%/trishdrive-preview/abc.pdf), sau đó
+/// gọi openPath để OS mở default viewer (PDF, image, text, etc.).
+#[tauri::command]
+fn get_preview_temp_dir() -> Result<String, String> {
+    let dir = std::env::temp_dir().join("trishdrive-preview");
+    std::fs::create_dir_all(&dir).map_err(|e| format!("mkdir preview temp: {}", e))?;
+    Ok(dir.to_string_lossy().to_string())
+}
+
+/// Cleanup file preview > 24h trong %TEMP%/trishdrive-preview/. Gọi lúc app start.
+fn cleanup_preview_temp() {
+    let dir = std::env::temp_dir().join("trishdrive-preview");
+    if !dir.exists() { return; }
+    let now = std::time::SystemTime::now();
+    let cutoff = std::time::Duration::from_secs(24 * 3600);
+    if let Ok(entries) = std::fs::read_dir(&dir) {
+        for entry in entries.flatten() {
+            if let Ok(meta) = entry.metadata() {
+                if let Ok(modified) = meta.modified() {
+                    if let Ok(elapsed) = now.duration_since(modified) {
+                        if elapsed > cutoff {
+                            let _ = std::fs::remove_file(entry.path());
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+// ============================================================
 // Tauri builder + run
 // ============================================================
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    use tauri::{
+        menu::{Menu, MenuItem},
+        tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
+        Manager,
+    };
+
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_opener::init())
@@ -574,14 +638,82 @@ pub fn run() {
             history_list,
             history_clear,
             history_update_meta,
+            history_cleanup_old,
             share_paste_and_download,
             share_queue_download,
+            get_preview_temp_dir,
         ])
+        .on_window_event(|window, event| {
+            // Phase 26.5.A — close button → hide thay vì quit. App vẫn chạy
+            // background nhận FCM (Phase 26.6) + queue download tiếp tục.
+            if let tauri::WindowEvent::CloseRequested { api, .. } = event {
+                let _ = window.hide();
+                api.prevent_close();
+            }
+        })
         .setup(|app| {
             // Init SQLite user.db lúc app start (silent fail nếu lỗi).
             if let Ok(path) = db::db_path(&app.handle()) {
                 let _ = db::open(&path);
             }
+
+            // Phase 26.3.B — cleanup file preview > 24h
+            cleanup_preview_temp();
+
+            // Phase 26.5.A — System tray icon + menu
+            let show_item = MenuItem::with_id(app, "show", "Mở TrishDrive", true, None::<&str>)?;
+            let history_item = MenuItem::with_id(app, "history", "Xem lịch sử", true, None::<&str>)?;
+            let separator = MenuItem::with_id(app, "_sep", "─────────", false, None::<&str>)?;
+            let quit_item = MenuItem::with_id(app, "quit", "Thoát hoàn toàn", true, None::<&str>)?;
+            let menu = Menu::with_items(app, &[&show_item, &history_item, &separator, &quit_item])?;
+
+            let _tray = TrayIconBuilder::with_id("main-tray")
+                .icon(app.default_window_icon().unwrap().clone())
+                .tooltip("TrishDrive — Tải file từ Thư viện TrishTEAM")
+                .menu(&menu)
+                .show_menu_on_left_click(false)
+                .on_menu_event(|app, event| match event.id.as_ref() {
+                    "show" => {
+                        if let Some(w) = app.get_webview_window("main") {
+                            let _ = w.show();
+                            let _ = w.set_focus();
+                            let _ = w.unminimize();
+                        }
+                    }
+                    "history" => {
+                        if let Some(w) = app.get_webview_window("main") {
+                            let _ = w.show();
+                            let _ = w.set_focus();
+                            let _ = w.emit("nav-to-tab", "history");
+                        }
+                    }
+                    "quit" => {
+                        app.exit(0);
+                    }
+                    _ => {}
+                })
+                .on_tray_icon_event(|tray, event| {
+                    // Click trái icon → toggle window show/hide
+                    if let TrayIconEvent::Click {
+                        button: MouseButton::Left,
+                        button_state: MouseButtonState::Up,
+                        ..
+                    } = event
+                    {
+                        let app = tray.app_handle();
+                        if let Some(w) = app.get_webview_window("main") {
+                            if w.is_visible().unwrap_or(false) {
+                                let _ = w.hide();
+                            } else {
+                                let _ = w.show();
+                                let _ = w.set_focus();
+                                let _ = w.unminimize();
+                            }
+                        }
+                    }
+                })
+                .build(app)?;
+
             Ok(())
         })
         .run(tauri::generate_context!())

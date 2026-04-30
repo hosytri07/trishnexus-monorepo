@@ -15,8 +15,9 @@
  *   - FilesPage / SharesPage / TrashPage — admin only
  */
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Download, BookOpen, History, HelpCircle, LogOut, Sun, Moon } from 'lucide-react';
+import { listen } from '@tauri-apps/api/event';
 import { AuthProvider, useAuth } from '@trishteam/auth/react';
 import { LoginScreen } from './pages/LoginScreen';
 import { DownloadScreen } from './pages/DownloadScreen';
@@ -69,6 +70,17 @@ function MainShell({ theme, setTheme }: { theme: 'light' | 'dark'; setTheme: (t:
   const { profile, firebaseUser, signOut } = useAuth();
   const [page, setPage] = useState<Page>('download');
   const [refreshTick, setRefreshTick] = useState(0);
+
+  // Phase 26.5.A — listen nav-to-tab event từ tray menu (vd "Xem lịch sử")
+  useEffect(() => {
+    const unlisten = listen<string>('nav-to-tab', (e) => {
+      const tab = e.payload as Page;
+      if (['download', 'library', 'history', 'help'].includes(tab)) {
+        setPage(tab);
+      }
+    });
+    return () => { unlisten.then(fn => fn()); };
+  }, []);
 
   return (
     <div className="min-h-screen flex flex-col" style={{ background: 'var(--color-surface-bg)', color: 'var(--color-text-primary)' }}>

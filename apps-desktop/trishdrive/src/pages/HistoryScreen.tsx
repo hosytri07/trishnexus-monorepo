@@ -10,8 +10,11 @@ import { invoke } from '@tauri-apps/api/core';
 import { openPath } from '@tauri-apps/plugin-opener';
 import {
   Files, Search, Trash2, Star, Edit3, Copy, FolderOpen,
-  RefreshCw, Loader2, AlertCircle, FileQuestion,
+  RefreshCw, Loader2, AlertCircle, FileQuestion, Sparkles,
 } from 'lucide-react';
+
+const CLEANUP_THRESHOLD_DAYS = 90;
+const LAST_CLEANUP_KEY = 'trishdrive_last_cleanup_date';
 
 interface HistoryRow {
   id: string;
@@ -34,7 +37,13 @@ export function HistoryScreen({ refreshTick }: { refreshTick: number }): JSX.Ele
   const [filterBookmarked, setFilterBookmarked] = useState(false);
   const [editing, setEditing] = useState<HistoryRow | null>(null);
 
-  useEffect(() => { void load(); }, [refreshTick]);
+  const [cleanupMsg, setCleanupMsg] = useState<string | null>(null);
+
+  useEffect(() => {
+    void load();
+    void runAutoCleanup();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [refreshTick]);
 
   async function load() {
     setLoading(true);
@@ -44,6 +53,35 @@ export function HistoryScreen({ refreshTick }: { refreshTick: number }): JSX.Ele
       setRows(r);
     } catch (e) { setErr(String(e)); }
     finally { setLoading(false); }
+  }
+
+  /**
+   * Phase 26.4.D — auto cleanup record cũ > 90 ngày, max 1 lần/ngày.
+   * Bookmarked record giữ lại bất kể tuổi.
+   */
+  async function runAutoCleanup() {
+    try {
+      const today = new Date().toISOString().slice(0, 10); // YYYY-MM-DD
+      const last = localStorage.getItem(LAST_CLEANUP_KEY);
+      if (last === today) return; // đã chạy hôm nay
+      const count = await invoke<number>('history_cleanup_old', { daysThreshold: CLEANUP_THRESHOLD_DAYS });
+      localStorage.setItem(LAST_CLEANUP_KEY, today);
+      if (count > 0) {
+        setCleanupMsg(`Đã cleanup ${count} record cũ > ${CLEANUP_THRESHOLD_DAYS} ngày (bookmark giữ lại)`);
+        setTimeout(() => setCleanupMsg(null), 6000);
+        await load();
+      }
+    } catch { /* silent */ }
+  }
+
+  async function manualCleanup() {
+    if (!confirm(`Cleanup record cũ > ${CLEANUP_THRESHOLD_DAYS} ngày? File trên đĩa KHÔNG bị xoá. Bookmark giữ lại.`)) return;
+    try {
+      const count = await invoke<number>('history_cleanup_old', { daysThreshold: CLEANUP_THRESHOLD_DAYS });
+      setCleanupMsg(`✓ Đã cleanup ${count} record (bookmark giữ lại)`);
+      setTimeout(() => setCleanupMsg(null), 6000);
+      await load();
+    } catch (e) { setErr(String(e)); }
   }
 
   const filtered = useMemo(() => {
@@ -104,11 +142,21 @@ export function HistoryScreen({ refreshTick }: { refreshTick: number }): JSX.Ele
             >
               <Star className="h-3.5 w-3.5" /> {filterBookmarked ? 'Bookmark' : 'Tất cả'}
             </button>
+            <button className="btn-secondary" onClick={manualCleanup} title={`Cleanup record > ${CLEANUP_THRESHOLD_DAYS} ngày`}>
+              <Sparkles className="h-3.5 w-3.5" /> Cleanup
+            </button>
             <button className="btn-secondary" onClick={load} disabled={loading}>
               <RefreshCw className={`h-3.5 w-3.5 ${loading ? 'animate-spin' : ''}`} /> Reload
             </button>
           </div>
         </div>
+
+        {cleanupMsg && (
+          <div className="flex gap-2 items-start mt-3 p-3 rounded-xl" style={{ background: 'var(--color-accent-soft)', border: '1px solid rgba(16,185,129,0.2)' }}>
+            <Sparkles className="h-4 w-4 flex-shrink-0 mt-0.5" style={{ color: 'var(--color-accent-primary)' }} />
+            <div style={{ fontSize: 12, color: 'var(--color-accent-primary)' }}>{cleanupMsg}</div>
+          </div>
+        )}
 
         {/* Search */}
         <div className="relative mt-3">
