@@ -16,14 +16,16 @@
  */
 
 import { useEffect, useState } from 'react';
-import { Download, BookOpen, History, HelpCircle, LogOut, Sun, Moon } from 'lucide-react';
+import { Download, BookOpen, History, HelpCircle, LogOut, Sun, Moon, Settings, Shield } from 'lucide-react';
 import { listen } from '@tauri-apps/api/event';
+import { invoke } from '@tauri-apps/api/core';
 import { AuthProvider, useAuth } from '@trishteam/auth/react';
 import { LoginScreen } from './pages/LoginScreen';
 import { DownloadScreen } from './pages/DownloadScreen';
 import { LibraryScreen } from './pages/LibraryScreen';
 import { HistoryScreen } from './pages/HistoryScreen';
 import { HelpPage } from './pages/HelpPage';
+import { SettingsModal, loadCloseBehavior } from './pages/SettingsModal';
 import logoUrl from './assets/logo.png';
 
 type Page = 'download' | 'library' | 'history' | 'help';
@@ -70,6 +72,12 @@ function MainShell({ theme, setTheme }: { theme: 'light' | 'dark'; setTheme: (t:
   const { profile, firebaseUser, signOut } = useAuth();
   const [page, setPage] = useState<Page>('download');
   const [refreshTick, setRefreshTick] = useState(0);
+  const [showSettings, setShowSettings] = useState(false);
+  const [version, setVersion] = useState('1.0.0');
+
+  useEffect(() => {
+    void invoke<string>('app_version').then(setVersion).catch(() => {});
+  }, []);
 
   // Phase 26.5.A — listen nav-to-tab event từ tray menu (vd "Xem lịch sử")
   useEffect(() => {
@@ -81,6 +89,29 @@ function MainShell({ theme, setTheme }: { theme: 'light' | 'dark'; setTheme: (t:
     });
     return () => { unlisten.then(fn => fn()); };
   }, []);
+
+  // Phase 26.5.G — listen close-requested event từ Rust → check setting
+  useEffect(() => {
+    const unlisten = listen('app-close-requested', () => {
+      const behavior = loadCloseBehavior();
+      if (behavior === 'quit') {
+        void invoke('exit_app');
+      } else {
+        void invoke('hide_to_tray');
+      }
+    });
+    return () => { unlisten.then(fn => fn()); };
+  }, []);
+
+  // Role label + color (Phase 26.5.G)
+  const roleRaw = (profile as { role?: string } | null)?.role;
+  const role = (roleRaw === 'admin' || roleRaw === 'trial' || roleRaw === 'user') ? roleRaw : 'user';
+  const roleStyle: Record<string, { label: string; bg: string; color: string }> = {
+    admin: { label: 'Admin', bg: 'rgba(239,68,68,0.15)', color: '#dc2626' },
+    user:  { label: 'User',  bg: 'var(--color-accent-soft)', color: 'var(--color-accent-primary)' },
+    trial: { label: 'Trial', bg: 'rgba(245,158,11,0.15)', color: '#b45309' },
+  };
+  const r = roleStyle[role];
 
   return (
     <div className="min-h-screen flex flex-col" style={{ background: 'var(--color-surface-bg)', color: 'var(--color-text-primary)' }}>
@@ -110,13 +141,32 @@ function MainShell({ theme, setTheme }: { theme: 'light' | 'dark'; setTheme: (t:
           >
             {theme === 'light' ? <Moon className="h-4 w-4" /> : <Sun className="h-4 w-4" />}
           </button>
+          <button
+            className="btn-secondary"
+            onClick={() => setShowSettings(true)}
+            title="Cài đặt"
+            style={{ padding: '6px 10px' }}
+          >
+            <Settings className="h-4 w-4" />
+          </button>
           <div className="flex items-center gap-2 p-2" style={{ background: 'var(--color-surface-row)', borderRadius: 10 }}>
             <div className="w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-semibold" style={{ background: 'var(--color-accent-gradient)' }}>
               {(profile?.display_name || firebaseUser?.email || '?').charAt(0).toUpperCase()}
             </div>
             <div style={{ minWidth: 0 }}>
-              <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--color-text-primary)' }}>
+              <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--color-text-primary)', display: 'flex', alignItems: 'center', gap: 6 }}>
                 {profile?.display_name || firebaseUser?.email}
+                <span
+                  style={{
+                    display: 'inline-flex', alignItems: 'center', gap: 3,
+                    padding: '1px 6px', borderRadius: 5,
+                    fontSize: 10, fontWeight: 700, letterSpacing: 0.3,
+                    background: r.bg, color: r.color,
+                  }}
+                  title={`Role: ${role}`}
+                >
+                  <Shield className="h-2.5 w-2.5" /> {r.label}
+                </span>
               </div>
             </div>
           </div>
@@ -125,6 +175,15 @@ function MainShell({ theme, setTheme }: { theme: 'light' | 'dark'; setTheme: (t:
           </button>
         </div>
       </header>
+
+      {showSettings && (
+        <SettingsModal
+          theme={theme}
+          setTheme={setTheme}
+          onClose={() => setShowSettings(false)}
+          version={version}
+        />
+      )}
 
       {/* Top tab nav */}
       <nav style={{ display: 'flex', gap: 2, padding: '0 22px', borderBottom: '1px solid var(--color-border-subtle)', background: 'var(--color-surface-bg-elevated)', overflowX: 'auto' }}>

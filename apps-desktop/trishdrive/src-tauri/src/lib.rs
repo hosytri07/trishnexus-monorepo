@@ -60,6 +60,18 @@ fn ping() -> String {
     "TrishDrive User app — Phase 26.1.C ready".to_string()
 }
 
+/// Phase 26.5.G — Frontend gọi để thoát hoàn toàn (không hide tray).
+#[tauri::command]
+fn exit_app(app: tauri::AppHandle) {
+    app.exit(0);
+}
+
+/// Phase 26.5.G — Frontend gọi để hide window vào tray.
+#[tauri::command]
+fn hide_to_tray(window: tauri::WebviewWindow) -> Result<(), String> {
+    window.hide().map_err(|e| format!("hide: {}", e))
+}
+
 // ============================================================
 // Phase 26.1.B — Download history (SQLite local)
 // ============================================================
@@ -635,6 +647,8 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             app_version,
             ping,
+            exit_app,
+            hide_to_tray,
             history_list,
             history_clear,
             history_update_meta,
@@ -644,11 +658,13 @@ pub fn run() {
             get_preview_temp_dir,
         ])
         .on_window_event(|window, event| {
-            // Phase 26.5.A — close button → hide thay vì quit. App vẫn chạy
-            // background nhận FCM (Phase 26.6) + queue download tiếp tục.
+            // Phase 26.5.G — close button → emit event cho frontend quyết định
+            // (theo setting localStorage 'close_behavior' = 'tray' | 'quit').
+            // Default: hide (để app chạy background nhận polling notification).
             if let tauri::WindowEvent::CloseRequested { api, .. } = event {
-                let _ = window.hide();
                 api.prevent_close();
+                use tauri::Emitter;
+                let _ = window.emit("app-close-requested", ());
             }
         })
         .setup(|app| {

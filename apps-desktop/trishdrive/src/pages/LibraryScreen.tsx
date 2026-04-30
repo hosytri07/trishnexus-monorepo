@@ -16,7 +16,7 @@ import { openPath } from '@tauri-apps/plugin-opener';
 import { getFirebaseAuth } from '@trishteam/auth';
 import {
   BookOpen, Download, Folder, FileText, Search, RefreshCw,
-  AlertCircle, FileQuestion, Loader2, CheckCircle2, Eye,
+  AlertCircle, FileQuestion, Loader2, CheckCircle2, Eye, Send, X,
 } from 'lucide-react';
 
 interface LibraryItem {
@@ -44,6 +44,7 @@ export function LibraryScreen(): JSX.Element {
   const [busyToken, setBusyToken] = useState<string | null>(null);
   const [previewToken, setPreviewToken] = useState<string | null>(null);
   const [downloadedToken, setDownloadedToken] = useState<string | null>(null);
+  const [showRequestModal, setShowRequestModal] = useState(false);
 
   useEffect(() => { void load(); }, []);
 
@@ -99,17 +100,44 @@ export function LibraryScreen(): JSX.Element {
         throw new Error('Cần đăng nhập Firebase để load Thư viện');
       }
       const token = await user.getIdToken();
-      const res = await fetch(`${SHARE_API_BASE}/api/drive/library/list`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      if (!res.ok) {
-        const j = await res.json().catch(() => ({}));
-        throw new Error(j.error || `HTTP ${res.status}`);
+      let res: Response;
+      try {
+        res = await fetch(`${SHARE_API_BASE}/api/drive/library/list`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+      } catch (netErr) {
+        // Network/CORS fail (Tauri WebView2 → trishteam.io.vn)
+        throw new Error(
+          `Không kết nối được ${SHARE_API_BASE}. Kiểm tra: ` +
+          `(1) mạng có online không, ` +
+          `(2) admin đã \`git push origin main\` để Vercel deploy /api/drive/library/list chưa? ` +
+          `Chi tiết: ${(netErr as Error).message}`
+        );
       }
-      const data = (await res.json()) as { items: LibraryItem[] };
+      if (!res.ok) {
+        // Detect HTML response (Vercel 404 page) vs JSON error
+        const text = await res.text();
+        const isHtml = text.trim().startsWith('<!DOCTYPE') || text.trim().startsWith('<html');
+        if (res.status === 404 || isHtml) {
+          throw new Error(
+            `Endpoint /api/drive/library/list chưa deploy lên Vercel (HTTP ${res.status}). ` +
+            `Admin cần \`git push origin main\` để Vercel build bản mới.`
+          );
+        }
+        if (res.status === 401) {
+          throw new Error('Token Firebase không hợp lệ — đăng nhập lại.');
+        }
+        try {
+          const j = JSON.parse(text);
+          throw new Error(j.error || `HTTP ${res.status}: ${text.slice(0, 200)}`);
+        } catch {
+          throw new Error(`HTTP ${res.status}: ${text.slice(0, 200)}`);
+        }
+      }
+      const data = JSON.parse(await res.text()) as { items: LibraryItem[] };
       setItems(data.items || []);
     } catch (e) {
-      setErr(String(e));
+      setErr((e as Error).message || String(e));
     } finally {
       setLoading(false);
     }
@@ -220,6 +248,8 @@ export function LibraryScreen(): JSX.Element {
         </div>
       )}
 
+      {showRequestModal && <RequestModal onClose={() => setShowRequestModal(false)} />}
+
       <div className="card">
         <div className="card-header">
           <div>
@@ -230,9 +260,14 @@ export function LibraryScreen(): JSX.Element {
               {items.length} file public do admin TrishTEAM curate. Click file → tải về máy (auto-decrypt + verify SHA256).
             </p>
           </div>
-          <button className="btn-secondary" onClick={load} disabled={loading}>
-            <RefreshCw className={`h-3.5 w-3.5 ${loading ? 'animate-spin' : ''}`} /> Reload
-          </button>
+          <div className="flex gap-2">
+            <button className="btn-secondary" onClick={() => setShowRequestModal(true)} title="Yêu cầu admin upload file mới">
+              <Send className="h-3.5 w-3.5" /> Yêu cầu file
+            </button>
+            <button className="btn-secondary" onClick={load} disabled={loading}>
+              <RefreshCw className={`h-3.5 w-3.5 ${loading ? 'animate-spin' : ''}`} /> Reload
+            </button>
+          </div>
         </div>
 
         {err && (
@@ -303,6 +338,135 @@ export function LibraryScreen(): JSX.Element {
               />
             ))}
           </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Phase 26.5.E.1 — Request file modal. User gửi request admin upload file mới.
+ * POST /api/drive/library/request → Firestore /trishdrive/_/file_requests.
+ */
+function RequestModal({ onClose }: { onClose: () => void }): JSX.Element {
+  const [fileName, setFileName] = useState('');
+  const [description, setDescription] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  const [success, setSuccess] = useState(false);
+
+  async function submit() {
+    if (!fileName.trim()) {
+      setErr('Tên file bắt buộc');
+      return;
+    }
+    setBusy(true);
+    setErr(null);
+    try {
+      const auth = getFirebaseAuth();
+      const user = auth.currentUser;
+      if (!user) throw new Error('Cần đăng nhập');
+      const token = await user.getIdToken();
+      const res = await fetch(`${SHARE_API_BASE}/api/drive/library/request`, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ file_name: fileName.trim(), description: description.trim() || undefined }),
+      });
+      if (!res.ok) {
+        const j = await res.json().catch(() => ({}));
+        throw new Error(j.error || `HTTP ${res.status}`);
+      }
+      setSuccess(true);
+      setTimeout(onClose, 2500);
+    } catch (e) {
+      setErr((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div
+      style={{
+        position: 'fixed', inset: 0, background: 'var(--color-surface-overlay)',
+        display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100, padding: 16,
+      }}
+      onClick={onClose}
+    >
+      <div className="card" style={{ maxWidth: 480, width: '100%' }} onClick={e => e.stopPropagation()}>
+        <div className="flex items-start justify-between">
+          <div>
+            <h2 className="card-title flex items-center gap-2">
+              <Send className="h-5 w-5" /> Yêu cầu admin upload file
+            </h2>
+            <p className="card-subtitle" style={{ marginTop: 4 }}>
+              Admin sẽ xem xét và upload nếu phù hợp. Có thể mất vài ngày.
+            </p>
+          </div>
+          <button className="icon-btn" onClick={onClose}><X className="h-4 w-4" /></button>
+        </div>
+
+        {success ? (
+          <div className="flex gap-2 items-start mt-4 p-4 rounded-xl" style={{ background: 'var(--color-accent-soft)', border: '1px solid rgba(16,185,129,0.2)' }}>
+            <CheckCircle2 className="h-5 w-5 flex-shrink-0 mt-0.5" style={{ color: 'var(--color-accent-primary)' }} />
+            <div>
+              <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--color-accent-primary)' }}>
+                ✓ Đã gửi yêu cầu!
+              </div>
+              <div style={{ fontSize: 12, color: 'var(--color-text-secondary)', marginTop: 4 }}>
+                Admin sẽ liên hệ qua email khi xử lý xong. Cảm ơn bạn!
+              </div>
+            </div>
+          </div>
+        ) : (
+          <>
+            <div className="space-y-3 mt-4">
+              <div>
+                <label style={{ fontSize: 12, fontWeight: 500, color: 'var(--color-text-muted)' }}>
+                  Tên file / tài liệu cần *
+                </label>
+                <input
+                  className="input-field"
+                  style={{ marginTop: 4 }}
+                  placeholder="VD: TCVN 4054:2005 Đường ô tô — Yêu cầu thiết kế"
+                  value={fileName}
+                  onChange={e => setFileName(e.target.value)}
+                  maxLength={200}
+                  autoFocus
+                  disabled={busy}
+                />
+              </div>
+              <div>
+                <label style={{ fontSize: 12, fontWeight: 500, color: 'var(--color-text-muted)' }}>
+                  Mô tả thêm (tùy chọn)
+                </label>
+                <textarea
+                  className="input-field"
+                  style={{ marginTop: 4, minHeight: 100, resize: 'vertical' }}
+                  placeholder="Nguồn / phiên bản / lý do cần file này..."
+                  value={description}
+                  onChange={e => setDescription(e.target.value)}
+                  maxLength={1000}
+                  disabled={busy}
+                />
+              </div>
+            </div>
+
+            {err && (
+              <div className="flex gap-2 items-start mt-3 p-3 rounded-xl" style={{ background: 'rgba(239,68,68,0.08)' }}>
+                <AlertCircle className="h-4 w-4 flex-shrink-0 mt-0.5" style={{ color: '#ef4444' }} />
+                <div style={{ fontSize: 12, color: '#dc2626' }}>{err}</div>
+              </div>
+            )}
+
+            <div className="flex gap-2 justify-end mt-5">
+              <button className="btn-secondary" onClick={onClose} disabled={busy}>Huỷ</button>
+              <button className="btn-primary" onClick={submit} disabled={busy || !fileName.trim()}>
+                {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+                {busy ? 'Đang gửi...' : 'Gửi yêu cầu'}
+              </button>
+            </div>
+          </>
         )}
       </div>
     </div>
