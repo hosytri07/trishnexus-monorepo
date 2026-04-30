@@ -42,6 +42,14 @@ hex = "0.4"
 # Async traits cho upload/download pipeline
 async-trait = "0.1"
 anyhow = "1"
+urlencoding = "2.1"
+
+# Phase 23 — MTProto cho file > 50MB (Bot API limit). grammers-client là Telegram MTProto Rust client.
+# Cần Telegram api_id + api_hash từ https://my.telegram.org/apps (mỗi user 1 lần đăng ký free).
+grammers-client = "0.7"
+grammers-session = "0.7"
+grammers-tl-types = "0.7"
+log = "0.4"
 # Phase 22 prep — TrishDrive MVP qua Telegram Bot API.
 # Phase 23+: chuyển MTProto qua grammers-client = "0.6" để upload file > 50MB
 # (giới hạn Bot API). MTProto cũng support download streaming tốt hơn.

@@ -10,6 +10,7 @@ mod telegram;
 mod creds;
 mod db;
 mod crypto;
+mod mtproto;
 
 use serde::Serialize;
 use tauri::Emitter;
@@ -43,11 +44,19 @@ pub fn run() {
             file_download,
             file_delete,
             file_update_meta,
+            file_restore,
+            file_purge,
+            file_purge_old_trash,
+            db_files_list_trashed,
             share_create,
+            share_list,
+            share_revoke,
+            share_extend,
             folder_list,
             folder_create,
             folder_rename,
             folder_delete,
+            mtproto_status,
         ])
         .setup(|app| {
             if let Ok(path) = db::db_path(&app.handle()) {
@@ -272,11 +281,25 @@ async fn file_upload(
             format!("{}.enc", filename)
         };
 
-        let msg = telegram::send_document(
-            &creds.bot_token, creds.channel_id, encrypted, &chunk_filename
-        ).await.map_err(|e| {
+        // Retry 3 lần với exponential backoff khi network fail
+        let mut last_err = String::new();
+        let mut msg_opt = None;
+        for attempt in 0..3 {
+            let encrypted_clone = encrypted.clone();
+            match telegram::send_document(&creds.bot_token, creds.channel_id, encrypted_clone, &chunk_filename).await {
+                Ok(m) => { msg_opt = Some(m); break; }
+                Err(e) => {
+                    last_err = e;
+                    if attempt < 2 {
+                        let delay_secs = 1u64 << attempt; // 1s, 2s
+                        tokio::time::sleep(std::time::Duration::from_secs(delay_secs)).await;
+                    }
+                }
+            }
+        }
+        let msg = msg_opt.ok_or_else(|| {
             let _ = db::delete_file(&conn, &file_id);
-            format!("Upload chunk {}/{} fail: {}", idx + 1, total_chunks, e)
+            format!("Upload chunk {}/{} fail sau 3 lần thử: {}", idx + 1, total_chunks, last_err)
         })?;
         let document = msg.document.ok_or_else(|| "Telegram trả message không có document".to_string())?;
         let chunk_row = db::ChunkRow {
@@ -349,10 +372,28 @@ async fn file_download(
     for (i, chunk) in chunks.iter().enumerate() {
         let tg_file_id = chunk.tg_file_id.as_ref()
             .ok_or_else(|| format!("Chunk {} không có tg_file_id", chunk.idx))?;
-        let file_info = telegram::get_file(&creds.bot_token, tg_file_id).await?;
-        let file_path = file_info.file_path
-            .ok_or_else(|| "Telegram không trả file_path (file expired hoặc deleted)".to_string())?;
-        let encrypted = telegram::download_file_bytes(&creds.bot_token, &file_path).await?;
+
+        // Retry 3 lần với exponential backoff
+        let mut last_err = String::new();
+        let mut encrypted_opt = None;
+        for attempt in 0..3 {
+            let r: Result<Vec<u8>, String> = async {
+                let file_info = telegram::get_file(&creds.bot_token, tg_file_id).await?;
+                let file_path = file_info.file_path
+                    .ok_or_else(|| "Telegram không trả file_path".to_string())?;
+                telegram::download_file_bytes(&creds.bot_token, &file_path).await
+            }.await;
+            match r {
+                Ok(b) => { encrypted_opt = Some(b); break; }
+                Err(e) => {
+                    last_err = e;
+                    if attempt < 2 {
+                        tokio::time::sleep(std::time::Duration::from_secs(1u64 << attempt)).await;
+                    }
+                }
+            }
+        }
+        let encrypted = encrypted_opt.ok_or_else(|| format!("Download chunk {}/{} fail sau 3 lần: {}", i + 1, total_chunks, last_err))?;
         let plaintext = crypto::decrypt(&creds.master_key_hex, &encrypted)?;
         hasher.update(&plaintext);
         out_file.write_all(&plaintext).await.map_err(|e| format!("write chunk: {}", e))?;
@@ -446,6 +487,32 @@ fn file_update_meta(
         &conn, &file_id,
         name.as_deref(), folder_id.as_deref(), note.as_deref(),
     ).map_err(|e| format!("update: {}", e))
+}
+
+// ============================================================
+// Phase 23.1 — MTProto status check
+// ============================================================
+
+#[tauri::command]
+async fn mtproto_status(app: tauri::AppHandle) -> Result<mtproto::MtprotoStatus, String> {
+    use tauri::Manager;
+    let app_data_dir = app.path().app_data_dir().map_err(|e| format!("app_data_dir: {}", e))?;
+    std::fs::create_dir_all(&app_data_dir).map_err(|e| format!("mkdir: {}", e))?;
+    let session_path = mtproto::session_path(&app_data_dir);
+
+    // Phase 23.1: chưa có api_id/hash thực — trả status configured=false nếu chưa setup
+    if !session_path.exists() {
+        return Ok(mtproto::MtprotoStatus {
+            configured: false,
+            authorized: false,
+            user_phone: None,
+            session_path: session_path.to_string_lossy().to_string(),
+        });
+    }
+
+    // TODO Phase 23.2: load api_id + api_hash từ creds (sẽ thêm field MtprotoConfig)
+    // Hiện trả error vì chưa có credentials
+    Err("Phase 23.2 chưa implement: cần load api_id + api_hash từ creds storage. Setup MTProto qua wizard mới.".to_string())
 }
 
 fn uuid_short() -> String {
@@ -580,25 +647,135 @@ async fn share_create(
     Ok(ShareResult { token: result.token, url: result.url })
 }
 
+#[derive(serde::Deserialize, Serialize)]
+pub struct ShareItem {
+    pub token: String,
+    pub file_id: String,
+    pub file_name: String,
+    pub file_size_bytes: i64,
+    pub created_at: i64,
+    pub expires_at: Option<i64>,
+    pub max_downloads: Option<i64>,
+    pub download_count: i64,
+    pub revoked: bool,
+    pub url: String,
+}
+
+#[derive(serde::Deserialize)]
+struct ShareListResponse { shares: Vec<ShareItem> }
+
 #[tauri::command]
-async fn file_delete(
+async fn share_list(uid: String) -> Result<Vec<ShareItem>, String> {
+    let url = format!("{}/api/drive/share/list?owner_uid={}", SHARE_API_BASE, urlencoding::encode(&uid));
+    let resp = reqwest::Client::new().get(&url).send().await
+        .map_err(|e| format!("HTTP: {}", e))?;
+    let status = resp.status();
+    let text = resp.text().await.unwrap_or_default();
+    if !status.is_success() {
+        return Err(format!("API {}: {}", status, text.chars().take(200).collect::<String>()));
+    }
+    let r: ShareListResponse = serde_json::from_str(&text).map_err(|e| format!("JSON: {}", e))?;
+    Ok(r.shares)
+}
+
+#[derive(serde::Serialize)]
+struct ManagePayload<'a> {
+    owner_uid: &'a str,
+    action: &'a str,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    expires_hours: Option<i64>,
+}
+
+async fn share_manage(uid: &str, token: &str, action: &str, expires_hours: Option<i64>) -> Result<(), String> {
+    let url = format!("{}/api/drive/share/{}/manage", SHARE_API_BASE, urlencoding::encode(token));
+    let payload = ManagePayload { owner_uid: uid, action, expires_hours };
+    let resp = reqwest::Client::new().patch(&url).json(&payload).send().await
+        .map_err(|e| format!("HTTP: {}", e))?;
+    let status = resp.status();
+    if !status.is_success() {
+        let text = resp.text().await.unwrap_or_default();
+        return Err(format!("API {}: {}", status, text.chars().take(200).collect::<String>()));
+    }
+    Ok(())
+}
+
+#[tauri::command]
+async fn share_revoke(uid: String, token: String) -> Result<(), String> {
+    share_manage(&uid, &token, "revoke", None).await
+}
+
+#[tauri::command]
+async fn share_extend(uid: String, token: String, expires_hours: i64) -> Result<(), String> {
+    share_manage(&uid, &token, "extend", Some(expires_hours)).await
+}
+
+/// Soft delete — file vào Thùng rác 30 ngày, KHÔNG xoá Telegram messages.
+/// User có thể restore. Sau 30 ngày auto-purge (xoá Telegram + SQLite).
+#[tauri::command]
+fn file_delete(app: tauri::AppHandle, file_id: String) -> Result<(), String> {
+    let path = db::db_path(&app)?;
+    let conn = db::open(&path).map_err(|e| format!("db open: {}", e))?;
+    db::soft_delete_file(&conn, &file_id).map_err(|e| format!("soft delete: {}", e))
+}
+
+#[tauri::command]
+fn file_restore(app: tauri::AppHandle, file_id: String) -> Result<(), String> {
+    let path = db::db_path(&app)?;
+    let conn = db::open(&path).map_err(|e| format!("db open: {}", e))?;
+    db::restore_file(&conn, &file_id).map_err(|e| format!("restore: {}", e))
+}
+
+/// Hard purge — xoá Telegram messages + SQLite row. Dùng cho:
+///   1. User bấm "Xoá vĩnh viễn" trong Trash
+///   2. Auto-purge file ≥ 30 ngày trong trash (file_purge_old_trash)
+#[tauri::command]
+async fn file_purge(
     app: tauri::AppHandle,
     uid: String,
     file_id: String,
 ) -> Result<(), String> {
     let creds = creds::load_creds(&uid)?
         .ok_or_else(|| "Chưa setup Telegram".to_string())?;
-
     let path = db::db_path(&app)?;
     let conn = db::open(&path).map_err(|e| format!("db open: {}", e))?;
     let chunks = db::get_chunks(&conn, &file_id).map_err(|e| format!("chunks: {}", e))?;
-
-    // Delete each chunk message on Telegram (best-effort, ignore errors vì có thể đã bị xoá thủ công)
     for chunk in &chunks {
         let _ = telegram::delete_message(&creds.bot_token, creds.channel_id, chunk.tg_message_id).await;
     }
-
-    // Delete from SQLite (cascade chunks)
     db::delete_file(&conn, &file_id).map_err(|e| format!("delete: {}", e))?;
     Ok(())
+}
+
+/// Auto-purge file đã trash > 30 ngày. Gọi khi load TrashPage.
+#[tauri::command]
+async fn file_purge_old_trash(
+    app: tauri::AppHandle,
+    uid: String,
+) -> Result<i64, String> {
+    let creds = creds::load_creds(&uid)?
+        .ok_or_else(|| "Chưa setup Telegram".to_string())?;
+    let path = db::db_path(&app)?;
+    let conn = db::open(&path).map_err(|e| format!("db open: {}", e))?;
+    let cutoff = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_millis() as i64)
+        .unwrap_or(0)
+        - 30 * 24 * 3600 * 1000; // 30 ngày
+    let old_files = db::list_trashed_older_than(&conn, cutoff).map_err(|e| format!("query: {}", e))?;
+    let count = old_files.len() as i64;
+    for f in old_files {
+        let chunks = db::get_chunks(&conn, &f.id).map_err(|e| format!("chunks: {}", e))?;
+        for chunk in &chunks {
+            let _ = telegram::delete_message(&creds.bot_token, creds.channel_id, chunk.tg_message_id).await;
+        }
+        let _ = db::delete_file(&conn, &f.id);
+    }
+    Ok(count)
+}
+
+#[tauri::command]
+fn db_files_list_trashed(app: tauri::AppHandle) -> Result<Vec<db::FileRow>, String> {
+    let path = db::db_path(&app)?;
+    let conn = db::open(&path).map_err(|e| format!("db open: {}", e))?;
+    db::list_trashed(&conn).map_err(|e| format!("query: {}", e))
 }

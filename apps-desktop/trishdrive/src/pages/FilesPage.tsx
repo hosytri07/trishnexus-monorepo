@@ -21,7 +21,7 @@ interface ProgressEvent {
   bytes_done: number;
   total_bytes: number;
 }
-import { Download, Trash2, FileText, Image as ImgIcon, Film, Music, Archive, FileQuestion, Loader2, RefreshCw, AlertCircle, Share2, Copy, X, CheckCircle2, Folder, FolderPlus, Edit3, FolderOpen } from 'lucide-react';
+import { Download, Trash2, FileText, Image as ImgIcon, Film, Music, Archive, FileQuestion, Loader2, RefreshCw, AlertCircle, Share2, Copy, X, CheckCircle2, Folder, FolderPlus, Edit3, MoveRight } from 'lucide-react';
 
 interface FileRow {
   id: string;
@@ -53,6 +53,8 @@ export function FilesPage({ uid, search, refreshTick }: { uid: string; search: s
   const [shareModal, setShareModal] = useState<FileRow | null>(null);
   const [editModal, setEditModal] = useState<FileRow | null>(null);
   const [downloadProgress, setDownloadProgress] = useState<ProgressEvent | null>(null);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [bulkBusy, setBulkBusy] = useState(false);
 
   useEffect(() => {
     void load();
@@ -154,17 +156,90 @@ export function FilesPage({ uid, search, refreshTick }: { uid: string; search: s
   }
 
   async function deleteFile(file: FileRow) {
-    if (!confirm(`Xoá "${file.name}" khỏi Telegram channel + index? Không khôi phục được.`)) return;
+    if (!confirm(`Xoá "${file.name}"? File sẽ vào Thùng rác 30 ngày trước khi xoá vĩnh viễn.`)) return;
     setBusyId(file.id);
     setErr(null);
     try {
-      await invoke('file_delete', { uid, fileId: file.id });
+      await invoke('file_delete', { fileId: file.id });
       await load();
     } catch (e) {
       setErr(String(e));
     } finally {
       setBusyId(null);
     }
+  }
+
+  function toggleSelect(id: string) {
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
+  function toggleSelectAll() {
+    if (selectedIds.size === filtered.length) {
+      setSelectedIds(new Set());
+    } else {
+      setSelectedIds(new Set(filtered.map(f => f.id)));
+    }
+  }
+
+  function clearSelection() { setSelectedIds(new Set()); }
+
+  async function bulkDelete() {
+    const ids = Array.from(selectedIds);
+    if (ids.length === 0) return;
+    if (!confirm(`Xoá ${ids.length} file? Tất cả sẽ vào Thùng rác 30 ngày trước khi xoá vĩnh viễn.`)) return;
+    setBulkBusy(true);
+    setErr(null);
+    try {
+      for (const id of ids) {
+        await invoke('file_delete', { fileId: id });
+      }
+      clearSelection();
+      await load();
+    } catch (e) { setErr(String(e)); }
+    finally { setBulkBusy(false); }
+  }
+
+  async function bulkMove() {
+    const ids = Array.from(selectedIds);
+    if (ids.length === 0) return;
+    if (folders.length === 0) {
+      alert('Tạo folder trước khi move.');
+      return;
+    }
+    const opts = ['_root', ...folders.map(f => f.id)];
+    const labels = ['📁 Root', ...folders.map(f => f.name)];
+    const choiceStr = prompt(
+      `Move ${ids.length} file vào folder nào?\n\n` +
+      opts.map((id, i) => `  ${i + 1}. ${labels[i]}`).join('\n') +
+      `\n\nNhập số:`
+    );
+    if (!choiceStr) return;
+    const choice = parseInt(choiceStr, 10);
+    if (isNaN(choice) || choice < 1 || choice > opts.length) {
+      alert('Số không hợp lệ');
+      return;
+    }
+    const targetFolderId = opts[choice - 1] === '_root' ? null : opts[choice - 1];
+    setBulkBusy(true);
+    setErr(null);
+    try {
+      for (const id of ids) {
+        await invoke('file_update_meta', {
+          fileId: id,
+          name: null,
+          folderId: targetFolderId,
+          note: null,
+        });
+      }
+      clearSelection();
+      await load();
+    } catch (e) { setErr(String(e)); }
+    finally { setBulkBusy(false); }
   }
 
   const folderCounts = useMemo(() => {
@@ -247,6 +322,26 @@ export function FilesPage({ uid, search, refreshTick }: { uid: string; search: s
         </div>
       )}
 
+      {selectedIds.size > 0 && (
+        <div className="flex items-center gap-3 mt-3 p-3 rounded-xl" style={{ background: 'var(--color-accent-soft)', border: '1px solid var(--color-accent-primary)' }}>
+          <CheckCircle2 className="h-4 w-4" style={{ color: 'var(--color-accent-primary)' }} />
+          <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--color-accent-primary)' }}>
+            Đã chọn {selectedIds.size}/{filtered.length} file
+          </div>
+          <div className="flex gap-2 ml-auto">
+            <button className="btn-secondary" onClick={bulkMove} disabled={bulkBusy}>
+              <MoveRight className="h-4 w-4" /> Move folder
+            </button>
+            <button className="btn-secondary" onClick={bulkDelete} disabled={bulkBusy} style={{ color: '#ef4444', borderColor: '#ef4444' }}>
+              {bulkBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />} Xoá tất cả
+            </button>
+            <button className="btn-secondary" onClick={clearSelection} disabled={bulkBusy}>
+              <X className="h-4 w-4" /> Bỏ chọn
+            </button>
+          </div>
+        </div>
+      )}
+
       {loading && filtered.length === 0 && (
         <div className="text-center py-12" style={{ color: 'var(--color-text-muted)' }}>
           <Loader2 className="h-8 w-8 mx-auto animate-spin" />
@@ -274,6 +369,14 @@ export function FilesPage({ uid, search, refreshTick }: { uid: string; search: s
           <table className="data-table">
             <thead>
               <tr>
+                <th style={{ width: 30 }}>
+                  <input
+                    type="checkbox"
+                    checked={filtered.length > 0 && selectedIds.size === filtered.length}
+                    onChange={toggleSelectAll}
+                    style={{ width: 14, height: 14, accentColor: 'var(--color-accent-primary)', cursor: 'pointer' }}
+                  />
+                </th>
                 <th></th>
                 <th>Tên</th>
                 <th>Size</th>
@@ -283,7 +386,15 @@ export function FilesPage({ uid, search, refreshTick }: { uid: string; search: s
             </thead>
             <tbody>
               {filtered.map(f => (
-                <tr key={f.id}>
+                <tr key={f.id} style={{ background: selectedIds.has(f.id) ? 'var(--color-accent-soft)' : undefined }}>
+                  <td>
+                    <input
+                      type="checkbox"
+                      checked={selectedIds.has(f.id)}
+                      onChange={() => toggleSelect(f.id)}
+                      style={{ width: 14, height: 14, accentColor: 'var(--color-accent-primary)', cursor: 'pointer' }}
+                    />
+                  </td>
                   <td style={{ width: 40 }}><FileIcon mime={f.mime} /></td>
                   <td>
                     <div style={{ fontWeight: 500, color: 'var(--color-text-primary)' }}>{f.name}</div>

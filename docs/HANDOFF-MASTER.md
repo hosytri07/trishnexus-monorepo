@@ -101,6 +101,21 @@ Double-click `scripts\START.bat` → tự pull GitHub + pnpm install + show stat
                 ✅ 22.5d Streaming upload — read file 4MB chunk SHA pass 1 + 19MB chunk encrypt+upload pass 2
                        — Bỏ MAX_FILE_SIZE 2GB → file ≥ 5GB cũng OK (chỉ giới hạn bởi free disk space)
                        — Streaming write download (ghi từng chunk decrypted ra disk, không build full Vec RAM)
+                ✅ 22.7e Manage Shares page — Web API list/manage + Tauri command share_list/revoke/extend
+                       — Sidebar tab "Link share" với table status badge + action revoke/extend/copy URL
+                       — Filter active/expired
+                ✅ 22.5e Retry logic — upload + download chunk fail retry 3 lần exponential backoff (1s, 2s, 4s)
+                ✅ 22.7j Dashboard page — replace Files default
+                       — 4 stat card (Tổng files / Storage / Folders / Active shares)
+                       — Recent uploads list + Top folders by size + Quick actions
+                ✅ 22.7g Multi-select + bulk actions
+                       — Checkbox column + select all + selection toolbar
+                       — Bulk move folder + bulk delete (vào trash)
+                ✅ 22.7f Trash bin (thùng rác)
+                       — file_delete giờ là SOFT delete (set deleted_at = now)
+                       — Tab "Thùng rác" mới với restore + xoá vĩnh viễn
+                       — Auto-purge file > 30 ngày khi load Trash page
+                       — DB schema migration: ALTER TABLE files ADD COLUMN deleted_at
                 ✅ 22.7d Help page in-app — 7 section accordion (Setup / Upload / Download / Share / Folder / Security / Troubleshoot)
                        — Sidebar nav thêm "Hướng dẫn" với icon BookOpen
                 ✅ 22.5c Progress bar % real-time upload + download
@@ -147,7 +162,13 @@ Double-click `scripts\START.bat` → tự pull GitHub + pnpm install + show stat
 
                 — Phase 22.8: Web admin /admin/trishiso + /admin/trishfinance read-only data view
 
-⏳ Phase 23     TrishDesign desktop (sau Phase 22)
+🟡 Phase 23 IN PROGRESS — TrishDrive MTProto migration (sau khi xong → roadmap TrishISO/Finance)
+                ✅ 23.1 Scaffold — grammers-client crate + module mtproto.rs + command mtproto_status + Settings UI badge
+                ⏳ 23.2 Login flow — phone + OTP + lưu session encrypted
+                ⏳ 23.3 Upload file > 50MB qua MTProto (không chia Bot API chunk)
+                ⏳ 23.4 Download streaming MTProto
+
+⏳ Phase 24     TrishDesign desktop (sau khi xong TrishDrive MTProto)
                 - AutoCAD plugin
                 - AI RAG TCVN/AASHTO
                 - Dự toán + bản vẽ kỹ sư

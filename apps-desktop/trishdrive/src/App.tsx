@@ -10,17 +10,20 @@
  */
 
 import { useEffect, useState } from 'react';
-import { Upload, Folder, Settings, Search, Sun, Moon, LogOut, BookOpen } from 'lucide-react';
+import { Upload, Folder, Settings, Search, Sun, Moon, LogOut, BookOpen, Share2, LayoutDashboard, Trash } from 'lucide-react';
 import { invoke } from '@tauri-apps/api/core';
 import { AuthProvider, useAuth } from '@trishteam/auth/react';
 import { SetupWizard } from './pages/SetupWizard';
 import { LoginScreen } from './pages/LoginScreen';
 import { UploadPage } from './pages/UploadPage';
 import { FilesPage } from './pages/FilesPage';
+import { SharesPage } from './pages/SharesPage';
+import { DashboardPage } from './pages/DashboardPage';
+import { TrashPage } from './pages/TrashPage';
 import { HelpPage } from './pages/HelpPage';
 import logoUrl from './assets/logo.png';
 
-type Page = 'files' | 'upload' | 'help' | 'settings';
+type Page = 'dashboard' | 'files' | 'upload' | 'shares' | 'trash' | 'help' | 'settings';
 
 interface PublicCreds {
   has_creds: boolean;
@@ -63,7 +66,7 @@ function AppGate(): JSX.Element {
 }
 
 function AuthenticatedShell({ uid, theme, setTheme }: { uid: string; theme: 'light' | 'dark'; setTheme: (t: 'light' | 'dark') => void }): JSX.Element {
-  const [page, setPage] = useState<Page>('files');
+  const [page, setPage] = useState<Page>('dashboard');
   const [creds, setCreds] = useState<PublicCreds | null>(null);
 
   useEffect(() => {
@@ -128,8 +131,11 @@ function MainShell({
           </div>
         </div>
         <nav className="space-y-1 flex-1">
+          <NavBtn icon={LayoutDashboard} label="Tổng quan" active={page === 'dashboard'} onClick={() => setPage('dashboard')} />
           <NavBtn icon={Folder} label="File của tôi" active={page === 'files'} onClick={() => setPage('files')} />
           <NavBtn icon={Upload} label="Upload" active={page === 'upload'} onClick={() => setPage('upload')} />
+          <NavBtn icon={Share2} label="Link share" active={page === 'shares'} onClick={() => setPage('shares')} />
+          <NavBtn icon={Trash} label="Thùng rác" active={page === 'trash'} onClick={() => setPage('trash')} />
           <NavBtn icon={BookOpen} label="Hướng dẫn" active={page === 'help'} onClick={() => setPage('help')} />
           <NavBtn icon={Settings} label="Cài đặt" active={page === 'settings'} onClick={() => setPage('settings')} />
         </nav>
@@ -155,7 +161,7 @@ function MainShell({
       <main className="flex-1 flex flex-col">
         <header className="px-6 py-4 flex items-center justify-between" style={{ borderBottom: '1px solid var(--color-border-subtle)', background: 'var(--color-surface-bg-elevated)' }}>
           <div>
-            <h1 style={{ fontSize: '20px', fontWeight: 600, letterSpacing: '-0.02em' }}>{page === 'files' ? 'File của tôi' : page === 'upload' ? 'Upload file mới' : page === 'help' ? 'Hướng dẫn sử dụng' : 'Cài đặt'}</h1>
+            <h1 style={{ fontSize: '20px', fontWeight: 600, letterSpacing: '-0.02em' }}>{page === 'dashboard' ? 'Tổng quan' : page === 'files' ? 'File của tôi' : page === 'upload' ? 'Upload file mới' : page === 'shares' ? 'Link share đã tạo' : page === 'trash' ? 'Thùng rác' : page === 'help' ? 'Hướng dẫn sử dụng' : 'Cài đặt'}</h1>
             <p style={{ fontSize: '12px', color: 'var(--color-text-muted)', marginTop: '2px' }}>Cloud Storage qua Telegram · không giới hạn dung lượng</p>
           </div>
           <div className="flex gap-2 items-center">
@@ -179,6 +185,14 @@ function MainShell({
         </header>
 
         <div className="flex-1 p-6 overflow-auto">
+          {page === 'dashboard' && (
+            <DashboardPage
+              uid={uid}
+              onGoFiles={() => setPage('files')}
+              onGoUpload={() => setPage('upload')}
+              onGoShares={() => setPage('shares')}
+            />
+          )}
           {page === 'files' && <FilesPage uid={uid} search={search} refreshTick={refreshTick} />}
           {page === 'upload' && (
             <UploadPage
@@ -189,6 +203,8 @@ function MainShell({
               }}
             />
           )}
+          {page === 'shares' && <SharesPage uid={uid} />}
+          {page === 'trash' && <TrashPage uid={uid} />}
           {page === 'help' && <HelpPage />}
           {page === 'settings' && <SettingsPage uid={uid} onReset={reloadCreds} theme={theme} setTheme={setTheme} />}
         </div>
@@ -258,26 +274,27 @@ function SettingsPage({ uid, onReset, theme, setTheme }: { uid: string; onReset:
         </div>
       </div>
 
-      {/* Cloud Telegram */}
+      {/* Cloud Telegram (Bot API hiện tại) */}
       <div className="card">
         <div className="card-header">
           <div>
-            <h2 className="card-title">Cloud Telegram</h2>
-            <p className="card-subtitle">BOT_TOKEN + CHANNEL_ID + AES master key (PBKDF2-SHA256 200k rounds) lưu Windows Credential Manager riêng cho user này.</p>
+            <h2 className="card-title">Cloud Telegram (Bot API)</h2>
+            <p className="card-subtitle">BOT_TOKEN + CHANNEL_ID + AES master key (PBKDF2 200k) lưu Windows Credential Manager. Chunks 19MB.</p>
           </div>
+          <span style={{ fontSize: 11, fontWeight: 600, padding: '2px 8px', borderRadius: 6, background: 'var(--color-accent-soft)', color: 'var(--color-accent-primary)' }}>
+            ✓ Active
+          </span>
         </div>
         <div className="mt-4 flex gap-2 flex-wrap">
-          <button className="btn-secondary" disabled style={{ opacity: 0.5 }}>
-            Test kết nối Bot (Phase 22.5)
-          </button>
-          <button className="btn-secondary" disabled style={{ opacity: 0.5 }}>
-            Đổi passphrase (Phase 22.5)
-          </button>
           <button className="btn-secondary" onClick={reset} style={{ borderColor: '#ef4444', color: '#ef4444' }}>
             Reset config (mở wizard)
           </button>
         </div>
       </div>
+
+      {/* MTProto status (Phase 23) */}
+      <MtprotoStatusCard uid={uid} />
+
 
       {/* Giao diện */}
       <div className="card">
@@ -365,6 +382,82 @@ function Stat({ label, value, hint }: { label: string; value: string; hint?: str
       <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>{label}</div>
       <div style={{ fontSize: 18, fontWeight: 600, color: 'var(--color-text-primary)', marginTop: 4 }}>{value}</div>
       {hint && <div style={{ fontSize: 10, color: 'var(--color-text-muted)', marginTop: 2 }}>{hint}</div>}
+    </div>
+  );
+}
+
+interface MtprotoStatus {
+  configured: boolean;
+  authorized: boolean;
+  user_phone: string | null;
+  session_path: string;
+}
+
+function MtprotoStatusCard({ uid: _uid }: { uid: string }): JSX.Element {
+  const [status, setStatus] = useState<MtprotoStatus | null>(null);
+  const [err, setErr] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+
+  async function load() {
+    setLoading(true);
+    setErr(null);
+    try {
+      const s = await invoke<MtprotoStatus>('mtproto_status');
+      setStatus(s);
+    } catch (e) {
+      setErr(String(e));
+      setStatus(null);
+    } finally { setLoading(false); }
+  }
+
+  useEffect(() => { void load(); }, []);
+
+  const isConnected = status?.authorized ?? false;
+  const badgeText = isConnected ? '✓ Connected' : status?.configured ? '⚠ Cần đăng nhập lại' : '◯ Chưa setup';
+  const badgeBg = isConnected ? 'var(--color-accent-soft)' : status?.configured ? 'rgba(245,158,11,0.12)' : 'var(--color-surface-muted)';
+  const badgeColor = isConnected ? 'var(--color-accent-primary)' : status?.configured ? '#b45309' : 'var(--color-text-muted)';
+
+  return (
+    <div className="card">
+      <div className="card-header">
+        <div>
+          <h2 className="card-title">Cloud Telegram (MTProto) <span style={{ fontSize: 10, fontWeight: 600, padding: '2px 6px', borderRadius: 4, background: 'var(--color-accent-soft)', color: 'var(--color-accent-primary)', marginLeft: 6 }}>PHASE 23</span></h2>
+          <p className="card-subtitle">User account thay vì bot — upload nguyên file 2GB không chia chunk, tốc độ 5-10x Bot API. Cần đăng ký <code>my.telegram.org/apps</code> để lấy api_id + api_hash.</p>
+        </div>
+        <span style={{ fontSize: 11, fontWeight: 600, padding: '2px 8px', borderRadius: 6, background: badgeBg, color: badgeColor }}>
+          {badgeText}
+        </span>
+      </div>
+
+      {err && (
+        <div className="flex gap-2 items-start mt-3 p-3 rounded-xl" style={{ background: 'rgba(245,158,11,0.08)', border: '1px solid rgba(245,158,11,0.2)' }}>
+          <div style={{ fontSize: 12, color: '#b45309' }}>{err}</div>
+        </div>
+      )}
+
+      {status?.user_phone && (
+        <div className="mt-3 p-3" style={{ background: 'var(--color-surface-row)', borderRadius: 10 }}>
+          <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: 0.04 }}>
+            Phone đã verify
+          </div>
+          <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--color-text-primary)', marginTop: 4, fontFamily: 'monospace' }}>
+            {status.user_phone}
+          </div>
+        </div>
+      )}
+
+      <div className="mt-4 flex gap-2 flex-wrap">
+        <button className="btn-primary" disabled style={{ opacity: 0.5 }}>
+          Setup MTProto (Phase 23.2)
+        </button>
+        <button className="btn-secondary" onClick={load} disabled={loading}>
+          {loading ? 'Đang check...' : 'Reload status'}
+        </button>
+      </div>
+
+      <div className="mt-3 text-xs" style={{ color: 'var(--color-text-muted)' }}>
+        🚧 Scaffold xong (Phase 23.1). Phase 23.2 sẽ có wizard nhập phone + OTP. Hiện file vẫn upload qua Bot API chunks.
+      </div>
     </div>
   );
 }

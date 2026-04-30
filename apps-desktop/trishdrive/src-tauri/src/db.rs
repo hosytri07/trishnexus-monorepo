@@ -22,8 +22,9 @@ pub fn open(path: &PathBuf) -> Result<Connection> {
 }
 
 pub fn init_schema(conn: &Connection) -> Result<()> {
-    // Migration: add note column nếu DB cũ thiếu (silent ignore nếu duplicate)
+    // Migration: add columns nếu DB cũ thiếu (silent ignore nếu duplicate)
     let _ = conn.execute("ALTER TABLE files ADD COLUMN note TEXT", []);
+    let _ = conn.execute("ALTER TABLE files ADD COLUMN deleted_at INTEGER", []);
     conn.execute_batch(
         r#"
         CREATE TABLE IF NOT EXISTS files (
@@ -87,6 +88,7 @@ pub struct FileRow {
     pub created_at: i64,
     pub total_chunks: i64,
     pub note: Option<String>,
+    pub deleted_at: Option<i64>,
 }
 
 #[derive(Debug, serde::Serialize, serde::Deserialize)]
@@ -196,6 +198,7 @@ pub fn get_file(conn: &Connection, file_id: &str) -> Result<Option<FileRow>> {
             id: r.get(0)?, name: r.get(1)?, size_bytes: r.get(2)?,
             mime: r.get(3)?, sha256_hex: r.get(4)?, folder_id: r.get(5)?,
             created_at: r.get(6)?, total_chunks: r.get(7)?, note: r.get(8)?,
+            deleted_at: r.get(9)?,
         })
     })?;
     Ok(rows.next().transpose()?)
@@ -216,9 +219,55 @@ pub fn get_chunks(conn: &Connection, file_id: &str) -> Result<Vec<ChunkRow>> {
 }
 
 pub fn delete_file(conn: &Connection, file_id: &str) -> Result<()> {
-    // Cascade: chunks bị xoá tự động qua FOREIGN KEY ... ON DELETE CASCADE
+    // Hard delete — cascade chunks via FOREIGN KEY ON DELETE CASCADE.
+    // Phase 22.7f: dùng soft_delete cho user action (vào Trash 30 ngày).
     conn.execute("DELETE FROM files WHERE id = ?", params![file_id])?;
     Ok(())
+}
+
+/// Soft delete — file vào Trash, vẫn còn chunks Telegram + SQLite, có thể restore.
+pub fn soft_delete_file(conn: &Connection, file_id: &str) -> Result<()> {
+    conn.execute("UPDATE files SET deleted_at = ? WHERE id = ?", params![chrono_now_ms(), file_id])?;
+    Ok(())
+}
+
+pub fn restore_file(conn: &Connection, file_id: &str) -> Result<()> {
+    conn.execute("UPDATE files SET deleted_at = NULL WHERE id = ?", params![file_id])?;
+    Ok(())
+}
+
+/// List file đã trash (deleted_at IS NOT NULL) sort theo deleted_at desc.
+pub fn list_trashed(conn: &Connection) -> Result<Vec<FileRow>> {
+    let mut stmt = conn.prepare(
+        "SELECT id, name, size_bytes, mime, sha256_hex, folder_id, created_at, total_chunks, note, deleted_at
+         FROM files WHERE deleted_at IS NOT NULL ORDER BY deleted_at DESC LIMIT 500",
+    )?;
+    let rows = stmt.query_map([], |r| {
+        Ok(FileRow {
+            id: r.get(0)?, name: r.get(1)?, size_bytes: r.get(2)?,
+            mime: r.get(3)?, sha256_hex: r.get(4)?, folder_id: r.get(5)?,
+            created_at: r.get(6)?, total_chunks: r.get(7)?,
+            note: r.get(8)?, deleted_at: r.get(9)?,
+        })
+    })?.collect::<Result<Vec<_>>>()?;
+    Ok(rows)
+}
+
+/// Tìm file trashed cũ hơn `older_than_ms` để purge auto.
+pub fn list_trashed_older_than(conn: &Connection, older_than_ms: i64) -> Result<Vec<FileRow>> {
+    let mut stmt = conn.prepare(
+        "SELECT id, name, size_bytes, mime, sha256_hex, folder_id, created_at, total_chunks, note, deleted_at
+         FROM files WHERE deleted_at IS NOT NULL AND deleted_at < ?",
+    )?;
+    let rows = stmt.query_map(params![older_than_ms], |r| {
+        Ok(FileRow {
+            id: r.get(0)?, name: r.get(1)?, size_bytes: r.get(2)?,
+            mime: r.get(3)?, sha256_hex: r.get(4)?, folder_id: r.get(5)?,
+            created_at: r.get(6)?, total_chunks: r.get(7)?,
+            note: r.get(8)?, deleted_at: r.get(9)?,
+        })
+    })?.collect::<Result<Vec<_>>>()?;
+    Ok(rows)
 }
 
 fn chrono_now_ms() -> i64 {
@@ -230,17 +279,14 @@ fn chrono_now_ms() -> i64 {
 }
 
 pub fn list_files(conn: &Connection, folder_id: Option<&str>, search: Option<&str>) -> Result<Vec<FileRow>> {
+    // List active files only (deleted_at IS NULL). Trash dùng list_trashed.
+    let cols = "SELECT id, name, size_bytes, mime, sha256_hex, folder_id, created_at, total_chunks, note, deleted_at FROM files";
+    let order = "ORDER BY created_at DESC LIMIT 500";
     let sql = match (folder_id, &search) {
-        (Some(_), Some(q)) => format!(
-            "SELECT id, name, size_bytes, mime, sha256_hex, folder_id, created_at, total_chunks, note FROM files WHERE folder_id = ? AND name LIKE '%{}%' ORDER BY created_at DESC LIMIT 500",
-            escape_like(q)
-        ),
-        (Some(_), None) => "SELECT id, name, size_bytes, mime, sha256_hex, folder_id, created_at, total_chunks, note FROM files WHERE folder_id = ? ORDER BY created_at DESC LIMIT 500".to_string(),
-        (None, Some(q)) => format!(
-            "SELECT id, name, size_bytes, mime, sha256_hex, folder_id, created_at, total_chunks, note FROM files WHERE name LIKE '%{}%' ORDER BY created_at DESC LIMIT 500",
-            escape_like(q)
-        ),
-        (None, None) => "SELECT id, name, size_bytes, mime, sha256_hex, folder_id, created_at, total_chunks, note FROM files ORDER BY created_at DESC LIMIT 500".to_string(),
+        (Some(_), Some(q)) => format!("{} WHERE deleted_at IS NULL AND folder_id = ? AND name LIKE '%{}%' {}", cols, escape_like(q), order),
+        (Some(_), None) => format!("{} WHERE deleted_at IS NULL AND folder_id = ? {}", cols, order),
+        (None, Some(q)) => format!("{} WHERE deleted_at IS NULL AND name LIKE '%{}%' {}", cols, escape_like(q), order),
+        (None, None) => format!("{} WHERE deleted_at IS NULL {}", cols, order),
     };
     let mut stmt = conn.prepare(&sql)?;
     let map_row = |r: &rusqlite::Row| {
@@ -254,6 +300,7 @@ pub fn list_files(conn: &Connection, folder_id: Option<&str>, search: Option<&st
             created_at: r.get(6)?,
             total_chunks: r.get(7)?,
             note: r.get(8)?,
+            deleted_at: r.get(9)?,
         })
     };
     let rows = if let Some(fid) = folder_id {
