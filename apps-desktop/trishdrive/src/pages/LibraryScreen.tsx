@@ -16,9 +16,10 @@ import { openPath } from '@tauri-apps/plugin-opener';
 import { getFirebaseAuth } from '@trishteam/auth';
 import {
   BookOpen, Download, Folder, FileText, Search, RefreshCw,
-  AlertCircle, FileQuestion, Loader2, CheckCircle2, Eye, Send, X, Bell,
+  AlertCircle, FileQuestion, Loader2, CheckCircle2, Eye, Send, X, Bell, MessageSquare,
 } from 'lucide-react';
 import { loadSubscribedFolders } from './SettingsModal';
+import { CommentModal } from './CommentModal';
 
 const KEY_KNOWN_FOLDERS = 'trishdrive_known_folders';
 
@@ -48,6 +49,7 @@ export function LibraryScreen(): JSX.Element {
   const [previewToken, setPreviewToken] = useState<string | null>(null);
   const [downloadedToken, setDownloadedToken] = useState<string | null>(null);
   const [showRequestModal, setShowRequestModal] = useState(false);
+  const [commentItem, setCommentItem] = useState<LibraryItem | null>(null);
 
   useEffect(() => { void load(); }, []);
 
@@ -282,6 +284,13 @@ export function LibraryScreen(): JSX.Element {
       )}
 
       {showRequestModal && <RequestModal onClose={() => setShowRequestModal(false)} />}
+      {commentItem && (
+        <CommentModal
+          fileToken={commentItem.token}
+          fileName={commentItem.file_name}
+          onClose={() => setCommentItem(null)}
+        />
+      )}
 
       <div className="card">
         <div className="card-header">
@@ -368,6 +377,7 @@ export function LibraryScreen(): JSX.Element {
                 downloaded={downloadedToken === item.token}
                 onDownload={() => void downloadItem(item)}
                 onPreview={() => void previewItem(item)}
+                onComment={() => setCommentItem(item)}
               />
             ))}
           </div>
@@ -528,7 +538,7 @@ function FolderTab({ label, count, active, onClick }: { label: string; count: nu
 }
 
 function FileCard({
-  item, busy, previewing, downloaded, onDownload, onPreview,
+  item, busy, previewing, downloaded, onDownload, onPreview, onComment,
 }: {
   item: LibraryItem;
   busy: boolean;
@@ -536,6 +546,7 @@ function FileCard({
   downloaded: boolean;
   onDownload: () => void;
   onPreview: () => void;
+  onComment: () => void;
 }): JSX.Element {
   const anyBusy = busy || previewing;
   return (
@@ -569,17 +580,19 @@ function FileCard({
           onClick={onPreview}
           disabled={anyBusy}
           style={{ flex: 1, fontSize: 12, padding: '7px 10px' }}
-          title="Xem trước (mở OS default viewer)"
+          title="Xem trước (OS default viewer)"
         >
-          {previewing ? (
-            <>
-              <Loader2 className="h-3.5 w-3.5 animate-spin" /> Đang mở...
-            </>
-          ) : (
-            <>
-              <Eye className="h-3.5 w-3.5" /> Xem
-            </>
-          )}
+          {previewing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Eye className="h-3.5 w-3.5" />}
+          {previewing ? 'Mở...' : 'Xem'}
+        </button>
+        <button
+          className="btn-secondary"
+          onClick={onComment}
+          disabled={anyBusy}
+          style={{ flex: 0.7, fontSize: 12, padding: '7px 8px' }}
+          title="Bình luận + đánh giá file"
+        >
+          <MessageSquare className="h-3.5 w-3.5" />
         </button>
         <button
           className={downloaded ? 'btn-secondary' : 'btn-primary'}

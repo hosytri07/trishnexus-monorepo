@@ -25,7 +25,7 @@ import { DownloadScreen } from './pages/DownloadScreen';
 import { LibraryScreen } from './pages/LibraryScreen';
 import { HistoryScreen } from './pages/HistoryScreen';
 import { HelpPage } from './pages/HelpPage';
-import { SettingsModal, loadCloseBehavior } from './pages/SettingsModal';
+import { SettingsModal, loadCloseBehavior, loadSpeedLimit } from './pages/SettingsModal';
 import logoUrl from './assets/logo.png';
 
 type Page = 'download' | 'library' | 'history' | 'help';
@@ -77,6 +77,8 @@ function MainShell({ theme, setTheme }: { theme: 'light' | 'dark'; setTheme: (t:
 
   useEffect(() => {
     void invoke<string>('app_version').then(setVersion).catch(() => {});
+    // Phase 26.2.D — sync speed limit từ localStorage → Rust state lúc app start
+    void invoke('set_speed_limit', { mbps: loadSpeedLimit() }).catch(() => {});
   }, []);
 
   // Phase 26.5.A — listen nav-to-tab event từ tray menu (vd "Xem lịch sử")

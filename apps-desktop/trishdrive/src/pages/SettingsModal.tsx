@@ -10,12 +10,16 @@
 
 import { useEffect, useState } from 'react';
 import { invoke } from '@tauri-apps/api/core';
-import { Settings as SettingsIcon, X, Sun, Moon, MinusSquare, Power, Trash2, Info, Bell, Folder } from 'lucide-react';
+import {
+  Settings as SettingsIcon, X, Sun, Moon, MinusSquare, Power,
+  Info, Bell, Folder, Gauge,
+} from 'lucide-react';
 
 const KEY_THEME = 'trishdrive_theme';
 const KEY_CLOSE_BEHAVIOR = 'trishdrive_close_behavior';
 const KEY_CLEANUP_DAYS = 'trishdrive_cleanup_days';
 const KEY_SUBSCRIBED_FOLDERS = 'trishdrive_subscribed_folders';
+const KEY_SPEED_LIMIT = 'trishdrive_speed_limit_mbps';
 
 export type CloseBehavior = 'tray' | 'quit';
 
@@ -51,6 +55,18 @@ export function saveSubscribedFolders(folders: string[]): void {
   try { localStorage.setItem(KEY_SUBSCRIBED_FOLDERS, JSON.stringify(folders)); } catch { /* */ }
 }
 
+/** Phase 26.2.D — Speed limit MB/s (0 = unlimited). */
+export function loadSpeedLimit(): number {
+  try {
+    const v = localStorage.getItem(KEY_SPEED_LIMIT);
+    if (v) {
+      const n = parseFloat(v);
+      if (Number.isFinite(n) && n >= 0 && n <= 1000) return n;
+    }
+  } catch { /* */ }
+  return 0;
+}
+
 export function SettingsModal({
   theme, setTheme, onClose, version, availableFolders,
 }: {
@@ -64,6 +80,7 @@ export function SettingsModal({
   const [closeBehavior, setCloseBehavior] = useState<CloseBehavior>(loadCloseBehavior);
   const [cleanupDays, setCleanupDays] = useState<number>(loadCleanupDays);
   const [subscribedFolders, setSubscribedFolders] = useState<string[]>(loadSubscribedFolders);
+  const [speedLimit, setSpeedLimit] = useState<number>(loadSpeedLimit);
 
   useEffect(() => {
     try { localStorage.setItem(KEY_CLOSE_BEHAVIOR, closeBehavior); } catch { /* */ }
@@ -76,6 +93,12 @@ export function SettingsModal({
   useEffect(() => {
     saveSubscribedFolders(subscribedFolders);
   }, [subscribedFolders]);
+
+  // Phase 26.2.D — sync speed limit Rust state khi đổi
+  useEffect(() => {
+    try { localStorage.setItem(KEY_SPEED_LIMIT, String(speedLimit)); } catch { /* */ }
+    void invoke('set_speed_limit', { mbps: speedLimit }).catch(() => {});
+  }, [speedLimit]);
 
   function toggleFolder(name: string) {
     setSubscribedFolders(prev =>
@@ -224,6 +247,42 @@ export function SettingsModal({
             </div>
           </div>
         )}
+
+        {/* Phase 26.2.D — Speed limit */}
+        <div className="mt-5">
+          <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: 0.04 }}>
+            <Gauge className="h-3 w-3" style={{ display: 'inline', marginRight: 4 }} /> Giới hạn tốc độ tải
+          </label>
+          <div className="p-3 rounded-xl mt-2" style={{ background: 'var(--color-surface-row)', border: '1px solid var(--color-border-subtle)' }}>
+            <div className="flex items-center gap-3">
+              <input
+                type="range"
+                min={0}
+                max={50}
+                step={0.5}
+                value={speedLimit}
+                onChange={e => setSpeedLimit(parseFloat(e.target.value))}
+                style={{ flex: 1, accentColor: 'var(--color-accent-primary)' }}
+              />
+              <input
+                type="number"
+                min={0}
+                max={1000}
+                step={0.5}
+                value={speedLimit}
+                onChange={e => setSpeedLimit(parseFloat(e.target.value) || 0)}
+                className="input-field"
+                style={{ width: 80, padding: '4px 8px', fontSize: 13 }}
+              />
+              <span style={{ fontSize: 12, color: 'var(--color-text-muted)', minWidth: 40 }}>MB/s</span>
+            </div>
+            <p style={{ fontSize: 11, color: 'var(--color-text-muted)', marginTop: 8, lineHeight: 1.5 }}>
+              {speedLimit === 0
+                ? '⚡ Không giới hạn — tải nhanh nhất có thể'
+                : `🐢 Giới hạn ${speedLimit} MB/s — tránh nghẽn mạng nhà / 4G dial-up`}
+            </p>
+          </div>
+        </div>
 
         {/* Cleanup history */}
         <div className="mt-5">

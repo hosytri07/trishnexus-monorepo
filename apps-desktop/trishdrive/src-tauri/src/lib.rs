@@ -16,7 +16,13 @@ mod db;
 
 use rusqlite::params;
 use serde::{Deserialize, Serialize};
+use std::sync::Mutex;
 use tauri::Emitter;
+
+/// Phase 26.2.D — Speed limiter state (MB/s). 0 = unlimited.
+/// User set qua Settings UI → invoke set_speed_limit.
+#[derive(Default)]
+struct SpeedLimit(Mutex<f64>);
 
 /// Phase 26.1.G — progress event emit sau mỗi chunk download.
 /// Frontend listen `drive-progress` → render % + speed + ETA.
@@ -70,6 +76,19 @@ fn exit_app(app: tauri::AppHandle) {
 #[tauri::command]
 fn hide_to_tray(window: tauri::WebviewWindow) -> Result<(), String> {
     window.hide().map_err(|e| format!("hide: {}", e))
+}
+
+/// Phase 26.2.D — Set speed limit MB/s (0 = unlimited).
+#[tauri::command]
+fn set_speed_limit(state: tauri::State<'_, SpeedLimit>, mbps: f64) {
+    if let Ok(mut guard) = state.0.lock() {
+        *guard = if mbps < 0.0 { 0.0 } else { mbps };
+    }
+}
+
+#[tauri::command]
+fn get_speed_limit(state: tauri::State<'_, SpeedLimit>) -> f64 {
+    state.0.lock().map(|g| *g).unwrap_or(0.0)
 }
 
 // ============================================================
@@ -324,12 +343,17 @@ async fn proxy_download_chunk(
 #[tauri::command]
 async fn share_paste_and_download(
     app: tauri::AppHandle,
+    state: tauri::State<'_, SpeedLimit>,
     url: String,
     password: Option<String>,
     dest_path: String,
 ) -> Result<HistoryRow, String> {
     use sha2::{Digest, Sha256};
     use tokio::io::AsyncWriteExt;
+
+    // Phase 26.2.D — read speed limit (MB/s, 0 = unlimited)
+    let speed_limit_mbps = state.0.lock().map(|g| *g).unwrap_or(0.0);
+    let speed_limit_bps = if speed_limit_mbps > 0.0 { speed_limit_mbps * 1_048_576.0 } else { 0.0 };
 
     // 1. Parse URL → token + optional key from fragment
     let (token, key_from_fragment) = parse_share_url(&url)?;
@@ -375,6 +399,7 @@ async fn share_paste_and_download(
     let pipeline_default = info.pipeline.as_deref().unwrap_or("botapi");
 
     for (i, chunk) in info.chunks.iter().enumerate() {
+        let chunk_start = std::time::Instant::now();
         let chunk_pipeline = chunk.pipeline.as_deref().unwrap_or(pipeline_default);
         let encrypted = proxy_download_chunk(&token, &bot_token, chunk, chunk_pipeline, i == 0).await
             .map_err(|e| {
@@ -394,6 +419,17 @@ async fn share_paste_and_download(
         hasher.update(&plaintext);
         out_file.write_all(&plaintext).await.map_err(|e| format!("write: {}", e))?;
         bytes_done += plaintext.len() as i64;
+
+        // Phase 26.2.D — Speed limit: nếu chunk nhanh hơn target → sleep diff
+        if speed_limit_bps > 0.0 {
+            let chunk_bytes = plaintext.len() as f64;
+            let target_dt_secs = chunk_bytes / speed_limit_bps;
+            let actual_dt = chunk_start.elapsed().as_secs_f64();
+            if target_dt_secs > actual_dt {
+                let sleep_secs = target_dt_secs - actual_dt;
+                tokio::time::sleep(std::time::Duration::from_secs_f64(sleep_secs)).await;
+            }
+        }
 
         // Emit progress sau mỗi chunk
         let _ = app.emit("drive-progress", DownloadProgress {
@@ -644,11 +680,14 @@ pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_opener::init())
+        .manage(SpeedLimit::default())
         .invoke_handler(tauri::generate_handler![
             app_version,
             ping,
             exit_app,
             hide_to_tray,
+            set_speed_limit,
+            get_speed_limit,
             history_list,
             history_clear,
             history_update_meta,
