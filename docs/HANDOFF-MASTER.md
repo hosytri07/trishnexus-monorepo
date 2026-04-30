@@ -98,6 +98,11 @@ Double-click `scripts\START.bat` → tự pull GitHub + pnpm install + show stat
                 ✅ 22.5 Upload pipeline — crypto.rs AES-GCM + telegram.rs sendDocument + db insert (file < 48MB)
                 ✅ 22.6 Download + Delete — getFile + decrypt + verify SHA256 + deleteMessage Telegram
                 ✅ 22.7 UI Files page (table + sort + search + download/delete) + UploadPage (dialog + progress)
+                ✅ 22.5d Streaming upload — read file 4MB chunk SHA pass 1 + 19MB chunk encrypt+upload pass 2
+                       — Bỏ MAX_FILE_SIZE 2GB → file ≥ 5GB cũng OK (chỉ giới hạn bởi free disk space)
+                       — Streaming write download (ghi từng chunk decrypted ra disk, không build full Vec RAM)
+                ✅ 22.7d Help page in-app — 7 section accordion (Setup / Upload / Download / Share / Folder / Security / Troubleshoot)
+                       — Sidebar nav thêm "Hướng dẫn" với icon BookOpen
                 ✅ 22.5c Progress bar % real-time upload + download
                        — Rust emit `drive-progress` event sau mỗi chunk (current/total + bytes_done/total + op)
                        — UploadPage: progress bar 8px gradient + chunk N/M + speed MB/s + ETA

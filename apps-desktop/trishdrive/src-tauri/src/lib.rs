@@ -159,10 +159,10 @@ pub struct UploadResult {
 //   - sendDocument upload: 50MB
 //   - getFile download:    20MB ← chunk size phải dưới ngưỡng này
 // Chia chunk 19MB plaintext → ~19.05MB ciphertext (overhead 28 byte AES-GCM nonce + tag).
-// File 2GB → ~108 chunks. Upload tuần tự ~10-15 phút.
-// Phase 23 (MTProto/grammers) sẽ bỏ giới hạn này và upload nguyên 2GB không chia.
+// KHÔNG limit tổng file size — Telegram channel free unlimited.
+// File 5GB = ~270 chunks → upload tuần tự ~25-40 phút (tuỳ tốc độ).
+// Streaming read: mỗi chunk đọc trực tiếp từ disk, KHÔNG load full file vào RAM.
 const CHUNK_SIZE: usize = 19 * 1024 * 1024;
-const MAX_FILE_SIZE: u64 = 2 * 1024 * 1024 * 1024; // 2GB
 
 #[tauri::command]
 async fn file_upload(
@@ -172,6 +172,9 @@ async fn file_upload(
     folder_id: Option<String>,
     note: Option<String>,
 ) -> Result<UploadResult, String> {
+    use sha2::{Digest, Sha256};
+    use tokio::io::{AsyncReadExt, AsyncSeekExt};
+
     let creds = creds::load_creds(&uid)?
         .ok_or_else(|| "Chưa setup Telegram (mở wizard)".to_string())?;
 
@@ -180,34 +183,53 @@ async fn file_upload(
         .and_then(|n| n.to_str())
         .ok_or_else(|| "Tên file không hợp lệ".to_string())?
         .to_string();
-    let plaintext = tokio::fs::read(&path).await.map_err(|e| format!("read file: {}", e))?;
-    let size = plaintext.len();
-    if size as u64 > MAX_FILE_SIZE {
-        return Err(format!("File {} MB > 2 GB. Phase 23 (MTProto) sẽ hỗ trợ file lớn hơn.",
-            size / 1024 / 1024));
-    }
 
-    let sha256 = crypto::sha256_hex(&plaintext);
+    // Mở file + lấy size (không load vào RAM)
+    let mut file = tokio::fs::File::open(&path).await.map_err(|e| format!("open file: {}", e))?;
+    let metadata = file.metadata().await.map_err(|e| format!("metadata: {}", e))?;
+    let size = metadata.len() as usize;
+    if size == 0 {
+        return Err("File rỗng".to_string());
+    }
     let total_chunks = ((size + CHUNK_SIZE - 1) / CHUNK_SIZE).max(1) as i64;
 
-    // Insert file row trước (tránh có chunks mồ côi nếu fail giữa chừng)
+    // Pass 1: streaming SHA-256 (không load full)
+    let mut hasher = Sha256::new();
+    let mut buf = vec![0u8; 4 * 1024 * 1024]; // 4MB read buffer
+    let mut hashed_bytes = 0;
+    loop {
+        let n = file.read(&mut buf).await.map_err(|e| format!("read sha: {}", e))?;
+        if n == 0 { break; }
+        hasher.update(&buf[..n]);
+        hashed_bytes += n;
+        // Emit emit 0-50% cho phase hash
+        let _ = app.emit("drive-progress", ProgressEvent {
+            op: "upload".into(),
+            file_id: "_hashing_".into(),
+            current_chunk: 0, total_chunks,
+            bytes_done: (hashed_bytes / 2) as i64,
+            total_bytes: size as i64,
+        });
+    }
+    let sha256 = hex::encode(hasher.finalize());
     let file_id = format!("f_{}", &sha256[..16]);
+
+    // Pass 2: chunk + encrypt + upload tuần tự (seek về đầu file)
+    file.seek(std::io::SeekFrom::Start(0)).await.map_err(|e| format!("seek: {}", e))?;
+
     let now_ms = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .map(|d| d.as_millis() as i64)
         .unwrap_or(0);
 
-    // Chunk + encrypt + upload tuần tự
     let db_path_buf = db::db_path(&app)?;
     let conn = db::open(&db_path_buf).map_err(|e| format!("db open: {}", e))?;
 
-    // Insert file row (note + folder + total_chunks)
-    let mime: Option<String> = None;
     let row = db::FileRow {
         id: file_id.clone(),
         name: filename.clone(),
         size_bytes: size as i64,
-        mime,
+        mime: None,
         sha256_hex: sha256.clone(),
         folder_id,
         created_at: now_ms,
@@ -216,24 +238,40 @@ async fn file_upload(
     };
     db::insert_file(&conn, &row).map_err(|e| format!("insert file: {}", e))?;
 
-    // Emit progress 0% trước khi bắt đầu
+    // Emit 0% upload phase
     let _ = app.emit("drive-progress", ProgressEvent {
         op: "upload".into(), file_id: file_id.clone(),
         current_chunk: 0, total_chunks,
         bytes_done: 0, total_bytes: size as i64,
     });
 
+    let mut chunk_buf = vec![0u8; CHUNK_SIZE];
+    let mut bytes_done: usize = 0;
+
     for idx in 0..total_chunks {
-        let start = idx as usize * CHUNK_SIZE;
-        let end = ((start + CHUNK_SIZE).min(size)) as usize;
-        let chunk_plain = &plaintext[start..end];
-        let encrypted = crypto::encrypt(&creds.master_key_hex, chunk_plain)?;
+        // Đọc đúng số byte còn lại (chunk cuối có thể ngắn)
+        let remaining = size - bytes_done;
+        let to_read = remaining.min(CHUNK_SIZE);
+        chunk_buf.resize(to_read, 0);
+        let mut read_total = 0;
+        while read_total < to_read {
+            let n = file.read(&mut chunk_buf[read_total..]).await.map_err(|e| format!("read chunk: {}", e))?;
+            if n == 0 { break; }
+            read_total += n;
+        }
+        if read_total != to_read {
+            let _ = db::delete_file(&conn, &file_id);
+            return Err(format!("Read short: expect {} got {} at chunk {}", to_read, read_total, idx));
+        }
+
+        let encrypted = crypto::encrypt(&creds.master_key_hex, &chunk_buf[..to_read])?;
         let nonce_hex = hex::encode(&encrypted[..crypto::NONCE_SIZE]);
         let chunk_filename = if total_chunks > 1 {
             format!("{}.part{:03}.enc", filename, idx)
         } else {
             format!("{}.enc", filename)
         };
+
         let msg = telegram::send_document(
             &creds.bot_token, creds.channel_id, encrypted, &chunk_filename
         ).await.map_err(|e| {
@@ -241,21 +279,21 @@ async fn file_upload(
             format!("Upload chunk {}/{} fail: {}", idx + 1, total_chunks, e)
         })?;
         let document = msg.document.ok_or_else(|| "Telegram trả message không có document".to_string())?;
-        let chunk = db::ChunkRow {
+        let chunk_row = db::ChunkRow {
             file_id: file_id.clone(),
             idx,
             tg_message_id: msg.message_id,
             tg_file_id: Some(document.file_id),
-            byte_size: (end - start) as i64,
+            byte_size: to_read as i64,
             nonce_hex,
         };
-        db::insert_chunk(&conn, &chunk).map_err(|e| format!("insert chunk: {}", e))?;
+        db::insert_chunk(&conn, &chunk_row).map_err(|e| format!("insert chunk: {}", e))?;
 
-        // Emit progress sau mỗi chunk
+        bytes_done += to_read;
         let _ = app.emit("drive-progress", ProgressEvent {
             op: "upload".into(), file_id: file_id.clone(),
             current_chunk: idx + 1, total_chunks,
-            bytes_done: end as i64, total_bytes: size as i64,
+            bytes_done: bytes_done as i64, total_bytes: size as i64,
         });
     }
 
@@ -292,16 +330,22 @@ async fn file_download(
         return Err("File không có chunk nào".to_string());
     }
 
+    use sha2::{Digest, Sha256};
+    use tokio::io::AsyncWriteExt;
+
     let total_chunks = chunks.len() as i64;
     let total_bytes = file_row.size_bytes;
-    // Emit 0%
     let _ = app.emit("drive-progress", ProgressEvent {
         op: "download".into(), file_id: file_id.clone(),
         current_chunk: 0, total_chunks,
         bytes_done: 0, total_bytes,
     });
 
-    let mut output = Vec::with_capacity(total_bytes as usize);
+    // Streaming: ghi từng chunk decrypted ra file luôn, không build full Vec trong RAM
+    let mut out_file = tokio::fs::File::create(&dest_path).await.map_err(|e| format!("create file: {}", e))?;
+    let mut hasher = Sha256::new();
+    let mut bytes_done: i64 = 0;
+
     for (i, chunk) in chunks.iter().enumerate() {
         let tg_file_id = chunk.tg_file_id.as_ref()
             .ok_or_else(|| format!("Chunk {} không có tg_file_id", chunk.idx))?;
@@ -310,25 +354,28 @@ async fn file_download(
             .ok_or_else(|| "Telegram không trả file_path (file expired hoặc deleted)".to_string())?;
         let encrypted = telegram::download_file_bytes(&creds.bot_token, &file_path).await?;
         let plaintext = crypto::decrypt(&creds.master_key_hex, &encrypted)?;
-        output.extend_from_slice(&plaintext);
+        hasher.update(&plaintext);
+        out_file.write_all(&plaintext).await.map_err(|e| format!("write chunk: {}", e))?;
+        bytes_done += plaintext.len() as i64;
 
         let _ = app.emit("drive-progress", ProgressEvent {
             op: "download".into(), file_id: file_id.clone(),
             current_chunk: (i + 1) as i64, total_chunks,
-            bytes_done: output.len() as i64, total_bytes,
+            bytes_done, total_bytes,
         });
     }
+    out_file.flush().await.map_err(|e| format!("flush: {}", e))?;
+    drop(out_file);
 
-    // Verify SHA256
-    let actual_sha = crypto::sha256_hex(&output);
+    let actual_sha = hex::encode(hasher.finalize());
     if actual_sha != file_row.sha256_hex {
+        // Xoá file dest vì corrupt
+        let _ = tokio::fs::remove_file(&dest_path).await;
         return Err(format!(
-            "SHA256 mismatch: expected {} got {}. File có thể bị corrupt.",
+            "SHA256 mismatch: expected {} got {}. File có thể bị corrupt — đã xoá.",
             &file_row.sha256_hex[..12], &actual_sha[..12]
         ));
     }
-
-    tokio::fs::write(&dest_path, &output).await.map_err(|e| format!("write file: {}", e))?;
     Ok(())
 }
 

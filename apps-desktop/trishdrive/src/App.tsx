@@ -10,16 +10,17 @@
  */
 
 import { useEffect, useState } from 'react';
-import { Upload, Folder, Settings, Search, Sun, Moon, LogOut } from 'lucide-react';
+import { Upload, Folder, Settings, Search, Sun, Moon, LogOut, BookOpen } from 'lucide-react';
 import { invoke } from '@tauri-apps/api/core';
 import { AuthProvider, useAuth } from '@trishteam/auth/react';
 import { SetupWizard } from './pages/SetupWizard';
 import { LoginScreen } from './pages/LoginScreen';
 import { UploadPage } from './pages/UploadPage';
 import { FilesPage } from './pages/FilesPage';
+import { HelpPage } from './pages/HelpPage';
 import logoUrl from './assets/logo.png';
 
-type Page = 'files' | 'upload' | 'settings';
+type Page = 'files' | 'upload' | 'help' | 'settings';
 
 interface PublicCreds {
   has_creds: boolean;
@@ -129,6 +130,7 @@ function MainShell({
         <nav className="space-y-1 flex-1">
           <NavBtn icon={Folder} label="File của tôi" active={page === 'files'} onClick={() => setPage('files')} />
           <NavBtn icon={Upload} label="Upload" active={page === 'upload'} onClick={() => setPage('upload')} />
+          <NavBtn icon={BookOpen} label="Hướng dẫn" active={page === 'help'} onClick={() => setPage('help')} />
           <NavBtn icon={Settings} label="Cài đặt" active={page === 'settings'} onClick={() => setPage('settings')} />
         </nav>
 
@@ -153,7 +155,7 @@ function MainShell({
       <main className="flex-1 flex flex-col">
         <header className="px-6 py-4 flex items-center justify-between" style={{ borderBottom: '1px solid var(--color-border-subtle)', background: 'var(--color-surface-bg-elevated)' }}>
           <div>
-            <h1 style={{ fontSize: '20px', fontWeight: 600, letterSpacing: '-0.02em' }}>{page === 'files' ? 'File của tôi' : page === 'upload' ? 'Upload file mới' : 'Cài đặt'}</h1>
+            <h1 style={{ fontSize: '20px', fontWeight: 600, letterSpacing: '-0.02em' }}>{page === 'files' ? 'File của tôi' : page === 'upload' ? 'Upload file mới' : page === 'help' ? 'Hướng dẫn sử dụng' : 'Cài đặt'}</h1>
             <p style={{ fontSize: '12px', color: 'var(--color-text-muted)', marginTop: '2px' }}>Cloud Storage qua Telegram · không giới hạn dung lượng</p>
           </div>
           <div className="flex gap-2 items-center">
@@ -187,6 +189,7 @@ function MainShell({
               }}
             />
           )}
+          {page === 'help' && <HelpPage />}
           {page === 'settings' && <SettingsPage uid={uid} onReset={reloadCreds} theme={theme} setTheme={setTheme} />}
         </div>
       </main>
