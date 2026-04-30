@@ -22,6 +22,8 @@ pub fn open(path: &PathBuf) -> Result<Connection> {
 }
 
 pub fn init_schema(conn: &Connection) -> Result<()> {
+    // Migration: add note column nếu DB cũ thiếu (silent ignore nếu duplicate)
+    let _ = conn.execute("ALTER TABLE files ADD COLUMN note TEXT", []);
     conn.execute_batch(
         r#"
         CREATE TABLE IF NOT EXISTS files (
@@ -32,10 +34,13 @@ pub fn init_schema(conn: &Connection) -> Result<()> {
             sha256_hex  TEXT NOT NULL,
             folder_id   TEXT,
             tags        TEXT,
+            note        TEXT,
             created_at  INTEGER NOT NULL,
             updated_at  INTEGER NOT NULL,
             total_chunks INTEGER NOT NULL DEFAULT 1
         );
+        -- Migration v2: add note column nếu DB cũ chưa có (SQLite tolerate dup)
+        -- Nếu lỗi "duplicate column", bỏ qua silently qua try.
         CREATE TABLE IF NOT EXISTS chunks (
             file_id     TEXT NOT NULL,
             idx         INTEGER NOT NULL,
@@ -81,6 +86,15 @@ pub struct FileRow {
     pub folder_id: Option<String>,
     pub created_at: i64,
     pub total_chunks: i64,
+    pub note: Option<String>,
+}
+
+#[derive(Debug, serde::Serialize, serde::Deserialize)]
+pub struct FolderRow {
+    pub id: String,
+    pub name: String,
+    pub parent_id: Option<String>,
+    pub created_at: i64,
 }
 
 #[derive(Debug, serde::Serialize, serde::Deserialize)]
@@ -98,13 +112,64 @@ pub fn insert_file(
     row: &FileRow,
 ) -> Result<()> {
     conn.execute(
-        "INSERT INTO files (id, name, size_bytes, mime, sha256_hex, folder_id, created_at, updated_at, total_chunks)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?7, ?8)",
+        "INSERT INTO files (id, name, size_bytes, mime, sha256_hex, folder_id, created_at, updated_at, total_chunks, note)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?7, ?8, ?9)",
         params![
             row.id, row.name, row.size_bytes, row.mime, row.sha256_hex,
-            row.folder_id, row.created_at, row.total_chunks
+            row.folder_id, row.created_at, row.total_chunks, row.note
         ],
     )?;
+    Ok(())
+}
+
+pub fn update_file_meta(
+    conn: &Connection,
+    file_id: &str,
+    name: Option<&str>,
+    folder_id: Option<&str>,
+    note: Option<&str>,
+) -> Result<()> {
+    if let Some(n) = name {
+        conn.execute("UPDATE files SET name = ?, updated_at = ? WHERE id = ?", params![n, chrono_now_ms(), file_id])?;
+    }
+    if let Some(f) = folder_id {
+        conn.execute("UPDATE files SET folder_id = ?, updated_at = ? WHERE id = ?", params![f, chrono_now_ms(), file_id])?;
+    }
+    if let Some(nt) = note {
+        conn.execute("UPDATE files SET note = ?, updated_at = ? WHERE id = ?", params![nt, chrono_now_ms(), file_id])?;
+    }
+    Ok(())
+}
+
+// ===== Folder CRUD =====
+pub fn insert_folder(conn: &Connection, row: &FolderRow) -> Result<()> {
+    conn.execute(
+        "INSERT INTO folders (id, name, parent_id, created_at) VALUES (?1, ?2, ?3, ?4)",
+        params![row.id, row.name, row.parent_id, row.created_at],
+    )?;
+    Ok(())
+}
+
+pub fn list_folders(conn: &Connection) -> Result<Vec<FolderRow>> {
+    let mut stmt = conn.prepare("SELECT id, name, parent_id, created_at FROM folders ORDER BY name ASC")?;
+    let rows = stmt.query_map([], |r| {
+        Ok(FolderRow {
+            id: r.get(0)?, name: r.get(1)?,
+            parent_id: r.get(2)?, created_at: r.get(3)?,
+        })
+    })?.collect::<Result<Vec<_>>>()?;
+    Ok(rows)
+}
+
+pub fn rename_folder(conn: &Connection, id: &str, name: &str) -> Result<()> {
+    conn.execute("UPDATE folders SET name = ? WHERE id = ?", params![name, id])?;
+    Ok(())
+}
+
+pub fn delete_folder(conn: &Connection, id: &str) -> Result<()> {
+    // Set folder_id của files trong folder này về NULL (root)
+    conn.execute("UPDATE files SET folder_id = NULL WHERE folder_id = ?", params![id])?;
+    conn.execute("DELETE FROM folders WHERE id = ?", params![id])?;
     Ok(())
 }
 
@@ -123,14 +188,14 @@ pub fn insert_chunk(conn: &Connection, row: &ChunkRow) -> Result<()> {
 
 pub fn get_file(conn: &Connection, file_id: &str) -> Result<Option<FileRow>> {
     let mut stmt = conn.prepare(
-        "SELECT id, name, size_bytes, mime, sha256_hex, folder_id, created_at, total_chunks
+        "SELECT id, name, size_bytes, mime, sha256_hex, folder_id, created_at, total_chunks, note
          FROM files WHERE id = ?",
     )?;
     let mut rows = stmt.query_map(params![file_id], |r| {
         Ok(FileRow {
             id: r.get(0)?, name: r.get(1)?, size_bytes: r.get(2)?,
             mime: r.get(3)?, sha256_hex: r.get(4)?, folder_id: r.get(5)?,
-            created_at: r.get(6)?, total_chunks: r.get(7)?,
+            created_at: r.get(6)?, total_chunks: r.get(7)?, note: r.get(8)?,
         })
     })?;
     Ok(rows.next().transpose()?)
@@ -167,15 +232,15 @@ fn chrono_now_ms() -> i64 {
 pub fn list_files(conn: &Connection, folder_id: Option<&str>, search: Option<&str>) -> Result<Vec<FileRow>> {
     let sql = match (folder_id, &search) {
         (Some(_), Some(q)) => format!(
-            "SELECT id, name, size_bytes, mime, sha256_hex, folder_id, created_at, total_chunks FROM files WHERE folder_id = ? AND name LIKE '%{}%' ORDER BY created_at DESC LIMIT 500",
+            "SELECT id, name, size_bytes, mime, sha256_hex, folder_id, created_at, total_chunks, note FROM files WHERE folder_id = ? AND name LIKE '%{}%' ORDER BY created_at DESC LIMIT 500",
             escape_like(q)
         ),
-        (Some(_), None) => "SELECT id, name, size_bytes, mime, sha256_hex, folder_id, created_at, total_chunks FROM files WHERE folder_id = ? ORDER BY created_at DESC LIMIT 500".to_string(),
+        (Some(_), None) => "SELECT id, name, size_bytes, mime, sha256_hex, folder_id, created_at, total_chunks, note FROM files WHERE folder_id = ? ORDER BY created_at DESC LIMIT 500".to_string(),
         (None, Some(q)) => format!(
-            "SELECT id, name, size_bytes, mime, sha256_hex, folder_id, created_at, total_chunks FROM files WHERE name LIKE '%{}%' ORDER BY created_at DESC LIMIT 500",
+            "SELECT id, name, size_bytes, mime, sha256_hex, folder_id, created_at, total_chunks, note FROM files WHERE name LIKE '%{}%' ORDER BY created_at DESC LIMIT 500",
             escape_like(q)
         ),
-        (None, None) => "SELECT id, name, size_bytes, mime, sha256_hex, folder_id, created_at, total_chunks FROM files ORDER BY created_at DESC LIMIT 500".to_string(),
+        (None, None) => "SELECT id, name, size_bytes, mime, sha256_hex, folder_id, created_at, total_chunks, note FROM files ORDER BY created_at DESC LIMIT 500".to_string(),
     };
     let mut stmt = conn.prepare(&sql)?;
     let map_row = |r: &rusqlite::Row| {
@@ -188,6 +253,7 @@ pub fn list_files(conn: &Connection, folder_id: Option<&str>, search: Option<&st
             folder_id: r.get(5)?,
             created_at: r.get(6)?,
             total_chunks: r.get(7)?,
+            note: r.get(8)?,
         })
     };
     let rows = if let Some(fid) = folder_id {

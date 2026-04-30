@@ -98,6 +98,18 @@ Double-click `scripts\START.bat` → tự pull GitHub + pnpm install + show stat
                 ✅ 22.5 Upload pipeline — crypto.rs AES-GCM + telegram.rs sendDocument + db insert (file < 48MB)
                 ✅ 22.6 Download + Delete — getFile + decrypt + verify SHA256 + deleteMessage Telegram
                 ✅ 22.7 UI Files page (table + sort + search + download/delete) + UploadPage (dialog + progress)
+                ✅ 22.5c Progress bar % real-time upload + download
+                       — Rust emit `drive-progress` event sau mỗi chunk (current/total + bytes_done/total + op)
+                       — UploadPage: progress bar 8px gradient + chunk N/M + speed MB/s + ETA
+                       — FilesPage: progress mini 4px ngay row đang download
+                ✅ 22.5b Chunked upload — file ≤ 2GB, chia chunks 49MB, mỗi chunk encrypt + sendDocument riêng
+                       — Tự động roll back delete file row nếu chunk fail giữa chừng
+                       — Download tự loop chunks (đã có sẵn từ 22.6)
+                ✅ 22.7c Folder + ghi chú — SQLite folders + note column
+                       — UI: sidebar folder tree (Tất cả / Root / custom folders) + count per folder
+                       — Folder CRUD: create / rename / delete (file fallback về root khi xoá folder)
+                       — File: edit modal (rename / move folder / note) + show note inline trong table
+                       — Upload: chọn folder + nhập note
                 ✅ 22.7b Share link feature — Rust crypto.rs encrypt_with_password (PBKDF2 100k) + share_create command
                        — Web API /api/drive/share/{create, [token]/info, [token]/proxy} (Next.js Admin SDK)
                        — Web page /drive/share/[token] form password + decrypt client-side AES-GCM + verify SHA256

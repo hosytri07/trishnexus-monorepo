@@ -1,54 +1,104 @@
 /**
- * UploadPage — Phase 22.5
- *
- * Drag-drop / Tauri dialog open file → encrypt + send → SQLite insert.
- * Limit 48MB Phase 22.5 (chunk lớn hơn ở Phase 22.5b).
+ * UploadPage — Phase 22.5b + 22.7c
+ * Chunked upload (49MB/chunk) — file ≤ 2GB.
+ * Optional: folder + ghi chú.
  */
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { invoke } from '@tauri-apps/api/core';
+import { listen } from '@tauri-apps/api/event';
 import { open as openDialog } from '@tauri-apps/plugin-dialog';
 import { Upload, AlertCircle, CheckCircle2, FileUp, Loader2 } from 'lucide-react';
+
+interface ProgressEvent {
+  op: string;
+  file_id: string;
+  current_chunk: number;
+  total_chunks: number;
+  bytes_done: number;
+  total_bytes: number;
+}
 
 interface UploadResult {
   file_id: string;
   name: string;
   size_bytes: number;
   sha256_hex: string;
+  total_chunks: number;
+}
+
+interface FolderRow {
+  id: string;
+  name: string;
+  parent_id?: string | null;
+  created_at: number;
 }
 
 export function UploadPage({ uid, onUploadDone }: { uid: string; onUploadDone: () => void }): JSX.Element {
   const [busy, setBusy] = useState(false);
-  const [progress, setProgress] = useState<string>('');
   const [result, setResult] = useState<UploadResult | null>(null);
   const [err, setErr] = useState<string | null>(null);
+  const [folderId, setFolderId] = useState<string>('');
+  const [note, setNote] = useState<string>('');
+  const [folders, setFolders] = useState<FolderRow[]>([]);
+  const [pickedPath, setPickedPath] = useState<string | null>(null);
+  const [progressData, setProgressData] = useState<ProgressEvent | null>(null);
+  const [startTime, setStartTime] = useState<number>(0);
 
-  async function pickAndUpload() {
+  useEffect(() => {
+    void loadFolders();
+    const unlistenPromise = listen<ProgressEvent>('drive-progress', (e) => {
+      if (e.payload.op === 'upload') {
+        setProgressData(e.payload);
+      }
+    });
+    return () => { unlistenPromise.then(fn => fn()); };
+  }, []);
+
+  async function loadFolders() {
+    try {
+      const f = await invoke<FolderRow[]>('folder_list');
+      setFolders(f);
+    } catch (e) {
+      console.warn('[folder_list]', e);
+    }
+  }
+
+  async function pickFile() {
     setErr(null);
     setResult(null);
     try {
-      const selected = await openDialog({
-        multiple: false,
-        title: 'Chọn file upload lên Telegram',
-      });
+      const selected = await openDialog({ multiple: false, title: 'Chọn file upload lên Telegram' });
       if (!selected || typeof selected !== 'string') return;
-      await doUpload(selected);
+      setPickedPath(selected);
     } catch (e) {
       setErr(String(e));
     }
   }
 
-  async function doUpload(filePath: string) {
+  async function doUpload() {
+    if (!pickedPath) {
+      setErr('Chưa chọn file');
+      return;
+    }
     setBusy(true);
     setErr(null);
-    setProgress('Đọc file + encrypt AES-256-GCM...');
+    setProgressData(null);
+    setStartTime(Date.now());
     try {
-      // Hiện chưa có streaming progress real-time (Phase 22.5b sẽ emit event)
-      setProgress('Encrypt + upload Telegram...');
-      const r = await invoke<UploadResult>('file_upload', { uid, filePath });
+      const r = await invoke<UploadResult>('file_upload', {
+        uid,
+        filePath: pickedPath,
+        folderId: folderId || null,
+        note: note.trim() || null,
+      });
       setResult(r);
-      setProgress('');
+      setProgressData(null);
       onUploadDone();
+      setTimeout(() => {
+        setPickedPath(null);
+        setNote('');
+      }, 2000);
     } catch (e) {
       setErr(String(e));
     } finally {
@@ -56,34 +106,39 @@ export function UploadPage({ uid, onUploadDone }: { uid: string; onUploadDone: (
     }
   }
 
+  const filename = pickedPath ? pickedPath.split(/[\\/]/).pop() : null;
+
   return (
     <div className="card max-w-3xl">
       <div className="card-header">
         <div>
           <h2 className="card-title">Upload file mới</h2>
           <p className="card-subtitle">
-            File được mã hoá AES-256-GCM trước khi upload Telegram. Limit Phase 22.5: 48MB/file (Phase 22.5b sẽ chunk ≥ 50MB).
+            File chia chunk 49MB + mã hoá AES-256-GCM trước khi upload Telegram. Limit 2GB/file (Bot API). Phase 23 dùng MTProto sẽ ≤ 4GB.
           </p>
         </div>
       </div>
 
+      {/* Drop zone / picker */}
       <div
-        className="mt-4 p-12 text-center transition cursor-pointer"
+        className="mt-4 p-8 text-center transition cursor-pointer"
         style={{
           border: '2px dashed var(--color-border-default)',
           borderRadius: 14,
-          background: busy ? 'var(--color-surface-row)' : 'transparent',
+          background: pickedPath ? 'var(--color-accent-soft)' : 'transparent',
           opacity: busy ? 0.7 : 1,
         }}
-        onClick={() => !busy && pickAndUpload()}
+        onClick={() => !busy && pickFile()}
       >
-        {busy ? (
+        {pickedPath ? (
           <>
-            <Loader2 className="h-10 w-10 mx-auto animate-spin" style={{ color: 'var(--color-accent-primary)' }} />
+            <FileUp className="h-10 w-10 mx-auto" style={{ color: 'var(--color-accent-primary)' }} />
             <div style={{ marginTop: 12, fontSize: 14, fontWeight: 600, color: 'var(--color-text-primary)' }}>
-              Đang xử lý...
+              {filename}
             </div>
-            <div style={{ marginTop: 4, fontSize: 12, color: 'var(--color-text-muted)' }}>{progress}</div>
+            <div style={{ marginTop: 4, fontSize: 11, color: 'var(--color-text-muted)', wordBreak: 'break-all' }}>
+              {pickedPath}
+            </div>
           </>
         ) : (
           <>
@@ -92,11 +147,71 @@ export function UploadPage({ uid, onUploadDone }: { uid: string; onUploadDone: (
               Click để chọn file
             </div>
             <div style={{ marginTop: 4, fontSize: 12, color: 'var(--color-text-muted)' }}>
-              Encrypt → Upload → Index SQLite tự động
+              Encrypt + chunk + upload + index SQLite tự động
             </div>
           </>
         )}
       </div>
+
+      {/* Folder + Note (optional) */}
+      <div className="grid gap-3 mt-4 md:grid-cols-2">
+        <div>
+          <label style={{ fontSize: 12, fontWeight: 500, color: 'var(--color-text-muted)' }}>Folder (tuỳ chọn)</label>
+          <select
+            className="select-field"
+            value={folderId}
+            onChange={e => setFolderId(e.target.value)}
+            style={{ marginTop: 4 }}
+            disabled={busy}
+          >
+            <option value="">📂 Không thuộc folder nào (root)</option>
+            {folders.map(f => <option key={f.id} value={f.id}>{f.name}</option>)}
+          </select>
+        </div>
+        <div>
+          <label style={{ fontSize: 12, fontWeight: 500, color: 'var(--color-text-muted)' }}>Ghi chú (tuỳ chọn)</label>
+          <input
+            type="text"
+            value={note}
+            onChange={e => setNote(e.target.value)}
+            placeholder="VD: Báo cáo Q1 — gửi Hùng"
+            className="input-field"
+            style={{ marginTop: 4 }}
+            disabled={busy}
+          />
+        </div>
+      </div>
+
+      {busy && (
+        <div className="mt-4 p-4 rounded-xl" style={{ background: 'var(--color-surface-row)' }}>
+          <div className="flex justify-between items-baseline mb-2">
+            <div className="flex items-center gap-2">
+              <Loader2 className="h-4 w-4 animate-spin" style={{ color: 'var(--color-accent-primary)' }} />
+              <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--color-text-primary)' }}>
+                {progressData ? `Chunk ${progressData.current_chunk}/${progressData.total_chunks}` : 'Chuẩn bị...'}
+              </span>
+            </div>
+            <span style={{ fontSize: 18, fontWeight: 700, color: 'var(--color-accent-primary)' }}>
+              {progressData ? `${Math.round((progressData.bytes_done / Math.max(1, progressData.total_bytes)) * 100)}%` : '0%'}
+            </span>
+          </div>
+          <div style={{ height: 8, background: 'var(--color-surface-muted)', borderRadius: 4, overflow: 'hidden' }}>
+            <div style={{
+              width: progressData ? `${(progressData.bytes_done / Math.max(1, progressData.total_bytes)) * 100}%` : '0%',
+              height: '100%',
+              background: 'var(--color-accent-gradient)',
+              transition: 'width 250ms ease-out',
+              borderRadius: 4,
+            }} />
+          </div>
+          {progressData && (
+            <div className="flex justify-between mt-2" style={{ fontSize: 11, color: 'var(--color-text-muted)' }}>
+              <span>{formatBytes(progressData.bytes_done)} / {formatBytes(progressData.total_bytes)}</span>
+              <span>{formatSpeed(progressData.bytes_done, startTime)} · còn ~{formatEta(progressData.bytes_done, progressData.total_bytes, startTime)}</span>
+            </div>
+          )}
+        </div>
+      )}
 
       {err && (
         <div className="flex gap-2 items-start mt-4 p-3 rounded-xl" style={{ background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.2)' }}>
@@ -111,15 +226,18 @@ export function UploadPage({ uid, onUploadDone }: { uid: string; onUploadDone: (
           <div style={{ fontSize: 12, color: 'var(--color-accent-primary)' }}>
             <div style={{ fontWeight: 600 }}>Upload OK: {result.name}</div>
             <div style={{ marginTop: 2, opacity: 0.85 }}>
-              {formatBytes(result.size_bytes)} · SHA256 {result.sha256_hex.slice(0, 12)}... · file_id {result.file_id}
+              {formatBytes(result.size_bytes)} · {result.total_chunks} chunk · SHA256 {result.sha256_hex.slice(0, 12)}...
             </div>
           </div>
         </div>
       )}
 
-      <div className="mt-4 flex justify-end">
-        <button className="btn-primary" onClick={pickAndUpload} disabled={busy}>
-          <Upload className="h-4 w-4" /> Chọn file
+      <div className="mt-4 flex gap-2 justify-end">
+        {pickedPath && !busy && (
+          <button className="btn-secondary" onClick={() => { setPickedPath(null); setNote(''); }}>Bỏ chọn</button>
+        )}
+        <button className="btn-primary" onClick={pickedPath ? doUpload : pickFile} disabled={busy}>
+          <Upload className="h-4 w-4" /> {pickedPath ? 'Upload' : 'Chọn file'}
         </button>
       </div>
     </div>
@@ -131,4 +249,20 @@ function formatBytes(n: number): string {
   if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`;
   if (n < 1024 * 1024 * 1024) return `${(n / 1024 / 1024).toFixed(1)} MB`;
   return `${(n / 1024 / 1024 / 1024).toFixed(2)} GB`;
+}
+
+function formatSpeed(bytesDone: number, startMs: number): string {
+  const elapsedSec = Math.max(0.5, (Date.now() - startMs) / 1000);
+  const speed = bytesDone / elapsedSec;
+  return `${formatBytes(speed)}/s`;
+}
+
+function formatEta(bytesDone: number, totalBytes: number, startMs: number): string {
+  if (bytesDone <= 0) return '...';
+  const elapsedSec = Math.max(0.5, (Date.now() - startMs) / 1000);
+  const speed = bytesDone / elapsedSec;
+  const remaining = (totalBytes - bytesDone) / speed;
+  if (remaining < 60) return `${Math.round(remaining)}s`;
+  if (remaining < 3600) return `${Math.round(remaining / 60)}m`;
+  return `${(remaining / 3600).toFixed(1)}h`;
 }

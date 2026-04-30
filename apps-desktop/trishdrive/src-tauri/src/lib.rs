@@ -12,8 +12,19 @@ mod db;
 mod crypto;
 
 use serde::Serialize;
-use tauri::Manager;
+use tauri::{Manager, Emitter};
 use std::path::PathBuf;
+
+/// Emit từ backend → frontend listen qua `listen('drive-progress', ...)`.
+#[derive(Serialize, Clone)]
+struct ProgressEvent {
+    op: String,           // "upload" | "download"
+    file_id: String,
+    current_chunk: i64,
+    total_chunks: i64,
+    bytes_done: i64,
+    total_bytes: i64,
+}
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -31,7 +42,12 @@ pub fn run() {
             file_upload,
             file_download,
             file_delete,
+            file_update_meta,
             share_create,
+            folder_list,
+            folder_create,
+            folder_rename,
+            folder_delete,
         ])
         .setup(|app| {
             if let Ok(path) = db::db_path(&app.handle()) {
@@ -136,77 +152,119 @@ pub struct UploadResult {
     pub name: String,
     pub size_bytes: i64,
     pub sha256_hex: String,
+    pub total_chunks: i64,
 }
 
-const MAX_FILE_SIZE: u64 = 48 * 1024 * 1024; // 48MB (buffer dưới 50MB Bot API limit)
+// Bot API có 2 limit riêng biệt:
+//   - sendDocument upload: 50MB
+//   - getFile download:    20MB ← chunk size phải dưới ngưỡng này
+// Chia chunk 19MB plaintext → ~19.05MB ciphertext (overhead 28 byte AES-GCM nonce + tag).
+// File 2GB → ~108 chunks. Upload tuần tự ~10-15 phút.
+// Phase 23 (MTProto/grammers) sẽ bỏ giới hạn này và upload nguyên 2GB không chia.
+const CHUNK_SIZE: usize = 19 * 1024 * 1024;
+const MAX_FILE_SIZE: u64 = 2 * 1024 * 1024 * 1024; // 2GB
 
 #[tauri::command]
 async fn file_upload(
     app: tauri::AppHandle,
     uid: String,
     file_path: String,
+    folder_id: Option<String>,
+    note: Option<String>,
 ) -> Result<UploadResult, String> {
     let creds = creds::load_creds(&uid)?
         .ok_or_else(|| "Chưa setup Telegram (mở wizard)".to_string())?;
 
-    // Read file
     let path = PathBuf::from(&file_path);
     let filename = path.file_name()
         .and_then(|n| n.to_str())
         .ok_or_else(|| "Tên file không hợp lệ".to_string())?
         .to_string();
     let plaintext = tokio::fs::read(&path).await.map_err(|e| format!("read file: {}", e))?;
-    let size = plaintext.len() as u64;
-    if size > MAX_FILE_SIZE {
-        return Err(format!("File {} MB > 48 MB. Phase 22.5b sẽ hỗ trợ chunk.", size / 1024 / 1024));
+    let size = plaintext.len();
+    if size as u64 > MAX_FILE_SIZE {
+        return Err(format!("File {} MB > 2 GB. Phase 23 (MTProto) sẽ hỗ trợ file lớn hơn.",
+            size / 1024 / 1024));
     }
 
     let sha256 = crypto::sha256_hex(&plaintext);
+    let total_chunks = ((size + CHUNK_SIZE - 1) / CHUNK_SIZE).max(1) as i64;
 
-    // Encrypt
-    let encrypted = crypto::encrypt(&creds.master_key_hex, &plaintext)?;
-    let nonce_hex = hex::encode(&encrypted[..crypto::NONCE_SIZE]);
-
-    // Upload to Telegram
-    let tg_filename = format!("{}.enc", filename);
-    let msg = telegram::send_document(&creds.bot_token, creds.channel_id, encrypted, &tg_filename).await?;
-    let document = msg.document.ok_or_else(|| "Telegram trả message không có document".to_string())?;
-
-    // Insert SQLite
+    // Insert file row trước (tránh có chunks mồ côi nếu fail giữa chừng)
     let file_id = format!("f_{}", &sha256[..16]);
     let now_ms = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .map(|d| d.as_millis() as i64)
         .unwrap_or(0);
-    let mime = document.mime_type.clone();
+
+    // Chunk + encrypt + upload tuần tự
+    let db_path_buf = db::db_path(&app)?;
+    let conn = db::open(&db_path_buf).map_err(|e| format!("db open: {}", e))?;
+
+    // Insert file row (note + folder + total_chunks)
+    let mime: Option<String> = None;
     let row = db::FileRow {
         id: file_id.clone(),
         name: filename.clone(),
         size_bytes: size as i64,
         mime,
         sha256_hex: sha256.clone(),
-        folder_id: None,
+        folder_id,
         created_at: now_ms,
-        total_chunks: 1,
+        total_chunks,
+        note,
     };
-    let chunk = db::ChunkRow {
-        file_id: file_id.clone(),
-        idx: 0,
-        tg_message_id: msg.message_id,
-        tg_file_id: Some(document.file_id),
-        byte_size: size as i64,
-        nonce_hex,
-    };
-    let path = db::db_path(&app)?;
-    let conn = db::open(&path).map_err(|e| format!("db open: {}", e))?;
     db::insert_file(&conn, &row).map_err(|e| format!("insert file: {}", e))?;
-    db::insert_chunk(&conn, &chunk).map_err(|e| format!("insert chunk: {}", e))?;
+
+    // Emit progress 0% trước khi bắt đầu
+    let _ = app.emit("drive-progress", ProgressEvent {
+        op: "upload".into(), file_id: file_id.clone(),
+        current_chunk: 0, total_chunks,
+        bytes_done: 0, total_bytes: size as i64,
+    });
+
+    for idx in 0..total_chunks {
+        let start = idx as usize * CHUNK_SIZE;
+        let end = ((start + CHUNK_SIZE).min(size)) as usize;
+        let chunk_plain = &plaintext[start..end];
+        let encrypted = crypto::encrypt(&creds.master_key_hex, chunk_plain)?;
+        let nonce_hex = hex::encode(&encrypted[..crypto::NONCE_SIZE]);
+        let chunk_filename = if total_chunks > 1 {
+            format!("{}.part{:03}.enc", filename, idx)
+        } else {
+            format!("{}.enc", filename)
+        };
+        let msg = telegram::send_document(
+            &creds.bot_token, creds.channel_id, encrypted, &chunk_filename
+        ).await.map_err(|e| {
+            let _ = db::delete_file(&conn, &file_id);
+            format!("Upload chunk {}/{} fail: {}", idx + 1, total_chunks, e)
+        })?;
+        let document = msg.document.ok_or_else(|| "Telegram trả message không có document".to_string())?;
+        let chunk = db::ChunkRow {
+            file_id: file_id.clone(),
+            idx,
+            tg_message_id: msg.message_id,
+            tg_file_id: Some(document.file_id),
+            byte_size: (end - start) as i64,
+            nonce_hex,
+        };
+        db::insert_chunk(&conn, &chunk).map_err(|e| format!("insert chunk: {}", e))?;
+
+        // Emit progress sau mỗi chunk
+        let _ = app.emit("drive-progress", ProgressEvent {
+            op: "upload".into(), file_id: file_id.clone(),
+            current_chunk: idx + 1, total_chunks,
+            bytes_done: end as i64, total_bytes: size as i64,
+        });
+    }
 
     Ok(UploadResult {
         file_id,
         name: filename,
         size_bytes: size as i64,
         sha256_hex: sha256,
+        total_chunks,
     })
 }
 
@@ -234,8 +292,17 @@ async fn file_download(
         return Err("File không có chunk nào".to_string());
     }
 
-    let mut output = Vec::with_capacity(file_row.size_bytes as usize);
-    for chunk in &chunks {
+    let total_chunks = chunks.len() as i64;
+    let total_bytes = file_row.size_bytes;
+    // Emit 0%
+    let _ = app.emit("drive-progress", ProgressEvent {
+        op: "download".into(), file_id: file_id.clone(),
+        current_chunk: 0, total_chunks,
+        bytes_done: 0, total_bytes,
+    });
+
+    let mut output = Vec::with_capacity(total_bytes as usize);
+    for (i, chunk) in chunks.iter().enumerate() {
         let tg_file_id = chunk.tg_file_id.as_ref()
             .ok_or_else(|| format!("Chunk {} không có tg_file_id", chunk.idx))?;
         let file_info = telegram::get_file(&creds.bot_token, tg_file_id).await?;
@@ -244,6 +311,12 @@ async fn file_download(
         let encrypted = telegram::download_file_bytes(&creds.bot_token, &file_path).await?;
         let plaintext = crypto::decrypt(&creds.master_key_hex, &encrypted)?;
         output.extend_from_slice(&plaintext);
+
+        let _ = app.emit("drive-progress", ProgressEvent {
+            op: "download".into(), file_id: file_id.clone(),
+            current_chunk: (i + 1) as i64, total_chunks,
+            bytes_done: output.len() as i64, total_bytes,
+        });
     }
 
     // Verify SHA256
@@ -257,6 +330,82 @@ async fn file_download(
 
     tokio::fs::write(&dest_path, &output).await.map_err(|e| format!("write file: {}", e))?;
     Ok(())
+}
+
+// ============================================================
+// Phase 22.7c — Folder CRUD + file metadata update (note + rename + move)
+// ============================================================
+
+#[tauri::command]
+fn folder_list(app: tauri::AppHandle) -> Result<Vec<db::FolderRow>, String> {
+    let path = db::db_path(&app)?;
+    let conn = db::open(&path).map_err(|e| format!("db: {}", e))?;
+    db::list_folders(&conn).map_err(|e| format!("query: {}", e))
+}
+
+#[tauri::command]
+fn folder_create(
+    app: tauri::AppHandle,
+    name: String,
+    parent_id: Option<String>,
+) -> Result<db::FolderRow, String> {
+    if name.trim().is_empty() {
+        return Err("Tên folder không được trống".to_string());
+    }
+    let path = db::db_path(&app)?;
+    let conn = db::open(&path).map_err(|e| format!("db: {}", e))?;
+    let now = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_millis() as i64)
+        .unwrap_or(0);
+    let id = format!("fl_{}", &uuid_short());
+    let row = db::FolderRow { id: id.clone(), name: name.trim().to_string(), parent_id, created_at: now };
+    db::insert_folder(&conn, &row).map_err(|e| format!("insert: {}", e))?;
+    Ok(row)
+}
+
+#[tauri::command]
+fn folder_rename(
+    app: tauri::AppHandle,
+    folder_id: String,
+    new_name: String,
+) -> Result<(), String> {
+    if new_name.trim().is_empty() {
+        return Err("Tên folder không được trống".to_string());
+    }
+    let path = db::db_path(&app)?;
+    let conn = db::open(&path).map_err(|e| format!("db: {}", e))?;
+    db::rename_folder(&conn, &folder_id, new_name.trim()).map_err(|e| format!("rename: {}", e))
+}
+
+#[tauri::command]
+fn folder_delete(app: tauri::AppHandle, folder_id: String) -> Result<(), String> {
+    let path = db::db_path(&app)?;
+    let conn = db::open(&path).map_err(|e| format!("db: {}", e))?;
+    db::delete_folder(&conn, &folder_id).map_err(|e| format!("delete: {}", e))
+}
+
+#[tauri::command]
+fn file_update_meta(
+    app: tauri::AppHandle,
+    file_id: String,
+    name: Option<String>,
+    folder_id: Option<String>,
+    note: Option<String>,
+) -> Result<(), String> {
+    let path = db::db_path(&app)?;
+    let conn = db::open(&path).map_err(|e| format!("db: {}", e))?;
+    db::update_file_meta(
+        &conn, &file_id,
+        name.as_deref(), folder_id.as_deref(), note.as_deref(),
+    ).map_err(|e| format!("update: {}", e))
+}
+
+fn uuid_short() -> String {
+    use rand::RngCore;
+    let mut bytes = [0u8; 8];
+    rand::thread_rng().fill_bytes(&mut bytes);
+    hex::encode(bytes)
 }
 
 // ============================================================
