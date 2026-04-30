@@ -16,6 +16,7 @@ import { App as LibraryModule } from './App.js';
 import { NoteModule } from './modules/note/NoteModule.js';
 import { DocumentModule } from './modules/document/DocumentModule.js';
 import { ImageModule } from './modules/image/ImageModule.js';
+import { TrishteamModule } from './modules/trishteam/TrishteamModule.js';
 import { AppSettingsModal } from './AppSettingsModal.js';
 import { UserPanel } from './components/UserPanel.js';
 import { GlobalSearchModal } from './components/GlobalSearchModal.js';
@@ -28,7 +29,7 @@ import { loadSettings, applyTheme, type Settings } from './settings.js';
 import { makeT } from './i18n/index.js';
 import logoUrl from './assets/logo.png';
 
-export type ModuleId = 'library' | 'note' | 'document' | 'image';
+export type ModuleId = 'library' | 'note' | 'document' | 'image' | 'trishteam';
 
 const STORAGE_KEY = 'trishlibrary:active_module';
 
@@ -42,13 +43,14 @@ const MODULE_DEFS: Array<{
   { id: 'note', icon: '📝', labelKey: 'module.note', shortcut: 'Ctrl+2' },
   { id: 'document', icon: '📄', labelKey: 'module.document', shortcut: 'Ctrl+3' },
   { id: 'image', icon: '🖼', labelKey: 'module.image', shortcut: 'Ctrl+4' },
+  { id: 'trishteam', icon: '☁', labelKey: 'module.trishteam', shortcut: 'Ctrl+5' },
 ];
 
 function loadActiveModule(): ModuleId {
   if (typeof window === 'undefined') return 'library';
   try {
     const v = window.localStorage.getItem(STORAGE_KEY);
-    if (v === 'library' || v === 'note' || v === 'document' || v === 'image') return v;
+    if (v === 'library' || v === 'note' || v === 'document' || v === 'image' || v === 'trishteam') return v;
   } catch {
     /* ignore */
   }
@@ -266,6 +268,7 @@ export function AppShell(): JSX.Element {
         {active === 'note' && <NoteModule tr={tr} />}
         {active === 'document' && <DocumentModule tr={tr} />}
         {active === 'image' && <ImageModule tr={tr} />}
+        {active === 'trishteam' && <TrishteamModule />}
       </main>
 
       {showSettings && (

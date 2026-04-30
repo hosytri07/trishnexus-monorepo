@@ -235,6 +235,7 @@ const VI: Dict = {
   'module.note': 'Ghi chú',
   'module.document': 'Tài liệu',
   'module.image': 'Ảnh',
+  'module.trishteam': 'Thư viện TrishTEAM',
 
   // App Settings Modal sections
   'app_settings.title': 'Cài đặt TrishLibrary',
@@ -623,6 +624,7 @@ const EN: Dict = {
   'module.note': 'Notes',
   'module.document': 'Documents',
   'module.image': 'Images',
+  'module.trishteam': 'TrishTEAM Library',
 
   'app_settings.title': 'TrishLibrary Settings',
   'app_settings.section.appearance': 'Appearance',
