@@ -234,6 +234,20 @@ async fn file_upload(
     let sha256 = hex::encode(hasher.finalize());
     let file_id = format!("f_{}", &sha256[..16]);
 
+    // Pre-check duplicate: cùng pipeline = chặn (tránh tốn bandwidth re-upload)
+    let db_path_check = db::db_path(&app)?;
+    let conn_check = db::open(&db_path_check).map_err(|e| format!("db: {}", e))?;
+    if let Some(existing) = db::get_file(&conn_check, &file_id).map_err(|e| format!("query: {}", e))? {
+        if existing.pipeline == "botapi" {
+            return Err(format!(
+                "File này đã upload qua Bot API trước đó (tên: '{}'). Vào tab 'File của tôi' để xem/tải. \
+                Nếu muốn upload qua MTProto song song, tick 'Dùng MTProto' ở Phương thức upload.",
+                existing.name
+            ));
+        }
+    }
+    drop(conn_check);
+
     // Pass 2: chunk + encrypt + upload tuần tự (seek về đầu file)
     file.seek(std::io::SeekFrom::Start(0)).await.map_err(|e| format!("seek: {}", e))?;
 
@@ -989,7 +1003,8 @@ async fn file_upload_mtproto(
         });
     }
     let sha256 = hex::encode(hasher.finalize());
-    let file_id = format!("f_{}", &sha256[..16]);
+    // Suffix `_m` để MTProto file_id khác Bot API → cùng file 2 pipeline = 2 entries riêng
+    let file_id = format!("f_{}_m", &sha256[..16]);
     file.seek(std::io::SeekFrom::Start(0)).await.map_err(|e| format!("seek: {}", e))?;
 
     let now_ms = std::time::SystemTime::now()
@@ -999,6 +1014,15 @@ async fn file_upload_mtproto(
 
     let db_path_buf = db::db_path(&app)?;
     let conn = db::open(&db_path_buf).map_err(|e| format!("db open: {}", e))?;
+
+    // Pre-check duplicate trong pipeline MTProto
+    if let Some(existing) = db::get_file(&conn, &file_id).map_err(|e| format!("query: {}", e))? {
+        return Err(format!(
+            "File này đã upload qua MTProto trước đó (tên: '{}'). Vào tab 'File của tôi' để xem/tải. \
+            Nếu muốn upload qua Bot API song song, bỏ tick 'Dùng MTProto' ở Phương thức upload.",
+            existing.name
+        ));
+    }
 
     let row = db::FileRow {
         id: file_id.clone(),
