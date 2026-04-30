@@ -16,8 +16,40 @@ import { openPath } from '@tauri-apps/plugin-opener';
 import {
   Download, Link as LinkIcon, Lock, FolderOpen,
   AlertCircle, CheckCircle2, Loader2, Copy, FolderTree,
-  ListPlus, FileText, X,
+  ListPlus, FileText, X, Upload as UploadIcon, Clock,
 } from 'lucide-react';
+import { loadSchedule, isInScheduleWindow } from './SettingsModal';
+
+const KEY_PENDING_DOWNLOADS = 'trishdrive_pending_downloads';
+
+interface PendingDownload {
+  id: string;
+  url: string;
+  password: string | null;
+  dest_path: string;
+  added_at: number;
+}
+
+function loadPending(): PendingDownload[] {
+  try {
+    const v = localStorage.getItem(KEY_PENDING_DOWNLOADS);
+    if (v) return JSON.parse(v) as PendingDownload[];
+  } catch { /* */ }
+  return [];
+}
+
+function savePending(items: PendingDownload[]): void {
+  try { localStorage.setItem(KEY_PENDING_DOWNLOADS, JSON.stringify(items)); } catch { /* */ }
+}
+
+const URL_PATTERN = /https?:\/\/trishteam\.io\.vn\/drive\/share\/[a-zA-Z0-9_-]+(?:#k=[a-fA-F0-9]+)?/g;
+
+/** Phase 26.5.B — extract URLs share TrishTEAM từ text bất kỳ (file txt, paste). */
+function extractShareUrls(text: string): string[] {
+  const matches = text.match(URL_PATTERN);
+  if (!matches) return [];
+  return Array.from(new Set(matches));
+}
 
 interface HistoryRow {
   id: string;
@@ -77,12 +109,56 @@ export function DownloadScreen({ onDone }: { onDone: (row: HistoryRow) => void }
   const [err, setErr] = useState<string | null>(null);
   const [progress, setProgress] = useState<ProgressEvent | null>(null);
 
+  // Phase 26.2.E — Schedule + pending queue
+  const [pendingList, setPendingList] = useState<PendingDownload[]>(loadPending);
+  const [scheduledMsg, setScheduledMsg] = useState<string | null>(null);
+
   const startTimeRef = useRef<number>(0);
   const lastBytesRef = useRef<number>(0);
   const lastTimeRef = useRef<number>(0);
   const speedBpsRef = useRef<number>(0);
 
   const hasAutoKey = url.includes('#k=');
+
+  // Phase 26.2.E — Process pending queue mỗi phút
+  useEffect(() => {
+    async function processPending() {
+      const schedule = loadSchedule();
+      if (!isInScheduleWindow(schedule)) return; // ngoài giờ
+      const pending = loadPending();
+      if (pending.length === 0) return;
+      if (busy) return; // đang tải single khác
+
+      // Take 1 cái đầu, process
+      const first = pending[0];
+      const rest = pending.slice(1);
+      savePending(rest);
+      setPendingList(rest);
+      try {
+        await invoke<HistoryRow>('share_paste_and_download', {
+          url: first.url,
+          password: first.password,
+          destPath: first.dest_path,
+        });
+        setScheduledMsg(`✓ Tự động tải xong: ${first.dest_path.split(/[\\/]/).pop()}. Còn ${rest.length} pending.`);
+        setTimeout(() => setScheduledMsg(null), 6000);
+        onDone({ id: '_scheduled_', file_name: '', size_bytes: 0, sha256_hex: '', source_url: first.url, dest_path: first.dest_path, downloaded_at: Date.now() });
+      } catch (e) {
+        setErr(`Pending download fail: ${(e as Error).message}`);
+      }
+    }
+    const interval = setInterval(processPending, 60_000);
+    // Run ngay 1 lần lúc mount
+    void processPending();
+    return () => clearInterval(interval);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [busy]);
+
+  function removePending(id: string) {
+    const next = pendingList.filter(p => p.id !== id);
+    setPendingList(next);
+    savePending(next);
+  }
 
   // Listen Rust drive-queue event (multi-link mode)
   useEffect(() => {
@@ -123,19 +199,77 @@ export function DownloadScreen({ onDone }: { onDone: (row: HistoryRow) => void }
     return () => { unlisten.then(fn => fn()); };
   }, []);
 
-  // Drag & drop URL
+  // Phase 26.5.B — Drag & drop nâng cao: visual overlay + parse text file URLs
+  const [dragOver, setDragOver] = useState(false);
+  const dragCounterRef = useRef(0);
+
   useEffect(() => {
-    function onDragOver(e: DragEvent) { e.preventDefault(); }
-    function onDrop(e: DragEvent) {
+    function onDragEnter(e: DragEvent) {
       e.preventDefault();
-      const text = e.dataTransfer?.getData('text/plain') || e.dataTransfer?.getData('text/uri-list') || '';
-      if (text && (text.includes('trishteam.io.vn') || text.includes('/drive/share/'))) {
-        setUrl(text.trim());
-      }
+      dragCounterRef.current += 1;
+      if (dragCounterRef.current === 1) setDragOver(true);
     }
+    function onDragLeave(e: DragEvent) {
+      e.preventDefault();
+      dragCounterRef.current = Math.max(0, dragCounterRef.current - 1);
+      if (dragCounterRef.current === 0) setDragOver(false);
+    }
+    function onDragOver(e: DragEvent) { e.preventDefault(); }
+
+    async function onDrop(e: DragEvent) {
+      e.preventDefault();
+      dragCounterRef.current = 0;
+      setDragOver(false);
+
+      // 1. File text drop (.txt/.csv với URLs)
+      const file = e.dataTransfer?.files?.[0];
+      if (file && (file.type === 'text/plain' || file.name.match(/\.(txt|csv|md|log)$/i))) {
+        try {
+          const content = await file.text();
+          const urls = extractShareUrls(content);
+          if (urls.length > 0) {
+            setMode('multi');
+            setMultiUrls(urls.join('\n'));
+            setErr(null);
+            return;
+          }
+          setErr(`File "${file.name}" không chứa URL share TrishTEAM nào.`);
+          return;
+        } catch (e) {
+          setErr(`Đọc file fail: ${(e as Error).message}`);
+          return;
+        }
+      }
+
+      // 2. Text drop (URL hoặc multi-URL paste)
+      const text = e.dataTransfer?.getData('text/plain') || e.dataTransfer?.getData('text/uri-list') || '';
+      if (!text) return;
+
+      const urls = extractShareUrls(text);
+      if (urls.length === 0) {
+        // Fallback: nếu text contain "drive/share" → fill single
+        if (text.includes('/drive/share/')) {
+          setUrl(text.trim());
+        }
+        return;
+      }
+      if (urls.length === 1) {
+        setMode('single');
+        setUrl(urls[0]);
+      } else {
+        setMode('multi');
+        setMultiUrls(urls.join('\n'));
+      }
+      setErr(null);
+    }
+
+    window.addEventListener('dragenter', onDragEnter);
+    window.addEventListener('dragleave', onDragLeave);
     window.addEventListener('dragover', onDragOver);
     window.addEventListener('drop', onDrop);
     return () => {
+      window.removeEventListener('dragenter', onDragEnter);
+      window.removeEventListener('dragleave', onDragLeave);
       window.removeEventListener('dragover', onDragOver);
       window.removeEventListener('drop', onDrop);
     };
@@ -159,6 +293,33 @@ export function DownloadScreen({ onDone }: { onDone: (row: HistoryRow) => void }
     if (!destPath.trim()) {
       setErr('Chọn thư mục lưu file');
       return;
+    }
+    // Phase 26.2.E — Check schedule
+    const schedule = loadSchedule();
+    if (schedule.enabled && !isInScheduleWindow(schedule)) {
+      const confirmed = confirm(
+        `Khung giờ tải đặt: ${schedule.start} - ${schedule.end}.\n\n` +
+        `OK = Queue tải tự động khi vào khung giờ\n` +
+        `Cancel = Tải ngay (bỏ qua schedule lần này)`
+      );
+      if (confirmed) {
+        const newPending: PendingDownload = {
+          id: `p_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+          url: url.trim(),
+          password: password.trim() || null,
+          dest_path: destPath.trim(),
+          added_at: Date.now(),
+        };
+        const all = [...pendingList, newPending];
+        setPendingList(all);
+        savePending(all);
+        setScheduledMsg(`✓ Đã queue. Tải tự động lúc ${schedule.start} (kiểm tra mỗi phút)`);
+        setTimeout(() => setScheduledMsg(null), 8000);
+        // Reset form
+        setUrl('');
+        setPassword('');
+        return;
+      }
     }
     setBusy(true);
     setErr(null);
@@ -259,7 +420,38 @@ export function DownloadScreen({ onDone }: { onDone: (row: HistoryRow) => void }
   };
 
   return (
-    <div className="space-y-4" style={{ maxWidth: 720, margin: '0 auto' }}>
+    <div className="space-y-4" style={{ maxWidth: 720, margin: '0 auto', position: 'relative' }}>
+      {/* Phase 26.5.B — Visual drop zone overlay */}
+      {dragOver && (
+        <div
+          style={{
+            position: 'fixed', inset: 0, zIndex: 999,
+            background: 'rgba(16,185,129,0.15)',
+            backdropFilter: 'blur(4px)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            border: '4px dashed var(--color-accent-primary)',
+            pointerEvents: 'none',
+          }}
+        >
+          <div style={{
+            background: 'var(--color-surface-bg-elevated)',
+            padding: '32px 48px',
+            borderRadius: 20,
+            boxShadow: 'var(--shadow-sm)',
+            textAlign: 'center',
+            border: '1px solid var(--color-accent-primary)',
+          }}>
+            <UploadIcon className="h-12 w-12 mx-auto" style={{ color: 'var(--color-accent-primary)' }} />
+            <div style={{ fontSize: 18, fontWeight: 600, color: 'var(--color-text-primary)', marginTop: 12 }}>
+              Thả vào đây để tải
+            </div>
+            <div style={{ fontSize: 12, color: 'var(--color-text-muted)', marginTop: 6 }}>
+              URL share · Multi URL · File .txt/.csv chứa list URL
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="card">
         <div className="card-header">
           <div>
@@ -544,6 +736,48 @@ export function DownloadScreen({ onDone }: { onDone: (row: HistoryRow) => void }
         </div>
         )}
       </div>
+
+      {/* Phase 26.2.E — Pending schedule queue */}
+      {pendingList.length > 0 && (
+        <div className="card" style={{ borderColor: 'var(--semantic-warning)' }}>
+          <div className="card-header">
+            <div>
+              <h3 className="card-title flex items-center gap-2" style={{ fontSize: 14 }}>
+                <Clock className="h-4 w-4" style={{ color: 'var(--semantic-warning)' }} />
+                {pendingList.length} file đang chờ schedule
+              </h3>
+              <p className="card-subtitle" style={{ fontSize: 11, marginTop: 4 }}>
+                Sẽ tải tự động khi vào khung giờ {loadSchedule().start} - {loadSchedule().end}
+              </p>
+            </div>
+          </div>
+          <div className="space-y-1 mt-3">
+            {pendingList.map(p => (
+              <div key={p.id} className="flex items-center gap-2 p-2 rounded" style={{ background: 'var(--color-surface-row)', fontSize: 12 }}>
+                <Clock className="h-3.5 w-3.5" style={{ color: 'var(--semantic-warning)', flexShrink: 0 }} />
+                <div style={{ flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: 'var(--color-text-primary)' }}>
+                  {p.dest_path.split(/[\\/]/).pop() || p.url}
+                </div>
+                <button
+                  onClick={() => removePending(p.id)}
+                  className="icon-btn"
+                  title="Xoá khỏi pending"
+                  style={{ padding: 4 }}
+                >
+                  <X className="h-3.5 w-3.5" />
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {scheduledMsg && (
+        <div className="flex gap-2 items-start p-3 rounded-xl" style={{ background: 'var(--color-accent-soft)', border: '1px solid rgba(16,185,129,0.2)' }}>
+          <Clock className="h-4 w-4 flex-shrink-0 mt-0.5" style={{ color: 'var(--color-accent-primary)' }} />
+          <div style={{ fontSize: 12, color: 'var(--color-accent-primary)' }}>{scheduledMsg}</div>
+        </div>
+      )}
 
       <div className="card" style={{ background: 'var(--color-surface-row)' }}>
         <div className="card-title" style={{ fontSize: 13 }}>💡 Mẹo nhanh</div>

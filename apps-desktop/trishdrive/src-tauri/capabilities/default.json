@@ -15,6 +15,9 @@
     "dialog:allow-save",
     "opener:default",
     "opener:allow-open-path",
+    "updater:default",
+    "process:default",
+    "process:allow-restart",
     {
       "identifier": "opener:allow-open-url",
       "allow": [

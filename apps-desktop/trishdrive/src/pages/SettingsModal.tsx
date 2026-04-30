@@ -12,7 +12,7 @@ import { useEffect, useState } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import {
   Settings as SettingsIcon, X, Sun, Moon, MinusSquare, Power, Trash2,
-  Info, Bell, Folder, Gauge,
+  Info, Bell, Folder, Gauge, Download as DownloadIcon, RefreshCw, Clock,
 } from 'lucide-react';
 
 const KEY_THEME = 'trishdrive_theme';
@@ -20,6 +20,7 @@ const KEY_CLOSE_BEHAVIOR = 'trishdrive_close_behavior';
 const KEY_CLEANUP_DAYS = 'trishdrive_cleanup_days';
 const KEY_SUBSCRIBED_FOLDERS = 'trishdrive_subscribed_folders';
 const KEY_SPEED_LIMIT = 'trishdrive_speed_limit_mbps';
+const KEY_SCHEDULE = 'trishdrive_schedule';
 
 export type CloseBehavior = 'tray' | 'quit';
 
@@ -67,6 +68,49 @@ export function loadSpeedLimit(): number {
   return 0;
 }
 
+/** Phase 26.2.E — Download schedule: "23:00" → "06:00" cho tải đêm. */
+export interface DownloadSchedule {
+  enabled: boolean;
+  start: string;  // "HH:MM"
+  end: string;    // "HH:MM"
+}
+
+export function loadSchedule(): DownloadSchedule {
+  try {
+    const v = localStorage.getItem(KEY_SCHEDULE);
+    if (v) {
+      const parsed = JSON.parse(v) as Partial<DownloadSchedule>;
+      return {
+        enabled: !!parsed.enabled,
+        start: parsed.start || '23:00',
+        end: parsed.end || '06:00',
+      };
+    }
+  } catch { /* */ }
+  return { enabled: false, start: '23:00', end: '06:00' };
+}
+
+export function saveSchedule(s: DownloadSchedule): void {
+  try { localStorage.setItem(KEY_SCHEDULE, JSON.stringify(s)); } catch { /* */ }
+}
+
+/** Check current time có trong schedule range không.
+ *  Hỗ trợ overnight range (vd 23:00 → 06:00 = từ 23h đêm tới 6h sáng hôm sau). */
+export function isInScheduleWindow(s: DownloadSchedule, now = new Date()): boolean {
+  if (!s.enabled) return true; // không enable = luôn cho phép tải
+  const [sh, sm] = s.start.split(':').map(Number);
+  const [eh, em] = s.end.split(':').map(Number);
+  const startMin = sh * 60 + sm;
+  const endMin = eh * 60 + em;
+  const nowMin = now.getHours() * 60 + now.getMinutes();
+  if (startMin < endMin) {
+    // Same-day range (vd 09:00-17:00)
+    return nowMin >= startMin && nowMin < endMin;
+  }
+  // Overnight range (vd 23:00-06:00)
+  return nowMin >= startMin || nowMin < endMin;
+}
+
 export function SettingsModal({
   theme, setTheme, onClose, version, availableFolders,
 }: {
@@ -81,6 +125,7 @@ export function SettingsModal({
   const [cleanupDays, setCleanupDays] = useState<number>(loadCleanupDays);
   const [subscribedFolders, setSubscribedFolders] = useState<string[]>(loadSubscribedFolders);
   const [speedLimit, setSpeedLimit] = useState<number>(loadSpeedLimit);
+  const [schedule, setScheduleState] = useState<DownloadSchedule>(loadSchedule);
 
   useEffect(() => {
     try { localStorage.setItem(KEY_CLOSE_BEHAVIOR, closeBehavior); } catch { /* */ }
@@ -100,6 +145,9 @@ export function SettingsModal({
     void invoke('set_speed_limit', { mbps: speedLimit }).catch(() => {});
   }, [speedLimit]);
 
+  // Phase 26.2.E — save schedule
+  useEffect(() => { saveSchedule(schedule); }, [schedule]);
+
   function toggleFolder(name: string) {
     setSubscribedFolders(prev =>
       prev.includes(name) ? prev.filter(f => f !== name) : [...prev, name]
@@ -109,6 +157,37 @@ export function SettingsModal({
   async function quitNow() {
     if (!confirm('Thoát hoàn toàn TrishDrive? App sẽ không chạy background nữa.')) return;
     try { await invoke('exit_app'); } catch { /* */ }
+  }
+
+  // Phase 26.5.F — check update qua Tauri updater plugin
+  const [updateStatus, setUpdateStatus] = useState<string | null>(null);
+  const [updateChecking, setUpdateChecking] = useState(false);
+  async function checkUpdate() {
+    setUpdateChecking(true);
+    setUpdateStatus(null);
+    try {
+      // Dynamic import để TS không complain nếu plugin chưa cài
+      const { check } = await import('@tauri-apps/plugin-updater');
+      const update = await check();
+      if (update?.available) {
+        setUpdateStatus(`✓ Có bản mới: v${update.version} — ${update.body || 'Click bên dưới để cài'}`);
+        if (confirm(`Có bản cập nhật v${update.version}.\n\nTải + cài đặt + restart app ngay?`)) {
+          await update.downloadAndInstall();
+          // Tauri sẽ tự restart sau khi cài
+        }
+      } else {
+        setUpdateStatus('✓ App đã là phiên bản mới nhất.');
+      }
+    } catch (e) {
+      const msg = (e as Error).message || String(e);
+      if (msg.includes('PLACEHOLDER') || msg.includes('pubkey')) {
+        setUpdateStatus('⚠ Auto-update chưa setup — Trí cần gen RSA key + config.');
+      } else {
+        setUpdateStatus(`✕ ${msg}`);
+      }
+    } finally {
+      setUpdateChecking(false);
+    }
   }
 
   return (
@@ -284,6 +363,51 @@ export function SettingsModal({
           </div>
         </div>
 
+        {/* Phase 26.2.E — Schedule download */}
+        <div className="mt-5">
+          <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: 0.04 }}>
+            <Clock className="h-3 w-3" style={{ display: 'inline', marginRight: 4 }} /> Lịch tải tự động
+          </label>
+          <div className="p-3 rounded-xl mt-2" style={{ background: 'var(--color-surface-row)', border: '1px solid var(--color-border-subtle)' }}>
+            <label className="flex items-center gap-2 cursor-pointer mb-2">
+              <input
+                type="checkbox"
+                checked={schedule.enabled}
+                onChange={e => setScheduleState({ ...schedule, enabled: e.target.checked })}
+                style={{ width: 16, height: 16, accentColor: 'var(--color-accent-primary)' }}
+              />
+              <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--color-text-primary)' }}>
+                Chỉ tải vào khung giờ thấp điểm
+              </span>
+            </label>
+            {schedule.enabled && (
+              <div className="flex items-center gap-2 mt-2">
+                <span style={{ fontSize: 12, color: 'var(--color-text-muted)' }}>Từ</span>
+                <input
+                  type="time"
+                  value={schedule.start}
+                  onChange={e => setScheduleState({ ...schedule, start: e.target.value })}
+                  className="input-field"
+                  style={{ width: 120, padding: '4px 8px', fontSize: 13 }}
+                />
+                <span style={{ fontSize: 12, color: 'var(--color-text-muted)' }}>đến</span>
+                <input
+                  type="time"
+                  value={schedule.end}
+                  onChange={e => setScheduleState({ ...schedule, end: e.target.value })}
+                  className="input-field"
+                  style={{ width: 120, padding: '4px 8px', fontSize: 13 }}
+                />
+              </div>
+            )}
+            <p style={{ fontSize: 11, color: 'var(--color-text-muted)', marginTop: 6, lineHeight: 1.5 }}>
+              {schedule.enabled
+                ? `Click "Tải file" ngoài khung ${schedule.start}-${schedule.end} → app sẽ queue và tự động tải vào khung giờ này. Hỗ trợ qua đêm (vd 23:00 → 06:00 sáng hôm sau).`
+                : 'Tắt — tải ngay khi click. Bật để tránh nghẽn mạng giờ cao điểm.'}
+            </p>
+          </div>
+        </div>
+
         {/* Cleanup history */}
         <div className="mt-5">
           <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: 0.04 }}>
@@ -308,6 +432,29 @@ export function SettingsModal({
             </div>
             <p style={{ fontSize: 11, color: 'var(--color-text-muted)', marginTop: 6, lineHeight: 1.5 }}>
               File trên ổ cứng KHÔNG bị xoá. Bookmark giữ lại bất kể tuổi. Auto chạy 1 lần/ngày.
+            </p>
+          </div>
+        </div>
+
+        {/* Phase 26.5.F — Auto-update */}
+        <div className="mt-5">
+          <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: 0.04 }}>
+            <DownloadIcon className="h-3 w-3" style={{ display: 'inline', marginRight: 4 }} /> Cập nhật phần mềm
+          </label>
+          <div className="p-3 rounded-xl mt-2" style={{ background: 'var(--color-surface-row)', border: '1px solid var(--color-border-subtle)' }}>
+            <div className="flex items-center gap-3">
+              <button className="btn-secondary" onClick={checkUpdate} disabled={updateChecking} style={{ flex: 1 }}>
+                <RefreshCw className={`h-3.5 w-3.5 ${updateChecking ? 'animate-spin' : ''}`} />
+                {updateChecking ? 'Đang check...' : 'Kiểm tra cập nhật'}
+              </button>
+            </div>
+            {updateStatus && (
+              <div style={{ fontSize: 12, color: 'var(--color-text-secondary)', marginTop: 8, lineHeight: 1.5 }}>
+                {updateStatus}
+              </div>
+            )}
+            <p style={{ fontSize: 11, color: 'var(--color-text-muted)', marginTop: 6, lineHeight: 1.5 }}>
+              Hiện tại v{version} · Auto-update qua GitHub Releases (sẽ enable khi admin setup RSA key)
             </p>
           </div>
         </div>

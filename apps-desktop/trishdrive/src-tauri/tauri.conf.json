@@ -26,9 +26,23 @@
       "csp": "default-src 'self' ipc: http://ipc.localhost; connect-src 'self' ipc: http://ipc.localhost https://*.googleapis.com https://*.firebaseio.com https://*.firebaseapp.com https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://firestore.googleapis.com https://www.googleapis.com https://accounts.google.com https://api.github.com https://*.github.com https://trishteam.io.vn https://*.trishteam.io.vn; img-src 'self' data: blob: asset: http://asset.localhost https://*.googleusercontent.com https://www.gstatic.com https://*.t.me; font-src 'self' data: asset: http://asset.localhost; style-src 'self' 'unsafe-inline' https://accounts.google.com; script-src 'self' https://apis.google.com https://accounts.google.com https://www.gstatic.com; frame-src 'self' asset: http://asset.localhost https://trishteam-17c2d.firebaseapp.com https://accounts.google.com https://*.firebaseapp.com; object-src 'self' asset: http://asset.localhost"
     }
   },
+  "plugins": {
+    "updater": {
+      "_comment": "Phase 26.5.F — Auto-update. Trí setup pubkey + endpoint khi release.",
+      "active": false,
+      "endpoints": [
+        "https://trishteam.io.vn/api/updates/trishdrive/{{target}}/{{current_version}}"
+      ],
+      "pubkey": "PLACEHOLDER_RUN_TAURI_SIGNER_GENERATE_TO_REPLACE",
+      "windows": {
+        "installMode": "passive"
+      }
+    }
+  },
   "bundle": {
     "active": true,
     "targets": ["nsis"],
+    "createUpdaterArtifacts": true,
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",

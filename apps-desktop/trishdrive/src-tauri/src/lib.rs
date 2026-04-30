@@ -698,6 +698,12 @@ pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_opener::init())
+        // Phase 26.5.F — Auto-update plugin. Cần Trí setup RSA key:
+        //   1. `pnpm tauri signer generate -w ~/.tauri/trishdrive.key`
+        //   2. Lưu pubkey vào tauri.conf.json plugins.updater.pubkey
+        //   3. Khi release: sign installer với private key
+        .plugin(tauri_plugin_updater::Builder::new().build())
+        .plugin(tauri_plugin_process::init())
         .manage(SpeedLimit::default())
         .invoke_handler(tauri::generate_handler![
             app_version,
