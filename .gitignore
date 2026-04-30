@@ -48,3 +48,7 @@ Cargo.lock.bk
 
 # Machine label (per-machine, not synced via git)
 .machine-label
+
+# Phase 22 — internal-tools/ ĐÃ MOVE sang apps-desktop/trishiso, trishfinance, trishdrive
+# Folder rỗng, sẽ xóa qua scripts/CLEANUP-INTERNAL-TOOLS.bat
+internal-tools/

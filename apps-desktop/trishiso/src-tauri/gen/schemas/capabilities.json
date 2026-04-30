@@ -1,0 +1,1 @@
+{"default":{"identifier":"default","description":"Quản lý ISO chỉ cần core permissions.","local":true,"windows":["main"],"permissions":["core:default"]}}

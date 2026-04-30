@@ -256,6 +256,13 @@ service cloud.firestore {
       allow write: if false;
     }
 
+    // --- Phase 22.7b — /trishdrive/{...} (TrishDrive shares + future user data) ---
+    // KHÔNG cho client truy cập trực tiếp (chứa encrypted bot_token + master_key).
+    // Mọi truy cập đi qua /api/drive/* (Admin SDK bypass rules).
+    match /trishdrive/{doc=**} {
+      allow read, write: if false;
+    }
+
     // --- Default deny ---
     match /{document=**} {
       allow read, write: if false;

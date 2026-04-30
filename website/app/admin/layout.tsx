@@ -33,6 +33,9 @@ import {
   Library,
   Database,
   Package,
+  ClipboardList,
+  Wallet,
+  Cloud,
 } from 'lucide-react';
 import { useAuth } from '@/lib/auth-context';
 
@@ -58,6 +61,10 @@ const NAV: NavItem[] = [
   { href: '/admin/apps', label: 'Apps Desktop', icon: Package },
   { href: '/admin/signs', label: 'Ảnh biển báo', icon: Signpost },
   { href: '/admin/bridges', label: 'Ảnh cầu', icon: Waypoints },
+  // Phase 22 — sync data từ 3 app desktop nội bộ
+  { href: '/admin/trishiso', label: 'TrishISO data', icon: ClipboardList },
+  { href: '/admin/trishfinance', label: 'TrishFinance data', icon: Wallet },
+  { href: '/admin/trishdrive', label: 'TrishDrive admin', icon: Cloud },
 ];
 
 export default function AdminLayout({ children }: { children: ReactNode }) {

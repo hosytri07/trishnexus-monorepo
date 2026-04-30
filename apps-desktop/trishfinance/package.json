@@ -1,0 +1,15 @@
+{
+  "name": "@trishteam/trishfinance",
+  "private": true,
+  "version": "1.0.0",
+  "description": "TrishFinance — quản lý tài chính phòng trọ + bán hàng. Part of TrishTEAM ecosystem.",
+  "type": "module",
+  "scripts": {
+    "tauri": "tauri",
+    "tauri:dev": "tauri dev",
+    "tauri:build": "tauri build"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "^2.0.0"
+  }
+}

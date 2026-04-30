@@ -1,0 +1,22 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "default",
+  "description": "TrishDrive cần dialog (chọn file upload/save), opener (mở t.me/github), core IPC.",
+  "windows": ["main"],
+  "permissions": [
+    "core:default",
+    "dialog:default",
+    "dialog:allow-open",
+    "dialog:allow-save",
+    "opener:default",
+    {
+      "identifier": "opener:allow-open-url",
+      "allow": [
+        { "url": "https://t.me/*" },
+        { "url": "https://core.telegram.org/*" },
+        { "url": "https://github.com/*" },
+        { "url": "https://trishteam.io.vn/*" }
+      ]
+    }
+  ]
+}

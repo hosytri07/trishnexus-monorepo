@@ -87,14 +87,58 @@ Double-click `scripts\START.bat` → tự pull GitHub + pnpm install + show stat
                 — C. Telemetry: packages/telemetry + wire 7 app + Errors/Vitals panel TrishAdmin
                 — D. Observability: backup-firestore.yml weekly + docs/SENTRY-SETUP.md + vitest threshold
 
-⏳ Phase 21     TrishDesign desktop (chưa start)
+🟡 Phase 22 IN PROGRESS — TrishISO + TrishFinance + TrishDrive (PRIORITY trước TrishDesign)
+                ✅ 22.0 prep — folders + theme emerald + Plus Jakarta Sans + telemetry + logo riêng
+                ✅ 22.4 TrishDrive backend — Tauri commands tg_test_bot/get_chat/creds_save/load + SetupWizard UI 4-step
+                ✅ 22.4b Login Firebase trước (per-user creds, keyring username = telegram_creds_{uid})
+                       — LoginScreen email + Google OAuth + Remember me + Quên mật khẩu + Đăng ký link
+                       — User info + signOut button trong sidebar
+                       — Cross-check uid trong creds load (defensive)
+                ✅ 22.4c-d Logo PNG (taskbar transparent + UI keep white bg) + Settings 5 card features
+                ✅ 22.5 Upload pipeline — crypto.rs AES-GCM + telegram.rs sendDocument + db insert (file < 48MB)
+                ✅ 22.6 Download + Delete — getFile + decrypt + verify SHA256 + deleteMessage Telegram
+                ✅ 22.7 UI Files page (table + sort + search + download/delete) + UploadPage (dialog + progress)
+                ✅ 22.7b Share link feature — Rust crypto.rs encrypt_with_password (PBKDF2 100k) + share_create command
+                       — Web API /api/drive/share/{create, [token]/info, [token]/proxy} (Next.js Admin SDK)
+                       — Web page /drive/share/[token] form password + decrypt client-side AES-GCM + verify SHA256
+                       — TrishDrive UI ShareModal (password ≥ 8 ký tự, expires 1h-30d-không, max 1-50 lượt)
+                       — Zero-knowledge: server không có password → không decrypt được content
+                       — Firestore /trishdrive/{**} default deny (Admin SDK bypass rules)
+                ✅ 22.8 Web admin routes /admin/trishiso /admin/trishfinance /admin/trishdrive
+                — TrishISO 1.0.0   ⭐ Admin only ⭐  apps-desktop/trishiso/
+                  React + Vite + Tailwind 4 + Plus Jakarta Sans + emerald TrishTEAM theme
+                  Quản lý hồ sơ ISO + thiết bị nội bộ + lịch hiệu chuẩn/bảo trì
+                  Sync route /admin/trishiso (Phase 22.7), KHÔNG public download
+                  Build: pnpm tauri build → Trí phân phối thủ công
+                  Phase 22.1-22.3: theme polish, telemetry, build NSIS
+
+                — TrishFinance 1.0.0   ⭐ Admin only ⭐  apps-desktop/trishfinance/
+                  HTML standalone + Tauri webview + emerald theme
+                  Bán hàng (POS/sản phẩm/đơn hàng/kho/khách hàng) + Phòng trọ + Thu chi tổng hợp
+                  Sync route /admin/trishfinance (Phase 22.7), KHÔNG public
+                  Phase 22.1-22.3: như TrishISO + đổi font CDN → Plus Jakarta local
+
+                — TrishDrive 0.1.0-alpha   apps-desktop/trishdrive/
+                  Cloud Storage qua Telegram (tham khảo caamer20/Telegram-Drive)
+                  React + Tauri + Rust backend (reqwest/rusqlite/aes-gcm)
+                  Phase 22.4-22.7:
+                    .4 Setup wizard (BotFather guide, DPAPI store BOT_TOKEN+CHANNEL_ID)
+                    .5 Upload + chunk 49MB + AES-256-GCM encrypt + SQLite index
+                    .6 Download + decrypt + assemble + verify SHA256
+                    .7 List/search/folder/tag UI
+                  Phase 23+: chuyển MTProto (grammers crate) cho file > 50MB
+
+                — Phase 22.8: Web admin /admin/trishiso + /admin/trishfinance read-only data view
+
+⏳ Phase 23     TrishDesign desktop (sau Phase 22)
                 - AutoCAD plugin
                 - AI RAG TCVN/AASHTO
                 - Dự toán + bản vẽ kỹ sư
 
 ⏳ Còn lại (free, ưu tiên thấp hơn):
                 - Sentry SDK wire thực sự (doc đã có, chờ Trí tạo Sentry account + DSN)
-                - Rust panic hook setup_panic_hook() trong src-tauri/src/lib.rs của 7 app
+                - Rust panic hook setup_panic_hook() trong src-tauri/src/lib.rs của 10 app
+                - TrishDrive MTProto upload file > 50MB (Phase 23+)
                 - Code-signing (skip — không free, EV ~250$/năm)
 ```
 
@@ -117,14 +161,17 @@ GitHub Actions tự build NSIS .exe + tạo Release. Xem `docs/RELEASE-PROCESS.m
 
 | # | Thành phần | Loại | Status | Note |
 |---|---|---|---|---|
-| 0 | **Website** | Next.js 14 | ✅ Phase 19.22 (chưa deploy nhà) | trishteam.io.vn |
+| 0 | **Website** | Next.js 14 | ✅ DEPLOYED Phase 19.23 | https://trishteam.io.vn |
 | 1 | **TrishLauncher** | Tauri 2 | ✅ Released v2.0.0-1 | Hub + tray + auto-update |
 | 2 | **TrishLibrary 3.0** | Tauri 2 | ✅ Released v3.0.0 | **4 module gộp**: 📚 Thư viện · 📝 Ghi chú · 📄 Tài liệu · 🖼 Ảnh |
-| 3 | **TrishAdmin v1.1** | Tauri 2 | ✅ Code done, chưa release | 9 panel: dashboard / users / keys / posts / audit / etc. |
+| 3 | **TrishAdmin v1.1** | Tauri 2 | ✅ Code done, build local | Private — không GitHub Release |
 | 4 | **TrishFont v2.0.0-1** | Tauri 2 | ✅ Released | Font manager + Pair AI + AutoCAD .shx |
 | 5 | **TrishCheck v2.0.0-1** | Tauri 2 | ✅ Released | System info + benchmark + GPU detect |
 | 6 | **TrishClean v2.0.0-1** | Tauri 2 | ✅ Released | Cleaner + undo 7 ngày |
-| 7 | **TrishDesign** | Tauri 2 | 🟡 Chưa scaffold | Phase 20+ |
+| 7 | **TrishISO v1.0.0** ⭐ | Tauri 2 + React | 🟢 Code done, chờ build | **Admin only** — quản lý hồ sơ ISO + thiết bị |
+| 8 | **TrishFinance v1.0.0** ⭐ | Tauri 2 + HTML | 🟢 Code done, chờ build | **Admin only** — bán hàng + phòng trọ + thu chi |
+| 9 | **TrishDrive v0.1-alpha** ⭐ | Tauri 2 + React + Rust | 🟡 Skeleton done | Cloud storage qua Telegram |
+| 10 | **TrishDesign** | Tauri 2 | 🟡 Chưa scaffold | Phase 23+ (sau TrishISO/Finance/Drive) |
 
 **4 app đã GỘP vào TrishLibrary 3.0** (đánh dấu deprecated trong `apps-registry.json`):
 - ❌ TrishNote → module Ghi chú trong Library

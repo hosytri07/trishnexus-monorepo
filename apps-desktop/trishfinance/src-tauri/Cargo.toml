@@ -1,0 +1,31 @@
+[package]
+name = "trishfinance"
+version = "1.0.0"
+description = "TrishFinance — quản lý tài chính phòng trọ + bán hàng (TrishTEAM ecosystem)"
+authors = ["TrishTEAM <hosytri77@gmail.com>"]
+edition = "2021"
+rust-version = "1.77"
+
+[[bin]]
+name = "trishfinance"
+path = "src/main.rs"
+
+[lib]
+name = "trishfinance_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+path = "src/lib.rs"
+
+[build-dependencies]
+tauri-build = { version = "2.0", features = [] }
+
+[dependencies]
+tauri = { version = "2.0", features = [] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+[profile.release]
+panic = "abort"
+codegen-units = 1
+lto = true
+opt-level = "s"
+strip = true
