@@ -10,11 +10,12 @@
 
 import { useEffect, useState } from 'react';
 import { invoke } from '@tauri-apps/api/core';
-import { Settings as SettingsIcon, X, Sun, Moon, MinusSquare, Power, Trash2, Info } from 'lucide-react';
+import { Settings as SettingsIcon, X, Sun, Moon, MinusSquare, Power, Trash2, Info, Bell, Folder } from 'lucide-react';
 
 const KEY_THEME = 'trishdrive_theme';
 const KEY_CLOSE_BEHAVIOR = 'trishdrive_close_behavior';
 const KEY_CLEANUP_DAYS = 'trishdrive_cleanup_days';
+const KEY_SUBSCRIBED_FOLDERS = 'trishdrive_subscribed_folders';
 
 export type CloseBehavior = 'tray' | 'quit';
 
@@ -37,16 +38,32 @@ export function loadCleanupDays(): number {
   return 90;
 }
 
+/** Phase 26.4.A — folder Trí theo dõi để nhận notification highlight. */
+export function loadSubscribedFolders(): string[] {
+  try {
+    const v = localStorage.getItem(KEY_SUBSCRIBED_FOLDERS);
+    if (v) return JSON.parse(v) as string[];
+  } catch { /* ignore */ }
+  return [];
+}
+
+export function saveSubscribedFolders(folders: string[]): void {
+  try { localStorage.setItem(KEY_SUBSCRIBED_FOLDERS, JSON.stringify(folders)); } catch { /* */ }
+}
+
 export function SettingsModal({
-  theme, setTheme, onClose, version,
+  theme, setTheme, onClose, version, availableFolders,
 }: {
   theme: 'light' | 'dark';
   setTheme: (t: 'light' | 'dark') => void;
   onClose: () => void;
   version: string;
+  /** Phase 26.4.A — list folder admin từng có, để render checkbox subscribe. */
+  availableFolders?: string[];
 }): JSX.Element {
   const [closeBehavior, setCloseBehavior] = useState<CloseBehavior>(loadCloseBehavior);
   const [cleanupDays, setCleanupDays] = useState<number>(loadCleanupDays);
+  const [subscribedFolders, setSubscribedFolders] = useState<string[]>(loadSubscribedFolders);
 
   useEffect(() => {
     try { localStorage.setItem(KEY_CLOSE_BEHAVIOR, closeBehavior); } catch { /* */ }
@@ -55,6 +72,16 @@ export function SettingsModal({
   useEffect(() => {
     try { localStorage.setItem(KEY_CLEANUP_DAYS, String(cleanupDays)); } catch { /* */ }
   }, [cleanupDays]);
+
+  useEffect(() => {
+    saveSubscribedFolders(subscribedFolders);
+  }, [subscribedFolders]);
+
+  function toggleFolder(name: string) {
+    setSubscribedFolders(prev =>
+      prev.includes(name) ? prev.filter(f => f !== name) : [...prev, name]
+    );
+  }
 
   async function quitNow() {
     if (!confirm('Thoát hoàn toàn TrishDrive? App sẽ không chạy background nữa.')) return;
@@ -163,6 +190,40 @@ export function SettingsModal({
             </label>
           </div>
         </div>
+
+        {/* Phase 26.4.A — Subscribe folders */}
+        {availableFolders && availableFolders.length > 0 && (
+          <div className="mt-5">
+            <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: 0.04 }}>
+              <Bell className="h-3 w-3" style={{ display: 'inline', marginRight: 4 }} /> Theo dõi folder ({subscribedFolders.length})
+            </label>
+            <div className="p-3 rounded-xl mt-2" style={{ background: 'var(--color-surface-row)', border: '1px solid var(--color-border-subtle)' }}>
+              <p style={{ fontSize: 11, color: 'var(--color-text-muted)', marginBottom: 8, lineHeight: 1.5 }}>
+                Tick folder bạn quan tâm → nhận toast nhấn mạnh khi admin upload file mới vào folder đó.
+              </p>
+              <div className="space-y-1">
+                {availableFolders.map(folder => (
+                  <label
+                    key={folder}
+                    className="flex items-center gap-2 p-2 cursor-pointer rounded"
+                    style={{
+                      background: subscribedFolders.includes(folder) ? 'var(--color-accent-soft)' : 'transparent',
+                    }}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={subscribedFolders.includes(folder)}
+                      onChange={() => toggleFolder(folder)}
+                      style={{ width: 14, height: 14, accentColor: 'var(--color-accent-primary)' }}
+                    />
+                    <Folder className="h-3.5 w-3.5" style={{ color: 'var(--color-text-muted)' }} />
+                    <span style={{ fontSize: 13, color: 'var(--color-text-primary)' }}>{folder}</span>
+                  </label>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Cleanup history */}
         <div className="mt-5">

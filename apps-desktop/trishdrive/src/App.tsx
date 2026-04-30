@@ -182,6 +182,7 @@ function MainShell({ theme, setTheme }: { theme: 'light' | 'dark'; setTheme: (t:
           setTheme={setTheme}
           onClose={() => setShowSettings(false)}
           version={version}
+          availableFolders={loadKnownFolders()}
         />
       )}
 
@@ -204,6 +205,18 @@ function MainShell({ theme, setTheme }: { theme: 'light' | 'dark'; setTheme: (t:
       </div>
     </div>
   );
+}
+
+/**
+ * Phase 26.4.A — Đọc list folder admin từng có (LibraryScreen update mỗi lần fetch).
+ * Truyền vào SettingsModal cho user tick subscribe.
+ */
+function loadKnownFolders(): string[] {
+  try {
+    const v = localStorage.getItem('trishdrive_known_folders');
+    if (v) return JSON.parse(v) as string[];
+  } catch { /* ignore */ }
+  return [];
 }
 
 function TabBtn({ icon: Icon, label, active, onClick }: { icon: typeof Download; label: string; active: boolean; onClick: () => void }): JSX.Element {

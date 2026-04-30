@@ -16,8 +16,11 @@ import { openPath } from '@tauri-apps/plugin-opener';
 import { getFirebaseAuth } from '@trishteam/auth';
 import {
   BookOpen, Download, Folder, FileText, Search, RefreshCw,
-  AlertCircle, FileQuestion, Loader2, CheckCircle2, Eye, Send, X,
+  AlertCircle, FileQuestion, Loader2, CheckCircle2, Eye, Send, X, Bell,
 } from 'lucide-react';
+import { loadSubscribedFolders } from './SettingsModal';
+
+const KEY_KNOWN_FOLDERS = 'trishdrive_known_folders';
 
 interface LibraryItem {
   token: string;
@@ -51,6 +54,9 @@ export function LibraryScreen(): JSX.Element {
   // Phase 26.6 — auto-refresh mỗi 60s, toast khi có file mới
   const [lastSeenCount, setLastSeenCount] = useState<number | null>(null);
   const [toastNewCount, setToastNewCount] = useState<number>(0);
+  // Phase 26.4.A — toast highlight nếu folder mới khớp subscribed
+  const [toastFolderHits, setToastFolderHits] = useState<string[]>([]);
+  const [lastTokens, setLastTokens] = useState<Set<string> | null>(null);
 
   useEffect(() => {
     const interval = setInterval(() => {
@@ -61,7 +67,7 @@ export function LibraryScreen(): JSX.Element {
   }, []);
 
   async function loadSilent() {
-    // Refresh nhẹ không show loading spinner. Diff count để show toast.
+    // Refresh nhẹ không show loading spinner. Diff item tokens để detect file mới.
     try {
       const auth = getFirebaseAuth();
       const user = auth.currentUser;
@@ -73,13 +79,31 @@ export function LibraryScreen(): JSX.Element {
       if (!res.ok) return;
       const data = (await res.json()) as { items: LibraryItem[] };
       const newItems = data.items || [];
-      if (lastSeenCount !== null && newItems.length > lastSeenCount) {
-        const newCount = newItems.length - lastSeenCount;
-        setToastNewCount(prev => prev + newCount);
-        setTimeout(() => setToastNewCount(0), 8000);
+      const newTokens = new Set(newItems.map(i => i.token));
+
+      if (lastTokens && newItems.length > 0) {
+        // Phase 26.4.A — detect file mới + check subscribed folder
+        const subscribed = loadSubscribedFolders();
+        const newlyAdded = newItems.filter(i => !lastTokens.has(i.token));
+        if (newlyAdded.length > 0) {
+          setToastNewCount(prev => prev + newlyAdded.length);
+          // Highlight folder hits
+          const folderHits = newlyAdded
+            .map(i => i.folder_label)
+            .filter((f): f is string => !!f && subscribed.includes(f));
+          if (folderHits.length > 0) {
+            setToastFolderHits(Array.from(new Set(folderHits)));
+          }
+          setTimeout(() => { setToastNewCount(0); setToastFolderHits([]); }, 10000);
+        }
       }
+      setLastTokens(newTokens);
       setLastSeenCount(newItems.length);
       setItems(newItems);
+
+      // Update known folders cho Settings modal
+      const folders = Array.from(new Set(newItems.map(i => i.folder_label).filter((f): f is string => !!f)));
+      try { localStorage.setItem(KEY_KNOWN_FOLDERS, JSON.stringify(folders)); } catch { /* */ }
     } catch { /* silent fail polling */ }
   }
 
@@ -135,7 +159,12 @@ export function LibraryScreen(): JSX.Element {
         }
       }
       const data = JSON.parse(await res.text()) as { items: LibraryItem[] };
-      setItems(data.items || []);
+      const newItems = data.items || [];
+      setItems(newItems);
+      setLastTokens(new Set(newItems.map(i => i.token)));
+      // Update known folders cho Settings modal
+      const folders = Array.from(new Set(newItems.map(i => i.folder_label).filter((f): f is string => !!f)));
+      try { localStorage.setItem(KEY_KNOWN_FOLDERS, JSON.stringify(folders)); } catch { /* */ }
     } catch (e) {
       setErr((e as Error).message || String(e));
     } finally {
@@ -219,30 +248,34 @@ export function LibraryScreen(): JSX.Element {
 
   return (
     <div className="space-y-4" style={{ maxWidth: 1100, margin: '0 auto' }}>
-      {/* Phase 26.6 — toast notification file mới */}
+      {/* Phase 26.6 + 26.4.A — toast notification file mới (highlight nếu folder subscribed) */}
       {toastNewCount > 0 && (
         <div
           style={{
             position: 'fixed', bottom: 24, right: 24, zIndex: 200,
             padding: '12px 18px',
-            background: 'var(--color-accent-gradient)',
+            background: toastFolderHits.length > 0 ? 'linear-gradient(135deg, #f59e0b, #dc2626)' : 'var(--color-accent-gradient)',
             color: 'white',
             borderRadius: 12,
             boxShadow: 'var(--shadow-sm)',
             display: 'flex', alignItems: 'center', gap: 10,
             cursor: 'pointer',
             animation: 'ts-spin 0.4s ease-out',
-            maxWidth: 360,
+            maxWidth: 380,
           }}
-          onClick={() => { setToastNewCount(0); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
+          onClick={() => { setToastNewCount(0); setToastFolderHits([]); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
         >
-          <BookOpen className="h-5 w-5" />
+          {toastFolderHits.length > 0 ? <Bell className="h-5 w-5" /> : <BookOpen className="h-5 w-5" />}
           <div style={{ flex: 1 }}>
             <div style={{ fontSize: 13, fontWeight: 600 }}>
-              {toastNewCount} file mới trong Thư viện
+              {toastFolderHits.length > 0
+                ? `🔔 ${toastNewCount} file mới trong folder bạn theo dõi!`
+                : `${toastNewCount} file mới trong Thư viện`}
             </div>
             <div style={{ fontSize: 11, opacity: 0.9, marginTop: 2 }}>
-              Click để xem · admin vừa upload
+              {toastFolderHits.length > 0
+                ? `Folder: ${toastFolderHits.join(', ')} · click xem`
+                : 'Click để xem · admin vừa upload'}
             </div>
           </div>
         </div>
