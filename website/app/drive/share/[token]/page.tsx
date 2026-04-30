@@ -41,11 +41,29 @@ export default function SharePage() {
   const [downloading, setDownloading] = useState(false);
   const [progress, setProgress] = useState<string>('');
   const [err, setErr] = useState<string | null>(null);
+  const [autoKey, setAutoKey] = useState<string | null>(null); // từ URL fragment #k=...
 
   useEffect(() => {
     void load();
+    // Phase 23.5: đọc URL fragment để extract auto-key (nếu link share không-password)
+    if (typeof window !== 'undefined' && window.location.hash) {
+      const hashParams = new URLSearchParams(window.location.hash.replace(/^#/, ''));
+      const k = hashParams.get('k');
+      if (k && k.length >= 16) {
+        setAutoKey(k);
+        setPassword(k); // dùng key như password — encryption schema giống nhau
+      }
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [token]);
+
+  // Auto-trigger download khi có auto-key + đã load info
+  useEffect(() => {
+    if (autoKey && info && !downloading && !progress) {
+      void doDownload();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [autoKey, info]);
 
   async function load() {
     try {
@@ -169,26 +187,36 @@ export default function SharePage() {
         </div>
 
         <div style={{ background: 'var(--color-surface-card)', border: '1px solid var(--color-border-subtle)', borderRadius: 16, padding: 24 }}>
-          <label className="text-sm font-semibold">Password share</label>
-          <p className="text-xs mt-1" style={{ color: 'var(--color-text-muted)' }}>
-            Người gửi đã đặt password riêng cho file này. Bạn cần biết password để tải.
-          </p>
-          <input
-            type="password"
-            value={password}
-            onChange={e => setPassword(e.target.value)}
-            placeholder="••••••••"
-            className="w-full mt-3 px-4 py-2.5 rounded-xl text-sm"
-            style={{ background: 'var(--color-surface-row)', border: '1px solid var(--color-border-subtle)' }}
-            onKeyDown={e => e.key === 'Enter' && password.length >= 8 && doDownload()}
-            autoFocus
-          />
+          {autoKey ? (
+            <>
+              <p className="text-sm" style={{ color: 'var(--color-text-muted)' }}>
+                🔐 Link share dạng tự-mở-khoá — key nằm trong URL fragment (không gửi server). Tự động tải khi load trang.
+              </p>
+            </>
+          ) : (
+            <>
+              <label className="text-sm font-semibold">Password share</label>
+              <p className="text-xs mt-1" style={{ color: 'var(--color-text-muted)' }}>
+                Người gửi đã đặt password riêng cho file này. Bạn cần biết password để tải.
+              </p>
+              <input
+                type="password"
+                value={password}
+                onChange={e => setPassword(e.target.value)}
+                placeholder="••••••••"
+                className="w-full mt-3 px-4 py-2.5 rounded-xl text-sm"
+                style={{ background: 'var(--color-surface-row)', border: '1px solid var(--color-border-subtle)' }}
+                onKeyDown={e => e.key === 'Enter' && password.length >= 8 && doDownload()}
+                autoFocus
+              />
+            </>
+          )}
 
           <button
             className="w-full mt-4 py-3 rounded-xl text-sm font-semibold text-white"
-            style={{ background: 'var(--color-accent-gradient)', opacity: downloading || password.length < 8 ? 0.5 : 1 }}
+            style={{ background: 'var(--color-accent-gradient)', opacity: downloading || (!autoKey && password.length < 8) ? 0.5 : 1 }}
             onClick={doDownload}
-            disabled={downloading || password.length < 8}
+            disabled={downloading || (!autoKey && password.length < 8)}
           >
             {downloading ? progress || 'Đang tải...' : '⬇ Tải về'}
           </button>

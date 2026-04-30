@@ -229,8 +229,35 @@ function NavBtn({ icon: Icon, label, active, onClick }: { icon: typeof Folder; l
   );
 }
 
+interface DriveStats {
+  total: number;
+  totalBytes: number;
+  lastUploadMs: number | null;
+}
+
 function SettingsPage({ uid, onReset, theme, setTheme }: { uid: string; onReset: () => Promise<void>; theme: 'light' | 'dark'; setTheme: (t: 'light' | 'dark') => void }): JSX.Element {
   const { profile, firebaseUser, signOut } = useAuth();
+  const [stats, setStats] = useState<DriveStats>({ total: 0, totalBytes: 0, lastUploadMs: null });
+
+  useEffect(() => {
+    void loadStats();
+  }, []);
+
+  async function loadStats() {
+    try {
+      const files = await invoke<Array<{ size_bytes: number; created_at: number }>>('db_files_list', {
+        folderId: null,
+        search: null,
+      });
+      const totalBytes = files.reduce((s, f) => s + (f.size_bytes || 0), 0);
+      const lastUploadMs = files.length > 0
+        ? Math.max(...files.map(f => f.created_at || 0))
+        : null;
+      setStats({ total: files.length, totalBytes, lastUploadMs });
+    } catch (e) {
+      console.warn('[stats]', e);
+    }
+  }
 
   async function reset() {
     if (!confirm('Xoá Telegram credentials? File đã upload vẫn còn trên Telegram channel, nhưng index local mất — phải import lại.')) return;
@@ -343,16 +370,13 @@ function SettingsPage({ uid, onReset, theme, setTheme }: { uid: string; onReset:
           </div>
         </div>
         <div className="grid gap-3 md:grid-cols-3 mt-4">
-          <Stat label="Tổng files" value="0" hint="Phase 22.5" />
-          <Stat label="Storage Telegram" value="0 B" hint="Phase 22.5" />
-          <Stat label="Last upload" value="—" hint="Phase 22.5" />
+          <Stat label="Tổng files" value={String(stats.total)} hint="Phase 22.5" />
+          <Stat label="Storage Telegram" value={formatBytes(stats.totalBytes)} hint="Bot API + MTProto" />
+          <Stat label="Last upload" value={formatLastUpload(stats.lastUploadMs)} hint={stats.lastUploadMs ? 'Phase 22.5' : '—'} />
         </div>
         <div className="mt-4 flex gap-2 flex-wrap">
-          <button className="btn-secondary" disabled style={{ opacity: 0.5 }}>
-            Export config + index (Phase 22.5)
-          </button>
-          <button className="btn-secondary" disabled style={{ opacity: 0.5 }}>
-            Rebuild index từ Telegram (Phase 22.6)
+          <button className="btn-secondary" onClick={loadStats}>
+            🔄 Refresh stats
           </button>
         </div>
       </div>
@@ -384,6 +408,23 @@ function Stat({ label, value, hint }: { label: string; value: string; hint?: str
       {hint && <div style={{ fontSize: 10, color: 'var(--color-text-muted)', marginTop: 2 }}>{hint}</div>}
     </div>
   );
+}
+
+function formatBytes(n: number): string {
+  if (n < 1024) return `${n} B`;
+  if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`;
+  if (n < 1024 * 1024 * 1024) return `${(n / 1024 / 1024).toFixed(1)} MB`;
+  return `${(n / 1024 / 1024 / 1024).toFixed(2)} GB`;
+}
+
+function formatLastUpload(ms: number | null): string {
+  if (!ms) return '—';
+  const diff = Date.now() - ms;
+  if (diff < 60_000) return `${Math.round(diff / 1000)}s trước`;
+  if (diff < 3_600_000) return `${Math.round(diff / 60_000)}m trước`;
+  if (diff < 86_400_000) return `${Math.round(diff / 3_600_000)}h trước`;
+  if (diff < 7 * 86_400_000) return `${Math.round(diff / 86_400_000)}d trước`;
+  return new Date(ms).toLocaleDateString('vi-VN');
 }
 
 interface MtprotoStatus {

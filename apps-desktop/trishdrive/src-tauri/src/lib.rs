@@ -703,9 +703,19 @@ async fn share_create(
     expires_hours: Option<i64>,
     max_downloads: Option<i64>,
 ) -> Result<ShareResult, String> {
-    if password.len() < 8 {
-        return Err("Password share phải dài tối thiểu 8 ký tự".to_string());
-    }
+    // Phase 23.5: password tuỳ chọn. Nếu rỗng → auto-gen random key, nhúng vào URL fragment.
+    // URL fragment KHÔNG gửi server → server vẫn zero-knowledge, người nhận chỉ click link là tải.
+    let no_password = password.is_empty();
+    let effective_password: String = if no_password {
+        use rand::RngCore;
+        let mut bytes = [0u8; 16];
+        rand::thread_rng().fill_bytes(&mut bytes);
+        hex::encode(bytes) // 32 hex chars
+    } else if password.len() < 8 {
+        return Err("Password share phải dài tối thiểu 8 ký tự (hoặc bỏ trống để auto-gen key trong URL)".to_string());
+    } else {
+        password.clone()
+    };
     let creds = creds::load_creds(&uid)?
         .ok_or_else(|| "Chưa setup Telegram".to_string())?;
 
@@ -728,8 +738,8 @@ async fn share_create(
         nonce_hex: c.nonce_hex.clone(),
     }).collect();
 
-    let encrypted_bot_token = crypto::encrypt_with_password(creds.bot_token.as_bytes(), &password)?;
-    let encrypted_master_key = crypto::encrypt_with_password(creds.master_key_hex.as_bytes(), &password)?;
+    let encrypted_bot_token = crypto::encrypt_with_password(creds.bot_token.as_bytes(), &effective_password)?;
+    let encrypted_master_key = crypto::encrypt_with_password(creds.master_key_hex.as_bytes(), &effective_password)?;
 
     let expires_at = expires_hours.map(|h| {
         let now = std::time::SystemTime::now()
@@ -781,10 +791,21 @@ async fn share_create(
     }
     let result: ShareCreateResponse = serde_json::from_str(&body_text)
         .map_err(|e| format!("Parse JSON response: {}. Body: {}", e, body_text.chars().take(200).collect::<String>()))?;
+
+    // Phase 23.5: nếu no-password mode → nhúng key vào URL fragment.
+    // Fragment chỉ chạy client-side, server không thấy → vẫn zero-knowledge.
+    let fragment = if no_password {
+        format!("#k={}", effective_password)
+    } else {
+        String::new()
+    };
+    let final_short = result.short_url.map(|u| format!("{}{}", u, fragment));
+    let final_long = format!("{}{}", result.url, fragment);
+
     Ok(ShareResult {
         token: result.token,
-        url: result.url,
-        short_url: result.short_url,
+        url: final_long,
+        short_url: final_short,
     })
 }
 
@@ -916,10 +937,13 @@ async fn file_purge_old_trash(
     for f in old_files {
         let chunks = db::get_chunks(&conn, &f.id).map_err(|e| format!("chunks: {}", e))?;
         if f.pipeline == "mtproto" {
-            if let (Some(cfg), Some(session_path)) = (&mt_cfg_opt, &mt_session) {
+            if let (Some(cfg), Some(session_path), Some(creds)) = (&mt_cfg_opt, &mt_session, &creds_opt) {
                 if session_path.exists() {
                     let msg_ids: Vec<i32> = chunks.iter().map(|c| c.tg_message_id as i32).collect();
-                    let _ = mtproto::delete_from_saved(cfg.api_id, &cfg.api_hash, session_path, &msg_ids).await;
+                    let _ = mtproto::delete_from_channel(
+                        cfg.api_id, &cfg.api_hash, session_path,
+                        &uid, creds.channel_id, &msg_ids,
+                    ).await;
                 }
             }
         } else if let Some(creds) = &creds_opt {
@@ -1071,11 +1095,28 @@ async fn file_upload_mtproto(
             format!("{}.enc", filename)
         };
 
-        // Write encrypted bytes to temp file → upload via MTProto upload_to_saved_bytes
-        // (grammers upload_stream cần AsyncRead, dễ nhất là Cursor<Vec<u8>>)
-        let upload_info = mtproto::upload_bytes_to_saved(
+        // Phase 23.7 — pass progress callback để emit drive-progress mỗi 1MB trong chunk
+        let app_progress = app.clone();
+        let file_id_progress = file_id.clone();
+        let baseline_bytes = bytes_done; // số byte các chunk trước đã upload
+        let total_size_for_progress = size;
+        let chunk_idx_for_progress = idx;
+        let total_chunks_for_progress = total_chunks;
+
+        let upload_info = mtproto::upload_bytes_to_channel(
             mt_cfg.api_id, &mt_cfg.api_hash, &session_path,
+            &uid, creds.channel_id,
             encrypted, &chunk_filename,
+            move |bytes_in_chunk| {
+                let _ = app_progress.emit("drive-progress", ProgressEvent {
+                    op: "upload".into(),
+                    file_id: file_id_progress.clone(),
+                    current_chunk: chunk_idx_for_progress + 1,
+                    total_chunks: total_chunks_for_progress,
+                    bytes_done: (baseline_bytes + bytes_in_chunk) as i64,
+                    total_bytes: total_size_for_progress as i64,
+                });
+            },
         ).await.map_err(|e| {
             let _ = db::delete_file(&conn, &file_id);
             format!("Upload chunk {}/{} fail: {}", idx + 1, total_chunks, e)
@@ -1152,8 +1193,9 @@ async fn file_download_mtproto(
 
     for (i, chunk) in chunks.iter().enumerate() {
         let msg_id = chunk.tg_message_id as i32;
-        let encrypted = mtproto::download_bytes_from_saved(
-            mt_cfg.api_id, &mt_cfg.api_hash, &session_path, msg_id,
+        let encrypted = mtproto::download_bytes_from_channel(
+            mt_cfg.api_id, &mt_cfg.api_hash, &session_path,
+            &uid, creds.channel_id, msg_id,
         ).await.map_err(|e| format!("Download chunk {}/{}: {}", i + 1, total_chunks, e))?;
 
         let plaintext = crypto::decrypt(&creds.master_key_hex, &encrypted)?;
@@ -1187,6 +1229,8 @@ async fn file_purge_mtproto(
     uid: String,
     file_id: String,
 ) -> Result<(), String> {
+    let creds = creds::load_creds(&uid)?
+        .ok_or_else(|| "Chưa setup Telegram".to_string())?;
     let mt_cfg = creds::load_mtproto_config(&uid)?
         .ok_or_else(|| "Chưa setup MTProto".to_string())?;
     let session_path = mtproto_session_path(&app, &uid)?;
@@ -1196,8 +1240,11 @@ async fn file_purge_mtproto(
     let chunks = db::get_chunks(&conn, &file_id).map_err(|e| format!("chunks: {}", e))?;
     let msg_ids: Vec<i32> = chunks.iter().map(|c| c.tg_message_id as i32).collect();
 
-    // Best-effort delete khỏi Saved Messages, dù fail vẫn xoá DB
-    let _ = mtproto::delete_from_saved(mt_cfg.api_id, &mt_cfg.api_hash, &session_path, &msg_ids).await;
+    // Best-effort delete khỏi channel — file vẫn xoá khỏi DB dù MTProto fail
+    let _ = mtproto::delete_from_channel(
+        mt_cfg.api_id, &mt_cfg.api_hash, &session_path,
+        &uid, creds.channel_id, &msg_ids,
+    ).await;
     db::delete_file(&conn, &file_id).map_err(|e| format!("delete: {}", e))?;
     Ok(())
 }

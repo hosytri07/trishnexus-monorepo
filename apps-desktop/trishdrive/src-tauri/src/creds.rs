@@ -127,3 +127,43 @@ pub fn delete_mtproto_config(uid: &str) -> Result<(), String> {
         Err(e) => Err(format!("keyring delete: {}", e)),
     }
 }
+
+// ============================================================
+// Phase 23.6 — Cache PackedChat (channel) sau khi resolve qua iter_dialogs
+// Lần đầu upload mất 1-2s tìm channel; lần sau load cache instant.
+// ============================================================
+
+const CHANNEL_PACKED_PREFIX: &str = "mtproto_channel_";
+
+fn channel_entry(uid: &str) -> Result<Entry, String> {
+    if uid.is_empty() {
+        return Err("Empty uid".to_string());
+    }
+    let username = format!("{}{}", CHANNEL_PACKED_PREFIX, uid);
+    Entry::new(SERVICE, &username).map_err(|e| format!("keyring entry: {}", e))
+}
+
+pub fn save_channel_packed(uid: &str, hex: &str) -> Result<(), String> {
+    let entry = channel_entry(uid)?;
+    entry.set_password(hex).map_err(|e| format!("keyring set channel: {}", e))?;
+    Ok(())
+}
+
+pub fn load_channel_packed(uid: &str) -> Result<Option<String>, String> {
+    let entry = channel_entry(uid)?;
+    match entry.get_password() {
+        Ok(s) => Ok(Some(s)),
+        Err(keyring::Error::NoEntry) => Ok(None),
+        Err(e) => Err(format!("keyring get channel: {}", e)),
+    }
+}
+
+#[allow(dead_code)]
+pub fn delete_channel_packed(uid: &str) -> Result<(), String> {
+    let entry = channel_entry(uid)?;
+    match entry.delete_password() {
+        Ok(()) => Ok(()),
+        Err(keyring::Error::NoEntry) => Ok(()),
+        Err(e) => Err(format!("keyring delete channel: {}", e)),
+    }
+}

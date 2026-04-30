@@ -11,10 +11,48 @@
 
 use grammers_client::{Client, Config, InitParams, SignInError};
 use grammers_client::types::{LoginToken, PasswordToken};
-use grammers_session::Session;
-use serde::Serialize;
+use grammers_session::{PackedChat, PackedType, Session};
+use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
+use std::pin::Pin;
+use std::task::{Context, Poll};
+use tokio::io::{AsyncRead, ReadBuf};
 use tokio::sync::Mutex;
+
+use crate::creds;
+
+/// Serializable form của PackedChat — lưu vào keyring.
+#[derive(Serialize, Deserialize, Clone)]
+struct PackedChatJson {
+    id: i64,
+    access_hash: Option<i64>,
+    ty: u8, // 0=User, 1=Bot, 2=Chat, 3=Megagroup, 4=Broadcast, 5=Gigagroup
+}
+
+fn pack_to_json(p: PackedChat) -> PackedChatJson {
+    let ty = match p.ty {
+        PackedType::User => 0,
+        PackedType::Bot => 1,
+        PackedType::Chat => 2,
+        PackedType::Megagroup => 3,
+        PackedType::Broadcast => 4,
+        PackedType::Gigagroup => 5,
+    };
+    PackedChatJson { id: p.id, access_hash: p.access_hash, ty }
+}
+
+fn json_to_pack(j: &PackedChatJson) -> Result<PackedChat, String> {
+    let ty = match j.ty {
+        0 => PackedType::User,
+        1 => PackedType::Bot,
+        2 => PackedType::Chat,
+        3 => PackedType::Megagroup,
+        4 => PackedType::Broadcast,
+        5 => PackedType::Gigagroup,
+        _ => return Err(format!("unknown PackedType marker {}", j.ty)),
+    };
+    Ok(PackedChat { ty, id: j.id, access_hash: j.access_hash })
+}
 
 #[derive(Debug, Serialize, Clone)]
 pub struct MtprotoStatus {
@@ -398,15 +436,71 @@ pub async fn download_from_saved(
     Ok(())
 }
 
-/// Upload bytes (đã encrypt) lên Saved Messages — version chunk-based dùng cho pipeline.
-/// Khác `upload_to_saved` ở chỗ nhận Vec<u8> trong RAM thay vì path.
-pub async fn upload_bytes_to_saved(
+/// AsyncRead wrapper that reports progress qua callback (throttled mỗi 1MB).
+/// Phase 23.7 — wire vào upload_stream để emit drive-progress event fine-grained.
+pub struct ProgressReader<R, F> {
+    inner: R,
+    on_progress: F,
+    total_read: usize,
+    last_emit: usize,
+}
+
+impl<R, F> ProgressReader<R, F> {
+    pub fn new(inner: R, on_progress: F) -> Self {
+        Self { inner, on_progress, total_read: 0, last_emit: 0 }
+    }
+}
+
+const PROGRESS_EMIT_INTERVAL: usize = 1024 * 1024; // 1MB
+
+impl<R, F> AsyncRead for ProgressReader<R, F>
+where
+    R: AsyncRead + Unpin,
+    F: FnMut(usize) + Unpin,
+{
+    fn poll_read(
+        mut self: Pin<&mut Self>,
+        cx: &mut Context<'_>,
+        buf: &mut ReadBuf<'_>,
+    ) -> Poll<std::io::Result<()>> {
+        let before = buf.filled().len();
+        let result = Pin::new(&mut self.inner).poll_read(cx, buf);
+        if let Poll::Ready(Ok(())) = &result {
+            let read = buf.filled().len() - before;
+            if read > 0 {
+                self.total_read += read;
+                // Throttle: emit chỉ khi qua 1MB hoặc đọc xong (read = 0 báo EOF)
+                if self.total_read - self.last_emit >= PROGRESS_EMIT_INTERVAL {
+                    self.last_emit = self.total_read;
+                    let total = self.total_read;
+                    (self.on_progress)(total);
+                }
+            } else {
+                // EOF — emit final count để UI thấy 100%
+                let total = self.total_read;
+                if total != self.last_emit {
+                    self.last_emit = total;
+                    (self.on_progress)(total);
+                }
+            }
+        }
+        result
+    }
+}
+
+/// Upload bytes (đã encrypt) lên Saved Messages — Phase 23.7 với progress callback.
+/// Callback nhận `bytes_uploaded` so far trong chunk này (incremental, mỗi 1MB).
+pub async fn upload_bytes_to_saved<F>(
     api_id: i32,
     api_hash: &str,
     session_path: &PathBuf,
     bytes: Vec<u8>,
     upload_name: &str,
-) -> Result<MtprotoUploadInfo, String> {
+    on_progress: F,
+) -> Result<MtprotoUploadInfo, String>
+where
+    F: FnMut(usize) + Unpin + Send,
+{
     use grammers_client::InputMessage;
     use std::io::Cursor;
 
@@ -417,8 +511,10 @@ pub async fn upload_bytes_to_saved(
     if size == 0 {
         return Err("Bytes rỗng".into());
     }
-    let mut cursor = Cursor::new(bytes);
-    let uploaded = client.upload_stream(&mut cursor, size, upload_name.to_string()).await
+
+    let cursor = Cursor::new(bytes);
+    let mut reader = ProgressReader::new(cursor, on_progress);
+    let uploaded = client.upload_stream(&mut reader, size, upload_name.to_string()).await
         .map_err(|e| format!("upload_stream: {}", e))?;
 
     let msg = client.send_message(me.pack(), InputMessage::text("").document(uploaded)).await
@@ -472,5 +568,150 @@ pub async fn delete_from_saved(
     let me = client.get_me().await.map_err(|e| format!("get_me: {}", e))?;
     client.delete_messages(me.pack(), message_ids).await
         .map_err(|e| format!("delete_messages: {}", e))?;
+    Ok(())
+}
+
+// ============================================================
+// Phase 23.6 — Upload/download/delete vào CHANNEL (Túi đựng dữ liệu)
+// thay vì Saved Messages → đồng bộ với Bot API uploads (cùng 1 chat).
+// User account phải là admin của channel.
+// ============================================================
+
+/// Convert Bot API channel_id (-1001234567890) → MTProto raw id (1234567890).
+fn bot_channel_to_mtproto_id(bot_id: i64) -> i64 {
+    if bot_id < -1_000_000_000_000 {
+        -bot_id - 1_000_000_000_000
+    } else if bot_id < 0 {
+        -bot_id // group format
+    } else {
+        bot_id // already raw
+    }
+}
+
+/// Resolve channel PackedChat — load cache hoặc iter_dialogs lần đầu, cache vào keyring (JSON).
+async fn resolve_or_load_channel(
+    client: &Client,
+    uid: &str,
+    bot_channel_id: i64,
+) -> Result<PackedChat, String> {
+    // Step 1: thử load cache từ keyring (JSON)
+    if let Ok(Some(json_str)) = creds::load_channel_packed(uid) {
+        if let Ok(j) = serde_json::from_str::<PackedChatJson>(&json_str) {
+            if let Ok(packed) = json_to_pack(&j) {
+                eprintln!("[MTProto] channel cache hit: id={}", packed.id);
+                return Ok(packed);
+            }
+        }
+    }
+
+    // Step 2: iter_dialogs để tìm channel theo mtproto id
+    let target = bot_channel_to_mtproto_id(bot_channel_id);
+    eprintln!("[MTProto] resolving channel via dialogs: bot_id={}, mtproto_id={}", bot_channel_id, target);
+
+    let mut dialogs = client.iter_dialogs();
+    let mut scanned = 0u32;
+    while let Some(d) = dialogs.next().await.map_err(|e| format!("iter_dialogs: {}", e))? {
+        scanned += 1;
+        let chat = d.chat();
+        if chat.id() == target {
+            let packed = chat.pack();
+            let json = pack_to_json(packed);
+            if let Ok(s) = serde_json::to_string(&json) {
+                eprintln!("[MTProto] channel resolved sau {} dialogs, caching JSON", scanned);
+                let _ = creds::save_channel_packed(uid, &s);
+            }
+            return Ok(packed);
+        }
+    }
+
+    Err(format!(
+        "Không tìm thấy channel id={} trong dialogs của user account (đã quét {} dialogs). \
+        Đảm bảo user account đã được add làm admin của channel 'Túi đựng dữ liệu'. \
+        Vào Telegram channel → Manage Channel → Administrators → Add → chọn user account.",
+        bot_channel_id, scanned
+    ))
+}
+
+/// Phase 23.6 upload pipeline — gửi vào channel thay Saved Messages.
+pub async fn upload_bytes_to_channel<F>(
+    api_id: i32,
+    api_hash: &str,
+    session_path: &PathBuf,
+    uid: &str,
+    bot_channel_id: i64,
+    bytes: Vec<u8>,
+    upload_name: &str,
+    on_progress: F,
+) -> Result<MtprotoUploadInfo, String>
+where
+    F: FnMut(usize) + Unpin + Send,
+{
+    use grammers_client::InputMessage;
+    use std::io::Cursor;
+
+    let client = open_authorized_client(api_id, api_hash, session_path).await?;
+    let channel = resolve_or_load_channel(&client, uid, bot_channel_id).await?;
+
+    let size = bytes.len();
+    if size == 0 {
+        return Err("Bytes rỗng".into());
+    }
+    let cursor = Cursor::new(bytes);
+    let mut reader = ProgressReader::new(cursor, on_progress);
+    let uploaded = client.upload_stream(&mut reader, size, upload_name.to_string()).await
+        .map_err(|e| format!("upload_stream: {}", e))?;
+
+    let msg = client.send_message(channel, InputMessage::text("").document(uploaded)).await
+        .map_err(|e| format!("send_message channel: {}", e))?;
+
+    Ok(MtprotoUploadInfo {
+        message_id: msg.id() as i64,
+        size_bytes: size as i64,
+    })
+}
+
+pub async fn download_bytes_from_channel(
+    api_id: i32,
+    api_hash: &str,
+    session_path: &PathBuf,
+    uid: &str,
+    bot_channel_id: i64,
+    message_id: i32,
+) -> Result<Vec<u8>, String> {
+    use grammers_client::types::Downloadable;
+
+    let client = open_authorized_client(api_id, api_hash, session_path).await?;
+    let channel = resolve_or_load_channel(&client, uid, bot_channel_id).await?;
+
+    let messages = client.get_messages_by_id(channel, &[message_id]).await
+        .map_err(|e| format!("get_messages_by_id channel: {}", e))?;
+    let msg = messages.into_iter().next().flatten()
+        .ok_or_else(|| format!("Message {} không tồn tại trong channel (có thể đã xoá)", message_id))?;
+    let media = msg.media().ok_or_else(|| "Message không có media".to_string())?;
+    let downloadable = Downloadable::Media(media);
+
+    let mut buf = Vec::new();
+    let mut iter = client.iter_download(&downloadable);
+    while let Some(chunk) = iter.next().await.map_err(|e| format!("download next: {}", e))? {
+        buf.extend_from_slice(&chunk);
+    }
+    Ok(buf)
+}
+
+pub async fn delete_from_channel(
+    api_id: i32,
+    api_hash: &str,
+    session_path: &PathBuf,
+    uid: &str,
+    bot_channel_id: i64,
+    message_ids: &[i32],
+) -> Result<(), String> {
+    if message_ids.is_empty() {
+        return Ok(());
+    }
+    let client = open_authorized_client(api_id, api_hash, session_path).await?;
+    let channel = resolve_or_load_channel(&client, uid, bot_channel_id).await?;
+    client.delete_messages(channel, message_ids).await
+        .map_err(|e| format!("delete_messages channel: {}", e))?;
     Ok(())
 }

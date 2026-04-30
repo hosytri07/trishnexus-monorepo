@@ -572,6 +572,7 @@ interface ShareCreateResult {
 }
 
 function ShareModal({ uid, file, onClose }: { uid: string; file: FileRow; onClose: () => void }): JSX.Element {
+  const [usePassword, setUsePassword] = useState(false);
   const [password, setPassword] = useState('');
   const [expiresHours, setExpiresHours] = useState<number>(24 * 7);
   const [maxDownloads, setMaxDownloads] = useState<number>(10);
@@ -581,7 +582,7 @@ function ShareModal({ uid, file, onClose }: { uid: string; file: FileRow; onClos
   const [copied, setCopied] = useState(false);
 
   async function create() {
-    if (password.length < 8) {
+    if (usePassword && password.length < 8) {
       setErr('Password share phải dài tối thiểu 8 ký tự');
       return;
     }
@@ -591,7 +592,7 @@ function ShareModal({ uid, file, onClose }: { uid: string; file: FileRow; onClos
       const r = await invoke<ShareCreateResult>('share_create', {
         uid,
         fileId: file.id,
-        password,
+        password: usePassword ? password : '', // empty → backend tự gen key, nhúng vào URL fragment
         expiresHours: expiresHours || null,
         maxDownloads: maxDownloads || null,
       });
@@ -641,21 +642,42 @@ function ShareModal({ uid, file, onClose }: { uid: string; file: FileRow; onClos
         {!result ? (
           <>
             <div className="mt-4 space-y-3">
-              <div>
-                <label style={{ fontSize: 12, fontWeight: 500, color: 'var(--color-text-muted)' }}>Password share (≥ 8 ký tự)</label>
-                <input
-                  type="password"
-                  value={password}
-                  onChange={e => setPassword(e.target.value)}
-                  placeholder="Đặt password riêng cho file này"
-                  className="input-field"
-                  style={{ marginTop: 4 }}
-                  autoFocus
-                />
-                <p style={{ fontSize: 11, color: 'var(--color-text-muted)', marginTop: 4 }}>
-                  Người nhận cần password này để decrypt file. KHÔNG dùng password tài khoản TrishTEAM.
+              <div className="p-3 rounded-xl" style={{ background: 'var(--color-surface-row)' }}>
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={usePassword}
+                    onChange={e => setUsePassword(e.target.checked)}
+                    style={{ width: 16, height: 16, accentColor: 'var(--color-accent-primary)' }}
+                  />
+                  <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--color-text-primary)' }}>
+                    Bảo vệ bằng password (an toàn hơn)
+                  </span>
+                </label>
+                <p style={{ fontSize: 11, color: 'var(--color-text-muted)', marginTop: 4, marginLeft: 24, lineHeight: 1.5 }}>
+                  {usePassword
+                    ? 'Người nhận phải nhập password để tải. Gửi URL + password qua 2 kênh khác nhau.'
+                    : 'Tự-mở-khoá bằng key trong URL fragment (#k=...). Người nhận chỉ cần click link là tải. Server vẫn không decrypt được (key chỉ ở client).'}
                 </p>
               </div>
+
+              {usePassword && (
+                <div>
+                  <label style={{ fontSize: 12, fontWeight: 500, color: 'var(--color-text-muted)' }}>Password share (≥ 8 ký tự)</label>
+                  <input
+                    type="password"
+                    value={password}
+                    onChange={e => setPassword(e.target.value)}
+                    placeholder="Đặt password riêng cho file này"
+                    className="input-field"
+                    style={{ marginTop: 4 }}
+                    autoFocus
+                  />
+                  <p style={{ fontSize: 11, color: 'var(--color-text-muted)', marginTop: 4 }}>
+                    Người nhận cần password này để decrypt file. KHÔNG dùng password tài khoản TrishTEAM.
+                  </p>
+                </div>
+              )}
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label style={{ fontSize: 12, fontWeight: 500, color: 'var(--color-text-muted)' }}>Hết hạn sau (giờ)</label>
@@ -689,7 +711,7 @@ function ShareModal({ uid, file, onClose }: { uid: string; file: FileRow; onClos
 
             <div className="flex gap-2 justify-end mt-5">
               <button className="btn-secondary" onClick={onClose}>Huỷ</button>
-              <button className="btn-primary" onClick={create} disabled={busy || password.length < 8}>
+              <button className="btn-primary" onClick={create} disabled={busy || (usePassword && password.length < 8)}>
                 <Share2 className="h-4 w-4" /> {busy ? 'Đang tạo...' : 'Tạo link share'}
               </button>
             </div>
@@ -730,10 +752,19 @@ function ShareModal({ uid, file, onClose }: { uid: string; file: FileRow; onClos
               )}
             </div>
 
-            <div className="mt-3 p-3 rounded-xl" style={{ background: 'var(--color-surface-row)' }}>
-              <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: 0.04 }}>Password (gửi riêng cho người nhận)</div>
-              <div style={{ fontSize: 14, fontFamily: 'monospace', color: 'var(--color-text-primary)', marginTop: 4 }}>{password}</div>
-            </div>
+            {usePassword && password ? (
+              <div className="mt-3 p-3 rounded-xl" style={{ background: 'var(--color-surface-row)' }}>
+                <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: 0.04 }}>Password (gửi riêng cho người nhận)</div>
+                <div style={{ fontSize: 14, fontFamily: 'monospace', color: 'var(--color-text-primary)', marginTop: 4 }}>{password}</div>
+              </div>
+            ) : (
+              <div className="mt-3 p-3 rounded-xl" style={{ background: 'rgba(16,185,129,0.08)', border: '1px solid rgba(16,185,129,0.2)' }}>
+                <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--color-accent-primary)', textTransform: 'uppercase', letterSpacing: 0.04 }}>Tự-mở-khoá</div>
+                <div style={{ fontSize: 12, color: 'var(--color-text-muted)', marginTop: 4, lineHeight: 1.5 }}>
+                  Key đã nhúng vào URL fragment (#k=...). Người nhận chỉ cần click link là tự tải. Không cần password riêng.
+                </div>
+              </div>
+            )}
 
             <div className="flex justify-end mt-5">
               <button className="btn-primary" onClick={onClose}>Đóng</button>
