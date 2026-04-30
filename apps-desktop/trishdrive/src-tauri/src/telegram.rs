@@ -22,6 +22,7 @@ pub struct ChatInfo {
     pub description: Option<String>,
 }
 
+#[allow(dead_code)]
 #[derive(Debug, Deserialize)]
 pub struct DocumentInfo {
     pub file_id: String,
@@ -37,6 +38,7 @@ pub struct MessageInfo {
     pub document: Option<DocumentInfo>,
 }
 
+#[allow(dead_code)]
 #[derive(Debug, Deserialize)]
 pub struct FilePathInfo {
     pub file_id: String,

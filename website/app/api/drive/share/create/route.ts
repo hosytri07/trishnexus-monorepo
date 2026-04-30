@@ -2,17 +2,12 @@
  * POST /api/drive/share/create — Phase 22.7b
  *
  * Owner (TrishDrive desktop) tạo share link.
- * Body: { owner_uid, file_id, file_name, file_size_bytes, file_sha256_hex, chunks,
- *         encrypted_bot_token_hex, encrypted_master_key_hex, expires_at, max_downloads }
- * Response: { token, url }
- *
  * Lưu Firestore /trishdrive/_/shares/{token} với metadata + encrypted credentials.
- * Server KHÔNG có password → KHÔNG decrypt được bot_token/master_key (zero-knowledge).
+ * Server KHÔNG có password → KHÔNG decrypt được bot_token/master_key.
  */
 
 import { NextResponse, type NextRequest } from 'next/server';
-import { getFirestore } from 'firebase-admin/firestore';
-import { initAdminApp } from '@/lib/firebase-admin';
+import { adminDb, adminReady } from '@/lib/firebase-admin';
 import { randomBytes } from 'crypto';
 
 export const runtime = 'nodejs';
@@ -32,10 +27,11 @@ interface CreatePayload {
 
 export async function POST(req: NextRequest) {
   try {
-    initAdminApp();
+    if (!adminReady()) {
+      return NextResponse.json({ error: 'Firebase Admin SDK chưa cấu hình trên server' }, { status: 501 });
+    }
     const body = (await req.json()) as CreatePayload;
 
-    // Sanity validate
     if (!body.owner_uid || !body.file_id || !body.encrypted_bot_token_hex || !body.encrypted_master_key_hex) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
     }
@@ -43,10 +39,8 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Empty chunks' }, { status: 400 });
     }
 
-    // Generate random URL-safe token (16 bytes → ~22 chars base64url)
     const token = randomBytes(16).toString('base64url');
-
-    const db = getFirestore();
+    const db = adminDb();
     const now = Date.now();
     await db.collection('trishdrive').doc('_').collection('shares').doc(token).set({
       token,

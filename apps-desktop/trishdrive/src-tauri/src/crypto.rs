@@ -43,6 +43,7 @@ pub fn decrypt(key_hex: &str, payload: &[u8]) -> Result<Vec<u8>, String> {
         .map_err(|e| format!("decrypt (sai passphrase hoặc file corrupt): {}", e))
 }
 
+#[allow(dead_code)]
 pub fn sha256_hex(data: &[u8]) -> String {
     use sha2::{Digest, Sha256};
     let mut hasher = Sha256::new();

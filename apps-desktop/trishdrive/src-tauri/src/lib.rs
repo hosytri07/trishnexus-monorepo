@@ -12,7 +12,7 @@ mod db;
 mod crypto;
 
 use serde::Serialize;
-use tauri::{Manager, Emitter};
+use tauri::Emitter;
 use std::path::PathBuf;
 
 /// Emit từ backend → frontend listen qua `listen('drive-progress', ...)`.
@@ -554,13 +554,29 @@ async fn share_create(
         .json(&payload)
         .send()
         .await
-        .map_err(|e| format!("HTTP: {}", e))?;
-    if !resp.status().is_success() {
-        let status = resp.status();
-        let body = resp.text().await.unwrap_or_default();
-        return Err(format!("API error {}: {}", status, body));
+        .map_err(|e| format!("Không kết nối được {}: {}. Kiểm tra mạng.", SHARE_API_BASE, e))?;
+    let status = resp.status();
+    let body_text = resp.text().await.unwrap_or_default();
+    if !status.is_success() {
+        // Detect HTML response (Vercel 404 page returning HTML thay vì JSON)
+        let trimmed = body_text.trim_start();
+        if trimmed.starts_with("<!DOCTYPE") || trimmed.starts_with("<html") {
+            return Err(format!(
+                "Server {} chưa có endpoint /api/drive/share/create (HTTP {}). \
+                Web TrishTEAM cần deploy bản mới — chạy 'git push origin main' để Vercel build.",
+                SHARE_API_BASE, status
+            ));
+        }
+        // JSON error response
+        if let Ok(err_json) = serde_json::from_str::<serde_json::Value>(&body_text) {
+            if let Some(msg) = err_json.get("error").and_then(|v| v.as_str()) {
+                return Err(format!("API {}: {}", status, msg));
+            }
+        }
+        return Err(format!("API error {}: {}", status, body_text.chars().take(200).collect::<String>()));
     }
-    let result: ShareCreateResponse = resp.json().await.map_err(|e| format!("JSON: {}", e))?;
+    let result: ShareCreateResponse = serde_json::from_str(&body_text)
+        .map_err(|e| format!("Parse JSON response: {}. Body: {}", e, body_text.chars().take(200).collect::<String>()))?;
     Ok(ShareResult { token: result.token, url: result.url })
 }
 

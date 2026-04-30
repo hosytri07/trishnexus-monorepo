@@ -1,13 +1,10 @@
 /**
  * GET /api/drive/share/{token}/info — Phase 22.7b
- *
  * Recipient mở share page → fetch metadata (file name, size, expires) + encrypted creds.
- * KHÔNG return file content. Client cần password để decrypt creds + chunks.
  */
 
 import { NextResponse, type NextRequest } from 'next/server';
-import { getFirestore } from 'firebase-admin/firestore';
-import { initAdminApp } from '@/lib/firebase-admin';
+import { adminDb, adminReady } from '@/lib/firebase-admin';
 
 export const runtime = 'nodejs';
 
@@ -17,8 +14,10 @@ export async function GET(
 ) {
   try {
     const { token } = await params;
-    initAdminApp();
-    const db = getFirestore();
+    if (!adminReady()) {
+      return NextResponse.json({ error: 'Firebase Admin SDK chưa cấu hình' }, { status: 501 });
+    }
+    const db = adminDb();
     const doc = await db.collection('trishdrive').doc('_').collection('shares').doc(token).get();
     if (!doc.exists) {
       return NextResponse.json({ error: 'Share không tồn tại hoặc đã bị xoá' }, { status: 404 });
@@ -46,7 +45,7 @@ export async function GET(
       download_count: data.download_count ?? 0,
       encrypted_bot_token_hex: data.encrypted_bot_token_hex,
       encrypted_master_key_hex: data.encrypted_master_key_hex,
-      chunks: data.chunks, // {idx, tg_file_id, byte_size, nonce_hex}
+      chunks: data.chunks,
     });
   } catch (e) {
     console.error('[share/info]', e);
