@@ -29,6 +29,7 @@ import { BulkImportPanel } from './components/BulkImportPanel.js';
 import { StoragePanel } from './components/StoragePanel.js';
 import { ErrorsPanel } from './components/ErrorsPanel.js';
 import { VitalsPanel } from './components/VitalsPanel.js';
+import { TrishDrivePanel } from './components/drive/DriveContainer.js';
 import { getAppVersion } from './tauri-bridge.js';
 import logoUrl from './assets/logo.png';
 
@@ -48,6 +49,7 @@ type Panel =
   | 'bulk_import'
   | 'backup'
   | 'storage'
+  | 'drive'
   | 'settings';
 
 interface NavGroup {
@@ -88,6 +90,12 @@ const NAV_GROUPS: NavGroup[] = [
     items: [
       { id: 'errors', label: '🐞 Errors' },
       { id: 'vitals', label: '📊 Vitals' },
+    ],
+  },
+  {
+    label: 'Cloud',
+    items: [
+      { id: 'drive', label: '☁ Drive Cloud Telegram' },
     ],
   },
   {
@@ -135,6 +143,11 @@ export function App(): JSX.Element {
   useEffect(() => {
     void getAppVersion().then(setVersion);
   }, []);
+
+  // Phase 24.1 — KHÔNG đổi html data-theme khi vào Drive. Drive panel có vars riêng
+  // (--color-surface-bg light cream) hardcoded ở :root drive-theme.css, hiển thị
+  // light tự nhiên. TrishAdmin sidebar GIỮ dark (vars --bg dùng :root[data-theme='dark']).
+  // Đây là behavior Trí muốn: sidebar luôn dark, chỉ main panel Drive light.
 
   // Ctrl+1..9 quick switch (theo thứ tự ALL_NAV_ITEMS)
   useEffect(() => {
@@ -227,6 +240,7 @@ export function App(): JSX.Element {
         {active === 'database_vn' && <DatabaseVnPanel />}
         {active === 'bulk_import' && <BulkImportPanel />}
         {active === 'storage' && <StoragePanel />}
+        {active === 'drive' && <TrishDrivePanel />}
         {active === 'backup' && <BackupPanel />}
         {active === 'settings' && <SettingsPanel />}
       </main>

@@ -1,6 +1,6 @@
 {
   "name": "@trishteam/trishlauncher",
-  "version": "2.0.1",
+  "version": "1.0.0",
   "private": true,
   "description": "TrishLauncher — desktop launcher cho ecosystem 10 app TrishTEAM. Stack: Tauri 2 (Rust backend) + React 18 + Vite 5 + @trishteam/core/ui. Thay thế bản Qt/Python cũ.",
   "type": "module",
@@ -18,6 +18,7 @@
     "@trishteam/ui": "workspace:*",
     "@trishteam/adapters": "workspace:*",
     "@trishteam/telemetry": "workspace:*",
+    "@trishteam/design-system": "workspace:*",
     "@tauri-apps/api": "^2.0.0",
     "@tauri-apps/plugin-opener": "^2.0.0",
     "react": "18.3.1",

@@ -1,7 +1,7 @@
 [package]
 name = "trishdrive"
-version = "0.1.0-alpha.1"
-description = "TrishDrive — quản lý lưu trữ Cloud qua Telegram (TrishTEAM ecosystem)"
+version = "1.0.0"
+description = "TrishDrive — User app: paste share link → tải file, browse Thư viện TrishTEAM (admin curate). Phase 26.1 rebuild khỏi admin (admin features đã chuyển sang TrishAdmin)."
 authors = ["TrishTEAM <hosytri77@gmail.com>"]
 edition = "2021"
 rust-version = "1.77"
@@ -24,35 +24,25 @@ tauri-plugin-dialog = "2"
 tauri-plugin-opener = "2"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
-# HTTP client cho Telegram Bot API (đơn giản, không cần MTProto cho MVP)
-reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "json", "multipart", "stream"] }
+
+# HTTP client cho web API /proxy + /info (browser CORS không cho fetch trực tiếp).
+reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "json", "stream"] }
 tokio = { version = "1", features = ["rt-multi-thread", "macros", "fs", "io-util"] }
-# SQLite local cache index file (mỗi file lưu Telegram chat_id + message_id + filename + size)
+
+# SQLite local cho download history + tags + bookmarks + notes (Phase 26.1.B).
 rusqlite = { version = "0.31", features = ["bundled"] }
-# AES-256-GCM encrypt file trước khi upload (Telegram bot có visibility tới file content)
+
+# AES-256-GCM decrypt chunks tải về (master key derive từ password share PBKDF2).
 aes-gcm = "0.10"
 sha2 = "0.10"
-# Credential store — Windows Credential Manager (DPAPI), keychain macOS, Secret Service Linux
-keyring = "2.3"
-# PBKDF2 derive AES key từ user passphrase
 pbkdf2 = "0.12"
 hmac = "0.12"
+
 rand = "0.8"
 hex = "0.4"
-# Async traits cho upload/download pipeline
-async-trait = "0.1"
-anyhow = "1"
 urlencoding = "2.1"
 
-# Phase 23 — MTProto cho file > 50MB (Bot API limit). grammers-client là Telegram MTProto Rust client.
-# Cần Telegram api_id + api_hash từ https://my.telegram.org/apps (mỗi user 1 lần đăng ký free).
-grammers-client = "0.7"
-grammers-session = "0.7"
-grammers-tl-types = "0.7"
-log = "0.4"
-# Phase 22 prep — TrishDrive MVP qua Telegram Bot API.
-# Phase 23+: chuyển MTProto qua grammers-client = "0.6" để upload file > 50MB
-# (giới hạn Bot API). MTProto cũng support download streaming tốt hơn.
+# Bỏ Phase 26.1.A: keyring + grammers-* (admin-only, đã chuyển sang TrishAdmin).
 
 [profile.release]
 panic = "abort"

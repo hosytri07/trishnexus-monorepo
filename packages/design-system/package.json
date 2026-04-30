@@ -1,0 +1,26 @@
+{
+  "name": "@trishteam/design-system",
+  "version": "1.0.0",
+  "private": true,
+  "description": "TrishTEAM design system — Plus Jakarta Sans + emerald + utility CSS. Gold standard từ TrishDrive (Phase 23) extracted để dùng chung cho 7+ desktop app + website Next.js. Phase 24.3 unify ecosystem.",
+  "type": "module",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": {
+      "types": "./src/index.ts",
+      "import": "./src/index.ts"
+    },
+    "./theme.css": "./src/theme.css",
+    "./fonts": {
+      "types": "./src/fonts.ts",
+      "import": "./src/fonts.ts"
+    }
+  },
+  "files": [
+    "src"
+  ],
+  "dependencies": {
+    "@fontsource/plus-jakarta-sans": "^5.1.0"
+  }
+}

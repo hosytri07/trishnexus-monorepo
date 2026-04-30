@@ -1,6 +1,6 @@
 [package]
 name = "trishcheck"
-version = "2.0.0-1"
+version = "1.0.0"
 description = "TrishCheck — hardware info + CPU/disk benchmark cho TrishTEAM"
 authors = ["TrishTEAM <hosytri77@gmail.com>"]
 edition = "2021"

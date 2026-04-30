@@ -12,17 +12,36 @@ import { randomBytes } from 'crypto';
 
 export const runtime = 'nodejs';
 
+interface ShareChunkPayload {
+  idx: number;
+  byte_size: number;
+  nonce_hex: string;
+  // Bot API path
+  tg_file_id?: string;
+  // MTProto path (Phase 26.0)
+  pipeline?: 'botapi' | 'mtproto';
+  tg_message_id?: number;
+  channel_id?: number;
+}
+
 interface CreatePayload {
   owner_uid: string;
   file_id: string;
   file_name: string;
   file_size_bytes: number;
   file_sha256_hex: string;
-  chunks: Array<{ idx: number; tg_file_id: string; byte_size: number; nonce_hex: string }>;
+  /** Pipeline mặc định 'botapi' nếu không set. Phase 26.0 thêm 'mtproto'. */
+  pipeline?: 'botapi' | 'mtproto';
+  chunks: ShareChunkPayload[];
   encrypted_bot_token_hex: string;
   encrypted_master_key_hex: string;
   expires_at: number | null;
   max_downloads: number | null;
+  /** Phase 26.1.E.1 — admin toggle: hiển thị trong "Thư viện TrishTEAM" tab.
+   *  Default false (private). User app TrishDrive sẽ list shares với is_public=true. */
+  is_public?: boolean;
+  /** Optional folder name để group trong Library UI (vd: "App", "Tài liệu", "Form"). */
+  folder_label?: string | null;
 }
 
 export async function POST(req: NextRequest) {
@@ -57,6 +76,10 @@ export async function POST(req: NextRequest) {
       file_name: body.file_name,
       file_size_bytes: body.file_size_bytes,
       file_sha256_hex: body.file_sha256_hex,
+      pipeline: body.pipeline ?? 'botapi',
+      // Phase 26.1.E.1 — public toggle cho Thư viện TrishTEAM
+      is_public: body.is_public === true,
+      folder_label: body.folder_label ?? null,
       chunks: body.chunks,
       encrypted_bot_token_hex: body.encrypted_bot_token_hex,
       encrypted_master_key_hex: body.encrypted_master_key_hex,

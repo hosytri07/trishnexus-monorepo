@@ -1,299 +1,192 @@
 /**
- * HelpPage — Phase 22.7d
- * Hướng dẫn sử dụng TrishDrive cho user mới.
+ * HelpPage — Phase 26.1.G rewrite cho User app.
+ * Bỏ admin sections (Setup Bot, Upload, Folder). Tập trung vào: paste link share,
+ * browse Thư viện TrishTEAM, history + bookmark, bảo mật, khắc phục.
  */
 
 import { useState } from 'react';
-import { openUrl } from '@tauri-apps/plugin-opener';
 import {
-  Bot, Upload, Download, Share2, Folder, ShieldCheck, Lock,
-  ChevronDown, ChevronRight, ExternalLink, AlertTriangle, BookOpen, MessagesSquare,
+  BookOpen, Download, Library, History, Shield, AlertTriangle,
+  ChevronDown, ChevronRight, Mail,
 } from 'lucide-react';
 
-type SectionId = 'setup' | 'upload' | 'download' | 'share' | 'folder' | 'security' | 'troubleshoot';
-
-const SECTIONS: Array<{
-  id: SectionId;
-  icon: typeof Bot;
+interface Section {
+  id: string;
+  icon: typeof BookOpen;
   title: string;
-  badge?: string;
-}> = [
-  { id: 'setup',        icon: Bot,         title: '1. Setup Telegram bot lần đầu', badge: 'Bắt buộc' },
-  { id: 'upload',       icon: Upload,      title: '2. Upload file' },
-  { id: 'download',     icon: Download,    title: '3. Download / Xoá file' },
-  { id: 'share',        icon: Share2,      title: '4. Tạo link chia sẻ', badge: 'Mới' },
-  { id: 'folder',       icon: Folder,      title: '5. Folder + ghi chú' },
-  { id: 'security',     icon: ShieldCheck, title: '6. Bảo mật + zero-knowledge' },
-  { id: 'troubleshoot', icon: AlertTriangle, title: '7. Khắc phục sự cố' },
+  body: JSX.Element;
+}
+
+const SECTIONS: Section[] = [
+  {
+    id: 'download',
+    icon: Download,
+    title: '1. Tải file qua link share',
+    body: (
+      <div style={{ fontSize: 13, color: 'var(--color-text-secondary)', lineHeight: 1.7 }}>
+        <p>Admin TrishTEAM gửi link share qua Zalo / email / Telegram. Link có 2 dạng:</p>
+        <ol style={{ paddingLeft: 20, marginTop: 8 }}>
+          <li><strong>Auto-key</strong>: <code>trishteam.io.vn/drive/share/abc...#k=...</code> — không cần password, click là tải</li>
+          <li><strong>Có password</strong>: <code>trishteam.io.vn/drive/share/abc...</code> — admin gửi password riêng (Zalo / SMS)</li>
+        </ol>
+        <p style={{ marginTop: 8 }}><strong>Cách dùng:</strong></p>
+        <ol style={{ paddingLeft: 20, marginTop: 4 }}>
+          <li>Mở tab <strong>"Tải file"</strong></li>
+          <li>Paste URL vào ô <em>Share URL</em></li>
+          <li>Nhập password (nếu admin yêu cầu) — KHÔNG dùng password tài khoản TrishTEAM</li>
+          <li>Bấm <em>"Chọn..."</em> → chọn thư mục lưu + tên file</li>
+          <li>Bấm <em>"Tải file"</em> → app tự decrypt + verify SHA256 + lưu</li>
+        </ol>
+      </div>
+    ),
+  },
+  {
+    id: 'library',
+    icon: Library,
+    title: '2. Browse Thư viện TrishTEAM',
+    body: (
+      <div style={{ fontSize: 13, color: 'var(--color-text-secondary)', lineHeight: 1.7 }}>
+        <p>Tab <strong>"Thư viện TrishTEAM"</strong> hiển thị file public do admin curate (TCVN, định mức, biểu mẫu, etc.):</p>
+        <ul style={{ paddingLeft: 20, marginTop: 8 }}>
+          <li>Filter theo folder (App / Tài liệu / Form / Dự án X) qua tab folder</li>
+          <li>Search theo tên file</li>
+          <li>Click <em>"Tải về"</em> → chọn dest → app tự tải + decrypt</li>
+        </ul>
+        <p style={{ marginTop: 8, color: 'var(--color-text-muted)' }}>
+          💡 Admin quyết định file nào hiện public. File private không hiện trong tab này — chỉ user có URL trực tiếp mới tải được.
+        </p>
+      </div>
+    ),
+  },
+  {
+    id: 'history',
+    icon: History,
+    title: '3. Lịch sử + bookmark',
+    body: (
+      <div style={{ fontSize: 13, color: 'var(--color-text-secondary)', lineHeight: 1.7 }}>
+        <p>Tab <strong>"Lịch sử"</strong> lưu mọi file đã tải qua app:</p>
+        <ul style={{ paddingLeft: 20, marginTop: 8 }}>
+          <li><strong>⭐ Bookmark</strong>: đánh dấu file thường xuyên dùng → filter "Bookmark" để xem nhanh</li>
+          <li><strong>🏷 Tag</strong>: đặt nhãn tự do (vd "TCVN", "Dự án QL1A")</li>
+          <li><strong>📝 Ghi chú</strong>: note cá nhân (vd "đã đọc, dùng cho báo cáo Q1")</li>
+          <li><strong>📂 Mở folder chứa</strong>: click icon folder → mở Explorer trỏ vào file</li>
+          <li><strong>📋 Copy SHA256</strong>: verify integrity manual</li>
+          <li><strong>🗑 Xoá khỏi lịch sử</strong>: chỉ xoá record DB, file trên đĩa KHÔNG bị xoá</li>
+        </ul>
+      </div>
+    ),
+  },
+  {
+    id: 'security',
+    icon: Shield,
+    title: '4. Bảo mật + zero-knowledge',
+    body: (
+      <div style={{ fontSize: 13, color: 'var(--color-text-secondary)', lineHeight: 1.7 }}>
+        <p>TrishDrive zero-knowledge — server <strong>KHÔNG biết nội dung file</strong>:</p>
+        <ul style={{ paddingLeft: 20, marginTop: 8 }}>
+          <li>File mã hóa <strong>AES-256-GCM</strong> client-side trước khi admin upload Telegram</li>
+          <li>Master key derive từ <strong>password share (PBKDF2 100k rounds)</strong></li>
+          <li>Server chỉ giữ <em>encrypted blob</em> + chunks Telegram → không decrypt được nếu không có password</li>
+          <li>Verify <strong>SHA256</strong> sau khi tải xong → đảm bảo file integrity</li>
+          <li>Lịch sử + bookmark + tag + note lưu <strong>local máy</strong> (SQLite trong %APPDATA%/vn.trishteam.drive/user.db)</li>
+        </ul>
+        <p style={{ marginTop: 8, color: 'var(--color-text-muted)' }}>
+          ⚠️ Mất password share = mất file. Admin cần gửi password lại hoặc tạo link share mới.
+        </p>
+      </div>
+    ),
+  },
+  {
+    id: 'troubleshoot',
+    icon: AlertTriangle,
+    title: '5. Khắc phục sự cố',
+    body: (
+      <div style={{ fontSize: 13, color: 'var(--color-text-secondary)', lineHeight: 1.7 }}>
+        <p><strong>"Sai password (decrypt fail)":</strong> Hỏi admin gửi lại password đúng. Password phân biệt hoa/thường.</p>
+        <p style={{ marginTop: 8 }}><strong>"SHA256 mismatch":</strong> File corrupt khi tải — bấm tải lại. Nếu vẫn lỗi, báo admin.</p>
+        <p style={{ marginTop: 8 }}><strong>"Share đã hết hạn / bị thu hồi":</strong> Admin set timer hết hạn. Liên hệ admin tạo link mới.</p>
+        <p style={{ marginTop: 8 }}><strong>"Share đã đạt giới hạn lượt tải":</strong> Admin set max downloads. Liên hệ admin tăng quota hoặc tạo link mới.</p>
+        <p style={{ marginTop: 8 }}><strong>"TypeError: Failed to fetch" trong Thư viện:</strong> Mạng yếu hoặc Vercel tạm down. Bấm Reload sau 30s.</p>
+      </div>
+    ),
+  },
 ];
 
 export function HelpPage(): JSX.Element {
-  const [open, setOpen] = useState<SectionId | null>('setup');
+  const [openIds, setOpenIds] = useState<Set<string>>(new Set(['download']));
+
+  function toggle(id: string) {
+    setOpenIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
 
   return (
-    <div className="max-w-4xl space-y-3">
+    <div className="space-y-3" style={{ maxWidth: 800, margin: '0 auto' }}>
       <div className="card">
-        <div className="card-header">
-          <div>
-            <h2 className="card-title flex items-center gap-2"><BookOpen className="h-5 w-5" /> Hướng dẫn TrishDrive</h2>
-            <p className="card-subtitle">
-              Cloud Storage cá nhân qua Telegram · không giới hạn dung lượng · zero-knowledge encryption.
-              Click từng mục để mở/đóng.
-            </p>
-          </div>
+        <div className="flex items-center gap-2">
+          <BookOpen className="h-5 w-5" style={{ color: 'var(--color-accent-primary)' }} />
+          <h2 className="card-title">Hướng dẫn TrishDrive User app</h2>
         </div>
+        <p className="card-subtitle" style={{ marginTop: 4 }}>
+          Tải file từ admin TrishTEAM qua share link · zero-knowledge encryption · click từng mục để mở/đóng.
+        </p>
       </div>
 
       {SECTIONS.map(s => {
+        const open = openIds.has(s.id);
         const Icon = s.icon;
-        const isOpen = open === s.id;
         return (
           <div key={s.id} className="card" style={{ padding: 0, overflow: 'hidden' }}>
             <button
-              onClick={() => setOpen(isOpen ? null : s.id)}
-              className="w-full flex items-center gap-3 text-left transition"
-              style={{ padding: '14px 18px', background: isOpen ? 'var(--color-surface-row)' : 'transparent', cursor: 'pointer', border: 'none' }}
+              onClick={() => toggle(s.id)}
+              style={{
+                width: '100%', padding: '14px 18px',
+                display: 'flex', alignItems: 'center', gap: 12,
+                background: 'transparent', border: 'none',
+                cursor: 'pointer', textAlign: 'left',
+              }}
             >
-              <div style={{ background: 'var(--color-accent-soft)', color: 'var(--color-accent-primary)', padding: 8, borderRadius: 10 }}>
+              <div style={{
+                width: 36, height: 36, borderRadius: 10,
+                background: 'var(--color-accent-soft)', color: 'var(--color-accent-primary)',
+                display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+              }}>
                 <Icon className="h-4 w-4" />
               </div>
-              <div className="flex-1">
+              <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--color-text-primary)' }}>
                   {s.title}
-                  {s.badge && (
-                    <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 7px', borderRadius: 6, background: 'var(--color-accent-gradient)', color: 'white', marginLeft: 8, letterSpacing: 0.04, textTransform: 'uppercase' }}>
-                      {s.badge}
-                    </span>
-                  )}
                 </div>
               </div>
-              {isOpen ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+              {open ? <ChevronDown className="h-4 w-4" style={{ color: 'var(--color-text-muted)' }} /> : <ChevronRight className="h-4 w-4" style={{ color: 'var(--color-text-muted)' }} />}
             </button>
-
-            {isOpen && (
-              <div style={{ padding: '0 18px 18px 18px', borderTop: '1px solid var(--color-border-subtle)' }}>
-                {s.id === 'setup' && <SetupSection />}
-                {s.id === 'upload' && <UploadSection />}
-                {s.id === 'download' && <DownloadSection />}
-                {s.id === 'share' && <ShareSection />}
-                {s.id === 'folder' && <FolderSection />}
-                {s.id === 'security' && <SecuritySection />}
-                {s.id === 'troubleshoot' && <TroubleshootSection />}
+            {open && (
+              <div style={{ padding: '0 18px 18px 66px', borderTop: '1px solid var(--color-border-subtle)' }}>
+                <div style={{ paddingTop: 14 }}>
+                  {s.body}
+                </div>
               </div>
             )}
           </div>
         );
       })}
 
-      <div className="card" style={{ background: 'var(--color-accent-soft)' }}>
-        <div className="flex gap-3 items-start">
-          <MessagesSquare className="h-5 w-5 flex-shrink-0 mt-0.5" style={{ color: 'var(--color-accent-primary)' }} />
+      {/* Contact card */}
+      <div className="card" style={{ background: 'var(--color-accent-soft)', border: '1px solid var(--color-accent-primary)' }}>
+        <div className="flex items-center gap-3">
+          <Mail className="h-5 w-5" style={{ color: 'var(--color-accent-primary)' }} />
           <div>
-            <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--color-text-primary)' }}>Câu hỏi khác?</div>
-            <p style={{ fontSize: 12, color: 'var(--color-text-secondary)', marginTop: 4 }}>
-              Email: <strong>trishteam.official@gmail.com</strong> · Web:{' '}
-              <button onClick={() => openUrl('https://trishteam.io.vn')} style={{ color: 'var(--color-text-link)', background: 'none', border: 'none', cursor: 'pointer', padding: 0, textDecoration: 'underline' }}>trishteam.io.vn</button>
-            </p>
+            <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--color-accent-primary)' }}>Cần hỗ trợ?</div>
+            <div style={{ fontSize: 12, color: 'var(--color-text-secondary)', marginTop: 2 }}>
+              Email: <strong>trishteam.official@gmail.com</strong> · Web: <a href="https://trishteam.io.vn" target="_blank" rel="noopener" style={{ color: 'var(--color-text-link)' }}>trishteam.io.vn</a>
+            </div>
           </div>
         </div>
       </div>
     </div>
-  );
-}
-
-// ============================================================
-// Section content
-// ============================================================
-
-function P({ children }: { children: React.ReactNode }): JSX.Element {
-  return <p style={{ fontSize: 13, color: 'var(--color-text-secondary)', lineHeight: 1.6, marginTop: 12 }}>{children}</p>;
-}
-
-function H({ children }: { children: React.ReactNode }): JSX.Element {
-  return <h3 style={{ fontSize: 14, fontWeight: 600, color: 'var(--color-text-primary)', marginTop: 16 }}>{children}</h3>;
-}
-
-function Code({ children }: { children: React.ReactNode }): JSX.Element {
-  return <code style={{ fontSize: 12, padding: '2px 6px', borderRadius: 4, background: 'var(--color-surface-row)', fontFamily: 'monospace', color: 'var(--color-accent-primary)' }}>{children}</code>;
-}
-
-function ExtLink({ href, children }: { href: string; children: React.ReactNode }): JSX.Element {
-  return (
-    <button onClick={() => openUrl(href)} style={{ color: 'var(--color-text-link)', background: 'none', border: 'none', cursor: 'pointer', padding: 0, textDecoration: 'underline', display: 'inline-flex', alignItems: 'center', gap: 3 }}>
-      {children} <ExternalLink className="h-3 w-3" />
-    </button>
-  );
-}
-
-function SetupSection(): JSX.Element {
-  return (
-    <>
-      <P>TrishDrive dùng <strong>Telegram bot riêng của bạn</strong> để upload file vào <strong>private channel</strong> của bạn. Free, không quota.</P>
-      <H>Bước 1 — Tạo bot</H>
-      <ol style={{ fontSize: 13, color: 'var(--color-text-secondary)', lineHeight: 1.8, marginTop: 8, paddingLeft: 20 }}>
-        <li>Mở Telegram → tìm <ExtLink href="https://t.me/BotFather">@BotFather</ExtLink></li>
-        <li>Gõ <Code>/newbot</Code> → đặt tên (vd: <em>TrishDrive Personal</em>)</li>
-        <li>Đặt username (phải kết thúc bằng <Code>bot</Code>, vd: <Code>tridrive_bot</Code>)</li>
-        <li>BotFather trả về <strong>BOT TOKEN</strong> dạng <Code>123456789:AAxxxx</Code> — copy lại</li>
-      </ol>
-      <H>Bước 2 — Tạo private channel</H>
-      <ol style={{ fontSize: 13, color: 'var(--color-text-secondary)', lineHeight: 1.8, marginTop: 8, paddingLeft: 20 }}>
-        <li>Telegram → New Channel → đặt tên + chọn <strong>Private</strong></li>
-        <li>Vào Channel info → Administrators → Add Admin → tìm bot vừa tạo → cấp quyền</li>
-        <li>Lấy CHANNEL ID: forward 1 tin nhắn từ channel cho <ExtLink href="https://t.me/RawDataBot">@RawDataBot</ExtLink> → copy <Code>chat.id</Code> dạng <Code>-1001234567890</Code></li>
-      </ol>
-      <H>Bước 3 — Setup trong app</H>
-      <P>Mở TrishDrive → wizard sẽ hiện 4 bước → paste token + channel ID + đặt passphrase ≥ 8 ký tự.</P>
-      <div style={{ background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.2)', borderRadius: 10, padding: 12, marginTop: 12 }}>
-        <strong style={{ fontSize: 12, color: '#dc2626' }}>⚠ KHÔNG QUÊN PASSPHRASE</strong>
-        <p style={{ fontSize: 12, color: 'var(--color-text-secondary)', marginTop: 4 }}>
-          Passphrase derive AES-256 master key. Nếu mất → file đã upload không decrypt lại được.
-          Lưu password manager (1Password, Bitwarden) hoặc giấy đặt nơi an toàn.
-        </p>
-      </div>
-    </>
-  );
-}
-
-function UploadSection(): JSX.Element {
-  return (
-    <>
-      <P>Upload bao nhiêu file cũng được, mỗi file lên tới vài GB. App tự chia chunk 19MB phía sau, recipient nhận được 1 file nguyên.</P>
-      <H>Cách upload</H>
-      <ol style={{ fontSize: 13, color: 'var(--color-text-secondary)', lineHeight: 1.8, marginTop: 8, paddingLeft: 20 }}>
-        <li>Tab <strong>Upload</strong> bên trái</li>
-        <li>Click vào dropzone → chọn file</li>
-        <li>(Tuỳ chọn) Chọn folder + nhập ghi chú</li>
-        <li>Click <strong>Upload</strong></li>
-        <li>Xem progress bar % real-time + tốc độ MB/s + ETA</li>
-      </ol>
-      <H>File lớn ≥ 1GB</H>
-      <P>App đọc file streaming (không load full vào RAM), nên upload file 5GB+ vẫn OK. Chia chunk 19MB → 5GB ≈ 270 chunks → upload tuần tự ~30-60 phút tuỳ tốc độ mạng.</P>
-      <H>Limit hiện tại (Phase 22)</H>
-      <ul style={{ fontSize: 13, color: 'var(--color-text-secondary)', lineHeight: 1.8, marginTop: 8, paddingLeft: 20 }}>
-        <li>Chunk size 19MB (Bot API getFile limit 20MB)</li>
-        <li>Upload tuần tự (chưa parallel) — Phase 22.5e</li>
-        <li>Chưa pause/resume — Phase 22.5f</li>
-        <li>Dung lượng tổng: <strong>không giới hạn</strong> (Telegram free unlimited channel size)</li>
-      </ul>
-    </>
-  );
-}
-
-function DownloadSection(): JSX.Element {
-  return (
-    <>
-      <H>Download file của bạn</H>
-      <ol style={{ fontSize: 13, color: 'var(--color-text-secondary)', lineHeight: 1.8, marginTop: 8, paddingLeft: 20 }}>
-        <li>Tab <strong>File của tôi</strong></li>
-        <li>Click icon <strong>⬇</strong> trên row file muốn tải</li>
-        <li>Chọn nơi save</li>
-        <li>App stream chunks từ Telegram → decrypt → ghi file → verify SHA-256</li>
-      </ol>
-      <P>App tự động ghép tất cả chunks thành 1 file nguyên giống bản gốc. Recipient KHÔNG thấy chunks.</P>
-      <H>Xoá file</H>
-      <P>Click icon <strong>🗑</strong> → confirm → app xoá tất cả chunks trên Telegram channel + remove SQLite index. Không khôi phục được.</P>
-      <H>Sửa thông tin</H>
-      <P>Click icon <strong>✎</strong> → đổi tên file / chuyển folder / sửa ghi chú. Không ảnh hưởng nội dung file trên Telegram.</P>
-    </>
-  );
-}
-
-function ShareSection(): JSX.Element {
-  return (
-    <>
-      <P>Tạo link share cho người khác tải file. Người nhận KHÔNG cần TrishDrive — chỉ cần browser + password bạn cấp.</P>
-      <H>Cách tạo link</H>
-      <ol style={{ fontSize: 13, color: 'var(--color-text-secondary)', lineHeight: 1.8, marginTop: 8, paddingLeft: 20 }}>
-        <li>Tab <strong>File của tôi</strong> → click icon <strong>🔗 Share</strong> trên row file</li>
-        <li>Đặt password riêng (≥ 8 ký tự) cho lần share này</li>
-        <li>Chọn thời hạn (1h / 1 ngày / 7 ngày / 30 ngày / không hết hạn)</li>
-        <li>Chọn max lượt tải (1 / 5 / 10 / 50 / không giới hạn)</li>
-        <li>Click <strong>Tạo link share</strong> → copy URL</li>
-      </ol>
-      <H>Gửi cho người nhận</H>
-      <P>
-        Gửi <strong>URL</strong> và <strong>password</strong> qua <strong>2 kênh khác nhau</strong> để an toàn (vd URL qua Zalo,
-        password qua SMS). Recipient mở URL → nhập password → file tự decrypt + tải về browser.
-      </P>
-      <H>Quản lý link đã tạo</H>
-      <P>Phase 22.7c sẽ thêm tab "Shared by me" để xem + revoke link đã tạo. Hiện tại link tự hết hạn theo cấu hình.</P>
-      <div style={{ background: 'var(--color-accent-soft)', borderRadius: 10, padding: 12, marginTop: 12 }}>
-        <strong style={{ fontSize: 12, color: 'var(--color-accent-primary)' }}>🔒 Zero-knowledge</strong>
-        <p style={{ fontSize: 12, color: 'var(--color-text-secondary)', marginTop: 4 }}>
-          Server TrishTEAM KHÔNG có password → KHÔNG decrypt được file. File chỉ giải mã được trên trình duyệt
-          recipient sau khi nhập đúng password.
-        </p>
-      </div>
-    </>
-  );
-}
-
-function FolderSection(): JSX.Element {
-  return (
-    <>
-      <H>Tạo folder</H>
-      <P>Sidebar trái Files page → click icon <strong>+</strong> bên cạnh "FOLDERS" → đặt tên.</P>
-      <H>Move file vào folder</H>
-      <P>Click icon <strong>✎</strong> trên file → dropdown "Folder" → chọn folder.</P>
-      <H>Filter</H>
-      <P>Click folder bên sidebar trái → page chỉ hiện file trong folder đó. Click "📁 Root" hiện file không thuộc folder nào. Click "📂 Tất cả" hiện toàn bộ.</P>
-      <H>Đổi tên / xoá folder</H>
-      <P>Hover folder → 2 icon <strong>✎ Rename</strong> + <strong>🗑 Delete</strong>. Khi xoá folder, file trong đó sẽ về Root (KHÔNG xoá file).</P>
-      <H>Ghi chú per-file</H>
-      <P>Mỗi file có ghi chú riêng (vd "Báo cáo Q1 — gửi Hùng"). Hiện inline trong table với icon 📝. Search bar tìm cả filename + note.</P>
-    </>
-  );
-}
-
-function SecuritySection(): JSX.Element {
-  return (
-    <>
-      <H>Encryption</H>
-      <P>Mỗi chunk file được mã hoá <strong>AES-256-GCM</strong> với master key derive từ passphrase qua <strong>PBKDF2-SHA256 200,000 rounds</strong>. Telegram chỉ thấy ciphertext, không decrypt được.</P>
-      <H>Storage</H>
-      <ul style={{ fontSize: 13, color: 'var(--color-text-secondary)', lineHeight: 1.8, marginTop: 8, paddingLeft: 20 }}>
-        <li>BOT_TOKEN + master key: lưu Windows Credential Manager (DPAPI), per-user</li>
-        <li>File metadata + chunks index: SQLite local <Code>%APPDATA%/vn.trishteam.drive/index.db</Code></li>
-        <li>File content: Telegram private channel của bạn (chỉ bot có quyền)</li>
-      </ul>
-      <H>Threat model</H>
-      <ul style={{ fontSize: 13, color: 'var(--color-text-secondary)', lineHeight: 1.8, marginTop: 8, paddingLeft: 20 }}>
-        <li>✅ Telegram admin / Trí (TrishTEAM) → KHÔNG đọc được file (encrypted)</li>
-        <li>✅ Người nhận chia sẻ link → chỉ decrypt được nếu có password</li>
-        <li>⚠️ Mất passphrase → mất file vĩnh viễn (không có recovery)</li>
-        <li>⚠️ Mất máy tính + ai đó truy cập DPAPI → có thể xem bot token (nhưng không decrypt content nếu không có passphrase)</li>
-      </ul>
-      <H>Best practices</H>
-      <ul style={{ fontSize: 13, color: 'var(--color-text-secondary)', lineHeight: 1.8, marginTop: 8, paddingLeft: 20 }}>
-        <li>Lưu passphrase trong password manager</li>
-        <li>Bật Telegram 2-Step Verification</li>
-        <li>Đặt password share riêng cho mỗi file (đừng dùng cùng 1 password)</li>
-        <li>Set expires_at cho share link (mặc định 7 ngày)</li>
-      </ul>
-    </>
-  );
-}
-
-function TroubleshootSection(): JSX.Element {
-  return (
-    <>
-      <H>Upload fail giữa chừng</H>
-      <P>App tự rollback (xoá file row SQLite). Nhưng các chunks đã upload vẫn còn trên Telegram channel — Trí có thể xoá thủ công bằng cách mở channel → delete messages.</P>
-      <H>"Telegram trả message không có document"</H>
-      <P>Có thể do Bot API limit hoặc network timeout. Thử lại upload, nếu vẫn fail check internet.</P>
-      <H>Download chậm</H>
-      <P>Telegram CDN free có rate limit. File 1GB có thể tải 5-15 phút. Phase 23 (MTProto) sẽ cải thiện.</P>
-      <H>Quên passphrase</H>
-      <P>KHÔNG có recovery — passphrase chỉ lưu trên máy bạn (DPAPI). Nếu mất → bắt buộc <strong>Reset config</strong> trong Settings, file đã upload sẽ trở thành dữ liệu rác trong Telegram channel (Trí phải xoá thủ công).</P>
-      <H>Setup bot fail</H>
-      <ul style={{ fontSize: 13, color: 'var(--color-text-secondary)', lineHeight: 1.8, marginTop: 8, paddingLeft: 20 }}>
-        <li><strong>"unauthorized"</strong> → Bot token sai. Check lại với @BotFather (gõ <Code>/mybots</Code>)</li>
-        <li><strong>"chat not found"</strong> → Channel ID sai. Forward 1 tin từ channel cho @RawDataBot</li>
-        <li><strong>"bot is not a member"</strong> → Chưa add bot làm Admin của channel</li>
-      </ul>
-      <H>Share link "Share không tồn tại"</H>
-      <P>Token sai hoặc đã bị Trí revoke. Tạo link mới.</P>
-    </>
   );
 }

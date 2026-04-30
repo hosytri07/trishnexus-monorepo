@@ -1,6 +1,6 @@
 [package]
 name = "trishlauncher"
-version = "2.0.1"
+version = "1.0.0"
 description = "TrishLauncher — desktop launcher cho ecosystem TrishTEAM"
 authors = ["TrishTEAM <hosytri77@gmail.com>"]
 edition = "2021"

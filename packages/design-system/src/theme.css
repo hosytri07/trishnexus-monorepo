@@ -1,0 +1,542 @@
+/* ================================================================
+   @trishteam/design-system — theme.css (Phase 24.3)
+   Plus Jakarta Sans + emerald + warm-tone theme.
+
+   Source: extracted từ apps-desktop/trishadmin/src/drive-theme.css (Phase 24.1
+   gold standard, đã tested với TrishAdmin + Drive panel).
+
+   Scope: `.ts-app` (TrishTEAM app). Wrap content app trong:
+     <div className="ts-app">...</div>
+   để utility classes (.flex, .gap-N, .p-N, .rounded-N, ...) hoạt động.
+
+   Theme switching: set `<html data-theme="light">` hoặc `data-theme="dark"`.
+   Mặc định no-attribute = light (gold standard TrishDrive).
+
+   KHÔNG dùng Tailwind v4 framework (preflight reset phá form input/button).
+   Utility classes ship sẵn trong file này (~200 dòng, subset đủ cho app dùng).
+   ================================================================ */
+
+/* ---------------- TIER 1: Theme tokens ----------------
+   Phase 24.1.P — Drive panel support cả LIGHT + DARK theme đồng bộ với TrishAdmin.
+   :root + :root[data-theme='light']: cream/emerald (gold standard TrishDrive)
+   :root[data-theme='dark']: dark warm + emerald sáng hơn (giữ accent identity) */
+
+:root,
+:root[data-theme='light'] {
+  color-scheme: light;
+
+  --color-accent-primary: #059669;
+  --color-accent-secondary: #047857;
+  --color-accent-soft: rgba(5,150,105,0.10);
+  --color-accent-gradient: linear-gradient(135deg, #10b981 0%, #047857 100%);
+  --color-accent-focus: #059669;
+
+  --color-surface-bg: #f4f3f0;
+  --color-surface-bg-elevated: #ffffff;
+  --color-surface-card: #ffffff;
+  --color-surface-row: #faf9f6;
+  --color-surface-muted: #ebe9e3;
+  --color-surface-hover: rgba(5,150,105,0.06);
+  --color-surface-overlay: rgba(15,14,12,0.5);
+
+  --color-text-primary: #1c1b22;
+  --color-text-secondary: #3f3d4a;
+  --color-text-muted: #6b6877;
+  --color-text-inverse: #ffffff;
+  --color-text-link: #047857;
+
+  --color-border-subtle: rgba(28,27,34,0.08);
+  --color-border-default: rgba(28,27,34,0.12);
+  --color-border-strong: rgba(28,27,34,0.20);
+  --color-border-focus: #10b981;
+
+  --semantic-success: #10b981;
+  --semantic-warning: #f59e0b;
+  --semantic-danger: #ef4444;
+  --semantic-info: #3b82f6;
+
+  --shadow-xs: 0 1px 2px 0 rgba(28,27,34,0.05);
+  --shadow-sm: 0 2px 4px 0 rgba(28,27,34,0.06), 0 1px 2px 0 rgba(28,27,34,0.04);
+
+  --color-primary-50:  #ecfdf5;
+  --color-primary-100: #d1fae5;
+  --color-primary-200: #a7f3d0;
+  --color-primary-300: #6ee7b7;
+  --color-primary-400: #34d399;
+  --color-primary-500: #10b981;
+  --color-primary-600: #059669;
+  --color-primary-700: #047857;
+  --color-primary-800: #065f46;
+  --color-primary-900: #064e3b;
+
+  --font-sans: 'Plus Jakarta Sans', 'Segoe UI', Roboto, Arial, sans-serif;
+}
+
+:root[data-theme='dark'] {
+  color-scheme: dark;
+
+  /* Emerald sáng hơn cho contrast trên nền dark */
+  --color-accent-primary: #34d399;
+  --color-accent-secondary: #10b981;
+  --color-accent-soft: rgba(52,211,153,0.16);
+  --color-accent-gradient: linear-gradient(135deg, #34d399 0%, #10b981 100%);
+  --color-accent-focus: #34d399;
+
+  /* Dark warm-tone (cùng tone neutral cream nhưng tối) */
+  --color-surface-bg: #14161b;
+  --color-surface-bg-elevated: #1a1d23;
+  --color-surface-card: #1e2129;
+  --color-surface-row: #232730;
+  --color-surface-muted: #2a2e38;
+  --color-surface-hover: rgba(52,211,153,0.08);
+  --color-surface-overlay: rgba(0,0,0,0.65);
+
+  --color-text-primary: #e5e7eb;
+  --color-text-secondary: #c9ccd3;
+  --color-text-muted: #8b8f99;
+  --color-text-inverse: #14161b;
+  --color-text-link: #6ee7b7;
+
+  --color-border-subtle: rgba(255,255,255,0.06);
+  --color-border-default: rgba(255,255,255,0.10);
+  --color-border-strong: rgba(255,255,255,0.18);
+  --color-border-focus: #34d399;
+
+  --semantic-success: #34d399;
+  --semantic-warning: #fbbf24;
+  --semantic-danger: #f87171;
+  --semantic-info: #60a5fa;
+
+  --shadow-xs: 0 1px 2px 0 rgba(0,0,0,0.4);
+  --shadow-sm: 0 2px 4px 0 rgba(0,0,0,0.35), 0 1px 2px 0 rgba(0,0,0,0.25);
+}
+
+/* ---------------- TIER 2: Global font + box-sizing ----------------
+   !important để thắng styles.css TrishAdmin cũ (set system font).
+   Plus Jakarta Sans áp dụng cho TOÀN APP (login, sidebar, panels). */
+*, *::before, *::after { box-sizing: border-box; }
+
+html, body, #root, button, input, textarea, select {
+  font-family: 'Plus Jakarta Sans', 'Segoe UI', Roboto, Arial, sans-serif !important;
+  font-feature-settings: 'kern' 1, 'liga' 1, 'ss01' 1;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+}
+
+/* ---------------- TIER 3: Drive panel scoped layout ---------------- */
+.ts-app {
+  font-size: 13px;
+  font-weight: 400;
+  line-height: 1.55;
+  color: var(--color-text-primary);
+}
+
+/* Phase 24.1.R — reset default browser button border (Tailwind v4 reset đã bỏ
+   ở Phase 24.1.J). Các button không có class explicit sẽ KHÔNG show border xám
+   default. Component classes (.btn-primary, .btn-secondary, .icon-btn) tự set lại. */
+.ts-app button {
+  border: none;
+  background: transparent;
+  text-align: inherit;
+  color: inherit;
+}
+.ts-app input, .ts-app textarea, .ts-app select {
+  border: 1px solid var(--color-border-subtle);
+  background: var(--color-surface-row);
+  color: var(--color-text-primary);
+}
+
+.ts-app h1 { font-size: 22px; font-weight: 600; line-height: 1.3; letter-spacing: -0.025em; margin: 0; }
+.ts-app h2 { font-size: 18px; font-weight: 600; line-height: 1.35; letter-spacing: -0.015em; margin: 0; }
+.ts-app h3 { font-size: 15px; font-weight: 600; line-height: 1.4; letter-spacing: -0.01em; margin: 0; }
+.ts-app p  { font-size: 13px; line-height: 1.55; margin: 0; }
+.ts-app strong, .ts-app b { font-weight: 600; }
+
+/* ---------------- TIER 4: Drive component classes ---------------- */
+.ts-app .card {
+  background: var(--color-surface-card);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: 14px;
+  padding: 18px;
+  box-shadow: var(--shadow-xs);
+}
+
+.ts-app .card-header {
+  margin-bottom: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+@media (min-width: 768px) {
+  .ts-app .card-header { flex-direction: row; align-items: flex-start; justify-content: space-between; }
+}
+
+.ts-app .card-title {
+  color: var(--color-text-primary);
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+.ts-app .card-subtitle {
+  color: var(--color-text-muted);
+  font-size: 12px;
+  line-height: 1.5;
+  margin-top: 3px;
+  font-weight: 400;
+}
+
+.ts-app .btn-primary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  background: var(--color-accent-gradient);
+  color: var(--color-text-inverse);
+  border-radius: 10px;
+  padding: 7px 13px;
+  font-size: 12.5px;
+  font-weight: 600;
+  box-shadow: var(--shadow-xs);
+  transition: filter 150ms;
+  border: none;
+  cursor: pointer;
+}
+.ts-app .btn-primary:hover { filter: brightness(1.08); }
+.ts-app .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
+
+.ts-app .btn-secondary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  background: var(--color-surface-card);
+  color: var(--color-text-secondary);
+  border: 1px solid var(--color-border-default);
+  border-radius: 10px;
+  padding: 7px 13px;
+  font-size: 12.5px;
+  font-weight: 500;
+  box-shadow: var(--shadow-xs);
+  transition: background 150ms, color 150ms, border-color 150ms;
+  cursor: pointer;
+}
+.ts-app .btn-secondary:hover {
+  background: var(--color-surface-hover);
+  color: var(--color-accent-primary);
+  border-color: var(--color-accent-primary);
+}
+.ts-app .btn-secondary:disabled { opacity: 0.5; cursor: not-allowed; }
+
+.ts-app .btn-danger {
+  display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+  background: var(--semantic-danger); color: white;
+  border-radius: 10px; padding: 7px 13px; font-size: 12.5px; font-weight: 600;
+  border: none; cursor: pointer;
+}
+.ts-app .btn-danger:hover { filter: brightness(1.08); }
+
+.ts-app .icon-btn {
+  background: var(--color-surface-card);
+  border: 1px solid var(--color-border-subtle);
+  color: var(--color-text-secondary);
+  border-radius: 8px;
+  padding: 6px;
+  transition: background 150ms, color 150ms, border-color 150ms;
+  cursor: pointer;
+}
+.ts-app .icon-btn:hover {
+  background: var(--color-accent-soft);
+  color: var(--color-accent-primary);
+  border-color: var(--color-accent-primary);
+}
+.ts-app .icon-btn-danger {
+  background: var(--color-surface-card);
+  border: 1px solid var(--color-border-subtle);
+  color: var(--color-text-secondary);
+  border-radius: 8px;
+  padding: 6px;
+  transition: background 150ms, color 150ms;
+  cursor: pointer;
+}
+.ts-app .icon-btn-danger:hover {
+  background: rgba(239,68,68,0.08);
+  color: var(--semantic-danger);
+}
+
+.ts-app .badge {
+  display: inline-flex; align-items: center;
+  border-radius: 6px; padding: 2px 7px;
+  font-size: 11px; font-weight: 600; letter-spacing: 0.01em;
+}
+.ts-app .badge-green  { background: rgba(16,185,129,0.12); color: #047857; }
+.ts-app .badge-yellow { background: rgba(245,158,11,0.12); color: #b45309; }
+.ts-app .badge-red    { background: rgba(239,68,68,0.12);  color: #b91c1c; }
+.ts-app .badge-gray   { background: var(--color-surface-muted); color: var(--color-text-muted); }
+.ts-app .badge-blue   { background: var(--color-accent-soft); color: var(--color-accent-primary); }
+
+.ts-app .data-table {
+  width: 100%; border-collapse: collapse;
+  font-size: 13px; text-align: left;
+}
+.ts-app .data-table thead {
+  background: var(--color-surface-row);
+  color: var(--color-text-muted);
+}
+.ts-app .data-table th {
+  padding: 9px 14px; font-size: 11px; font-weight: 600;
+  letter-spacing: 0.05em; text-transform: uppercase; white-space: nowrap;
+}
+.ts-app .data-table td {
+  padding: 11px 14px; border-top: 1px solid var(--color-border-subtle);
+  color: var(--color-text-secondary); font-weight: 400; white-space: nowrap;
+}
+.ts-app .data-table tbody tr { transition: background 150ms; }
+.ts-app .data-table tbody tr:hover { background: var(--color-surface-hover); }
+
+.ts-app .input-field {
+  width: 100%;
+  background: var(--color-surface-row);
+  border: 1px solid var(--color-border-subtle);
+  color: var(--color-text-primary);
+  border-radius: 10px;
+  padding: 7px 13px;
+  font-size: 13px; font-weight: 400; outline: none;
+  transition: border-color 150ms, background 150ms;
+}
+.ts-app .input-field:focus {
+  border-color: var(--color-border-focus);
+  background: var(--color-surface-bg-elevated);
+  box-shadow: 0 0 0 3px var(--color-accent-soft);
+}
+
+.ts-app .select-field {
+  width: 100%;
+  background: var(--color-surface-row);
+  border: 1px solid var(--color-border-subtle);
+  color: var(--color-text-primary);
+  border-radius: 10px;
+  padding: 7px 13px;
+  font-size: 13px; font-weight: 500; outline: none;
+  transition: border-color 150ms, background 150ms;
+}
+.ts-app .select-field:focus {
+  border-color: var(--color-border-focus);
+  background: var(--color-surface-bg-elevated);
+  box-shadow: 0 0 0 3px var(--color-accent-soft);
+}
+
+.ts-app .form-grid { display: grid; gap: 14px; }
+@media (min-width: 768px) {
+  .ts-app .form-grid { grid-template-columns: repeat(2, 1fr); }
+}
+
+/* ---------------- TIER 5: Tailwind-like utility classes (subset)
+   Scope `.ts-app` để KHÔNG ảnh hưởng host app legacy. */
+
+.ts-app .flex { display: flex; }
+.ts-app .inline-flex { display: inline-flex; }
+.ts-app .grid { display: grid; }
+.ts-app .block { display: block; }
+.ts-app .inline-block { display: inline-block; }
+.ts-app .hidden { display: none; }
+
+.ts-app .flex-1 { flex: 1 1 0%; }
+.ts-app .flex-col { flex-direction: column; }
+.ts-app .flex-row { flex-direction: row; }
+.ts-app .flex-wrap { flex-wrap: wrap; }
+.ts-app .flex-shrink-0 { flex-shrink: 0; }
+.ts-app .flex-grow { flex-grow: 1; }
+.ts-app .items-center { align-items: center; }
+.ts-app .items-start { align-items: flex-start; }
+.ts-app .items-end { align-items: flex-end; }
+.ts-app .items-baseline { align-items: baseline; }
+.ts-app .justify-center { justify-content: center; }
+.ts-app .justify-between { justify-content: space-between; }
+.ts-app .justify-end { justify-content: flex-end; }
+.ts-app .justify-start { justify-content: flex-start; }
+.ts-app .self-start { align-self: flex-start; }
+.ts-app .self-center { align-self: center; }
+
+.ts-app .gap-1 { gap: 4px; }
+.ts-app .gap-1\.5 { gap: 6px; }
+.ts-app .gap-2 { gap: 8px; }
+.ts-app .gap-3 { gap: 12px; }
+.ts-app .gap-4 { gap: 16px; }
+.ts-app .gap-5 { gap: 20px; }
+.ts-app .gap-6 { gap: 24px; }
+.ts-app .gap-8 { gap: 32px; }
+
+.ts-app .p-0 { padding: 0; }
+.ts-app .p-1 { padding: 4px; }
+.ts-app .p-2 { padding: 8px; }
+.ts-app .p-3 { padding: 12px; }
+.ts-app .p-4 { padding: 16px; }
+.ts-app .p-5 { padding: 20px; }
+.ts-app .p-6 { padding: 24px; }
+.ts-app .p-8 { padding: 32px; }
+.ts-app .px-2 { padding-left: 8px; padding-right: 8px; }
+.ts-app .px-3 { padding-left: 12px; padding-right: 12px; }
+.ts-app .px-4 { padding-left: 16px; padding-right: 16px; }
+.ts-app .px-6 { padding-left: 24px; padding-right: 24px; }
+.ts-app .py-1 { padding-top: 4px; padding-bottom: 4px; }
+.ts-app .py-2 { padding-top: 8px; padding-bottom: 8px; }
+.ts-app .py-3 { padding-top: 12px; padding-bottom: 12px; }
+.ts-app .py-4 { padding-top: 16px; padding-bottom: 16px; }
+.ts-app .py-6 { padding-top: 24px; padding-bottom: 24px; }
+.ts-app .py-8 { padding-top: 32px; padding-bottom: 32px; }
+.ts-app .py-12 { padding-top: 48px; padding-bottom: 48px; }
+.ts-app .pl-1 { padding-left: 4px; }
+.ts-app .pl-2 { padding-left: 8px; }
+.ts-app .pl-8 { padding-left: 32px; }
+.ts-app .pr-2 { padding-right: 8px; }
+.ts-app .pt-2 { padding-top: 8px; }
+.ts-app .pt-3 { padding-top: 12px; }
+.ts-app .pt-4 { padding-top: 16px; }
+
+.ts-app .m-0 { margin: 0; }
+.ts-app .mt-0\.5 { margin-top: 2px; }
+.ts-app .mt-1 { margin-top: 4px; }
+.ts-app .mt-2 { margin-top: 8px; }
+.ts-app .mt-3 { margin-top: 12px; }
+.ts-app .mt-4 { margin-top: 16px; }
+.ts-app .mt-5 { margin-top: 20px; }
+.ts-app .mt-6 { margin-top: 24px; }
+.ts-app .mt-8 { margin-top: 32px; }
+.ts-app .mb-1 { margin-bottom: 4px; }
+.ts-app .mb-2 { margin-bottom: 8px; }
+.ts-app .mb-3 { margin-bottom: 12px; }
+.ts-app .mb-4 { margin-bottom: 16px; }
+.ts-app .mb-6 { margin-bottom: 24px; }
+.ts-app .ml-2 { margin-left: 8px; }
+.ts-app .ml-3 { margin-left: 12px; }
+.ts-app .ml-auto { margin-left: auto; }
+.ts-app .mr-2 { margin-right: 8px; }
+.ts-app .mx-auto { margin-left: auto; margin-right: auto; }
+.ts-app .-mx-6 { margin-left: -24px; margin-right: -24px; }
+.ts-app .my-1 { margin-top: 4px; margin-bottom: 4px; }
+.ts-app .my-2 { margin-top: 8px; margin-bottom: 8px; }
+.ts-app .my-3 { margin-top: 12px; margin-bottom: 12px; }
+.ts-app .my-4 { margin-top: 16px; margin-bottom: 16px; }
+
+.ts-app .w-3 { width: 12px; }
+.ts-app .w-3\.5 { width: 14px; }
+.ts-app .w-4 { width: 16px; }
+.ts-app .w-5 { width: 20px; }
+.ts-app .w-6 { width: 24px; }
+.ts-app .w-8 { width: 32px; }
+.ts-app .w-10 { width: 40px; }
+.ts-app .w-12 { width: 48px; }
+.ts-app .w-16 { width: 64px; }
+.ts-app .w-64 { width: 256px; }
+.ts-app .w-72 { width: 288px; }
+.ts-app .w-full { width: 100%; }
+.ts-app .h-1 { height: 4px; }
+.ts-app .h-2 { height: 8px; }
+.ts-app .h-3 { height: 12px; }
+.ts-app .h-3\.5 { height: 14px; }
+.ts-app .h-4 { height: 16px; }
+.ts-app .h-5 { height: 20px; }
+.ts-app .h-6 { height: 24px; }
+.ts-app .h-8 { height: 32px; }
+.ts-app .h-10 { height: 40px; }
+.ts-app .h-12 { height: 48px; }
+.ts-app .min-w-0 { min-width: 0; }
+.ts-app .min-h-screen { min-height: 100vh; }
+.ts-app .max-w-xs { max-width: 20rem; }
+.ts-app .max-w-sm { max-width: 24rem; }
+.ts-app .max-w-md { max-width: 28rem; }
+.ts-app .max-w-lg { max-width: 32rem; }
+.ts-app .max-w-xl { max-width: 36rem; }
+.ts-app .max-w-2xl { max-width: 42rem; }
+.ts-app .max-w-3xl { max-width: 48rem; }
+.ts-app .max-w-4xl { max-width: 56rem; }
+.ts-app .max-w-5xl { max-width: 64rem; }
+.ts-app .max-w-6xl { max-width: 72rem; }
+.ts-app .max-w-full { max-width: 100%; }
+
+.ts-app .text-center { text-align: center; }
+.ts-app .text-right { text-align: right; }
+.ts-app .text-left { text-align: left; }
+.ts-app .text-xs { font-size: 11px; }
+.ts-app .text-sm { font-size: 12px; }
+.ts-app .text-base { font-size: 14px; }
+.ts-app .text-lg { font-size: 16px; }
+.ts-app .text-xl { font-size: 20px; }
+.ts-app .text-2xl { font-size: 24px; }
+.ts-app .text-3xl { font-size: 28px; }
+.ts-app .font-medium { font-weight: 500; }
+.ts-app .font-semibold { font-weight: 600; }
+.ts-app .font-bold { font-weight: 700; }
+
+.ts-app .rounded { border-radius: 4px; }
+.ts-app .rounded-md { border-radius: 6px; }
+.ts-app .rounded-lg { border-radius: 8px; }
+.ts-app .rounded-xl { border-radius: 12px; }
+.ts-app .rounded-2xl { border-radius: 16px; }
+.ts-app .rounded-3xl { border-radius: 24px; }
+.ts-app .rounded-full { border-radius: 9999px; }
+
+.ts-app .cursor-pointer { cursor: pointer; }
+.ts-app .cursor-not-allowed { cursor: not-allowed; }
+.ts-app .truncate { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ts-app .whitespace-nowrap { white-space: nowrap; }
+.ts-app .overflow-auto { overflow: auto; }
+.ts-app .overflow-hidden { overflow: hidden; }
+.ts-app .overflow-x-auto { overflow-x: auto; }
+.ts-app .overflow-y-auto { overflow-y: auto; }
+
+.ts-app .relative { position: relative; }
+.ts-app .absolute { position: absolute; }
+.ts-app .fixed { position: fixed; }
+.ts-app .sticky { position: sticky; }
+.ts-app .inset-0 { top: 0; right: 0; bottom: 0; left: 0; }
+.ts-app .top-0 { top: 0; }
+.ts-app .top-1\/2 { top: 50%; }
+.ts-app .left-2\.5 { left: 10px; }
+.ts-app .-translate-y-1\/2 { transform: translateY(-50%); }
+
+.ts-app .transition { transition: all 150ms cubic-bezier(0.2, 0, 0, 1); }
+.ts-app .opacity-50 { opacity: 0.5; }
+.ts-app .opacity-70 { opacity: 0.7; }
+
+.ts-app .space-y-0\.5 > * + * { margin-top: 2px; }
+.ts-app .space-y-1 > * + * { margin-top: 4px; }
+.ts-app .space-y-2 > * + * { margin-top: 8px; }
+.ts-app .space-y-3 > * + * { margin-top: 12px; }
+.ts-app .space-y-4 > * + * { margin-top: 16px; }
+.ts-app .space-y-6 > * + * { margin-top: 24px; }
+.ts-app .space-x-2 > * + * { margin-left: 8px; }
+.ts-app .space-x-3 > * + * { margin-left: 12px; }
+
+.ts-app .grid-cols-1 { grid-template-columns: repeat(1, minmax(0, 1fr)); }
+.ts-app .grid-cols-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.ts-app .grid-cols-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.ts-app .grid-cols-4 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+
+@media (min-width: 768px) {
+  .ts-app .md\:grid-cols-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .ts-app .md\:grid-cols-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .ts-app .md\:flex-row { flex-direction: row; }
+  .ts-app .md\:items-start { align-items: flex-start; }
+  .ts-app .md\:justify-between { justify-content: space-between; }
+}
+
+.ts-app .animate-spin { animation: ts-spin 1s linear infinite; }
+@keyframes ts-spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+
+/* Phase 24.3 — defensive defaults cho SVG/img để tránh natural-size vỡ layout
+   khi utility class h-N w-N không apply (vd missing class). SVG inside button
+   sẽ không thành "red blob" full-width nữa. */
+.ts-app svg { max-width: 100%; flex-shrink: 0; }
+.ts-app svg:not([width]):not([height]) { width: 1em; height: 1em; }
+.ts-app button svg, .ts-app a svg { width: 16px; height: 16px; }
+.ts-app img { max-width: 100%; height: auto; }
+
+/* Print */
+@media print {
+  body { background: white !important; color: #000 !important; }
+  aside, header, .no-print { display: none !important; }
+  .ts-app { padding-left: 0 !important; }
+} 

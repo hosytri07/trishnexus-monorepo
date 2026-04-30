@@ -1,6 +1,6 @@
 {
   "name": "@trishteam/trishclean",
-  "version": "2.0.0-1",
+  "version": "1.0.0",
   "private": true,
   "description": "TrishClean — dọn dẹp file/cache với undo 7 ngày (staged delete). Tauri 2 + @trishteam/core/clean cho scan logic. Không xoá thật ngay — move sang trash folder riêng, commit sau retention window.",
   "type": "module",
@@ -14,10 +14,11 @@
     "tauri:build": "tauri build"
   },
   "dependencies": {
-    "@trishteam/core": "workspace:*",
-    "@trishteam/telemetry": "workspace:*",
     "@tauri-apps/api": "^2.0.0",
     "@tauri-apps/plugin-dialog": "^2.0.0",
+    "@trishteam/core": "workspace:*",
+    "@trishteam/design-system": "workspace:*",
+    "@trishteam/telemetry": "workspace:*",
     "react": "18.3.1",
     "react-dom": "18.3.1"
   },

@@ -1,6 +1,6 @@
 {
   "name": "@trishteam/trishcheck",
-  "version": "2.0.0-1",
+  "version": "1.0.0",
   "private": true,
   "description": "TrishCheck — system info + benchmark tool cho TrishTEAM ecosystem. Giúp user check máy có đủ power chạy ứng dụng nặng (TrishImage face-group, TrishFont render), đồng thời làm smoke test cross-platform khi rebuild.",
   "type": "module",
@@ -14,9 +14,10 @@
     "tauri:build": "tauri build"
   },
   "dependencies": {
-    "@trishteam/core": "workspace:*",
-    "@trishteam/telemetry": "workspace:*",
     "@tauri-apps/api": "^2.0.0",
+    "@trishteam/core": "workspace:*",
+    "@trishteam/design-system": "workspace:*",
+    "@trishteam/telemetry": "workspace:*",
     "react": "18.3.1",
     "react-dom": "18.3.1"
   },

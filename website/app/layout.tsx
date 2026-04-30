@@ -1,5 +1,5 @@
 import type { Metadata } from 'next';
-import { Be_Vietnam_Pro } from 'next/font/google';
+import { Plus_Jakarta_Sans } from 'next/font/google';
 import './globals.css';
 import { ThemeProvider } from '@/components/theme-provider';
 import { AuthProvider } from '@/lib/auth-context';
@@ -15,12 +15,14 @@ import { Analytics } from '@vercel/analytics/react';
 import { SpeedInsights } from '@vercel/speed-insights/next';
 
 /**
- * Be Vietnam Pro — font chính cho cả display (tiêu đề) lẫn body.
+ * Plus Jakarta Sans — font chính cho cả display (tiêu đề) lẫn body.
+ * Phase 24.3 — switch từ Be Vietnam Pro sang Plus Jakarta Sans để đồng bộ
+ * với 7 desktop app (design-system gold standard).
  * Subset 'latin' + 'vietnamese' bảo đảm dấu tiếng Việt rõ nét.
  * Expose CSS variable --font-display để page.tsx + component dùng qua
  * Tailwind class (`font-display`) hoặc inline style (`var(--font-display)`).
  */
-const beVietnamPro = Be_Vietnam_Pro({
+const plusJakartaSans = Plus_Jakarta_Sans({
   subsets: ['latin', 'vietnamese'],
   weight: ['400', '500', '600', '700', '800'],
   variable: '--font-display',
@@ -118,7 +120,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html
       lang="vi"
       data-theme="dark"
-      className={beVietnamPro.variable}
+      className={plusJakartaSans.variable}
       suppressHydrationWarning
     >
       <body className="font-display min-h-screen relative overflow-x-hidden">

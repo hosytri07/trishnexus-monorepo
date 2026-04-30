@@ -3,6 +3,8 @@ import { AuthProvider } from '@trishteam/auth/react';
 import { installTauriTelemetry } from '@trishteam/telemetry/tauri';
 import { Root } from './Root.js';
 import packageJson from '../package.json' with { type: 'json' };
+// Phase 24.3 — design-system: Plus Jakarta Sans + emerald + utility CSS.
+import '@trishteam/design-system';
 import './styles.css';
 
 // Phase 21 prep — telemetry: window.onerror + unhandledrejection + Rust panic

@@ -43,6 +43,8 @@ export async function GET(
       expires_at: data.expires_at ?? null,
       max_downloads: data.max_downloads ?? null,
       download_count: data.download_count ?? 0,
+      // Phase 26.0 — pipeline 'botapi' | 'mtproto' để client biết route /proxy.
+      pipeline: data.pipeline ?? 'botapi',
       encrypted_bot_token_hex: data.encrypted_bot_token_hex,
       encrypted_master_key_hex: data.encrypted_master_key_hex,
       chunks: data.chunks,

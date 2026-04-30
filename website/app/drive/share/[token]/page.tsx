@@ -28,7 +28,19 @@ interface ShareInfo {
   download_count: number;
   encrypted_bot_token_hex: string;
   encrypted_master_key_hex: string;
-  chunks: Array<{ idx: number; tg_file_id: string; byte_size: number; nonce_hex: string }>;
+  /** Phase 26.0 — pipeline 'botapi' | 'mtproto'. Default 'botapi'. */
+  pipeline?: 'botapi' | 'mtproto';
+  chunks: Array<{
+    idx: number;
+    byte_size: number;
+    nonce_hex: string;
+    /** Bot API path */
+    tg_file_id?: string;
+    /** MTProto path (Phase 26.0) */
+    pipeline?: 'botapi' | 'mtproto';
+    tg_message_id?: number;
+    channel_id?: number;
+  }>;
 }
 
 export default function SharePage() {
@@ -94,10 +106,28 @@ export default function SharePage() {
       for (let i = 0; i < info.chunks.length; i++) {
         const ch = info.chunks[i];
         setProgress(`Tải chunk ${i + 1}/${info.chunks.length}...`);
+        // Phase 26.0 — route /proxy theo pipeline của chunk (mỗi chunk có thể khác,
+        // dù thông thường cả file 1 pipeline). MTProto gửi tg_message_id + channel_id,
+        // server sẽ forwardMessage qua log channel + getFile Bot API.
+        const chunkPipeline = ch.pipeline ?? info.pipeline ?? 'botapi';
+        const proxyBody = chunkPipeline === 'mtproto'
+          ? {
+              bot_token: botToken,
+              pipeline: 'mtproto' as const,
+              tg_message_id: ch.tg_message_id,
+              channel_id: ch.channel_id,
+              is_first_chunk: i === 0,
+            }
+          : {
+              bot_token: botToken,
+              pipeline: 'botapi' as const,
+              tg_file_id: ch.tg_file_id,
+              is_first_chunk: i === 0,
+            };
         const proxyResp = await fetch(`/api/drive/share/${token}/proxy`, {
           method: 'POST',
           headers: { 'content-type': 'application/json' },
-          body: JSON.stringify({ bot_token: botToken, tg_file_id: ch.tg_file_id, is_first_chunk: i === 0 }),
+          body: JSON.stringify(proxyBody),
         });
         if (!proxyResp.ok) {
           const j = await proxyResp.json().catch(() => ({}));

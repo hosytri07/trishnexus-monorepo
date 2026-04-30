@@ -1,6 +1,6 @@
 [package]
 name = "trishclean"
-version = "2.0.0-1"
+version = "1.0.0"
 description = "TrishClean — disk cleanup với undo 7 ngày"
 authors = ["TrishTEAM <hosytri77@gmail.com>"]
 edition = "2021"

@@ -1,7 +1,7 @@
 [package]
 name = "trishadmin"
-version = "1.0.0"
-description = "TrishAdmin — admin tool cho hệ sinh thái TrishTEAM (manage users + keys + broadcasts + registry)"
+version = "1.2.0"
+description = "TrishAdmin — admin tool cho hệ sinh thái TrishTEAM (manage users + keys + broadcasts + registry + TrishDrive)"
 authors = ["TrishTEAM <hosytri77@gmail.com>"]
 edition = "2021"
 rust-version = "1.77"
@@ -26,5 +26,49 @@ serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 dirs = "5"
 
+# ============================================================
+# Phase 24.1 — TrishDrive merged vào TrishAdmin (admin-only).
+# Deps copy từ apps-desktop/trishdrive/src-tauri/Cargo.toml.
+# ============================================================
+
+# HTTP client cho Telegram Bot API + share API (trishteam.io.vn)
+reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "json", "multipart", "stream"] }
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "fs", "io-util"] }
+
+# SQLite local cache index
+rusqlite = { version = "0.31", features = ["bundled"] }
+
+# AES-256-GCM encrypt file trước khi upload
+aes-gcm = "0.10"
+sha2 = "0.10"
+
+# Credential store — Windows Credential Manager (DPAPI), keychain macOS, Secret Service Linux
+keyring = "2.3"
+
+# PBKDF2 derive AES key từ user passphrase
+pbkdf2 = "0.12"
+hmac = "0.12"
+
+rand = "0.8"
+hex = "0.4"
+
+# Async traits cho upload/download pipeline
+async-trait = "0.1"
+anyhow = "1"
+urlencoding = "2.1"
+
+# MTProto cho file > 50MB Bot API limit
+grammers-client = "0.7"
+grammers-session = "0.7"
+grammers-tl-types = "0.7"
+log = "0.4"
+
 [features]
 custom-protocol = ["tauri/custom-protocol"]
+
+[profile.release]
+panic = "abort"
+codegen-units = 1
+lto = true
+opt-level = "s"
+strip = true

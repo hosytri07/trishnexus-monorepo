@@ -650,7 +650,7 @@ export default function App() {
     addLog('Xuất báo cáo tổng hợp hồ sơ CSV');
   }
 
-  return <div className="min-h-screen" style={{ background: 'var(--color-surface-bg)', color: 'var(--color-text-primary)' }}>
+  return <div className="ts-app min-h-screen" style={{ background: 'var(--color-surface-bg)', color: 'var(--color-text-primary)' }}>
     <aside className="fixed inset-y-0 left-0 hidden w-72 lg:block" style={{ background: 'var(--color-surface-card)', borderRight: '1px solid var(--color-border-subtle)', padding: '20px' }}>
       <div className="mb-6 flex items-center gap-3" style={{ background: 'var(--color-surface-row)', border: '1px solid var(--color-border-subtle)', borderRadius: '14px', padding: '12px' }}>
         <img src={logoUrl} alt="TrishISO" style={{ width: 48, height: 48, borderRadius: 10, objectFit: 'cover', flexShrink: 0 }} />

@@ -1,6 +1,6 @@
 [package]
 name = "trishfont"
-version = "2.0.0-1"
+version = "1.0.0"
 description = "TrishFont — font manager với pair recommendation AI"
 authors = ["TrishTEAM <hosytri77@gmail.com>"]
 edition = "2021"

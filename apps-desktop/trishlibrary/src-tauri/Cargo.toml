@@ -1,6 +1,6 @@
 [package]
 name = "trishlibrary"
-version = "3.0.0"
+version = "1.0.0"
 description = "TrishLibrary 3.0 — All-in-one Thư viện + Ghi chú + Tài liệu"
 authors = ["TrishTEAM <hosytri77@gmail.com>"]
 edition = "2021"

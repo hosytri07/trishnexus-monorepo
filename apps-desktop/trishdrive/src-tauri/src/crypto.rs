@@ -53,6 +53,7 @@ pub fn sha256_hex(data: &[u8]) -> String {
 
 /// Encrypt plaintext (vd bot_token, master_key) với password do user đặt cho share.
 /// Output: hex string format `salt(16) | nonce(12) | ciphertext + tag`
+#[allow(dead_code)]
 pub fn encrypt_with_password(plaintext: &[u8], password: &str) -> Result<String, String> {
     use pbkdf2::pbkdf2_hmac;
     use sha2::Sha256;
@@ -70,4 +71,26 @@ pub fn encrypt_with_password(plaintext: &[u8], password: &str) -> Result<String,
     output.extend_from_slice(&nonce_bytes);
     output.extend_from_slice(&ciphertext);
     Ok(hex::encode(output))
+}
+
+/// Phase 26.1.C — Decrypt blob đã encrypt qua `encrypt_with_password`.
+/// Input: hex string format `salt(16) | nonce(12) | ciphertext + tag`
+/// Dùng để decrypt encrypted_bot_token + encrypted_master_key trả từ /info.
+pub fn decrypt_with_password(hex_blob: &str, password: &str) -> Result<Vec<u8>, String> {
+    use pbkdf2::pbkdf2_hmac;
+    use sha2::Sha256;
+    let blob = hex::decode(hex_blob).map_err(|e| format!("hex decode: {}", e))?;
+    if blob.len() < 16 + NONCE_SIZE + 16 {
+        return Err("blob too short".into());
+    }
+    let salt = &blob[..16];
+    let nonce_bytes = &blob[16..16 + NONCE_SIZE];
+    let ciphertext = &blob[16 + NONCE_SIZE..];
+    let mut key = [0u8; 32];
+    pbkdf2_hmac::<Sha256>(password.as_bytes(), salt, 100_000, &mut key);
+    let cipher = Aes256Gcm::new_from_slice(&key).map_err(|e| format!("cipher: {}", e))?;
+    let nonce = Nonce::from_slice(nonce_bytes);
+    cipher
+        .decrypt(nonce, ciphertext)
+        .map_err(|e| format!("decrypt fail (sai password?): {}", e))
 }

@@ -1,7 +1,7 @@
 {
   "name": "@trishteam/trishdrive",
   "private": true,
-  "version": "0.1.0-alpha.1",
+  "version": "1.0.0",
   "description": "TrishDrive — quản lý lưu trữ Cloud không giới hạn qua Telegram. Tauri 2 + React + grammY (Telegram bot) hoặc grammers-tl-parser (MTProto). Inspired by caamer20/Telegram-Drive.",
   "type": "module",
   "scripts": {
@@ -14,14 +14,12 @@
     "tauri:build": "tauri build"
   },
   "dependencies": {
-    "@fontsource/plus-jakarta-sans": "^5.1.0",
-    "@tailwindcss/vite": "^4.1.14",
-    "tailwindcss": "^4.1.14",
     "@vitejs/plugin-react": "^5.0.4",
     "@trishteam/auth": "workspace:*",
     "@trishteam/core": "workspace:*",
     "@trishteam/data": "workspace:*",
     "@trishteam/telemetry": "workspace:*",
+    "@trishteam/design-system": "workspace:*",
     "@tauri-apps/api": "^2.0.0",
     "@tauri-apps/plugin-dialog": "^2.0.0",
     "@tauri-apps/plugin-opener": "^2.0.0",

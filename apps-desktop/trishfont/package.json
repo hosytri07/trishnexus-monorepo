@@ -1,6 +1,6 @@
 {
   "name": "@trishteam/trishfont",
-  "version": "2.0.0-1",
+  "version": "1.0.0",
   "private": true,
   "description": "TrishFont — quản lý + preview font cho designer Việt. Tauri 2 + @trishteam/core/fonts cho classify + pair recommendation AI. Rust backend parse TTF/OTF metadata qua ttf-parser.",
   "type": "module",
@@ -14,11 +14,12 @@
     "tauri:build": "tauri build"
   },
   "dependencies": {
-    "@trishteam/core": "workspace:*",
-    "@trishteam/telemetry": "workspace:*",
     "@tauri-apps/api": "^2.0.0",
     "@tauri-apps/plugin-dialog": "^2.0.0",
     "@tauri-apps/plugin-fs": "^2.0.0",
+    "@trishteam/core": "workspace:*",
+    "@trishteam/design-system": "workspace:*",
+    "@trishteam/telemetry": "workspace:*",
     "react": "18.3.1",
     "react-dom": "18.3.1"
   },
