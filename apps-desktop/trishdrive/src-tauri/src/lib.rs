@@ -340,6 +340,7 @@ async fn proxy_download_chunk(
     Ok(bytes.to_vec())
 }
 
+/// Phase 26.2.D — Public Tauri command. Read speed limit từ state, gọi helper.
 #[tauri::command]
 async fn share_paste_and_download(
     app: tauri::AppHandle,
@@ -348,12 +349,22 @@ async fn share_paste_and_download(
     password: Option<String>,
     dest_path: String,
 ) -> Result<HistoryRow, String> {
+    let mbps = state.0.lock().map(|g| *g).unwrap_or(0.0);
+    let bps = if mbps > 0.0 { mbps * 1_048_576.0 } else { 0.0 };
+    do_share_paste_and_download(app, bps, url, password, dest_path).await
+}
+
+/// Helper internal — KHÔNG nhận tauri::State để có thể gọi từ
+/// share_queue_download (lifetime của State khó pass qua nested async).
+async fn do_share_paste_and_download(
+    app: tauri::AppHandle,
+    speed_limit_bps: f64,
+    url: String,
+    password: Option<String>,
+    dest_path: String,
+) -> Result<HistoryRow, String> {
     use sha2::{Digest, Sha256};
     use tokio::io::AsyncWriteExt;
-
-    // Phase 26.2.D — read speed limit (MB/s, 0 = unlimited)
-    let speed_limit_mbps = state.0.lock().map(|g| *g).unwrap_or(0.0);
-    let speed_limit_bps = if speed_limit_mbps > 0.0 { speed_limit_mbps * 1_048_576.0 } else { 0.0 };
 
     // 1. Parse URL → token + optional key from fragment
     let (token, key_from_fragment) = parse_share_url(&url)?;
@@ -525,9 +536,14 @@ fn sanitize_filename(name: &str) -> String {
 #[tauri::command]
 async fn share_queue_download(
     app: tauri::AppHandle,
+    state: tauri::State<'_, SpeedLimit>,
     urls: Vec<String>,
     dest_folder: String,
 ) -> Result<QueueResult, String> {
+    // Phase 26.2.D — share speed limit cho mọi chunk trong queue
+    let mbps = state.0.lock().map(|g| *g).unwrap_or(0.0);
+    let speed_limit_bps = if mbps > 0.0 { mbps * 1_048_576.0 } else { 0.0 };
+
     let total = urls.len() as i64;
     let mut success = 0i64;
     let mut failed = 0i64;
@@ -599,10 +615,12 @@ async fn share_queue_download(
             continue;
         }
 
-        // Gọi share_paste_and_download (re-use logic, không cần re-parse URL)
+        // Gọi do_share_paste_and_download helper (không cần re-parse URL).
+        // Helper nhận speed_limit_bps trực tiếp thay vì State<SpeedLimit>.
         let password_for_download = key_from_fragment.unwrap_or_default();
-        match share_paste_and_download(
+        match do_share_paste_and_download(
             app.clone(),
+            speed_limit_bps,
             url.clone(),
             if password_for_download.is_empty() { None } else { Some(password_for_download) },
             dest_path_str,
