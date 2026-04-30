@@ -17,7 +17,7 @@
 import { useEffect, useState } from 'react';
 import { ClipboardList, FolderOpen, PackageCheck, UserCheck, AlertTriangle, Download } from 'lucide-react';
 import { collection, getDocs, query, limit, orderBy } from 'firebase/firestore';
-import { getFirebaseDb } from '@/lib/firebase-client';
+import { requireDb } from '@/lib/firebase';
 
 interface ProjectStats {
   total: number;
@@ -37,7 +37,7 @@ export default function TrishISOAdminPage() {
   async function load() {
     setLoading(true);
     try {
-      const db = getFirebaseDb();
+      const db = requireDb();
       const q = query(collection(db, 'trishiso/_/projects'), orderBy('updatedAt', 'desc'), limit(500));
       const snap = await getDocs(q);
       if (snap.empty) {

@@ -15,8 +15,8 @@
 
 import { useEffect, useState } from 'react';
 import { Wallet, ShoppingCart, Building, Users, AlertTriangle, Download, TrendingUp } from 'lucide-react';
-import { collection, getDocs, query, limit, orderBy, where, Timestamp } from 'firebase/firestore';
-import { getFirebaseDb } from '@/lib/firebase-client';
+import { collection, getDocs, query, limit, where, Timestamp } from 'firebase/firestore';
+import { requireDb } from '@/lib/firebase';
 
 interface FinanceStats {
   totalProducts: number;
@@ -39,7 +39,7 @@ export default function TrishFinanceAdminPage() {
   async function load() {
     setLoading(true);
     try {
-      const db = getFirebaseDb();
+      const db = requireDb();
       const productsSnap = await getDocs(query(collection(db, 'trishfinance/_/products'), limit(1)));
       if (productsSnap.empty) {
         setSynced(false);

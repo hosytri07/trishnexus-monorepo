@@ -15,7 +15,7 @@
 import { useEffect, useState } from 'react';
 import { Cloud, Files, Share2, AlertTriangle, Download } from 'lucide-react';
 import { collection, getDocs, query, limit } from 'firebase/firestore';
-import { getFirebaseDb } from '@/lib/firebase-client';
+import { requireDb } from '@/lib/firebase';
 
 interface DriveStats {
   totalUsers: number;
@@ -36,7 +36,7 @@ export default function TrishDriveAdminPage() {
   async function load() {
     setLoading(true);
     try {
-      const db = getFirebaseDb();
+      const db = requireDb();
       const usersSnap = await getDocs(query(collection(db, 'trishdrive/_/users'), limit(1)));
       if (usersSnap.empty) {
         setSynced(false);
