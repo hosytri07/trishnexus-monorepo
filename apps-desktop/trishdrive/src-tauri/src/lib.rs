@@ -32,6 +32,7 @@ pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_opener::init())
+        .manage(mtproto::MtprotoState::default())
         .invoke_handler(tauri::generate_handler![
             tg_ping,
             tg_test_bot,
@@ -57,6 +58,16 @@ pub fn run() {
             folder_rename,
             folder_delete,
             mtproto_status,
+            mtproto_save_config,
+            mtproto_request_code,
+            mtproto_submit_code,
+            mtproto_signout,
+            mtproto_test_upload,
+            mtproto_test_download,
+            mtproto_test_delete,
+            file_upload_mtproto,
+            file_download_mtproto,
+            file_purge_mtproto,
         ])
         .setup(|app| {
             if let Ok(path) = db::db_path(&app.handle()) {
@@ -244,6 +255,8 @@ async fn file_upload(
         created_at: now_ms,
         total_chunks,
         note,
+        deleted_at: None,
+        pipeline: "botapi".to_string(),
     };
     db::insert_file(&conn, &row).map_err(|e| format!("insert file: {}", e))?;
 
@@ -348,6 +361,9 @@ async fn file_download(
     let file_row = db::get_file(&conn, &file_id)
         .map_err(|e| format!("query: {}", e))?
         .ok_or_else(|| "File không tồn tại trong index".to_string())?;
+    if file_row.pipeline == "mtproto" {
+        return Err("File này upload qua MTProto — gọi file_download_mtproto thay vì file_download.".into());
+    }
     let chunks = db::get_chunks(&conn, &file_id).map_err(|e| format!("chunks: {}", e))?;
     if chunks.is_empty() {
         return Err("File không có chunk nào".to_string());
@@ -490,29 +506,127 @@ fn file_update_meta(
 }
 
 // ============================================================
-// Phase 23.1 — MTProto status check
+// Phase 23.2 — MTProto status + login flow
 // ============================================================
 
-#[tauri::command]
-async fn mtproto_status(app: tauri::AppHandle) -> Result<mtproto::MtprotoStatus, String> {
+fn mtproto_session_path(app: &tauri::AppHandle, uid: &str) -> Result<std::path::PathBuf, String> {
     use tauri::Manager;
-    let app_data_dir = app.path().app_data_dir().map_err(|e| format!("app_data_dir: {}", e))?;
-    std::fs::create_dir_all(&app_data_dir).map_err(|e| format!("mkdir: {}", e))?;
-    let session_path = mtproto::session_path(&app_data_dir);
+    let dir = app.path().app_data_dir().map_err(|e| format!("app_data_dir: {}", e))?;
+    std::fs::create_dir_all(&dir).map_err(|e| format!("mkdir: {}", e))?;
+    Ok(mtproto::session_path(&dir, uid))
+}
 
-    // Phase 23.1: chưa có api_id/hash thực — trả status configured=false nếu chưa setup
-    if !session_path.exists() {
-        return Ok(mtproto::MtprotoStatus {
+#[tauri::command]
+async fn mtproto_status(app: tauri::AppHandle, uid: String) -> Result<mtproto::MtprotoStatus, String> {
+    let session_path = mtproto_session_path(&app, &uid)?;
+    let config = creds::load_mtproto_config(&uid)?;
+    match config {
+        None => Ok(mtproto::MtprotoStatus {
             configured: false,
             authorized: false,
             user_phone: None,
+            user_username: None,
             session_path: session_path.to_string_lossy().to_string(),
-        });
+        }),
+        Some(cfg) => mtproto::check_session(&session_path, cfg.api_id, &cfg.api_hash).await,
     }
+}
 
-    // TODO Phase 23.2: load api_id + api_hash từ creds (sẽ thêm field MtprotoConfig)
-    // Hiện trả error vì chưa có credentials
-    Err("Phase 23.2 chưa implement: cần load api_id + api_hash từ creds storage. Setup MTProto qua wizard mới.".to_string())
+#[tauri::command]
+async fn mtproto_save_config(uid: String, api_id: i32, api_hash: String) -> Result<(), String> {
+    if uid.is_empty() {
+        return Err("Chưa login Firebase".to_string());
+    }
+    if api_id <= 0 {
+        return Err("api_id phải > 0".to_string());
+    }
+    if api_hash.len() < 16 {
+        return Err("api_hash quá ngắn (cần ≥ 16 ký tự)".to_string());
+    }
+    creds::save_mtproto_config(&uid, &creds::MtprotoConfig { api_id, api_hash })
+}
+
+#[tauri::command]
+async fn mtproto_request_code(
+    state: tauri::State<'_, mtproto::MtprotoState>,
+    app: tauri::AppHandle,
+    uid: String,
+    phone: String,
+) -> Result<(), String> {
+    let cfg = creds::load_mtproto_config(&uid)?
+        .ok_or_else(|| "Chưa save api_id + api_hash".to_string())?;
+    let session_path = mtproto_session_path(&app, &uid)?;
+    mtproto::request_code(&state, cfg.api_id, &cfg.api_hash, &phone, &session_path).await
+}
+
+#[tauri::command]
+async fn mtproto_submit_code(
+    state: tauri::State<'_, mtproto::MtprotoState>,
+    app: tauri::AppHandle,
+    uid: String,
+    code: String,
+    password: Option<String>,
+) -> Result<mtproto::SignInResult, String> {
+    let session_path = mtproto_session_path(&app, &uid)?;
+    mtproto::submit_code(&state, &code, password.as_deref(), &session_path).await
+}
+
+#[tauri::command]
+async fn mtproto_signout(app: tauri::AppHandle, uid: String) -> Result<(), String> {
+    let session_path = mtproto_session_path(&app, &uid)?;
+    let cfg = creds::load_mtproto_config(&uid)?;
+    if let Some(c) = cfg {
+        let _ = mtproto::sign_out(&session_path, c.api_id, &c.api_hash).await;
+    }
+    Ok(())
+}
+
+// ============================================================
+// Phase 23.3 — MTProto upload/download/delete test commands
+// (chưa tích hợp pipeline file_upload — gọi qua Settings để test SDK)
+// ============================================================
+
+#[tauri::command]
+async fn mtproto_test_upload(
+    app: tauri::AppHandle,
+    uid: String,
+    file_path: String,
+) -> Result<mtproto::MtprotoUploadInfo, String> {
+    let cfg = creds::load_mtproto_config(&uid)?
+        .ok_or_else(|| "Chưa save api_id + api_hash".to_string())?;
+    let session_path = mtproto_session_path(&app, &uid)?;
+    let path = std::path::PathBuf::from(&file_path);
+    let upload_name = path.file_name()
+        .and_then(|n| n.to_str())
+        .unwrap_or("file.bin")
+        .to_string();
+    mtproto::upload_to_saved(cfg.api_id, &cfg.api_hash, &session_path, &path, &upload_name).await
+}
+
+#[tauri::command]
+async fn mtproto_test_download(
+    app: tauri::AppHandle,
+    uid: String,
+    message_id: i32,
+    dest_path: String,
+) -> Result<(), String> {
+    let cfg = creds::load_mtproto_config(&uid)?
+        .ok_or_else(|| "Chưa save api_id + api_hash".to_string())?;
+    let session_path = mtproto_session_path(&app, &uid)?;
+    let dest = std::path::PathBuf::from(&dest_path);
+    mtproto::download_from_saved(cfg.api_id, &cfg.api_hash, &session_path, message_id, &dest).await
+}
+
+#[tauri::command]
+async fn mtproto_test_delete(
+    app: tauri::AppHandle,
+    uid: String,
+    message_ids: Vec<i32>,
+) -> Result<(), String> {
+    let cfg = creds::load_mtproto_config(&uid)?
+        .ok_or_else(|| "Chưa save api_id + api_hash".to_string())?;
+    let session_path = mtproto_session_path(&app, &uid)?;
+    mtproto::delete_from_saved(cfg.api_id, &cfg.api_hash, &session_path, &message_ids).await
 }
 
 fn uuid_short() -> String {
@@ -530,6 +644,8 @@ fn uuid_short() -> String {
 pub struct ShareResult {
     pub token: String,
     pub url: String,
+    /// Phase 23.4 — link rút gọn /s/{code} (~30 ký tự thay vì ~80)
+    pub short_url: Option<String>,
 }
 
 #[derive(serde::Serialize)]
@@ -558,6 +674,8 @@ struct ShareChunk {
 struct ShareCreateResponse {
     token: String,
     url: String,
+    #[serde(default)]
+    short_url: Option<String>,
 }
 
 const SHARE_API_BASE: &str = "https://trishteam.io.vn";
@@ -582,6 +700,11 @@ async fn share_create(
     let file_row = db::get_file(&conn, &file_id)
         .map_err(|e| format!("query: {}", e))?
         .ok_or_else(|| "File không tồn tại".to_string())?;
+    if file_row.pipeline == "mtproto" {
+        return Err("File MTProto chưa hỗ trợ share link (chỉ Bot API). \
+            Lý do: Web server proxy file qua bot.getFile, MTProto file ở Saved Messages của user account riêng tư. \
+            Nếu cần share, upload lại file qua Bot API (tắt toggle 'Dùng MTProto' ở Upload page).".to_string());
+    }
     let chunks_db = db::get_chunks(&conn, &file_id).map_err(|e| format!("chunks: {}", e))?;
 
     let chunks: Vec<ShareChunk> = chunks_db.iter().map(|c| ShareChunk {
@@ -644,7 +767,11 @@ async fn share_create(
     }
     let result: ShareCreateResponse = serde_json::from_str(&body_text)
         .map_err(|e| format!("Parse JSON response: {}. Body: {}", e, body_text.chars().take(200).collect::<String>()))?;
-    Ok(ShareResult { token: result.token, url: result.url })
+    Ok(ShareResult {
+        token: result.token,
+        url: result.url,
+        short_url: result.short_url,
+    })
 }
 
 #[derive(serde::Deserialize, Serialize)]
@@ -659,6 +786,10 @@ pub struct ShareItem {
     pub download_count: i64,
     pub revoked: bool,
     pub url: String,
+    #[serde(default)]
+    pub short_url: Option<String>,
+    #[serde(default)]
+    pub short_code: Option<String>,
 }
 
 #[derive(serde::Deserialize)]
@@ -747,13 +878,17 @@ async fn file_purge(
 }
 
 /// Auto-purge file đã trash > 30 ngày. Gọi khi load TrashPage.
+/// Phase 23.4: route theo `pipeline` — Bot API → telegram::delete_message,
+/// MTProto → mtproto::delete_from_saved.
 #[tauri::command]
 async fn file_purge_old_trash(
     app: tauri::AppHandle,
     uid: String,
 ) -> Result<i64, String> {
-    let creds = creds::load_creds(&uid)?
-        .ok_or_else(|| "Chưa setup Telegram".to_string())?;
+    let creds_opt = creds::load_creds(&uid)?;
+    let mt_cfg_opt = creds::load_mtproto_config(&uid)?;
+    let mt_session = mtproto_session_path(&app, &uid).ok();
+
     let path = db::db_path(&app)?;
     let conn = db::open(&path).map_err(|e| format!("db open: {}", e))?;
     let cutoff = std::time::SystemTime::now()
@@ -763,10 +898,20 @@ async fn file_purge_old_trash(
         - 30 * 24 * 3600 * 1000; // 30 ngày
     let old_files = db::list_trashed_older_than(&conn, cutoff).map_err(|e| format!("query: {}", e))?;
     let count = old_files.len() as i64;
+
     for f in old_files {
         let chunks = db::get_chunks(&conn, &f.id).map_err(|e| format!("chunks: {}", e))?;
-        for chunk in &chunks {
-            let _ = telegram::delete_message(&creds.bot_token, creds.channel_id, chunk.tg_message_id).await;
+        if f.pipeline == "mtproto" {
+            if let (Some(cfg), Some(session_path)) = (&mt_cfg_opt, &mt_session) {
+                if session_path.exists() {
+                    let msg_ids: Vec<i32> = chunks.iter().map(|c| c.tg_message_id as i32).collect();
+                    let _ = mtproto::delete_from_saved(cfg.api_id, &cfg.api_hash, session_path, &msg_ids).await;
+                }
+            }
+        } else if let Some(creds) = &creds_opt {
+            for chunk in &chunks {
+                let _ = telegram::delete_message(&creds.bot_token, creds.channel_id, chunk.tg_message_id).await;
+            }
         }
         let _ = db::delete_file(&conn, &f.id);
     }
@@ -778,4 +923,257 @@ fn db_files_list_trashed(app: tauri::AppHandle) -> Result<Vec<db::FileRow>, Stri
     let path = db::db_path(&app)?;
     let conn = db::open(&path).map_err(|e| format!("db open: {}", e))?;
     db::list_trashed(&conn).map_err(|e| format!("query: {}", e))
+}
+
+// ============================================================
+// Phase 23.4 — MTProto upload/download/purge pipeline
+// (chunk 100MB thay vì 19MB Bot API → file 2GB chỉ 20 chunks)
+// ============================================================
+
+const MTPROTO_CHUNK_SIZE: usize = 100 * 1024 * 1024; // 100MB plaintext per Telegram message
+
+/// Upload file qua MTProto. Yêu cầu user đã đăng nhập (mtproto_status.authorized=true).
+/// Pipeline khác Bot API:
+///   - chunk 100MB (5x to bigger)
+///   - mỗi chunk = 1 message ở Saved Messages
+///   - chunks.tg_message_id = msg.id, tg_file_id = NULL
+///   - files.pipeline = "mtproto"
+#[tauri::command]
+async fn file_upload_mtproto(
+    app: tauri::AppHandle,
+    uid: String,
+    file_path: String,
+    folder_id: Option<String>,
+    note: Option<String>,
+) -> Result<UploadResult, String> {
+    use sha2::{Digest, Sha256};
+    use tokio::io::{AsyncReadExt, AsyncSeekExt};
+
+    // Phải có cả creds (master_key) + mtproto config
+    let creds = creds::load_creds(&uid)?
+        .ok_or_else(|| "Chưa setup Telegram (mở Settings → Bot API wizard)".to_string())?;
+    let mt_cfg = creds::load_mtproto_config(&uid)?
+        .ok_or_else(|| "Chưa setup MTProto (Settings → MTProto)".to_string())?;
+    let session_path = mtproto_session_path(&app, &uid)?;
+    if !session_path.exists() {
+        return Err("Chưa đăng nhập MTProto (Settings → MTProto → Setup)".into());
+    }
+
+    let path = PathBuf::from(&file_path);
+    let filename = path.file_name()
+        .and_then(|n| n.to_str())
+        .ok_or_else(|| "Tên file không hợp lệ".to_string())?
+        .to_string();
+
+    let mut file = tokio::fs::File::open(&path).await.map_err(|e| format!("open file: {}", e))?;
+    let metadata = file.metadata().await.map_err(|e| format!("metadata: {}", e))?;
+    let size = metadata.len() as usize;
+    if size == 0 {
+        return Err("File rỗng".into());
+    }
+    let total_chunks = ((size + MTPROTO_CHUNK_SIZE - 1) / MTPROTO_CHUNK_SIZE).max(1) as i64;
+
+    // Pass 1 — streaming SHA-256
+    let mut hasher = Sha256::new();
+    let mut buf = vec![0u8; 4 * 1024 * 1024];
+    let mut hashed = 0;
+    loop {
+        let n = file.read(&mut buf).await.map_err(|e| format!("read sha: {}", e))?;
+        if n == 0 { break; }
+        hasher.update(&buf[..n]);
+        hashed += n;
+        let _ = app.emit("drive-progress", ProgressEvent {
+            op: "upload".into(), file_id: "_hashing_".into(),
+            current_chunk: 0, total_chunks,
+            bytes_done: (hashed / 2) as i64, total_bytes: size as i64,
+        });
+    }
+    let sha256 = hex::encode(hasher.finalize());
+    let file_id = format!("f_{}", &sha256[..16]);
+    file.seek(std::io::SeekFrom::Start(0)).await.map_err(|e| format!("seek: {}", e))?;
+
+    let now_ms = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_millis() as i64)
+        .unwrap_or(0);
+
+    let db_path_buf = db::db_path(&app)?;
+    let conn = db::open(&db_path_buf).map_err(|e| format!("db open: {}", e))?;
+
+    let row = db::FileRow {
+        id: file_id.clone(),
+        name: filename.clone(),
+        size_bytes: size as i64,
+        mime: None,
+        sha256_hex: sha256.clone(),
+        folder_id,
+        created_at: now_ms,
+        total_chunks,
+        note,
+        deleted_at: None,
+        pipeline: "mtproto".to_string(),
+    };
+    db::insert_file(&conn, &row).map_err(|e| format!("insert file: {}", e))?;
+
+    let _ = app.emit("drive-progress", ProgressEvent {
+        op: "upload".into(), file_id: file_id.clone(),
+        current_chunk: 0, total_chunks,
+        bytes_done: 0, total_bytes: size as i64,
+    });
+
+    let mut chunk_buf = vec![0u8; MTPROTO_CHUNK_SIZE];
+    let mut bytes_done: usize = 0;
+
+    for idx in 0..total_chunks {
+        let remaining = size - bytes_done;
+        let to_read = remaining.min(MTPROTO_CHUNK_SIZE);
+        chunk_buf.resize(to_read, 0);
+        let mut read_total = 0;
+        while read_total < to_read {
+            let n = file.read(&mut chunk_buf[read_total..]).await.map_err(|e| format!("read chunk: {}", e))?;
+            if n == 0 { break; }
+            read_total += n;
+        }
+        if read_total != to_read {
+            let _ = db::delete_file(&conn, &file_id);
+            return Err(format!("Read short chunk {}: expect {} got {}", idx, to_read, read_total));
+        }
+
+        let encrypted = crypto::encrypt(&creds.master_key_hex, &chunk_buf[..to_read])?;
+        let nonce_hex = hex::encode(&encrypted[..crypto::NONCE_SIZE]);
+        let chunk_filename = if total_chunks > 1 {
+            format!("{}.part{:03}.enc", filename, idx)
+        } else {
+            format!("{}.enc", filename)
+        };
+
+        // Write encrypted bytes to temp file → upload via MTProto upload_to_saved_bytes
+        // (grammers upload_stream cần AsyncRead, dễ nhất là Cursor<Vec<u8>>)
+        let upload_info = mtproto::upload_bytes_to_saved(
+            mt_cfg.api_id, &mt_cfg.api_hash, &session_path,
+            encrypted, &chunk_filename,
+        ).await.map_err(|e| {
+            let _ = db::delete_file(&conn, &file_id);
+            format!("Upload chunk {}/{} fail: {}", idx + 1, total_chunks, e)
+        })?;
+
+        let chunk_row = db::ChunkRow {
+            file_id: file_id.clone(),
+            idx,
+            tg_message_id: upload_info.message_id,
+            tg_file_id: None, // MTProto path không dùng Bot file_id
+            byte_size: to_read as i64,
+            nonce_hex,
+        };
+        db::insert_chunk(&conn, &chunk_row).map_err(|e| format!("insert chunk: {}", e))?;
+
+        bytes_done += to_read;
+        let _ = app.emit("drive-progress", ProgressEvent {
+            op: "upload".into(), file_id: file_id.clone(),
+            current_chunk: idx + 1, total_chunks,
+            bytes_done: bytes_done as i64, total_bytes: size as i64,
+        });
+    }
+
+    Ok(UploadResult {
+        file_id,
+        name: filename,
+        size_bytes: size as i64,
+        sha256_hex: sha256,
+        total_chunks,
+    })
+}
+
+#[tauri::command]
+async fn file_download_mtproto(
+    app: tauri::AppHandle,
+    uid: String,
+    file_id: String,
+    dest_path: String,
+) -> Result<(), String> {
+    use sha2::{Digest, Sha256};
+    use tokio::io::AsyncWriteExt;
+
+    let creds = creds::load_creds(&uid)?
+        .ok_or_else(|| "Chưa setup Telegram".to_string())?;
+    let mt_cfg = creds::load_mtproto_config(&uid)?
+        .ok_or_else(|| "Chưa setup MTProto".to_string())?;
+    let session_path = mtproto_session_path(&app, &uid)?;
+
+    let path = db::db_path(&app)?;
+    let conn = db::open(&path).map_err(|e| format!("db open: {}", e))?;
+    let file_row = db::get_file(&conn, &file_id)
+        .map_err(|e| format!("query: {}", e))?
+        .ok_or_else(|| "File không tồn tại".to_string())?;
+    if file_row.pipeline != "mtproto" {
+        return Err(format!("File này upload qua {}, không phải MTProto. Dùng file_download.", file_row.pipeline));
+    }
+    let chunks = db::get_chunks(&conn, &file_id).map_err(|e| format!("chunks: {}", e))?;
+    if chunks.is_empty() {
+        return Err("File không có chunk".into());
+    }
+
+    let total_chunks = chunks.len() as i64;
+    let total_bytes = file_row.size_bytes;
+    let _ = app.emit("drive-progress", ProgressEvent {
+        op: "download".into(), file_id: file_id.clone(),
+        current_chunk: 0, total_chunks,
+        bytes_done: 0, total_bytes,
+    });
+
+    let mut out_file = tokio::fs::File::create(&dest_path).await
+        .map_err(|e| format!("create dest: {}", e))?;
+    let mut hasher = Sha256::new();
+    let mut bytes_done: i64 = 0;
+
+    for (i, chunk) in chunks.iter().enumerate() {
+        let msg_id = chunk.tg_message_id as i32;
+        let encrypted = mtproto::download_bytes_from_saved(
+            mt_cfg.api_id, &mt_cfg.api_hash, &session_path, msg_id,
+        ).await.map_err(|e| format!("Download chunk {}/{}: {}", i + 1, total_chunks, e))?;
+
+        let plaintext = crypto::decrypt(&creds.master_key_hex, &encrypted)?;
+        hasher.update(&plaintext);
+        out_file.write_all(&plaintext).await.map_err(|e| format!("write: {}", e))?;
+        bytes_done += plaintext.len() as i64;
+
+        let _ = app.emit("drive-progress", ProgressEvent {
+            op: "download".into(), file_id: file_id.clone(),
+            current_chunk: (i + 1) as i64, total_chunks,
+            bytes_done, total_bytes,
+        });
+    }
+    out_file.flush().await.map_err(|e| format!("flush: {}", e))?;
+    drop(out_file);
+
+    let actual_sha = hex::encode(hasher.finalize());
+    if actual_sha != file_row.sha256_hex {
+        let _ = tokio::fs::remove_file(&dest_path).await;
+        return Err(format!(
+            "SHA256 mismatch: expected {} got {}. File corrupt — đã xoá.",
+            &file_row.sha256_hex[..12], &actual_sha[..12]
+        ));
+    }
+    Ok(())
+}
+
+#[tauri::command]
+async fn file_purge_mtproto(
+    app: tauri::AppHandle,
+    uid: String,
+    file_id: String,
+) -> Result<(), String> {
+    let mt_cfg = creds::load_mtproto_config(&uid)?
+        .ok_or_else(|| "Chưa setup MTProto".to_string())?;
+    let session_path = mtproto_session_path(&app, &uid)?;
+
+    let path = db::db_path(&app)?;
+    let conn = db::open(&path).map_err(|e| format!("db open: {}", e))?;
+    let chunks = db::get_chunks(&conn, &file_id).map_err(|e| format!("chunks: {}", e))?;
+    let msg_ids: Vec<i32> = chunks.iter().map(|c| c.tg_message_id as i32).collect();
+
+    // Best-effort delete khỏi Saved Messages, dù fail vẫn xoá DB
+    let _ = mtproto::delete_from_saved(mt_cfg.api_id, &mt_cfg.api_hash, &session_path, &msg_ids).await;
+    db::delete_file(&conn, &file_id).map_err(|e| format!("delete: {}", e))?;
+    Ok(())
 }

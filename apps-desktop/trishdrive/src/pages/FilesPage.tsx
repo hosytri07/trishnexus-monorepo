@@ -33,6 +33,7 @@ interface FileRow {
   created_at: number;
   total_chunks: number;
   note?: string | null;
+  pipeline?: string; // 'botapi' | 'mtproto' — Phase 23.4
 }
 
 interface FolderRow {
@@ -146,7 +147,8 @@ export function FilesPage({ uid, search, refreshTick }: { uid: string; search: s
         setBusyId(null);
         return;
       }
-      await invoke('file_download', { uid, fileId: file.id, destPath: dest });
+      const cmd = file.pipeline === 'mtproto' ? 'file_download_mtproto' : 'file_download';
+      await invoke(cmd, { uid, fileId: file.id, destPath: dest });
     } catch (e) {
       setErr(String(e));
     } finally {
@@ -397,7 +399,14 @@ export function FilesPage({ uid, search, refreshTick }: { uid: string; search: s
                   </td>
                   <td style={{ width: 40 }}><FileIcon mime={f.mime} /></td>
                   <td>
-                    <div style={{ fontWeight: 500, color: 'var(--color-text-primary)' }}>{f.name}</div>
+                    <div className="flex items-center gap-2" style={{ fontWeight: 500, color: 'var(--color-text-primary)' }}>
+                      <span>{f.name}</span>
+                      {f.pipeline === 'mtproto' && (
+                        <span title="Upload qua MTProto user account" style={{ fontSize: 9, fontWeight: 700, padding: '1px 5px', borderRadius: 4, background: 'rgba(16,185,129,0.15)', color: 'var(--color-accent-primary)', letterSpacing: 0.4 }}>
+                          MT
+                        </span>
+                      )}
+                    </div>
                     {f.note && (
                       <div style={{ fontSize: 11, color: 'var(--color-text-muted)', fontStyle: 'italic', marginTop: 2 }}>📝 {f.note}</div>
                     )}
@@ -556,12 +565,18 @@ function EditMetaModal({ file, folders, onClose, onSaved }: { file: FileRow; fol
   );
 }
 
+interface ShareCreateResult {
+  token: string;
+  url: string;
+  short_url?: string | null;
+}
+
 function ShareModal({ uid, file, onClose }: { uid: string; file: FileRow; onClose: () => void }): JSX.Element {
   const [password, setPassword] = useState('');
   const [expiresHours, setExpiresHours] = useState<number>(24 * 7);
   const [maxDownloads, setMaxDownloads] = useState<number>(10);
   const [busy, setBusy] = useState(false);
-  const [result, setResult] = useState<{ token: string; url: string } | null>(null);
+  const [result, setResult] = useState<ShareCreateResult | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
 
@@ -573,7 +588,7 @@ function ShareModal({ uid, file, onClose }: { uid: string; file: FileRow; onClos
     setBusy(true);
     setErr(null);
     try {
-      const r = await invoke<{ token: string; url: string }>('share_create', {
+      const r = await invoke<ShareCreateResult>('share_create', {
         uid,
         fileId: file.id,
         password,
@@ -590,8 +605,10 @@ function ShareModal({ uid, file, onClose }: { uid: string; file: FileRow; onClos
 
   async function copyUrl() {
     if (!result) return;
+    // Ưu tiên short_url, fallback long URL nếu shortener fail
+    const urlToCopy = result.short_url || result.url;
     try {
-      await navigator.clipboard.writeText(result.url);
+      await navigator.clipboard.writeText(urlToCopy);
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     } catch {
@@ -687,14 +704,30 @@ function ShareModal({ uid, file, onClose }: { uid: string; file: FileRow; onClos
             </div>
 
             <div className="mt-4">
-              <label style={{ fontSize: 12, fontWeight: 500, color: 'var(--color-text-muted)' }}>URL share</label>
+              <label style={{ fontSize: 12, fontWeight: 500, color: 'var(--color-text-muted)' }}>
+                Link rút gọn {result.short_url ? <span style={{ color: 'var(--color-accent-primary)', fontWeight: 600 }}>(copy gửi cho người nhận)</span> : ''}
+              </label>
               <div className="flex gap-2 mt-1">
-                <input type="text" value={result.url} readOnly className="input-field" style={{ flex: 1, fontFamily: 'monospace', fontSize: 11 }} />
+                <input
+                  type="text"
+                  value={result.short_url || result.url}
+                  readOnly
+                  className="input-field"
+                  style={{ flex: 1, fontFamily: 'monospace', fontSize: 12, fontWeight: 600 }}
+                />
                 <button className="btn-secondary" onClick={copyUrl}>
                   {copied ? <CheckCircle2 className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
                   {copied ? 'Đã copy' : 'Copy'}
                 </button>
               </div>
+              {result.short_url && (
+                <details className="mt-2" style={{ fontSize: 11, color: 'var(--color-text-muted)' }}>
+                  <summary style={{ cursor: 'pointer' }}>Link đầy đủ (dự phòng)</summary>
+                  <div style={{ marginTop: 4, fontFamily: 'monospace', wordBreak: 'break-all', padding: 6, background: 'var(--color-surface-row)', borderRadius: 4 }}>
+                    {result.url}
+                  </div>
+                </details>
+              )}
             </div>
 
             <div className="mt-3 p-3 rounded-xl" style={{ background: 'var(--color-surface-row)' }}>

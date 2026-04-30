@@ -19,9 +19,10 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: 'Missing owner_uid' }, { status: 400 });
     }
     const db = adminDb();
+    // Phase 23.4 fix: bỏ orderBy để tránh yêu cầu composite index
+    // (Trí chưa create index trên Firebase Console). Sort client-side luôn.
     const snap = await db.collection('trishdrive').doc('_').collection('shares')
       .where('owner_uid', '==', ownerUid)
-      .orderBy('created_at', 'desc')
       .limit(200)
       .get();
 
@@ -39,8 +40,12 @@ export async function GET(req: NextRequest) {
         download_count: data.download_count ?? 0,
         revoked: data.revoked ?? false,
         url: `${baseUrl}/drive/share/${d.id}`,
+        short_url: data.short_url ?? null,
+        short_code: data.short_code ?? null,
       };
     });
+    // Sort newest first ở server (in-memory, không cần index)
+    shares.sort((a, b) => (b.created_at ?? 0) - (a.created_at ?? 0));
     return NextResponse.json({ shares });
   } catch (e) {
     console.error('[share/list]', e);

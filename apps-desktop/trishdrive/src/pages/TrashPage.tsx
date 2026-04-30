@@ -15,6 +15,7 @@ interface FileRow {
   total_chunks: number;
   deleted_at?: number | null;
   note?: string | null;
+  pipeline?: string; // 'botapi' | 'mtproto'
 }
 
 const RETENTION_DAYS = 30;
@@ -55,7 +56,8 @@ export function TrashPage({ uid }: { uid: string }): JSX.Element {
     if (!confirm(`Xoá VĨNH VIỄN "${file.name}"? Telegram messages + index sẽ bị xoá. KHÔNG khôi phục được.`)) return;
     setBusyId(file.id);
     try {
-      await invoke('file_purge', { uid, fileId: file.id });
+      const cmd = file.pipeline === 'mtproto' ? 'file_purge_mtproto' : 'file_purge';
+      await invoke(cmd, { uid, fileId: file.id });
       await load();
     } catch (e) { setErr(String(e)); }
     finally { setBusyId(null); }
@@ -67,7 +69,8 @@ export function TrashPage({ uid }: { uid: string }): JSX.Element {
     setBulkBusy(true);
     try {
       for (const f of items) {
-        await invoke('file_purge', { uid, fileId: f.id });
+        const cmd = f.pipeline === 'mtproto' ? 'file_purge_mtproto' : 'file_purge';
+        await invoke(cmd, { uid, fileId: f.id });
       }
       await load();
     } catch (e) { setErr(String(e)); }

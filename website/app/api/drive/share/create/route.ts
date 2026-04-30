@@ -42,6 +42,14 @@ export async function POST(req: NextRequest) {
     const token = randomBytes(16).toString('base64url');
     const db = adminDb();
     const now = Date.now();
+    const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://trishteam.io.vn';
+    const longUrl = `${baseUrl}/drive/share/${token}`;
+
+    // Phase 23.4: tạo short_link /s/{code} song song với share record
+    // Reuse same shortener bảng `short_links` (đã có sẵn từ Phase 19.22)
+    const shortCode = await createShortLink(db, longUrl);
+    const shortUrl = shortCode ? `${baseUrl}/s/${shortCode}` : longUrl;
+
     await db.collection('trishdrive').doc('_').collection('shares').doc(token).set({
       token,
       owner_uid: body.owner_uid,
@@ -57,12 +65,59 @@ export async function POST(req: NextRequest) {
       download_count: 0,
       revoked: false,
       created_at: now,
+      short_code: shortCode,
+      short_url: shortUrl,
     });
 
-    const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://trishteam.io.vn';
-    return NextResponse.json({ token, url: `${baseUrl}/drive/share/${token}` });
+    return NextResponse.json({
+      token,
+      url: longUrl,
+      short_url: shortUrl,
+      short_code: shortCode,
+    });
   } catch (e) {
     console.error('[share/create]', e);
     return NextResponse.json({ error: (e as Error).message }, { status: 500 });
   }
+}
+
+// Tạo short code 6 ký tự bằng cùng schema như /api/shorten
+const SHORT_CHARS = 'abcdefghijkmnpqrstuvwxyz23456789';
+const SHORT_LEN = 6;
+const MAX_RETRIES = 5;
+
+function genShortCode(): string {
+  let out = '';
+  for (let i = 0; i < SHORT_LEN; i++) {
+    out += SHORT_CHARS[Math.floor(Math.random() * SHORT_CHARS.length)];
+  }
+  return out;
+}
+
+async function createShortLink(
+  db: ReturnType<typeof adminDb>,
+  longUrl: string,
+): Promise<string | null> {
+  for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
+    const candidate = genShortCode();
+    const ref = db.collection('short_links').doc(candidate);
+    const snap = await ref.get();
+    if (!snap.exists) {
+      try {
+        await ref.set({
+          code: candidate,
+          original_url: longUrl,
+          created_at: Date.now(),
+          created_by_uid: null,
+          click_count: 0,
+          source: 'drive_share',
+        });
+        return candidate;
+      } catch (e) {
+        console.error('[share/create] shortener fail:', e);
+        return null; // fallback long URL
+      }
+    }
+  }
+  return null;
 }

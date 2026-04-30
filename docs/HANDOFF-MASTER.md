@@ -164,9 +164,19 @@ Double-click `scripts\START.bat` → tự pull GitHub + pnpm install + show stat
 
 🟡 Phase 23 IN PROGRESS — TrishDrive MTProto migration (sau khi xong → roadmap TrishISO/Finance)
                 ✅ 23.1 Scaffold — grammers-client crate + module mtproto.rs + command mtproto_status + Settings UI badge
-                ⏳ 23.2 Login flow — phone + OTP + lưu session encrypted
-                ⏳ 23.3 Upload file > 50MB qua MTProto (không chia Bot API chunk)
-                ⏳ 23.4 Download streaming MTProto
+                ✅ 23.2 Login flow — api_id/hash + phone + OTP (3-step wizard) + 2FA password support + sign_out
+                       — Fix: state machine enum AwaitingCode/Awaiting2FA, save_session_safe (bypass grammers save_to_file os error 2)
+                ✅ 23.3 Upload/download/delete TEST commands trên Saved Messages
+                       — mtproto::upload_to_saved / download_from_saved / delete_from_saved
+                       — Settings → MtprotoTestPanel: 3 button verify SDK (Trí connected +84969580657 @hosytri07)
+                ✅ 23.4 Wire MTProto vào pipeline file_upload_mtproto / file_download_mtproto / file_purge_mtproto
+                       — DB: ALTER TABLE files ADD COLUMN pipeline TEXT NOT NULL DEFAULT 'botapi'
+                       — MTPROTO_CHUNK_SIZE = 100MB (vs 19MB Bot API → file 2GB chỉ 20 chunks thay vì 108)
+                       — Bot API commands có guard: refuse nếu file.pipeline == 'mtproto'
+                       — Frontend Upload page: toggle "Dùng MTProto" (auto-disable nếu chưa setup), persist localStorage
+                       — FilesPage: tự route download theo file.pipeline + badge "MT" emerald cạnh tên file
+                       — TrashPage: tự route purge + emptyTrash + file_purge_old_trash auto theo pipeline
+                ⏳ 23.5 Progress callback (wrap AsyncRead) cho upload_stream — emit drive-progress event mỗi MB
 
 ⏳ Phase 24     TrishDesign desktop (sau khi xong TrishDrive MTProto)
                 - AutoCAD plugin

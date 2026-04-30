@@ -25,6 +25,8 @@ pub fn init_schema(conn: &Connection) -> Result<()> {
     // Migration: add columns nếu DB cũ thiếu (silent ignore nếu duplicate)
     let _ = conn.execute("ALTER TABLE files ADD COLUMN note TEXT", []);
     let _ = conn.execute("ALTER TABLE files ADD COLUMN deleted_at INTEGER", []);
+    // Phase 23.4: 'botapi' (default, Bot API + 19MB chunk) hoặc 'mtproto' (user account + 100MB chunk)
+    let _ = conn.execute("ALTER TABLE files ADD COLUMN pipeline TEXT NOT NULL DEFAULT 'botapi'", []);
     conn.execute_batch(
         r#"
         CREATE TABLE IF NOT EXISTS files (
@@ -89,7 +91,12 @@ pub struct FileRow {
     pub total_chunks: i64,
     pub note: Option<String>,
     pub deleted_at: Option<i64>,
+    /// Phase 23.4: 'botapi' hoặc 'mtproto' — quyết định download/purge route
+    #[serde(default = "default_pipeline")]
+    pub pipeline: String,
 }
+
+fn default_pipeline() -> String { "botapi".to_string() }
 
 #[derive(Debug, serde::Serialize, serde::Deserialize)]
 pub struct FolderRow {
@@ -114,11 +121,12 @@ pub fn insert_file(
     row: &FileRow,
 ) -> Result<()> {
     conn.execute(
-        "INSERT INTO files (id, name, size_bytes, mime, sha256_hex, folder_id, created_at, updated_at, total_chunks, note)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?7, ?8, ?9)",
+        "INSERT INTO files (id, name, size_bytes, mime, sha256_hex, folder_id, created_at, updated_at, total_chunks, note, pipeline)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?7, ?8, ?9, ?10)",
         params![
             row.id, row.name, row.size_bytes, row.mime, row.sha256_hex,
-            row.folder_id, row.created_at, row.total_chunks, row.note
+            row.folder_id, row.created_at, row.total_chunks, row.note,
+            row.pipeline
         ],
     )?;
     Ok(())
@@ -190,7 +198,7 @@ pub fn insert_chunk(conn: &Connection, row: &ChunkRow) -> Result<()> {
 
 pub fn get_file(conn: &Connection, file_id: &str) -> Result<Option<FileRow>> {
     let mut stmt = conn.prepare(
-        "SELECT id, name, size_bytes, mime, sha256_hex, folder_id, created_at, total_chunks, note
+        "SELECT id, name, size_bytes, mime, sha256_hex, folder_id, created_at, total_chunks, note, deleted_at, pipeline
          FROM files WHERE id = ?",
     )?;
     let mut rows = stmt.query_map(params![file_id], |r| {
@@ -199,6 +207,7 @@ pub fn get_file(conn: &Connection, file_id: &str) -> Result<Option<FileRow>> {
             mime: r.get(3)?, sha256_hex: r.get(4)?, folder_id: r.get(5)?,
             created_at: r.get(6)?, total_chunks: r.get(7)?, note: r.get(8)?,
             deleted_at: r.get(9)?,
+            pipeline: r.get(10)?,
         })
     })?;
     Ok(rows.next().transpose()?)
@@ -239,7 +248,7 @@ pub fn restore_file(conn: &Connection, file_id: &str) -> Result<()> {
 /// List file đã trash (deleted_at IS NOT NULL) sort theo deleted_at desc.
 pub fn list_trashed(conn: &Connection) -> Result<Vec<FileRow>> {
     let mut stmt = conn.prepare(
-        "SELECT id, name, size_bytes, mime, sha256_hex, folder_id, created_at, total_chunks, note, deleted_at
+        "SELECT id, name, size_bytes, mime, sha256_hex, folder_id, created_at, total_chunks, note, deleted_at, pipeline
          FROM files WHERE deleted_at IS NOT NULL ORDER BY deleted_at DESC LIMIT 500",
     )?;
     let rows = stmt.query_map([], |r| {
@@ -248,6 +257,7 @@ pub fn list_trashed(conn: &Connection) -> Result<Vec<FileRow>> {
             mime: r.get(3)?, sha256_hex: r.get(4)?, folder_id: r.get(5)?,
             created_at: r.get(6)?, total_chunks: r.get(7)?,
             note: r.get(8)?, deleted_at: r.get(9)?,
+            pipeline: r.get(10)?,
         })
     })?.collect::<Result<Vec<_>>>()?;
     Ok(rows)
@@ -256,7 +266,7 @@ pub fn list_trashed(conn: &Connection) -> Result<Vec<FileRow>> {
 /// Tìm file trashed cũ hơn `older_than_ms` để purge auto.
 pub fn list_trashed_older_than(conn: &Connection, older_than_ms: i64) -> Result<Vec<FileRow>> {
     let mut stmt = conn.prepare(
-        "SELECT id, name, size_bytes, mime, sha256_hex, folder_id, created_at, total_chunks, note, deleted_at
+        "SELECT id, name, size_bytes, mime, sha256_hex, folder_id, created_at, total_chunks, note, deleted_at, pipeline
          FROM files WHERE deleted_at IS NOT NULL AND deleted_at < ?",
     )?;
     let rows = stmt.query_map(params![older_than_ms], |r| {
@@ -265,6 +275,7 @@ pub fn list_trashed_older_than(conn: &Connection, older_than_ms: i64) -> Result<
             mime: r.get(3)?, sha256_hex: r.get(4)?, folder_id: r.get(5)?,
             created_at: r.get(6)?, total_chunks: r.get(7)?,
             note: r.get(8)?, deleted_at: r.get(9)?,
+            pipeline: r.get(10)?,
         })
     })?.collect::<Result<Vec<_>>>()?;
     Ok(rows)
@@ -280,7 +291,7 @@ fn chrono_now_ms() -> i64 {
 
 pub fn list_files(conn: &Connection, folder_id: Option<&str>, search: Option<&str>) -> Result<Vec<FileRow>> {
     // List active files only (deleted_at IS NULL). Trash dùng list_trashed.
-    let cols = "SELECT id, name, size_bytes, mime, sha256_hex, folder_id, created_at, total_chunks, note, deleted_at FROM files";
+    let cols = "SELECT id, name, size_bytes, mime, sha256_hex, folder_id, created_at, total_chunks, note, deleted_at, pipeline FROM files";
     let order = "ORDER BY created_at DESC LIMIT 500";
     let sql = match (folder_id, &search) {
         (Some(_), Some(q)) => format!("{} WHERE deleted_at IS NULL AND folder_id = ? AND name LIKE '%{}%' {}", cols, escape_like(q), order),
@@ -301,6 +312,7 @@ pub fn list_files(conn: &Connection, folder_id: Option<&str>, search: Option<&st
             total_chunks: r.get(7)?,
             note: r.get(8)?,
             deleted_at: r.get(9)?,
+            pipeline: r.get(10)?,
         })
     };
     let rows = if let Some(fid) = folder_id {

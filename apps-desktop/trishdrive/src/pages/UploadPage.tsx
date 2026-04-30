@@ -34,6 +34,11 @@ interface FolderRow {
   created_at: number;
 }
 
+interface MtprotoStatus {
+  configured: boolean;
+  authorized: boolean;
+}
+
 export function UploadPage({ uid, onUploadDone }: { uid: string; onUploadDone: () => void }): JSX.Element {
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState<UploadResult | null>(null);
@@ -44,9 +49,14 @@ export function UploadPage({ uid, onUploadDone }: { uid: string; onUploadDone: (
   const [pickedPath, setPickedPath] = useState<string | null>(null);
   const [progressData, setProgressData] = useState<ProgressEvent | null>(null);
   const [startTime, setStartTime] = useState<number>(0);
+  const [useMtproto, setUseMtproto] = useState<boolean>(() => {
+    return localStorage.getItem('trishdrive-pipeline') === 'mtproto';
+  });
+  const [mtprotoReady, setMtprotoReady] = useState<boolean>(false);
 
   useEffect(() => {
     void loadFolders();
+    void loadMtprotoStatus();
     const unlistenPromise = listen<ProgressEvent>('drive-progress', (e) => {
       if (e.payload.op === 'upload') {
         setProgressData(e.payload);
@@ -55,12 +65,27 @@ export function UploadPage({ uid, onUploadDone }: { uid: string; onUploadDone: (
     return () => { unlistenPromise.then(fn => fn()); };
   }, []);
 
+  useEffect(() => {
+    localStorage.setItem('trishdrive-pipeline', useMtproto ? 'mtproto' : 'botapi');
+  }, [useMtproto]);
+
   async function loadFolders() {
     try {
       const f = await invoke<FolderRow[]>('folder_list');
       setFolders(f);
     } catch (e) {
       console.warn('[folder_list]', e);
+    }
+  }
+
+  async function loadMtprotoStatus() {
+    try {
+      const s = await invoke<MtprotoStatus>('mtproto_status', { uid });
+      const ready = s.configured && s.authorized;
+      setMtprotoReady(ready);
+      if (!ready && useMtproto) setUseMtproto(false); // auto-fallback nếu chưa setup
+    } catch {
+      setMtprotoReady(false);
     }
   }
 
@@ -86,7 +111,8 @@ export function UploadPage({ uid, onUploadDone }: { uid: string; onUploadDone: (
     setProgressData(null);
     setStartTime(Date.now());
     try {
-      const r = await invoke<UploadResult>('file_upload', {
+      const command = useMtproto && mtprotoReady ? 'file_upload_mtproto' : 'file_upload';
+      const r = await invoke<UploadResult>(command, {
         uid,
         filePath: pickedPath,
         folderId: folderId || null,
@@ -151,6 +177,36 @@ export function UploadPage({ uid, onUploadDone }: { uid: string; onUploadDone: (
             </div>
           </>
         )}
+      </div>
+
+      {/* Pipeline toggle — MTProto vs Bot API */}
+      <div className="mt-4 p-3 rounded-xl" style={{ background: 'var(--color-surface-row)', border: '1px solid var(--color-border-default)' }}>
+        <div className="flex items-start justify-between gap-3">
+          <div style={{ flex: 1 }}>
+            <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--color-text-primary)' }}>
+              Phương thức upload
+            </div>
+            <div style={{ fontSize: 11, color: 'var(--color-text-muted)', marginTop: 2, lineHeight: 1.5 }}>
+              {useMtproto && mtprotoReady ? (
+                <><strong style={{ color: 'var(--color-accent-primary)' }}>MTProto</strong> · chunk 100MB · upload thẳng từ user account · file 2GB ~20 chunks (nhanh 5x)</>
+              ) : (
+                <><strong>Bot API</strong> · chunk 19MB · qua Telegram bot · file 2GB ~108 chunks {!mtprotoReady && '· (Setup MTProto ở Settings để tăng tốc)'}</>
+              )}
+            </div>
+          </div>
+          <label className="flex items-center gap-2 cursor-pointer" style={{ opacity: mtprotoReady ? 1 : 0.5 }}>
+            <input
+              type="checkbox"
+              checked={useMtproto && mtprotoReady}
+              onChange={e => setUseMtproto(e.target.checked)}
+              disabled={!mtprotoReady || busy}
+              style={{ width: 16, height: 16, accentColor: 'var(--color-accent-primary)' }}
+            />
+            <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--color-text-primary)' }}>
+              Dùng MTProto
+            </span>
+          </label>
+        </div>
       </div>
 
       {/* Folder + Note (optional) */}

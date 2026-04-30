@@ -79,3 +79,51 @@ pub fn delete_creds(uid: &str) -> Result<(), String> {
         Err(e) => Err(format!("keyring delete: {}", e)),
     }
 }
+
+// ============================================================
+// Phase 23.2 — MTProto config (api_id + api_hash) per-user
+// ============================================================
+
+const MTPROTO_USERNAME_PREFIX: &str = "mtproto_config_";
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct MtprotoConfig {
+    pub api_id: i32,
+    pub api_hash: String,
+}
+
+fn mtproto_entry(uid: &str) -> Result<Entry, String> {
+    if uid.is_empty() {
+        return Err("Empty uid".to_string());
+    }
+    let username = format!("{}{}", MTPROTO_USERNAME_PREFIX, uid);
+    Entry::new(SERVICE, &username).map_err(|e| format!("keyring entry: {}", e))
+}
+
+pub fn save_mtproto_config(uid: &str, config: &MtprotoConfig) -> Result<(), String> {
+    let entry = mtproto_entry(uid)?;
+    let json = serde_json::to_string(config).map_err(|e| format!("serialize: {}", e))?;
+    entry.set_password(&json).map_err(|e| format!("keyring set: {}", e))?;
+    Ok(())
+}
+
+pub fn load_mtproto_config(uid: &str) -> Result<Option<MtprotoConfig>, String> {
+    let entry = mtproto_entry(uid)?;
+    match entry.get_password() {
+        Ok(json) => {
+            let config: MtprotoConfig = serde_json::from_str(&json).map_err(|e| format!("deserialize: {}", e))?;
+            Ok(Some(config))
+        }
+        Err(keyring::Error::NoEntry) => Ok(None),
+        Err(e) => Err(format!("keyring get: {}", e)),
+    }
+}
+
+pub fn delete_mtproto_config(uid: &str) -> Result<(), String> {
+    let entry = mtproto_entry(uid)?;
+    match entry.delete_password() {
+        Ok(()) => Ok(()),
+        Err(keyring::Error::NoEntry) => Ok(()),
+        Err(e) => Err(format!("keyring delete: {}", e)),
+    }
+}
