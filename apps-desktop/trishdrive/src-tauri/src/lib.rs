@@ -16,13 +16,22 @@ mod db;
 
 use rusqlite::params;
 use serde::{Deserialize, Serialize};
-use std::sync::Mutex;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::{Arc, Mutex};
 use tauri::Emitter;
 
 /// Phase 26.2.D — Speed limiter state (MB/s). 0 = unlimited.
 /// User set qua Settings UI → invoke set_speed_limit.
 #[derive(Default)]
 struct SpeedLimit(Mutex<f64>);
+
+/// Phase 26.2.B — Download control: pause/resume/cancel flags.
+/// In-progress only (không persist sau crash). Reset đầu mỗi download.
+#[derive(Default)]
+struct DownloadControl {
+    paused: Arc<AtomicBool>,
+    cancelled: Arc<AtomicBool>,
+}
 
 /// Phase 26.1.G — progress event emit sau mỗi chunk download.
 /// Frontend listen `drive-progress` → render % + speed + ETA.
@@ -89,6 +98,27 @@ fn set_speed_limit(state: tauri::State<'_, SpeedLimit>, mbps: f64) {
 #[tauri::command]
 fn get_speed_limit(state: tauri::State<'_, SpeedLimit>) -> f64 {
     state.0.lock().map(|g| *g).unwrap_or(0.0)
+}
+
+/// Phase 26.2.B — Pause/resume/cancel download.
+#[tauri::command]
+fn pause_download(state: tauri::State<'_, DownloadControl>) {
+    state.paused.store(true, Ordering::SeqCst);
+}
+
+#[tauri::command]
+fn resume_download(state: tauri::State<'_, DownloadControl>) {
+    state.paused.store(false, Ordering::SeqCst);
+}
+
+#[tauri::command]
+fn cancel_download(state: tauri::State<'_, DownloadControl>) {
+    state.cancelled.store(true, Ordering::SeqCst);
+}
+
+#[tauri::command]
+fn is_download_paused(state: tauri::State<'_, DownloadControl>) -> bool {
+    state.paused.load(Ordering::SeqCst)
 }
 
 // ============================================================
@@ -341,17 +371,22 @@ async fn proxy_download_chunk(
 }
 
 /// Phase 26.2.D — Public Tauri command. Read speed limit từ state, gọi helper.
+/// Phase 26.2.B — Reset pause/cancel flags at start.
 #[tauri::command]
 async fn share_paste_and_download(
     app: tauri::AppHandle,
     state: tauri::State<'_, SpeedLimit>,
+    ctrl: tauri::State<'_, DownloadControl>,
     url: String,
     password: Option<String>,
     dest_path: String,
 ) -> Result<HistoryRow, String> {
     let mbps = state.0.lock().map(|g| *g).unwrap_or(0.0);
     let bps = if mbps > 0.0 { mbps * 1_048_576.0 } else { 0.0 };
-    do_share_paste_and_download(app, bps, url, password, dest_path).await
+    // Reset control flags
+    ctrl.paused.store(false, Ordering::SeqCst);
+    ctrl.cancelled.store(false, Ordering::SeqCst);
+    do_share_paste_and_download(app, bps, ctrl.paused.clone(), ctrl.cancelled.clone(), url, password, dest_path).await
 }
 
 /// Helper internal — KHÔNG nhận tauri::State để có thể gọi từ
@@ -359,6 +394,8 @@ async fn share_paste_and_download(
 async fn do_share_paste_and_download(
     app: tauri::AppHandle,
     speed_limit_bps: f64,
+    paused: Arc<AtomicBool>,
+    cancelled: Arc<AtomicBool>,
     url: String,
     password: Option<String>,
     dest_path: String,
@@ -410,6 +447,25 @@ async fn do_share_paste_and_download(
     let pipeline_default = info.pipeline.as_deref().unwrap_or("botapi");
 
     for (i, chunk) in info.chunks.iter().enumerate() {
+        // Phase 26.2.B — Pause/Cancel check trước mỗi chunk
+        while paused.load(Ordering::SeqCst) {
+            if cancelled.load(Ordering::SeqCst) {
+                let _ = tokio::fs::remove_file(&dest_path).await;
+                return Err("Đã huỷ download bởi user".into());
+            }
+            let _ = app.emit("drive-progress", DownloadProgress {
+                current_chunk: (i + 1) as i64, total_chunks,
+                bytes_done, total_bytes,
+                file_name: info.file_name.clone(),
+                phase: "paused".into(),
+            });
+            tokio::time::sleep(std::time::Duration::from_millis(500)).await;
+        }
+        if cancelled.load(Ordering::SeqCst) {
+            let _ = tokio::fs::remove_file(&dest_path).await;
+            return Err("Đã huỷ download bởi user".into());
+        }
+
         let chunk_start = std::time::Instant::now();
         let chunk_pipeline = chunk.pipeline.as_deref().unwrap_or(pipeline_default);
         let encrypted = proxy_download_chunk(&token, &bot_token, chunk, chunk_pipeline, i == 0).await
@@ -537,12 +593,18 @@ fn sanitize_filename(name: &str) -> String {
 async fn share_queue_download(
     app: tauri::AppHandle,
     state: tauri::State<'_, SpeedLimit>,
+    ctrl: tauri::State<'_, DownloadControl>,
     urls: Vec<String>,
     dest_folder: String,
 ) -> Result<QueueResult, String> {
     // Phase 26.2.D — share speed limit cho mọi chunk trong queue
     let mbps = state.0.lock().map(|g| *g).unwrap_or(0.0);
     let speed_limit_bps = if mbps > 0.0 { mbps * 1_048_576.0 } else { 0.0 };
+    // Phase 26.2.B — share pause/cancel flags
+    ctrl.paused.store(false, Ordering::SeqCst);
+    ctrl.cancelled.store(false, Ordering::SeqCst);
+    let paused = ctrl.paused.clone();
+    let cancelled = ctrl.cancelled.clone();
 
     let total = urls.len() as i64;
     let mut success = 0i64;
@@ -616,11 +678,12 @@ async fn share_queue_download(
         }
 
         // Gọi do_share_paste_and_download helper (không cần re-parse URL).
-        // Helper nhận speed_limit_bps trực tiếp thay vì State<SpeedLimit>.
         let password_for_download = key_from_fragment.unwrap_or_default();
         match do_share_paste_and_download(
             app.clone(),
             speed_limit_bps,
+            paused.clone(),
+            cancelled.clone(),
             url.clone(),
             if password_for_download.is_empty() { None } else { Some(password_for_download) },
             dest_path_str,
@@ -705,6 +768,7 @@ pub fn run() {
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_process::init())
         .manage(SpeedLimit::default())
+        .manage(DownloadControl::default())
         .invoke_handler(tauri::generate_handler![
             app_version,
             ping,
@@ -712,6 +776,10 @@ pub fn run() {
             hide_to_tray,
             set_speed_limit,
             get_speed_limit,
+            pause_download,
+            resume_download,
+            cancel_download,
+            is_download_paused,
             history_list,
             history_clear,
             history_update_meta,

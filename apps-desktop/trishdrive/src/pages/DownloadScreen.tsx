@@ -17,6 +17,7 @@ import {
   Download, Link as LinkIcon, Lock, FolderOpen,
   AlertCircle, CheckCircle2, Loader2, Copy, FolderTree,
   ListPlus, FileText, X, Upload as UploadIcon, Clock,
+  Pause, Play, Square,
 } from 'lucide-react';
 import { loadSchedule, isInScheduleWindow } from './SettingsModal';
 
@@ -112,6 +113,24 @@ export function DownloadScreen({ onDone }: { onDone: (row: HistoryRow) => void }
   // Phase 26.2.E — Schedule + pending queue
   const [pendingList, setPendingList] = useState<PendingDownload[]>(loadPending);
   const [scheduledMsg, setScheduledMsg] = useState<string | null>(null);
+
+  // Phase 26.2.B — Pause/Cancel state
+  const [paused, setPaused] = useState(false);
+
+  async function togglePause() {
+    if (paused) {
+      await invoke('resume_download');
+      setPaused(false);
+    } else {
+      await invoke('pause_download');
+      setPaused(true);
+    }
+  }
+
+  async function cancelDownload() {
+    if (!confirm('Huỷ tải file này? File partial sẽ bị xoá.')) return;
+    await invoke('cancel_download');
+  }
 
   const startTimeRef = useRef<number>(0);
   const lastBytesRef = useRef<number>(0);
@@ -325,6 +344,7 @@ export function DownloadScreen({ onDone }: { onDone: (row: HistoryRow) => void }
     setErr(null);
     setSuccess(null);
     setProgress(null);
+    setPaused(false); // Phase 26.2.B reset
     startTimeRef.current = Date.now();
     lastBytesRef.current = 0;
     lastTimeRef.current = 0;
@@ -662,28 +682,48 @@ export function DownloadScreen({ onDone }: { onDone: (row: HistoryRow) => void }
             </div>
           </div>
 
-        {/* Progress bar */}
+        {/* Progress bar + Pause/Resume/Cancel controls (Phase 26.2.B) */}
         {busy && progress && (
-          <div className="mt-4 p-3 rounded-xl" style={{ background: 'var(--color-surface-row)', border: '1px solid var(--color-border-subtle)' }}>
+          <div className="mt-4 p-3 rounded-xl" style={{
+            background: progress.phase === 'paused' ? 'rgba(245,158,11,0.10)' : 'var(--color-surface-row)',
+            border: '1px solid ' + (progress.phase === 'paused' ? 'var(--semantic-warning)' : 'var(--color-border-subtle)'),
+          }}>
             <div className="flex justify-between items-baseline mb-2">
-              <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--color-accent-primary)' }}>
-                {phaseLabel[progress.phase]} · chunk {progress.current_chunk}/{progress.total_chunks}
+              <div style={{ fontSize: 12, fontWeight: 600, color: progress.phase === 'paused' ? '#b45309' : 'var(--color-accent-primary)' }}>
+                {progress.phase === 'paused' ? '⏸ Đã tạm dừng' : phaseLabel[progress.phase]} · chunk {progress.current_chunk}/{progress.total_chunks}
               </div>
               <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--color-text-primary)' }}>{pct}%</div>
             </div>
             <div style={{ height: 8, background: 'var(--color-surface-muted)', borderRadius: 4, overflow: 'hidden' }}>
               <div style={{
                 width: `${pct}%`, height: '100%',
-                background: 'var(--color-accent-gradient)',
+                background: progress.phase === 'paused' ? 'var(--semantic-warning)' : 'var(--color-accent-gradient)',
                 transition: 'width 250ms cubic-bezier(0.2, 0, 0, 1)',
               }} />
             </div>
-            <div className="flex justify-between mt-2" style={{ fontSize: 11, color: 'var(--color-text-muted)' }}>
+            <div className="flex justify-between items-center mt-2" style={{ fontSize: 11, color: 'var(--color-text-muted)' }}>
               <span>{formatBytes(progress.bytes_done)} / {formatBytes(progress.total_bytes)}</span>
               <span>
-                {speedBpsRef.current > 0 && `${speedMb} MB/s`}
-                {etaSec > 0 && etaSec < 3600 && ` · ETA ${formatEta(etaSec)}`}
+                {progress.phase !== 'paused' && speedBpsRef.current > 0 && `${speedMb} MB/s`}
+                {progress.phase !== 'paused' && etaSec > 0 && etaSec < 3600 && ` · ETA ${formatEta(etaSec)}`}
               </span>
+            </div>
+            {/* Pause/Resume/Cancel buttons */}
+            <div className="flex gap-2 mt-3">
+              <button
+                className="btn-secondary"
+                onClick={togglePause}
+                style={{ flex: 1, fontSize: 12, padding: '6px 10px' }}
+              >
+                {paused ? <><Play className="h-3.5 w-3.5" /> Resume</> : <><Pause className="h-3.5 w-3.5" /> Tạm dừng</>}
+              </button>
+              <button
+                className="btn-secondary"
+                onClick={cancelDownload}
+                style={{ flex: 1, fontSize: 12, padding: '6px 10px', borderColor: '#ef4444', color: '#ef4444' }}
+              >
+                <Square className="h-3.5 w-3.5" /> Huỷ tải
+              </button>
             </div>
           </div>
         )}
