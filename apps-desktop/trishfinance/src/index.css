@@ -5,3 +5,278 @@
   .no-print, aside, header { display: none !important; }
   .print-area, body { background: white !important; color: black !important; }
 }
+
+/* ==========================================================
+ * Phase 27.2 — Bottom navigation mobile (chỉ visible ≤768px)
+ * ========================================================== */
+.mobile-bottom-nav {
+  display: none;
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  z-index: 90;
+  background: var(--color-surface-card);
+  border-top: 1px solid var(--color-border-subtle);
+  padding: 6px 4px calc(6px + env(safe-area-inset-bottom, 0px));
+  box-shadow: 0 -4px 16px rgba(0, 0, 0, 0.15);
+}
+
+.mobile-bottom-nav-item {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  padding: 6px 4px;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--color-text-muted);
+  border-radius: 8px;
+  transition: color 150ms;
+  min-height: 50px;
+}
+
+.mobile-bottom-nav-item[data-active="true"] {
+  color: var(--color-accent-primary);
+  background: var(--color-accent-soft);
+}
+
+.mobile-bottom-nav-item span {
+  font-size: 10px;
+  letter-spacing: -0.01em;
+}
+
+.mobile-sidebar-backdrop {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.55);
+  z-index: 99;
+  backdrop-filter: blur(2px);
+}
+
+/* ==========================================================
+ * Phase 27.1.C + 27.2 — Responsive PWA mobile (≤ 768px)
+ * ========================================================== */
+
+@media (max-width: 768px) {
+  /* Show bottom nav + backdrop */
+  .mobile-bottom-nav {
+    display: flex;
+  }
+  .mobile-sidebar-backdrop {
+    display: block;
+  }
+
+  /* Sidebar collapse + overlay style trên mobile */
+  body[data-sidebar-open="false"] aside.fixed {
+    transform: translateX(-100%);
+    transition: transform 220ms ease;
+  }
+  body[data-sidebar-open="true"] aside.fixed {
+    transform: translateX(0);
+    transition: transform 220ms ease;
+    box-shadow: 0 0 40px rgba(0, 0, 0, 0.5);
+    z-index: 100;
+    width: 280px !important;
+  }
+
+  /* Main content full width — bỏ padding-left 256, thêm padding-bottom cho bottom nav */
+  main {
+    padding-left: 0 !important;
+    padding-bottom: calc(60px + env(safe-area-inset-bottom, 0px)) !important;
+  }
+
+  /* Header thu gọn */
+  main > header {
+    padding: 10px 14px !important;
+  }
+  main > header h1 {
+    font-size: 15px !important;
+  }
+  main > header p {
+    font-size: 11px !important;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  main > div {
+    padding: 14px !important;
+  }
+
+  /* Hamburger button — show only on mobile */
+  .mobile-hamburger {
+    display: inline-flex !important;
+  }
+
+  /* Modal full-screen on mobile (≤640) hoặc near-full (640-768) */
+  [role="dialog"], .modal-overlay {
+    padding: 0 !important;
+    align-items: flex-end !important;
+  }
+  .card[style*="maxWidth"] {
+    max-width: 100vw !important;
+    width: 100vw !important;
+    max-height: 92vh !important;
+    border-radius: 16px 16px 0 0 !important;
+    height: auto;
+    overflow-y: auto;
+    margin: 0 !important;
+    padding-bottom: calc(20px + env(safe-area-inset-bottom, 0px)) !important;
+  }
+
+  /* Form grid → 1 column */
+  .form-grid {
+    grid-template-columns: 1fr !important;
+  }
+
+  /* Card-header → stack vertical */
+  .card-header {
+    flex-direction: column;
+    align-items: stretch !important;
+    gap: 10px;
+  }
+  .card-header > div:last-child {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+
+  /* Tables — keep horizontal scroll, cell padding nhỏ + sticky header */
+  .data-table {
+    font-size: 12px;
+  }
+  .data-table th, .data-table td {
+    padding: 6px 8px !important;
+    white-space: nowrap;
+  }
+  .data-table thead {
+    position: sticky;
+    top: 0;
+    background: var(--color-surface-card);
+    z-index: 1;
+  }
+
+  /* Stat cards 4 cols → 2 cols */
+  div[style*="repeat(auto-fit, minmax(180px"] {
+    grid-template-columns: repeat(2, 1fr) !important;
+    gap: 8px !important;
+  }
+
+  /* Sub-nav vertical → horizontal scroll */
+  nav.card[style*="180px"] {
+    width: 100% !important;
+    position: static !important;
+    overflow-x: auto;
+    overflow-y: hidden;
+    display: flex !important;
+    flex-direction: row !important;
+    padding: 6px !important;
+    margin-bottom: 12px;
+    gap: 4px;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: thin;
+  }
+  nav.card[style*="180px"] button {
+    flex-shrink: 0 !important;
+    white-space: nowrap;
+    margin-bottom: 0 !important;
+  }
+
+  /* Grid 180px-256px → 1 col */
+  div[style*="grid-template-columns: 180px"] {
+    grid-template-columns: 1fr !important;
+  }
+
+  /* POS layout 1.4fr 1fr → stack vertical */
+  div[style*="grid-template-columns: 1.4fr 1fr"] {
+    grid-template-columns: 1fr !important;
+  }
+
+  /* Property/Shop card 320px → 96vw (responsive dropdown) */
+  div[style*="width: 320px"] {
+    width: calc(100vw - 16px) !important;
+    max-width: 360px !important;
+    right: 8px !important;
+  }
+
+  /* Calendar widget cells nhỏ hơn */
+  div[style*="grid-template-columns: repeat(7"] button {
+    font-size: 11px !important;
+  }
+
+  /* POS giỏ hàng cart sticky → static (không cần sticky vì stack) */
+  .card[style*="sticky"][style*="top: 80"] {
+    position: static !important;
+    max-height: none !important;
+  }
+
+  /* Phòng/Bàn/Máy grid: tighter on mobile */
+  div[style*="repeat(auto-fill, minmax(180px"],
+  div[style*="repeat(auto-fill, minmax(200px"],
+  div[style*="repeat(auto-fill, minmax(280px"] {
+    grid-template-columns: repeat(2, 1fr) !important;
+  }
+  div[style*="repeat(auto-fill, minmax(140px"] {
+    grid-template-columns: repeat(3, 1fr) !important;
+  }
+
+  /* Header gap nhỏ hơn để vừa */
+  main > header .flex.items-center.gap-2 {
+    gap: 4px !important;
+  }
+  /* Hide một số button trên header trong mobile khi chật (theme/notifs giữ, ẩn user info text) */
+  main > header span[style*="maxWidth: 140"] {
+    display: none !important;
+  }
+}
+
+/* Hamburger button — hidden on desktop */
+.mobile-hamburger {
+  display: none;
+}
+
+/* ==========================================================
+ * Touch-friendly tap targets (≤768px)
+ * ========================================================== */
+@media (max-width: 768px) {
+  button, .btn-primary, .btn-secondary, .icon-btn {
+    min-height: 38px;
+  }
+  .icon-btn {
+    min-width: 32px;
+  }
+  /* Inputs lớn hơn dễ chạm */
+  input, select, textarea {
+    font-size: 14px !important;
+    padding: 10px 12px !important;
+  }
+  /* Disable iOS auto-zoom khi focus input */
+  input:focus, select:focus, textarea:focus {
+    font-size: 16px !important;
+  }
+}
+
+/* ==========================================================
+ * Phase 27.2.D — iOS / Android safe area + scroll polish
+ * ========================================================== */
+html {
+  /* Smooth scroll */
+  scroll-behavior: smooth;
+}
+body {
+  /* Disable overscroll bounce on iOS — tránh pull-to-refresh xung đột */
+  overscroll-behavior-y: contain;
+}
+@supports (padding: env(safe-area-inset-top)) {
+  /* iOS notch / Android cutout safe area */
+  main > header {
+    padding-top: calc(12px + env(safe-area-inset-top, 0px)) !important;
+  }
+  /* Bottom nav đã có env(safe-area-inset-bottom) inline */
+}

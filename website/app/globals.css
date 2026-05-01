@@ -10,14 +10,14 @@
 @tailwind utilities;
 
 /*
- * === Font var bridge — Phase 11.1 ===
- * tokens.css emit `--font-family-display: Be Vietnam Pro;` (literal name, không loaded
- * qua CSS nên browser fallback về serif). layout.tsx load Be Vietnam Pro qua next/font
+ * === Font var bridge — Phase 24.3 (đổi từ Be Vietnam Pro → Plus Jakarta Sans) ===
+ * tokens.css emit `--font-family-display: Plus Jakarta Sans;` (literal name, không loaded
+ * qua CSS nên browser fallback về serif). layout.tsx load Plus Jakarta Sans qua next/font
  * và expose `var(--font-display)` là hashed family name đã loaded.
  *
- * Override token vars ở đây để chuyển hướng tới font đã loaded + fallback stack Việt.
+ * Override token vars ở đây để chuyển hướng tới font đã loaded + fallback stack.
  * Tác dụng: mọi inline style `fontFamily: 'var(--font-family-display)'` ở bất kỳ page
- * nào sẽ tự pick up Be Vietnam Pro, không phải sửa từng nơi.
+ * nào sẽ tự pick up Plus Jakarta Sans, không phải sửa từng nơi.
  */
 :root {
   --font-family-display: var(--font-display), 'Segoe UI', system-ui, sans-serif;

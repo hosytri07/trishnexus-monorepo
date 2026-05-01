@@ -11,10 +11,9 @@
  */
 
 import { useEffect, useMemo, useState } from 'react';
-import { invoke } from '@tauri-apps/api/core';
-import { openUrl } from '@tauri-apps/plugin-opener';
+import { getAppVersion, openUrl } from './lib/platform';
 import { AuthProvider, useAuth } from '@trishteam/auth/react';
-import { Building2, Wallet, ShoppingCart, LogOut, Sun, Moon, Settings as SettingsIcon, Shield, ExternalLink, Bell } from 'lucide-react';
+import { Building2, Wallet, ShoppingCart, LogOut, Sun, Moon, Settings as SettingsIcon, Shield, ExternalLink, Bell, Menu } from 'lucide-react';
 import { LoginScreen } from './pages/LoginScreen';
 import { SettingsModal } from './pages/SettingsModal';
 import { NhaTroModule } from './modules/nhatro/NhaTroModule';
@@ -103,6 +102,12 @@ function MainShell(): JSX.Element {
   const [appVersion, setAppVersion] = useState('1.0.0');
   const [showSettings, setShowSettings] = useState(false);
   const [showNotifs, setShowNotifs] = useState(false);
+  // Phase 27.1.C — Mobile sidebar toggle (chỉ active trên ≤768px qua CSS)
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+  useEffect(() => {
+    document.body.setAttribute('data-sidebar-open', sidebarOpen ? 'true' : 'false');
+    return () => { document.body.removeAttribute('data-sidebar-open'); };
+  }, [sidebarOpen]);
 
   // Notifications: hóa đơn quá hạn / sắp đến hạn + tồn kho thấp + mượn quá hạn
   const notifications = useMemo(() => {
@@ -143,7 +148,7 @@ function MainShell(): JSX.Element {
     try { localStorage.setItem('trishfinance_theme', theme); } catch {}
   }, [theme]);
   useEffect(() => {
-    void invoke<string>('app_version').then(setAppVersion).catch(() => {});
+    void getAppVersion().then(setAppVersion).catch(() => {});
   }, []);
   useEffect(() => {
     try { localStorage.setItem('trishfinance:active_module', active); } catch {}
@@ -208,13 +213,18 @@ function MainShell(): JSX.Element {
       <main style={{ paddingLeft: 256 }}>
         <header className="sticky top-0 z-10" style={{ background: 'var(--color-surface-bg-elevated)', borderBottom: '1px solid var(--color-border-subtle)', padding: '12px 22px', backdropFilter: 'blur(8px)' }}>
           <div className="flex items-center justify-between gap-3">
-            <div style={{ minWidth: 0 }}>
-              <h1 style={{ fontSize: 18, fontWeight: 600, letterSpacing: '-0.02em', color: 'var(--color-text-primary)', margin: 0 }}>
-                {MODULES.find(m => m.id === active)?.label || ''}
-              </h1>
-              <p style={{ fontSize: 12, color: 'var(--color-text-muted)', margin: 0, marginTop: 2 }}>
-                {MODULES.find(m => m.id === active)?.sub || ''}
-              </p>
+            <div className="flex items-center gap-3" style={{ minWidth: 0 }}>
+              <button className="btn-secondary mobile-hamburger" onClick={() => setSidebarOpen(v => !v)} title="Menu" style={{ padding: '6px 10px' }}>
+                <Menu className="h-4 w-4" />
+              </button>
+              <div style={{ minWidth: 0 }}>
+                <h1 style={{ fontSize: 18, fontWeight: 600, letterSpacing: '-0.02em', color: 'var(--color-text-primary)', margin: 0 }}>
+                  {MODULES.find(m => m.id === active)?.label || ''}
+                </h1>
+                <p style={{ fontSize: 12, color: 'var(--color-text-muted)', margin: 0, marginTop: 2 }}>
+                  {MODULES.find(m => m.id === active)?.sub || ''}
+                </p>
+              </div>
             </div>
             <div className="flex items-center gap-2">
               <div style={{ position: 'relative' }}>
@@ -286,6 +296,35 @@ function MainShell(): JSX.Element {
           {active === 'banhang' && <BanHangModule />}
         </div>
       </main>
+
+      {/* Phase 27.2.A — Bottom nav cho mobile (chỉ show ≤768px qua CSS) */}
+      <nav className="mobile-bottom-nav" aria-label="Bottom navigation">
+        {MODULES.map((m) => {
+          const isActive = active === m.id;
+          const Icon = m.icon;
+          return (
+            <button
+              key={m.id}
+              type="button"
+              onClick={() => { setActive(m.id); setSidebarOpen(false); }}
+              className="mobile-bottom-nav-item"
+              data-active={isActive ? 'true' : 'false'}
+            >
+              <Icon style={{ width: 22, height: 22 }} />
+              <span>{m.id === 'taichinh' ? 'Tài chính' : m.id === 'nhatro' ? 'Nhà trọ' : 'Bán hàng'}</span>
+            </button>
+          );
+        })}
+      </nav>
+
+      {/* Phase 27.2.D — Backdrop khi sidebar mở trên mobile (click để đóng) */}
+      {sidebarOpen && (
+        <div
+          className="mobile-sidebar-backdrop"
+          onClick={() => setSidebarOpen(false)}
+          aria-hidden="true"
+        />
+      )}
 
       {showSettings && (
         <SettingsModal

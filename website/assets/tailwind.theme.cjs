@@ -117,8 +117,9 @@ module.exports = {
     },
   },
   fontFamily: {
-    display: ['Be Vietnam Pro', 'sans-serif'],
-    body: ['Be Vietnam Pro', 'sans-serif'],
+    // Phase 24.3 — Plus Jakarta Sans (loaded qua next/font ở layout.tsx)
+    display: ['Plus Jakarta Sans', 'sans-serif'],
+    body: ['Plus Jakarta Sans', 'sans-serif'],
     mono: ['JetBrains Mono', 'monospace'],
   },
   fontSize: {

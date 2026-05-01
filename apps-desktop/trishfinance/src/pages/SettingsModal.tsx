@@ -11,6 +11,7 @@ import { useAuth } from '@trishteam/auth/react';
 import { useFinanceDb, now, today, createId, appendLog, downloadBlob } from '../state';
 import { EMPTY_DB, type FinanceDb } from '../types';
 import { useDialog } from '../components/DialogProvider';
+import { isTauri, checkForUpdate, downloadAndInstallUpdate } from '../lib/platform';
 
 type Props = {
   theme: 'light' | 'dark';
@@ -34,13 +35,17 @@ export function SettingsModal({ theme, setTheme, appVersion, onClose }: Props): 
   async function checkUpdate(): Promise<void> {
     setUpdateChecking(true); setUpdateStatus(null);
     try {
-      const { check } = await import('@tauri-apps/plugin-updater');
-      const update = await check();
-      if (update?.available) {
-        setUpdateStatus(`Có bản mới: v${update.version}`);
-        const ok = await dialog.confirm(`Có bản cập nhật v${update.version}.\n\nTải + cài đặt + restart app ngay?`, { variant: 'info', okLabel: 'Cập nhật ngay' });
+      // Phase 27.1.A — dùng platform wrapper, web mode trả available=false luôn
+      if (!isTauri()) {
+        setUpdateStatus('Bản web tự cập nhật khi reload — không cần check thủ công.');
+        return;
+      }
+      const result = await checkForUpdate();
+      if (result.available) {
+        setUpdateStatus(`Có bản mới: v${result.version}`);
+        const ok = await dialog.confirm(`Có bản cập nhật v${result.version}.\n\nTải + cài đặt + restart app ngay?`, { variant: 'info', okLabel: 'Cập nhật ngay' });
         if (ok) {
-          await update.downloadAndInstall();
+          await downloadAndInstallUpdate();
         }
       } else {
         setUpdateStatus('App đã là phiên bản mới nhất.');

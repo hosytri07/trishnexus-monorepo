@@ -7,7 +7,9 @@
   "scripts": {
     "dev": "vite --port=3000 --host=0.0.0.0",
     "build": "vite build",
+    "build:web": "vite build --mode web",
     "preview": "vite preview",
+    "preview:web": "vite preview --port=3000 --host=0.0.0.0 --outDir dist-web",
     "typecheck": "tsc --noEmit",
     "lint": "tsc --noEmit",
     "tauri": "tauri",
@@ -38,6 +40,7 @@
     "@types/node": "^22.14.0",
     "@types/react": "^18.3.3",
     "@types/react-dom": "^18.3.0",
-    "typescript": "~5.8.2"
+    "typescript": "~5.8.2",
+    "vite-plugin-pwa": "^0.21.0"
   }
 }

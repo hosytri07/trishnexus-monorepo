@@ -65,7 +65,7 @@
 
   <!-- Central hub: hexagon white + TT monogram -->
   <polygon points="64,46 77,54 77,74 64,82 51,74 51,54" fill="url(#tt-hub)" stroke="#ffffff" stroke-width="1.5" stroke-opacity="0.5"/>
-  <text x="64" y="71" text-anchor="middle" font-family="'Be Vietnam Pro', 'Inter', sans-serif" font-size="14" font-weight="800" fill="#0f766e" letter-spacing="-0.5">TT</text>
+  <text x="64" y="71" text-anchor="middle" font-family="'Plus Jakarta Sans', 'Inter', sans-serif" font-size="14" font-weight="800" fill="#0f766e" letter-spacing="-0.5">TT</text>
 
   <!-- Small accent dot ở góc (decoration) -->
   <circle cx="110" cy="22" r="3" fill="#fbbf24" fill-opacity="0.85"/>

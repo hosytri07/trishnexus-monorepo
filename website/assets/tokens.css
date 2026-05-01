@@ -53,8 +53,10 @@
   --group-purple: #A78BFA;               /* giữ purple cho mix icon khi cần */
 
   /* === FONT (theme-independent) === */
-  --font-family-display: Be Vietnam Pro;
-  --font-family-body: Be Vietnam Pro;
+  /* Phase 24.3 → Plus Jakarta Sans toàn website. Override ở globals.css trỏ
+     tới var(--font-display) đã loaded qua next/font (layout.tsx). */
+  --font-family-display: Plus Jakarta Sans;
+  --font-family-body: Plus Jakarta Sans;
   --font-family-mono: JetBrains Mono;
   --font-size-xs: 11px;
   --font-size-sm: 12px;
