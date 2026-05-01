@@ -20,6 +20,7 @@ import { NhaTroModule } from './modules/nhatro/NhaTroModule';
 import { TaiChinhModule } from './modules/taichinh/TaiChinhModule';
 import { BanHangModule } from './modules/banhang/BanHangModule';
 import { DialogProvider } from './components/DialogProvider';
+import { InstallPWA } from './components/InstallPWA';
 import { useFinanceDb, dateVN, daysUntil, money, today } from './state';
 import logoUrl from './assets/logo.png';
 
@@ -334,6 +335,9 @@ function MainShell(): JSX.Element {
           onClose={() => setShowSettings(false)}
         />
       )}
+
+      {/* Phase 27.3.C — Install PWA banner (Android Chrome / iOS Safari hint) */}
+      <InstallPWA />
     </div>
   );
 }

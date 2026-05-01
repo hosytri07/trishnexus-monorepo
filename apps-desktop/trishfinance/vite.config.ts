@@ -13,9 +13,9 @@ export default defineConfig(({ mode }) => {
         ? [
             VitePWA({
               registerType: 'autoUpdate',
-              includeAssets: ['favicon.ico', 'logo.png'],
+              includeAssets: ['logo.svg'],
               manifest: {
-                name: 'TrishFinance',
+                name: 'TrishFinance — Quản lý',
                 short_name: 'TrishFinance',
                 description: 'Quản lý nhà trọ · Tài chính cá nhân · Bán hàng',
                 theme_color: '#10b981',
@@ -25,23 +25,19 @@ export default defineConfig(({ mode }) => {
                 lang: 'vi-VN',
                 start_url: '/',
                 scope: '/',
+                categories: ['finance', 'productivity', 'business'],
                 icons: [
+                  // SVG scalable icon — Chrome/Edge/Safari đều support
                   {
-                    src: '/logo-192.png',
-                    sizes: '192x192',
-                    type: 'image/png',
+                    src: '/logo.svg',
+                    sizes: 'any',
+                    type: 'image/svg+xml',
                     purpose: 'any',
                   },
                   {
-                    src: '/logo-512.png',
-                    sizes: '512x512',
-                    type: 'image/png',
-                    purpose: 'any',
-                  },
-                  {
-                    src: '/logo-512.png',
-                    sizes: '512x512',
-                    type: 'image/png',
+                    src: '/logo.svg',
+                    sizes: 'any',
+                    type: 'image/svg+xml',
                     purpose: 'maskable',
                   },
                 ],

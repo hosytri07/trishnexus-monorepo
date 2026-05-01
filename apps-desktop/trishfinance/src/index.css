@@ -92,18 +92,20 @@
     padding-bottom: calc(60px + env(safe-area-inset-bottom, 0px)) !important;
   }
 
-  /* Header thu gọn */
+  /* Header thu gọn — fix wrap title trên mobile chật */
   main > header {
-    padding: 10px 14px !important;
+    padding: 10px 12px !important;
   }
   main > header h1 {
-    font-size: 15px !important;
-  }
-  main > header p {
-    font-size: 11px !important;
+    font-size: 14px !important;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+    max-width: 200px;
+  }
+  /* Ẩn subtitle dưới title trên mobile (đã có bottom nav rồi nên đỡ thừa) */
+  main > header p {
+    display: none !important;
   }
   main > div {
     padding: 14px !important;
@@ -168,24 +170,38 @@
     gap: 8px !important;
   }
 
-  /* Sub-nav vertical → horizontal scroll */
-  nav.card[style*="180px"] {
+  /* Sub-nav vertical → horizontal scroll
+     Selector chính xác: target div grid 180px minmax(0,1fr) → nav.card con */
+  div[style*="grid-template-columns: 180px minmax"] {
+    grid-template-columns: 1fr !important;
+    gap: 12px !important;
+  }
+  div[style*="grid-template-columns: 180px minmax"] > nav.card,
+  div[style*="grid-template-columns: 180px minmax"] > nav,
+  div[style*="grid-template-columns: 180px"] > nav.card,
+  div[style*="180px minmax(0, 1fr)"] > nav {
     width: 100% !important;
     position: static !important;
-    overflow-x: auto;
-    overflow-y: hidden;
+    height: auto !important;
+    overflow-x: auto !important;
+    overflow-y: hidden !important;
     display: flex !important;
     flex-direction: row !important;
     padding: 6px !important;
-    margin-bottom: 12px;
+    margin-bottom: 0 !important;
     gap: 4px;
     -webkit-overflow-scrolling: touch;
     scrollbar-width: thin;
+    /* Sticky vẫn giữ nhưng với top thấp hơn để khỏi che header */
+    top: 56px !important;
   }
-  nav.card[style*="180px"] button {
+  div[style*="grid-template-columns: 180px minmax"] > nav.card > button,
+  div[style*="grid-template-columns: 180px minmax"] > nav > button,
+  div[style*="180px minmax(0, 1fr)"] > nav > button {
     flex-shrink: 0 !important;
-    white-space: nowrap;
+    white-space: nowrap !important;
     margin-bottom: 0 !important;
+    padding: 8px 12px !important;
   }
 
   /* Grid 180px-256px → 1 col */
@@ -230,9 +246,23 @@
   main > header .flex.items-center.gap-2 {
     gap: 4px !important;
   }
-  /* Hide một số button trên header trong mobile khi chật (theme/notifs giữ, ẩn user info text) */
+  /* Hide username text trên header — match được nhiều cách render style */
+  main > header span[style*="max-width: 140"],
+  main > header span[style*="max-width:140"],
   main > header span[style*="maxWidth: 140"] {
     display: none !important;
+  }
+  /* Ẩn role badge text + theme button trên mobile để đỡ chật — chỉ giữ avatar + bell + settings + logout */
+  main > header > div > div:last-child > div:last-child {
+    /* User info card → bỏ padding background */
+    background: transparent !important;
+    padding: 0 !important;
+  }
+  /* Force flex inner div truncate properly */
+  main > header > div > div:first-child > div:last-child {
+    flex: 1 1 0 !important;
+    min-width: 0 !important;
+    overflow: hidden;
   }
 }
 
