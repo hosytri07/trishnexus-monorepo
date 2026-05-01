@@ -6,7 +6,7 @@
 import { useState } from 'react';
 import { openUrl } from '@tauri-apps/plugin-opener';
 import {
-  Bot, Upload, Download, Share2, Folder, ShieldCheck, Lock,
+  Bot, Upload, Download, Share2, Folder, ShieldCheck,
   ChevronDown, ChevronRight, ExternalLink, AlertTriangle, BookOpen, MessagesSquare,
 } from 'lucide-react';
 

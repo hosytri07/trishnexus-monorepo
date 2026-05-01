@@ -110,6 +110,10 @@ export async function GET(req: NextRequest) {
               display_name: (fs.display_name as string) ?? null,
               key_activated_at: (fs.key_activated_at as number) ?? 0,
               activated_key_id: (fs.activated_key_id as string) ?? null,
+              // Phase 22.6.G — Quyền chỉnh sửa TrishISO
+              iso_admin: (fs.iso_admin as boolean) ?? false,
+              // Phase 23.10 — Quyền sử dụng TrishFinance (off-ecosystem)
+              finance_user: (fs.finance_user as boolean) ?? false,
             }
           : null,
       };

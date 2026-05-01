@@ -4,17 +4,20 @@
  */
 
 import { useState } from 'react';
-import { signInWithEmail, signInWithGoogle, getFirebaseAuth } from '@trishteam/auth';
+import { signInWithEmail, signInWithGoogle, signUpWithEmail, getFirebaseAuth } from '@trishteam/auth';
 import { setPersistence, browserLocalPersistence, browserSessionPersistence, sendPasswordResetEmail } from 'firebase/auth';
-import { openUrl } from '@tauri-apps/plugin-opener';
-import { Mail, AlertCircle, ExternalLink, KeyRound } from 'lucide-react';
+import { Mail, AlertCircle, KeyRound, UserPlus } from 'lucide-react';
 import logoUrl from '../assets/logo.png';
 
 const REMEMBER_KEY = 'trishdrive_remember_me';
+type Mode = 'signin' | 'signup';
 
 export function LoginScreen(): JSX.Element {
+  const [mode, setMode] = useState<Mode>('signin');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [displayName, setDisplayName] = useState('');
   const [remember, setRemember] = useState<boolean>(() => {
     try { return localStorage.getItem(REMEMBER_KEY) !== '0'; } catch { return true; }
   });
@@ -27,55 +30,58 @@ export function LoginScreen(): JSX.Element {
       const auth = getFirebaseAuth();
       await setPersistence(auth, remember ? browserLocalPersistence : browserSessionPersistence);
       try { localStorage.setItem(REMEMBER_KEY, remember ? '1' : '0'); } catch {}
-    } catch (e) {
-      console.warn('[persistence] failed', e);
-    }
+    } catch (e) { console.warn('[persistence] failed', e); }
   }
 
   async function doEmailLogin() {
     if (!email.trim() || !password) return;
-    setBusy(true);
-    setErr(null);
-    setResetMsg(null);
+    setBusy(true); setErr(null); setResetMsg(null);
     try {
       await applyPersistence();
       await signInWithEmail(email.trim(), password);
-    } catch (e) {
-      setErr(prettyError((e as Error).message));
-    } finally {
-      setBusy(false);
+    } catch (e) { setErr(prettyError((e as Error).message)); }
+    finally { setBusy(false); }
+  }
+
+  async function doSignUp() {
+    if (!email.trim() || !password || !displayName.trim()) {
+      setErr('Nhập đầy đủ Họ tên + Email + Mật khẩu trước.');
+      return;
     }
+    if (password.length < 6) { setErr('Mật khẩu phải tối thiểu 6 ký tự.'); return; }
+    if (password !== confirmPassword) { setErr('Xác nhận mật khẩu không khớp.'); return; }
+    setBusy(true); setErr(null); setResetMsg(null);
+    try {
+      await applyPersistence();
+      await signUpWithEmail({ email: email.trim(), password, displayName: displayName.trim() });
+      setResetMsg('Đăng ký thành công! Email xác thực đã gửi tới hộp thư của bạn.');
+    } catch (e) { setErr(prettyError((e as Error).message)); }
+    finally { setBusy(false); }
   }
 
   async function doGoogleLogin() {
-    setBusy(true);
-    setErr(null);
-    setResetMsg(null);
+    setBusy(true); setErr(null); setResetMsg(null);
     try {
       await applyPersistence();
       await signInWithGoogle();
-    } catch (e) {
-      setErr(prettyError((e as Error).message));
-    } finally {
-      setBusy(false);
-    }
+    } catch (e) { setErr(prettyError((e as Error).message)); }
+    finally { setBusy(false); }
   }
 
   async function doForgotPassword() {
-    if (!email.trim()) {
-      setErr('Nhập email trước rồi bấm "Quên mật khẩu"');
-      return;
-    }
-    setBusy(true);
-    setErr(null);
+    if (!email.trim()) { setErr('Nhập email trước rồi bấm "Quên mật khẩu"'); return; }
+    setBusy(true); setErr(null);
     try {
       await sendPasswordResetEmail(getFirebaseAuth(), email.trim());
       setResetMsg(`Đã gửi link reset tới ${email.trim()}. Kiểm tra hộp thư + spam.`);
-    } catch (e) {
-      setErr(prettyError((e as Error).message));
-    } finally {
-      setBusy(false);
-    }
+    } catch (e) { setErr(prettyError((e as Error).message)); }
+    finally { setBusy(false); }
+  }
+
+  function switchMode(next: Mode) {
+    setMode(next);
+    setErr(null); setResetMsg(null);
+    setPassword(''); setConfirmPassword('');
   }
 
   return (
@@ -90,54 +96,48 @@ export function LoginScreen(): JSX.Element {
         </div>
 
         <div className="card">
-          <h2 style={{ fontSize: 18, fontWeight: 600, color: 'var(--color-text-primary)' }}>Đăng nhập</h2>
-          <p style={{ fontSize: 13, color: 'var(--color-text-muted)', marginTop: 6 }}>
-            Login tài khoản TrishTEAM để bắt đầu. Mỗi tài khoản 1 cloud Telegram riêng + AES-256 encrypt.
+          <div className="flex items-center gap-2" style={{ background: 'var(--color-surface-row)', padding: 4, borderRadius: 10, marginBottom: 16 }}>
+            <button type="button" onClick={() => switchMode('signin')} style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '8px 12px', borderRadius: 8, fontSize: 13, fontWeight: 600, background: mode === 'signin' ? 'var(--color-surface-card)' : 'transparent', color: mode === 'signin' ? 'var(--color-text-primary)' : 'var(--color-text-muted)', border: 'none', cursor: 'pointer', boxShadow: mode === 'signin' ? 'var(--shadow-xs)' : 'none', textAlign: 'center' }}>Đăng nhập</button>
+            <button type="button" onClick={() => switchMode('signup')} style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '8px 12px', borderRadius: 8, fontSize: 13, fontWeight: 600, background: mode === 'signup' ? 'var(--color-surface-card)' : 'transparent', color: mode === 'signup' ? 'var(--color-text-primary)' : 'var(--color-text-muted)', border: 'none', cursor: 'pointer', boxShadow: mode === 'signup' ? 'var(--shadow-xs)' : 'none', textAlign: 'center' }}>Đăng ký</button>
+          </div>
+
+          <p style={{ fontSize: 13, color: 'var(--color-text-muted)' }}>
+            {mode === 'signin'
+              ? 'Login tài khoản TrishTEAM. Mỗi tài khoản 1 cloud Telegram riêng + AES-256 encrypt.'
+              : 'Tạo tài khoản TrishTEAM mới. Email xác thực sẽ gửi tới hộp thư.'}
           </p>
 
           <div className="space-y-3 mt-5">
+            {mode === 'signup' && (
+              <div>
+                <label style={{ fontSize: 12, fontWeight: 500, color: 'var(--color-text-muted)' }}>Họ tên</label>
+                <input type="text" value={displayName} onChange={e => setDisplayName(e.target.value)} placeholder="Nguyễn Văn A" className="input-field" style={{ marginTop: 4 }} autoFocus />
+              </div>
+            )}
             <div>
               <label style={{ fontSize: 12, fontWeight: 500, color: 'var(--color-text-muted)' }}>Email</label>
-              <input
-                type="email"
-                value={email}
-                onChange={e => setEmail(e.target.value)}
-                placeholder="email@example.com"
-                className="input-field"
-                style={{ marginTop: 4 }}
-                autoFocus
-              />
+              <input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="email@example.com" className="input-field" style={{ marginTop: 4 }} autoFocus={mode === 'signin'} />
             </div>
             <div>
               <label style={{ fontSize: 12, fontWeight: 500, color: 'var(--color-text-muted)' }}>Mật khẩu</label>
-              <input
-                type="password"
-                value={password}
-                onChange={e => setPassword(e.target.value)}
-                onKeyDown={e => e.key === 'Enter' && doEmailLogin()}
-                className="input-field"
-                style={{ marginTop: 4 }}
-              />
+              <input type="password" value={password} onChange={e => setPassword(e.target.value)} onKeyDown={e => e.key === 'Enter' && (mode === 'signin' ? doEmailLogin() : doSignUp())} className="input-field" style={{ marginTop: 4 }} />
             </div>
+            {mode === 'signup' && (
+              <div>
+                <label style={{ fontSize: 12, fontWeight: 500, color: 'var(--color-text-muted)' }}>Xác nhận mật khẩu</label>
+                <input type="password" value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)} onKeyDown={e => e.key === 'Enter' && doSignUp()} className="input-field" style={{ marginTop: 4 }} />
+              </div>
+            )}
           </div>
 
           <div className="flex items-center justify-between mt-3">
             <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: 'var(--color-text-secondary)', cursor: 'pointer' }}>
-              <input
-                type="checkbox"
-                checked={remember}
-                onChange={e => setRemember(e.target.checked)}
-                style={{ width: 16, height: 16, accentColor: 'var(--color-accent-primary)' }}
-              />
+              <input type="checkbox" checked={remember} onChange={e => setRemember(e.target.checked)} style={{ width: 16, height: 16, accentColor: 'var(--color-accent-primary)' }} />
               Ghi nhớ tài khoản
             </label>
-            <button
-              type="button"
-              onClick={doForgotPassword}
-              style={{ fontSize: 13, color: 'var(--color-text-link)', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
-            >
-              Quên mật khẩu?
-            </button>
+            {mode === 'signin' && (
+              <button type="button" onClick={doForgotPassword} style={{ fontSize: 13, color: 'var(--color-text-link)', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>Quên mật khẩu?</button>
+            )}
           </div>
 
           {err && (
@@ -154,30 +154,22 @@ export function LoginScreen(): JSX.Element {
           )}
 
           <div className="flex flex-col gap-2 mt-5">
-            <button className="btn-primary" onClick={doEmailLogin} disabled={busy || !email || !password} style={{ width: '100%' }}>
-              <Mail className="h-4 w-4" /> {busy ? 'Đang đăng nhập...' : 'Đăng nhập bằng Email'}
-            </button>
-
+            {mode === 'signin' ? (
+              <button className="btn-primary" onClick={doEmailLogin} disabled={busy || !email || !password} style={{ width: '100%' }}>
+                <Mail className="h-4 w-4" /> {busy ? 'Đang đăng nhập...' : 'Đăng nhập bằng Email'}
+              </button>
+            ) : (
+              <button className="btn-primary" onClick={doSignUp} disabled={busy || !email || !password || !displayName || !confirmPassword} style={{ width: '100%' }}>
+                <UserPlus className="h-4 w-4" /> {busy ? 'Đang tạo tài khoản...' : 'Đăng ký tài khoản mới'}
+              </button>
+            )}
             <div className="flex items-center gap-3 my-1">
               <div style={{ flex: 1, height: 1, background: 'var(--color-border-subtle)' }} />
               <span style={{ fontSize: 11, color: 'var(--color-text-muted)', fontWeight: 500 }}>hoặc</span>
               <div style={{ flex: 1, height: 1, background: 'var(--color-border-subtle)' }} />
             </div>
-
             <button className="btn-secondary" onClick={doGoogleLogin} disabled={busy} style={{ width: '100%' }}>
-              <GoogleIcon /> Đăng nhập bằng Google
-            </button>
-          </div>
-
-          <div style={{ fontSize: 12, color: 'var(--color-text-muted)', marginTop: 16, textAlign: 'center', borderTop: '1px solid var(--color-border-subtle)', paddingTop: 16 }}>
-            Chưa có tài khoản?{' '}
-            <button
-              type="button"
-              onClick={() => openUrl('https://trishteam.io.vn/login?signup=1')}
-              style={{ color: 'var(--color-text-link)', background: 'none', border: 'none', cursor: 'pointer', padding: 0, fontWeight: 600, textDecoration: 'underline', display: 'inline-flex', alignItems: 'center', gap: 4 }}
-            >
-              Đăng ký tại trishteam.io.vn
-              <ExternalLink className="h-3 w-3" />
+              <GoogleIcon /> {mode === 'signin' ? 'Đăng nhập bằng Google' : 'Đăng ký bằng Google'}
             </button>
           </div>
         </div>
@@ -192,13 +184,22 @@ export function LoginScreen(): JSX.Element {
 
 function prettyError(msg: string): string {
   // Map Firebase error codes → tiếng Việt
-  if (msg.includes('user-not-found')) return 'Email chưa đăng ký. Bấm "Đăng ký" để tạo tài khoản.';
+  if (msg.includes('email-already-in-use')) return 'Email này đã được đăng ký. Bấm "Đăng nhập" để vào, hoặc dùng email khác.';
+  if (msg.includes('weak-password')) return 'Mật khẩu quá yếu — phải tối thiểu 6 ký tự.';
+  if (msg.includes('user-not-found')) return 'Email chưa đăng ký. Bấm "Đăng ký" để tạo tài khoản mới.';
   if (msg.includes('wrong-password') || msg.includes('invalid-credential')) return 'Email hoặc mật khẩu sai.';
   if (msg.includes('too-many-requests')) return 'Quá nhiều lần thử sai. Đợi vài phút rồi thử lại.';
-  if (msg.includes('network')) return 'Không kết nối được Firebase. Kiểm tra mạng.';
+  if (msg.includes('network-request-failed') || msg.includes('network')) return 'Không kết nối được Firebase — kiểm tra mạng/Internet.';
   if (msg.includes('invalid-email')) return 'Email không hợp lệ.';
-  if (msg.includes('user-disabled')) return 'Tài khoản đã bị vô hiệu hoá.';
-  return msg;
+  if (msg.includes('user-disabled')) return 'Tài khoản đã bị vô hiệu hoá. Liên hệ admin.';
+  if (msg.includes('operation-not-allowed')) return 'Phương thức đăng nhập này chưa được kích hoạt.';
+  if (msg.includes('popup-closed-by-user')) return 'Đã đóng cửa sổ Google, đăng nhập bị huỷ.';
+  if (msg.includes('popup-blocked')) return 'Trình duyệt chặn popup Google. Cho phép popup rồi thử lại.';
+  if (msg.includes('cancelled-popup-request')) return 'Đăng nhập Google bị huỷ.';
+  if (msg.includes('account-exists-with-different-credential')) return 'Email này đã đăng ký bằng phương thức khác (Google/email).';
+  if (msg.includes('requires-recent-login')) return 'Cần đăng nhập lại để thực hiện thao tác này.';
+  if (msg.includes('quota-exceeded')) return 'Hết quota Firebase tạm thời. Thử lại sau ít phút.';
+  return msg.replace(/^Firebase:\s*Error\s*\(?([^)]+)\)?\s*\.?$/i, 'Lỗi: $1');
 }
 
 function GoogleIcon(): JSX.Element {

@@ -17,6 +17,8 @@
     "@tauri-apps/api": "^2.0.0",
     "@tauri-apps/plugin-dialog": "^2.0.0",
     "@tauri-apps/plugin-opener": "^2.0.0",
+    "@tauri-apps/plugin-process": "^2.0.0",
+    "@tauri-apps/plugin-updater": "^2.0.0",
     "@tiptap/extension-character-count": "^2.10.0",
     "@tiptap/extension-color": "^2.10.0",
     "@tiptap/extension-font-family": "^2.10.0",

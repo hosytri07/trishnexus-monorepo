@@ -2,7 +2,9 @@
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
   "description": "TrishLibrary 3.0 — capabilities cho 3 module: dialog (pick folder/file), opener (mở file/URL), global-shortcut (Ctrl+Shift+N quick capture), notification (deadline reminder). HTTP fetch + scan folder qua Rust commands.",
-  "windows": ["main"],
+  "windows": [
+    "main"
+  ],
   "permissions": [
     "core:default",
     "dialog:default",
@@ -12,6 +14,9 @@
     "opener:allow-open-path",
     "opener:allow-open-url",
     "global-shortcut:default",
-    "notification:default"
+    "notification:default",
+    "updater:default",
+    "process:default",
+    "process:allow-restart"
   ]
 }

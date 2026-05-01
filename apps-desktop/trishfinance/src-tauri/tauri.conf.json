@@ -4,6 +4,9 @@
   "version": "1.0.0",
   "identifier": "vn.trishteam.finance",
   "build": {
+    "beforeDevCommand": "pnpm dev",
+    "devUrl": "http://localhost:3000",
+    "beforeBuildCommand": "pnpm build",
     "frontendDist": "../dist"
   },
   "app": {
@@ -13,14 +16,14 @@
         "title": "TrishFinance — Quản lý tài chính Phòng trọ + Bán hàng",
         "width": 1280,
         "height": 800,
-        "minWidth": 960,
+        "minWidth": 1024,
         "minHeight": 600,
         "resizable": true,
         "center": true
       }
     ],
     "security": {
-      "csp": "default-src 'self' ipc: http://ipc.localhost; img-src 'self' data: asset: http://asset.localhost; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdn.tailwindcss.com; script-src 'self' 'unsafe-inline' https://cdn.tailwindcss.com; font-src 'self' https://fonts.gstatic.com data:; connect-src 'self' https://cdn.tailwindcss.com https://*.googleapis.com https://*.firebaseio.com https://trishteam.io.vn"
+      "csp": "default-src 'self' ipc: http://ipc.localhost; img-src 'self' data: asset: http://asset.localhost https:; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'; font-src 'self' data:; connect-src 'self' https://*.googleapis.com https://*.firebaseio.com https://*.firestore.googleapis.com https://*.cloudinary.com https://trishteam.io.vn"
     }
   },
   "bundle": {
@@ -36,7 +39,7 @@
     "category": "Productivity",
     "copyright": "© 2026 TrishTEAM",
     "shortDescription": "TrishFinance — quản lý tài chính phòng trọ + bán hàng",
-    "longDescription": "Quản lý phòng trọ (hợp đồng, tiền điện nước, sửa chữa), bán hàng cửa hàng tiện lợi (POS, sản phẩm, đơn hàng, kho, khách hàng) và thu chi tổng hợp. Sync với Firestore qua trishteam.io.vn/trishfinance (admin only).",
+    "longDescription": "Quản lý phòng trọ (hợp đồng, hóa đơn, điện nước, sự cố), bán hàng cửa hàng tiện lợi (POS, sản phẩm, đơn hàng, kho, khách hàng) và tài chính cá nhân (thu chi, ngân sách, ví & tài khoản). Mỗi user 1 database riêng sync Firestore. Ảnh lưu qua TrishDrive.",
     "publisher": "TrishTEAM",
     "homepage": "https://trishteam.io.vn",
     "windows": {
@@ -45,6 +48,19 @@
         "languages": ["English", "Vietnamese"],
         "displayLanguageSelector": true,
         "installerIcon": "icons/icon.ico"
+      }
+    },
+    "createUpdaterArtifacts": true
+  },
+  "plugins": {
+    "updater": {
+      "active": false,
+      "endpoints": [
+        "https://trishteam.io.vn/api/updates/trishfinance/{{target}}/{{current_version}}"
+      ],
+      "pubkey": "PLACEHOLDER_RUN_TAURI_SIGNER_GENERATE_TO_REPLACE",
+      "windows": {
+        "installMode": "passive"
       }
     }
   }

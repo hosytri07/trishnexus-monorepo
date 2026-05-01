@@ -13,6 +13,8 @@ import {
   formatTimestamp,
   listUsers,
   resetUserToTrial,
+  setUserIsoAdmin,
+  setUserFinanceUser,
   setUserRole,
 } from '../lib/firestore-admin.js';
 import type { TrishUser, UserRole } from '@trishteam/data';
@@ -78,6 +80,36 @@ export function UsersPanel(): JSX.Element {
       setActionMsg(`✓ Đổi role ${user.email} → ${ROLE_LABEL[newRole]}`);
       await load();
       setEditing(null);
+    } catch (err) {
+      setActionMsg(`⚠ Lỗi: ${err instanceof Error ? err.message : String(err)}`);
+    }
+  }
+
+  // Phase 22.6.G — Toggle ISO admin riêng cho user
+  async function handleToggleIsoAdmin(user: TrishUser): Promise<void> {
+    const next = !user.iso_admin;
+    if (!window.confirm(`${next ? 'CẤP' : 'THU HỒI'} quyền chỉnh sửa TrishISO cho ${user.email}?`)) {
+      return;
+    }
+    try {
+      await setUserIsoAdmin(user.id, next, actor, user.email);
+      setActionMsg(`✓ ${next ? 'Đã cấp' : 'Đã thu hồi'} quyền ISO Editor cho ${user.email}`);
+      await load();
+    } catch (err) {
+      setActionMsg(`⚠ Lỗi: ${err instanceof Error ? err.message : String(err)}`);
+    }
+  }
+
+  // Phase 23.10 — Toggle quyền sử dụng TrishFinance riêng cho user
+  async function handleToggleFinanceUser(user: TrishUser): Promise<void> {
+    const next = !user.finance_user;
+    if (!window.confirm(`${next ? 'CẤP' : 'THU HỒI'} quyền sử dụng TrishFinance cho ${user.email}?\n\nApp này không thuộc hệ sinh thái — chỉ user được cấp mới dùng được.`)) {
+      return;
+    }
+    try {
+      await setUserFinanceUser(user.id, next, actor, user.email);
+      setActionMsg(`✓ ${next ? 'Đã cấp' : 'Đã thu hồi'} quyền TrishFinance cho ${user.email}`);
+      await load();
     } catch (err) {
       setActionMsg(`⚠ Lỗi: ${err instanceof Error ? err.message : String(err)}`);
     }
@@ -246,6 +278,30 @@ export function UsersPanel(): JSX.Element {
                         title="Đổi role"
                       >
                         ✏ Role
+                      </button>
+                      <button
+                        type="button"
+                        className="btn btn-sm btn-ghost"
+                        onClick={() => void handleToggleIsoAdmin(u)}
+                        title={u.iso_admin ? 'Thu hồi quyền ISO Editor' : 'Cấp quyền ISO Editor (TrishISO)'}
+                        style={{
+                          color: u.iso_admin ? 'var(--color-accent-primary)' : undefined,
+                          fontWeight: u.iso_admin ? 700 : undefined,
+                        }}
+                      >
+                        {u.iso_admin ? '✓ ISO' : '○ ISO'}
+                      </button>
+                      <button
+                        type="button"
+                        className="btn btn-sm btn-ghost"
+                        onClick={() => void handleToggleFinanceUser(u)}
+                        title={u.finance_user ? 'Thu hồi quyền TrishFinance' : 'Cấp quyền TrishFinance (off-ecosystem)'}
+                        style={{
+                          color: u.finance_user ? 'var(--color-accent-primary)' : undefined,
+                          fontWeight: u.finance_user ? 700 : undefined,
+                        }}
+                      >
+                        {u.finance_user ? '✓ Finance' : '○ Finance'}
                       </button>
                       <button
                         type="button"

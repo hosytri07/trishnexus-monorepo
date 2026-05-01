@@ -114,6 +114,12 @@ export interface TrishUser {
   created_at: number;
   /** Last login timestamp ms */
   last_login_at?: number;
+  /** Phase 22.6.G — Quyền chỉnh sửa TrishISO (admin cấp riêng cho user thường) */
+  iso_admin?: boolean;
+  iso_admin_updated_at?: number;
+  /** Phase 23.10 — Quyền sử dụng TrishFinance (admin cấp riêng, app này off-ecosystem) */
+  finance_user?: boolean;
+  finance_user_updated_at?: number;
 }
 
 /** Activation key document trong /keys/{keyId} */

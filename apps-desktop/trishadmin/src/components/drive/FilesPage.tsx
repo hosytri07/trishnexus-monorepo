@@ -217,7 +217,7 @@ export function FilesPage({ uid, search, refreshTick }: { uid: string; search: s
     const labels = ['📁 Root', ...folders.map(f => f.name)];
     const choiceStr = prompt(
       `Move ${ids.length} file vào folder nào?\n\n` +
-      opts.map((id, i) => `  ${i + 1}. ${labels[i]}`).join('\n') +
+      opts.map((_, i) => `  ${i + 1}. ${labels[i]}`).join('\n') +
       `\n\nNhập số:`
     );
     if (!choiceStr) return;

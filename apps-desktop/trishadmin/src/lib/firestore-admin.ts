@@ -70,6 +70,8 @@ interface ApiListUsersResponse {
       display_name?: string | null;
       key_activated_at?: number;
       activated_key_id?: string | null;
+      iso_admin?: boolean;
+      finance_user?: boolean;
     } | null;
   }>;
   total: number;
@@ -137,6 +139,8 @@ export async function listUsers(limit = 500): Promise<TrishUser[]> {
       ...(fs.activated_key_id ? { activated_key_id: fs.activated_key_id } : {}),
       created_at: u.createdAt ?? 0,
       ...(u.lastSignedIn ? { last_login_at: u.lastSignedIn } : {}),
+      ...(fs.iso_admin ? { iso_admin: fs.iso_admin } : {}),
+      ...(fs.finance_user ? { finance_user: fs.finance_user } : {}),
     } as TrishUser;
   });
 }
@@ -207,6 +211,73 @@ export async function setUserRole(
       target_id: uid,
       target_label: targetEmail,
       details: { new_role: role },
+    });
+  }
+}
+
+// Phase 22.6.G — Toggle quyền chỉnh sửa TrishISO cho user.
+// Field `iso_admin: boolean` lưu trong /users/{uid}, TrishISO app gate check
+// field này để cho phép user thường (không phải admin global) chỉnh sửa.
+export async function setUserIsoAdmin(
+  uid: string,
+  value: boolean,
+  actor?: ActorContext,
+  targetEmail?: string,
+): Promise<void> {
+  const db = getFirebaseDb();
+  const ref = doc(db, paths.user(uid));
+  await setDoc(
+    ref,
+    {
+      id: uid,
+      iso_admin: value,
+      iso_admin_updated_at: Date.now(),
+    },
+    { merge: true },
+  );
+  if (actor) {
+    await writeAudit({
+      action: value ? 'user.iso_admin_grant' : 'user.iso_admin_revoke',
+      actor_uid: actor.uid,
+      actor_email: actor.email,
+      target_type: 'user',
+      target_id: uid,
+      target_label: targetEmail,
+      details: { iso_admin: value },
+    });
+  }
+}
+
+// Phase 23.10 — Toggle quyền sử dụng TrishFinance cho user.
+// App TrishFinance không thuộc hệ sinh thái public, chỉ admin grant cho user
+// được dùng. Field `finance_user: boolean` lưu trong /users/{uid}, TrishFinance
+// AppGate check field này. Default false → block.
+export async function setUserFinanceUser(
+  uid: string,
+  value: boolean,
+  actor?: ActorContext,
+  targetEmail?: string,
+): Promise<void> {
+  const db = getFirebaseDb();
+  const ref = doc(db, paths.user(uid));
+  await setDoc(
+    ref,
+    {
+      id: uid,
+      finance_user: value,
+      finance_user_updated_at: Date.now(),
+    },
+    { merge: true },
+  );
+  if (actor) {
+    await writeAudit({
+      action: value ? 'user.finance_user_grant' : 'user.finance_user_revoke',
+      actor_uid: actor.uid,
+      actor_email: actor.email,
+      target_type: 'user',
+      target_id: uid,
+      target_label: targetEmail,
+      details: { finance_user: value },
     });
   }
 }

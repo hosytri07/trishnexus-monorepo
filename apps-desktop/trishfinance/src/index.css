@@ -1,0 +1,7 @@
+/* TrishFinance — chỉ ship app-specific overrides nếu có.
+   Theme + utility classes + Plus Jakarta Sans đã ở @trishteam/design-system. */
+
+@media print {
+  .no-print, aside, header { display: none !important; }
+  .print-area, body { background: white !important; color: black !important; }
+}

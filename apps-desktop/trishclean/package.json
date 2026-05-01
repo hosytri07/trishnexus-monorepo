@@ -16,6 +16,8 @@
   "dependencies": {
     "@tauri-apps/api": "^2.0.0",
     "@tauri-apps/plugin-dialog": "^2.0.0",
+    "@tauri-apps/plugin-process": "^2.0.0",
+    "@tauri-apps/plugin-updater": "^2.0.0",
     "@trishteam/core": "workspace:*",
     "@trishteam/design-system": "workspace:*",
     "@trishteam/telemetry": "workspace:*",

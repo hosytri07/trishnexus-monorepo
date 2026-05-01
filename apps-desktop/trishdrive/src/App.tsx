@@ -42,7 +42,7 @@ export function App(): JSX.Element {
 }
 
 function AppGate(): JSX.Element {
-  const { firebaseUser, loading } = useAuth();
+  const { firebaseUser, profile, loading, signOut } = useAuth();
   const [theme, setTheme] = useState<'light' | 'dark'>(() => {
     try { return (localStorage.getItem('trishdrive_theme') as 'light' | 'dark') || 'light'; } catch { return 'light'; }
   });
@@ -63,6 +63,34 @@ function AppGate(): JSX.Element {
 
   if (!firebaseUser) {
     return <LoginScreen />;
+  }
+
+  // Phase 23.6 — block role 'trial' (cần activate key thành 'user' hoặc admin)
+  const role = (profile as any)?.role;
+  if (role === 'trial' || !role) {
+    return (
+      <div className="min-h-screen flex items-center justify-center p-6" style={{ background: 'var(--color-surface-bg)' }}>
+        <div className="card" style={{ maxWidth: 480, width: '100%', textAlign: 'center' }}>
+          <div style={{ width: 72, height: 72, margin: '0 auto', borderRadius: 16, background: 'rgba(245,158,11,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 36 }}>✨</div>
+          <h1 style={{ fontSize: 20, fontWeight: 600, marginTop: 16, color: 'var(--color-text-primary)' }}>Tài khoản dùng thử</h1>
+          <p style={{ fontSize: 13, color: 'var(--color-text-muted)', marginTop: 8, lineHeight: 1.6 }}>
+            Tài khoản trial chưa được kích hoạt key — chưa thể dùng TrishDrive.<br />
+            Vào trang profile trên web để nhập key kích hoạt thành <b>User</b>.
+          </p>
+          <div style={{ marginTop: 16, padding: 12, borderRadius: 10, background: 'var(--color-surface-row)', textAlign: 'left' }}>
+            <div style={{ fontSize: 11, color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: 0.04, fontWeight: 600 }}>Tài khoản hiện tại</div>
+            <div style={{ fontSize: 13, color: 'var(--color-text-primary)', fontWeight: 600, marginTop: 4 }}>{(profile as any)?.display_name || firebaseUser.email}</div>
+            <div style={{ fontSize: 12, color: 'var(--color-text-muted)' }}>Role: <b>trial</b></div>
+          </div>
+          <div className="flex gap-2 mt-4">
+            <button className="btn-primary" style={{ flex: 1 }} onClick={() => { void import('@tauri-apps/plugin-opener').then(m => m.openUrl('https://trishteam.io.vn/profile')); }}>
+              Mở web kích hoạt
+            </button>
+            <button className="btn-secondary" onClick={() => void signOut()}>Đăng xuất</button>
+          </div>
+        </div>
+      </div>
+    );
   }
 
   return <MainShell theme={theme} setTheme={setTheme} />;

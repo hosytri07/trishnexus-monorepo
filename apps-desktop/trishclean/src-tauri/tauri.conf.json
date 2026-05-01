@@ -27,7 +27,9 @@
   },
   "bundle": {
     "active": true,
-    "targets": ["nsis"],
+    "targets": [
+      "nsis"
+    ],
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",
@@ -44,12 +46,31 @@
     "windows": {
       "nsis": {
         "installMode": "currentUser",
-        "languages": ["English", "Vietnamese"],
+        "languages": [
+          "English",
+          "Vietnamese"
+        ],
         "displayLanguageSelector": true,
         "installerIcon": "icons/icon.ico"
       },
       "wix": {
-        "language": ["en-US", "vi-VN"]
+        "language": [
+          "en-US",
+          "vi-VN"
+        ]
+      }
+    },
+    "createUpdaterArtifacts": true
+  },
+  "plugins": {
+    "updater": {
+      "active": false,
+      "endpoints": [
+        "https://trishteam.io.vn/api/updates/trishclean/{{target}}/{{current_version}}"
+      ],
+      "pubkey": "PLACEHOLDER_RUN_TAURI_SIGNER_GENERATE_TO_REPLACE",
+      "windows": {
+        "installMode": "passive"
       }
     }
   }

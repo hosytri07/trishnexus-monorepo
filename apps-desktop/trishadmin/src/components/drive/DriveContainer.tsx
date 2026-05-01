@@ -24,7 +24,6 @@ import { TrashPage } from './TrashPage';
 import { HelpPage } from './HelpPage';
 import { RequestsPanel } from './RequestsPanel';
 import { CommentsPanel } from './CommentsPanel';
-import logoUrl from '../../assets/logo.png';
 
 type Page = 'dashboard' | 'files' | 'upload' | 'shares' | 'trash' | 'requests' | 'comments' | 'help' | 'settings';
 
@@ -354,6 +353,7 @@ interface MtprotoStatus {
   configured: boolean;
   authorized: boolean;
   user_phone: string | null;
+  user_username?: string | null;
   session_path: string;
 }
 
