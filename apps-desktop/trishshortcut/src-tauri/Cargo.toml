@@ -16,15 +16,19 @@ crate-type = ["staticlib", "cdylib", "rlib"]
 path = "src/lib.rs"
 
 [build-dependencies]
-tauri-build = { version = "2.6", features = [] }
+tauri-build = { version = "2", features = [] }
 
-# Pin tauri 2.11 để match tauri-runtime 2.11 transitive dep + tauri-build 2.6.
-# NPM @tauri-apps/api cũng phải bump ^2.11.0 để khớp major.minor.
+# Tauri ecosystem 2.x — Cargo tự pick consistent generation.
+# Plugin Rust crates pin major.minor MATCH NPM packages tương ứng:
+#   plugin-dialog NPM 2.7.x → Rust ~2.7
+#   plugin-opener NPM 2.5.x → Rust ~2.5
+#   plugin-global-shortcut NPM 2.3.x → Rust ~2.3
+# Bump tauri lên 2 broad để Cargo pick latest tương thích plugin generations.
 [dependencies]
-tauri = { version = "2.11", features = ["protocol-asset", "tray-icon"] }
-tauri-plugin-dialog = "2"
-tauri-plugin-opener = "2"
-tauri-plugin-global-shortcut = "2"
+tauri = { version = "2", features = ["protocol-asset", "tray-icon"] }
+tauri-plugin-dialog = "~2.7"
+tauri-plugin-opener = "~2.5"
+tauri-plugin-global-shortcut = "~2.3"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 sha2 = "0.10"
