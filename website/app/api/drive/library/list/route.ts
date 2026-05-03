@@ -45,6 +45,10 @@ interface LibraryItem {
   expires_at: number | null;
   max_downloads: number | null;
   download_count: number;
+  /** Phase 25.1.G — Public no-password shares: server lưu key plaintext.
+   *  Client app TrishDrive embed key này vào URL fragment để decrypt mà không cần
+   *  user nhập password. Chỉ trả về cho authenticated user qua Library API. */
+  library_password_hex?: string;
 }
 
 export async function GET(req: NextRequest) {
@@ -104,6 +108,9 @@ export async function GET(req: NextRequest) {
         expires_at: d.expires_at ?? null,
         max_downloads: d.max_downloads ?? null,
         download_count: d.download_count ?? 0,
+        ...(typeof d.library_password_hex === 'string'
+          ? { library_password_hex: d.library_password_hex }
+          : {}),
       });
     });
 

@@ -42,6 +42,11 @@ interface CreatePayload {
   is_public?: boolean;
   /** Optional folder name để group trong Library UI (vd: "App", "Tài liệu", "Form"). */
   folder_label?: string | null;
+  /** Phase 25.1.G — Cho public shares no-password: client gửi password hex
+   *  (random 32-char) để server lưu plaintext, Library API trả về cho user app
+   *  auto-decrypt mà không cần fragment URL.
+   *  CHỈ áp dụng nếu is_public=true. KHÔNG bao giờ lưu cho private/passworded shares. */
+  library_password_hex?: string;
 }
 
 export async function POST(req: NextRequest) {
@@ -83,6 +88,11 @@ export async function POST(req: NextRequest) {
       chunks: body.chunks,
       encrypted_bot_token_hex: body.encrypted_bot_token_hex,
       encrypted_master_key_hex: body.encrypted_master_key_hex,
+      // Phase 25.1.G — chỉ lưu library_password_hex khi public + client gửi.
+      // Field này CHỈ Library API trả về (không leak qua /info hoặc public docs).
+      ...(body.is_public === true && body.library_password_hex
+        ? { library_password_hex: body.library_password_hex }
+        : {}),
       expires_at: body.expires_at,
       max_downloads: body.max_downloads,
       download_count: 0,
