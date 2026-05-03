@@ -231,31 +231,59 @@ html, body, #root, button, input, textarea, select {
 .drive-panel .btn-danger:hover { filter: brightness(1.08); }
 
 .drive-panel .icon-btn {
-  background: var(--color-surface-card);
-  border: 1px solid var(--color-border-subtle);
-  color: var(--color-text-secondary);
+  background: var(--bg-soft, var(--color-surface-card, #f0f2f5));
+  border: 1px solid var(--border, var(--color-border-subtle, #d8dde4));
+  color: var(--fg, var(--color-text-secondary, #5a6473));
   border-radius: 8px;
   padding: 6px;
+  min-width: 30px;
+  min-height: 30px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   transition: background 150ms, color 150ms, border-color 150ms;
   cursor: pointer;
 }
+.drive-panel .icon-btn > svg,
+.drive-panel .icon-btn-danger > svg {
+  width: 16px !important;
+  height: 16px !important;
+  stroke: currentColor !important;
+  color: inherit !important;
+  flex-shrink: 0;
+  display: block;
+}
 .drive-panel .icon-btn:hover {
-  background: var(--color-accent-soft);
-  color: var(--color-accent-primary);
-  border-color: var(--color-accent-primary);
+  background: var(--accent-soft, var(--color-accent-soft, rgba(8, 145, 178, 0.1)));
+  color: var(--accent, var(--color-accent-primary, #0891b2));
+  border-color: var(--accent, var(--color-accent-primary, #0891b2));
+}
+.drive-panel .icon-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 .drive-panel .icon-btn-danger {
-  background: var(--color-surface-card);
-  border: 1px solid var(--color-border-subtle);
-  color: var(--color-text-secondary);
+  background: var(--bg-soft, var(--color-surface-card, #f0f2f5));
+  border: 1px solid var(--border, var(--color-border-subtle, #d8dde4));
+  color: var(--fg, var(--color-text-secondary, #5a6473));
   border-radius: 8px;
   padding: 6px;
+  min-width: 30px;
+  min-height: 30px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   transition: background 150ms, color 150ms;
   cursor: pointer;
 }
 .drive-panel .icon-btn-danger:hover {
-  background: rgba(239,68,68,0.08);
-  color: var(--semantic-danger);
+  background: rgba(239,68,68,0.12);
+  color: var(--danger, var(--semantic-danger, #dc2626));
+  border-color: var(--danger, #dc2626);
+}
+.drive-panel .icon-btn-danger:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 .drive-panel .badge {

@@ -21,7 +21,6 @@ tauri-build = { version = "2.0", features = [] }
 [dependencies]
 tauri = { version = "2.0", features = [] }
 # Phase 23.1.A — Auto-update infrastructure (active:false tới khi release đồng loạt)
-tauri-plugin-updater = "2"
 tauri-plugin-process = "2"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"

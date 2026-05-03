@@ -76,12 +76,13 @@ export function GlobalSearchModal({ onClose, onSwitchModule, tr }: Props): JSX.E
 
   // Group results by module for nicer display
   const grouped = useMemo(() => {
-    const order: ModuleId[] = ['note', 'image', 'library', 'document'];
+    const order: ModuleId[] = ['note', 'image', 'library', 'document', 'trishteam'];
     const map: Record<ModuleId, SearchResult[]> = {
       library: [],
       note: [],
       document: [],
       image: [],
+      trishteam: [],
     };
     results.forEach((r) => map[r.module].push(r));
     return order
@@ -207,6 +208,8 @@ function moduleLabelOf(
       return `📄 ${tr('module.document')}`;
     case 'image':
       return `🖼 ${tr('module.image')}`;
+    case 'trishteam':
+      return `🌐 TrishTEAM`;
   }
 }
 

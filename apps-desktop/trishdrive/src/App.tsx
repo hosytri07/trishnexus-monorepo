@@ -26,6 +26,7 @@ import { LibraryScreen } from './pages/LibraryScreen';
 import { HistoryScreen } from './pages/HistoryScreen';
 import { HelpPage } from './pages/HelpPage';
 import { SettingsModal, loadCloseBehavior, loadSpeedLimit } from './pages/SettingsModal';
+import { DownloadManager } from './pages/DownloadManager';
 import logoUrl from './assets/logo.png';
 
 type Page = 'download' | 'library' | 'history' | 'help';
@@ -269,6 +270,9 @@ function MainShell({ theme, setTheme }: { theme: 'light' | 'dark'; setTheme: (t:
           {page === 'help' && <HelpPage />}
         </div>
       </div>
+
+      {/* Phase 25.1.H — Global download manager (concurrent downloads + per-file progress) */}
+      <DownloadManager />
     </div>
   );
 }

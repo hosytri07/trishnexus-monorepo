@@ -19,6 +19,8 @@ import { KeysPanel } from './components/KeysPanel.js';
 import { BroadcastsPanel } from './components/BroadcastsPanel.js';
 import { RegistryPanel } from './components/RegistryPanel.js';
 import { SettingsPanel } from './components/SettingsPanel.js';
+import { ApiKeysPanel } from './components/ApiKeysPanel.js';
+import { LispLibraryPanel } from './components/LispLibraryPanel.js';
 import { LibraryCuratorPanel } from './components/LibraryCuratorPanel.js';
 import { FeedbackPanel } from './components/FeedbackPanel.js';
 import { AuditPanel } from './components/AuditPanel.js';
@@ -50,6 +52,8 @@ type Panel =
   | 'backup'
   | 'storage'
   | 'drive'
+  | 'api_keys'
+  | 'lisp_library'
   | 'settings';
 
 interface NavGroup {
@@ -105,6 +109,8 @@ const NAV_GROUPS: NavGroup[] = [
       { id: 'bulk_import', label: '📥 Bulk Import' },
       { id: 'storage', label: '☁ Storage' },
       { id: 'backup', label: '💾 Backup / Restore' },
+      { id: 'api_keys', label: '🔐 API Keys' },
+      { id: 'lisp_library', label: '🧩 AutoLISP Library' },
       { id: 'settings', label: 'Cài đặt' },
     ],
   },
@@ -242,6 +248,8 @@ export function App(): JSX.Element {
         {active === 'storage' && <StoragePanel />}
         {active === 'drive' && <TrishDrivePanel />}
         {active === 'backup' && <BackupPanel />}
+        {active === 'api_keys' && <ApiKeysPanel />}
+        {active === 'lisp_library' && <LispLibraryPanel />}
         {active === 'settings' && <SettingsPanel />}
       </main>
     </div>

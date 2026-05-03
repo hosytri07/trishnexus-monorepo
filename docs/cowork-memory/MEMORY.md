@@ -1,7 +1,0 @@
-- [User profile](user_profile.md) — Trí: kỹ sư hạ tầng GT Đà Nẵng, không phải dev, giao tiếp tiếng Việt
-- [Workflow handoff](workflow_handoff.md) — đọc docs/HANDOFF-MASTER.md đầu phiên, update cuối phiên
-- [Project context](project_context.md) — TrishTEAM monorepo: website Next.js + 7 desktop Tauri 2 + Firebase
-- [Communication style](communication_style.md) — ngắn gọn, không jargon, lệnh terminal 1 dòng copy-paste
-- [TrishAdmin private](trishadmin_private.md) — build .exe local, KHÔNG push tag GitHub Release
-- [Design system standard](design_system_standard.md) — TrishDrive là gold standard UI/UX, mọi app phải đồng bộ theo (Plus Jakarta Sans, emerald, 13px, 14px radius)
-- [Phase 24 plan](phase_24_plan.md) — TrishDrive admin-only → vào TrishAdmin; TrishLibrary thêm tab "Thư viện TrishTEAM" public view

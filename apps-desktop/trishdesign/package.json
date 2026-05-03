@@ -1,8 +1,8 @@
 {
   "name": "@trishteam/trishdesign",
-  "version": "2.0.0-alpha.1",
+  "version": "2.1.0",
   "private": true,
-  "description": "TrishDesign — color palette + design token manager với AI enhancement tự sinh palette WCAG-compliant từ 1 màu base. Tauri 2 + @trishteam/core/design. Export CSS vars / Tailwind config / Figma Tokens / SCSS map.",
+  "description": "TrishDesign Phase 28 — Bộ công cụ Khảo sát & Thiết kế cho kỹ sư cầu đường: vẽ hư hỏng mặt đường tự động lên AutoCAD (COM automation), bảng tính kết cấu, dự toán, GIS map, AutoLISP manager, chatbot AutoCAD.",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -17,13 +17,16 @@
     "@tauri-apps/api": "^2.0.0",
     "@tauri-apps/plugin-dialog": "^2.0.0",
     "@tauri-apps/plugin-opener": "^2.0.0",
+    "@trishteam/admin-keys": "workspace:*",
     "@trishteam/auth": "workspace:*",
     "@trishteam/core": "workspace:*",
     "@trishteam/data": "workspace:*",
+    "@trishteam/design-system": "workspace:*",
     "@trishteam/telemetry": "workspace:*",
     "firebase": "^10.14.1",
     "react": "18.3.1",
-    "react-dom": "18.3.1"
+    "react-dom": "18.3.1",
+    "xlsx": "^0.18.5"
   },
   "devDependencies": {
     "@tauri-apps/cli": "^2.0.0",

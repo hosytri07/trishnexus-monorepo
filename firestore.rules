@@ -263,6 +263,38 @@ service cloud.firestore {
       allow read, write: if false;
     }
 
+    // --- Phase 28.8 — /admin_settings/{tenantId}/... (encrypted API keys + audit) ---
+    // Schema:
+    //   /admin_settings/{tenant}/api_keys/{provider}
+    //     { encrypted, updatedAt, modifiedBy, modifiedByEmail, version }
+    //   /admin_settings/{tenant}/audit_log/{autoId}
+    //     { provider, action, modifiedBy, modifiedByEmail, timestamp, note? }
+    //
+    // Permission:
+    //   - Admin: full CRUD (set/delete keys + write audit).
+    //   - Paid user: READ api_keys (TrishDesign auto-fetch + decrypt local).
+    //     Vì cipher đã AES-GCM encrypted nên paid user "có thể đọc" nhưng
+    //     master key hardcoded trong source desktop app — đây là layer
+    //     defense-in-depth, không phải bảo vệ tuyệt đối.
+    //   - Audit log: chỉ admin đọc, append-only, không update/delete.
+    //   - Trial / guest: deny tất cả.
+    match /admin_settings/{tenantId}/api_keys/{provider} {
+      allow read: if isPaidUser();
+      allow create, update, delete: if isAdmin();
+    }
+    match /admin_settings/{tenantId}/audit_log/{logId} {
+      allow read: if isAdmin();
+      allow create: if isAdmin();
+      allow update, delete: if false;
+    }
+
+    // --- Phase 28.14 — /lisp_library/{id} (TrishTEAM curated AutoLISP) ---
+    // Admin upload + manage. Paid user read + download (file lưu Telegram).
+    match /lisp_library/{lispId} {
+      allow read: if isPaidUser();
+      allow create, update, delete: if isAdmin();
+    }
+
     // --- Default deny ---
     match /{document=**} {
       allow read, write: if false;

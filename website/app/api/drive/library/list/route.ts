@@ -21,6 +21,7 @@ import { NextResponse, type NextRequest } from 'next/server';
 import { adminDb, adminAuth, adminReady } from '@/lib/firebase-admin';
 
 export const runtime = 'nodejs';
+export const dynamic = 'force-dynamic';
 
 const CORS_HEADERS: Record<string, string> = {
   'Access-Control-Allow-Origin': '*',

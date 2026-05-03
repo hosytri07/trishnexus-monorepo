@@ -6,6 +6,7 @@
 import { useEffect, useState } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { Share2, Copy, CheckCircle2, AlertCircle, Loader2, RefreshCw, Ban, Clock, Download as DownloadIcon, FileText } from 'lucide-react';
+import { useDialog } from './InlineDialog';
 
 interface ShareItem {
   token: string;
@@ -27,6 +28,7 @@ export function SharesPage({ uid }: { uid: string }): JSX.Element {
   const [busyToken, setBusyToken] = useState<string | null>(null);
   const [copiedToken, setCopiedToken] = useState<string | null>(null);
   const [filter, setFilter] = useState<'all' | 'active' | 'expired'>('all');
+  const { confirmAsync, promptAsync, DialogElement } = useDialog();
 
   useEffect(() => { void load(); }, []);
 
@@ -41,7 +43,11 @@ export function SharesPage({ uid }: { uid: string }): JSX.Element {
   }
 
   async function revoke(s: ShareItem) {
-    if (!confirm(`Thu hồi link share "${s.file_name}"? Người nhận sẽ không tải được nữa.`)) return;
+    const ok = await confirmAsync(
+      `Thu hồi link share "${s.file_name}"?\n\nNgười nhận sẽ không tải được nữa.`,
+      { title: '⛔ Thu hồi link', danger: true, okLabel: 'Thu hồi' }
+    );
+    if (!ok) return;
     setBusyToken(s.token);
     try {
       await invoke('share_revoke', { uid, token: s.token });
@@ -52,9 +58,10 @@ export function SharesPage({ uid }: { uid: string }): JSX.Element {
 
   async function extend(s: ShareItem) {
     const opts = ['1', '24', '168', '720'];
-    const choice = prompt(
-      `Gia hạn link "${s.file_name}":\n  1 = thêm 1 giờ\n  24 = thêm 1 ngày\n  168 = thêm 7 ngày\n  720 = thêm 30 ngày\nNhập số:`,
-      '168'
+    const choice = await promptAsync(
+      `Gia hạn link "${s.file_name}":\n  1 = thêm 1 giờ\n  24 = thêm 1 ngày\n  168 = thêm 7 ngày\n  720 = thêm 30 ngày\n\nNhập số giờ muốn gia hạn:`,
+      '168',
+      { title: '⏰ Gia hạn link share', placeholder: '168 (= 7 ngày)' }
     );
     if (!choice || !opts.includes(choice)) return;
     setBusyToken(s.token);
@@ -191,6 +198,7 @@ export function SharesPage({ uid }: { uid: string }): JSX.Element {
           </table>
         </div>
       )}
+      {DialogElement}
     </div>
   );
 }

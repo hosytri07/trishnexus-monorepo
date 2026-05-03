@@ -101,33 +101,75 @@ fn mtproto_entry(uid: &str) -> Result<Entry, String> {
     Entry::new(SERVICE, &username).map_err(|e| format!("keyring entry: {}", e))
 }
 
+/// Phase 25.1.K — Fallback file path khi keyring fail / bị Windows reset.
+/// Lưu song song với keyring; api_id + api_hash KHÔNG phải credential nhạy cảm
+/// (Telegram cho phép embed trong app source — chỉ giới hạn rate quota), nên
+/// lưu plaintext local OK. Sự bền vững > security cho MTProto config.
+fn mtproto_config_file(uid: &str) -> Option<std::path::PathBuf> {
+    if uid.is_empty() { return None; }
+    // Dùng env var APPDATA (Windows) hoặc HOME (Unix) — không cần Tauri AppHandle.
+    let base = if cfg!(target_os = "windows") {
+        std::env::var("APPDATA").ok().map(std::path::PathBuf::from)
+    } else {
+        std::env::var("HOME").ok().map(|h| std::path::PathBuf::from(h).join(".config"))
+    }?;
+    let dir = base.join("vn.trishteam.admin");
+    let _ = std::fs::create_dir_all(&dir);
+    Some(dir.join(format!("mtproto_config.{}.json", uid)))
+}
+
 pub fn save_mtproto_config(uid: &str, config: &MtprotoConfig) -> Result<(), String> {
-    let entry = mtproto_entry(uid)?;
     let json = serde_json::to_string(config).map_err(|e| format!("serialize: {}", e))?;
-    entry.set_password(&json).map_err(|e| format!("keyring set: {}", e))?;
+    // Save vào keyring (best-effort)
+    if let Ok(entry) = mtproto_entry(uid) {
+        let _ = entry.set_password(&json);
+    }
+    // Phase 25.1.K — luôn save vào file fallback
+    if let Some(path) = mtproto_config_file(uid) {
+        std::fs::write(&path, &json).map_err(|e| format!("write config file: {}", e))?;
+    }
     Ok(())
 }
 
 pub fn load_mtproto_config(uid: &str) -> Result<Option<MtprotoConfig>, String> {
-    let entry = mtproto_entry(uid)?;
-    match entry.get_password() {
-        Ok(json) => {
-            let config: MtprotoConfig = serde_json::from_str(&json).map_err(|e| format!("deserialize: {}", e))?;
-            Ok(Some(config))
+    // Thử keyring trước
+    if let Ok(entry) = mtproto_entry(uid) {
+        match entry.get_password() {
+            Ok(json) => {
+                if let Ok(config) = serde_json::from_str::<MtprotoConfig>(&json) {
+                    return Ok(Some(config));
+                }
+            }
+            Err(keyring::Error::NoEntry) => { /* fall through file */ }
+            Err(_) => { /* keyring lỗi → fall through file */ }
         }
-        Err(keyring::Error::NoEntry) => Ok(None),
-        Err(e) => Err(format!("keyring get: {}", e)),
     }
+    // Phase 25.1.K — fallback file JSON
+    if let Some(path) = mtproto_config_file(uid) {
+        if path.exists() {
+            let json = std::fs::read_to_string(&path).map_err(|e| format!("read config file: {}", e))?;
+            let config: MtprotoConfig = serde_json::from_str(&json).map_err(|e| format!("deserialize: {}", e))?;
+            // Phase 25.1.K — auto-restore vào keyring nếu file có mà keyring không
+            if let Ok(entry) = mtproto_entry(uid) {
+                let _ = entry.set_password(&json);
+            }
+            return Ok(Some(config));
+        }
+    }
+    Ok(None)
 }
 
 #[allow(dead_code)]
 pub fn delete_mtproto_config(uid: &str) -> Result<(), String> {
-    let entry = mtproto_entry(uid)?;
-    match entry.delete_password() {
-        Ok(()) => Ok(()),
-        Err(keyring::Error::NoEntry) => Ok(()),
-        Err(e) => Err(format!("keyring delete: {}", e)),
+    // Xoá keyring (best-effort)
+    if let Ok(entry) = mtproto_entry(uid) {
+        let _ = entry.delete_password();
     }
+    // Phase 25.1.K — xoá luôn file fallback
+    if let Some(path) = mtproto_config_file(uid) {
+        let _ = std::fs::remove_file(&path);
+    }
+    Ok(())
 }
 
 // ============================================================
@@ -167,5 +209,40 @@ pub fn delete_channel_packed(uid: &str) -> Result<(), String> {
         Ok(()) => Ok(()),
         Err(keyring::Error::NoEntry) => Ok(()),
         Err(e) => Err(format!("keyring delete channel: {}", e)),
+    }
+}
+
+// ============================================================
+// Phase 25.0.D — HTTP API Bearer Token (cho external upload script)
+// ============================================================
+
+const API_TOKEN_USERNAME_PREFIX: &str = "api_token_";
+
+fn api_token_entry(uid: &str) -> Result<Entry, String> {
+    Entry::new(SERVICE, &format!("{}{}", API_TOKEN_USERNAME_PREFIX, uid))
+        .map_err(|e| format!("keyring api_token: {}", e))
+}
+
+pub fn save_api_token(uid: &str, token: &str) -> Result<(), String> {
+    let entry = api_token_entry(uid)?;
+    entry.set_password(token).map_err(|e| format!("keyring set api_token: {}", e))?;
+    Ok(())
+}
+
+pub fn load_api_token(uid: &str) -> Result<Option<String>, String> {
+    let entry = api_token_entry(uid)?;
+    match entry.get_password() {
+        Ok(s) => Ok(Some(s)),
+        Err(keyring::Error::NoEntry) => Ok(None),
+        Err(e) => Err(format!("keyring get api_token: {}", e)),
+    }
+}
+
+pub fn delete_api_token(uid: &str) -> Result<(), String> {
+    let entry = api_token_entry(uid)?;
+    match entry.delete_password() {
+        Ok(()) => Ok(()),
+        Err(keyring::Error::NoEntry) => Ok(()),
+        Err(e) => Err(format!("keyring delete api_token: {}", e)),
     }
 }

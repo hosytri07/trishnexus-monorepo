@@ -1,6 +1,6 @@
 [package]
 name = "trishadmin"
-version = "1.2.0"
+version = "1.0.0"
 description = "TrishAdmin — admin tool cho hệ sinh thái TrishTEAM (manage users + keys + broadcasts + registry + TrishDrive)"
 authors = ["TrishTEAM <hosytri77@gmail.com>"]
 edition = "2021"
@@ -33,7 +33,14 @@ dirs = "5"
 
 # HTTP client cho Telegram Bot API + share API (trishteam.io.vn)
 reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "json", "multipart", "stream"] }
-tokio = { version = "1", features = ["rt-multi-thread", "macros", "fs", "io-util"] }
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "fs", "io-util", "process", "sync"] }
+# Phase 25.0.C — Parallel chunks upload Bot API
+futures = "0.3"
+# Phase 25.0.D — HTTP API external (Axum local server cho upload từ script)
+axum = { version = "0.7", default-features = false, features = ["http1", "tokio", "json", "multipart"] }
+tower = "0.4"
+tower-http = { version = "0.5", features = ["cors"] }
+uuid = { version = "1.10", features = ["v4"] }
 
 # SQLite local cache index
 rusqlite = { version = "0.31", features = ["bundled"] }

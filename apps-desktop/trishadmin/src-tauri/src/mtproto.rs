@@ -101,13 +101,58 @@ pub async fn request_code(
     phone: &str,
     session_path: &PathBuf,
 ) -> Result<(), String> {
-    eprintln!("[MTProto] request_code start: phone={}, api_id={}", phone, api_id);
+    // Phase 25.1.L — Auto-retry với fresh session khi gặp AUTH_RESTART.
+    // Telegram trả AUTH_RESTART nếu session cũ có pending auth flow chưa hoàn tất
+    // (vd lần trước app crash giữa request_code và sign_in). Workaround: tạo
+    // Session::new() bỏ qua session cũ → connect lại → request OTP mới.
+    match try_request_code(api_id, api_hash, phone, session_path, /* fresh */ false).await {
+        Ok((client, token)) => {
+            let mut pending = state.pending.lock().await;
+            *pending = Some(LoginPending::AwaitingCode {
+                client,
+                token,
+                phone: phone.to_string(),
+            });
+            Ok(())
+        }
+        Err(e) if e.contains("AUTH_RESTART") || e.contains("auth.sendCode") => {
+            eprintln!("[MTProto] AUTH_RESTART detected → retry với fresh session (bỏ session file cũ)");
+            // Backup + xoá session file cũ để tránh load lại
+            if session_path.exists() {
+                let backup = session_path.with_extension("session.bak");
+                let _ = std::fs::rename(session_path, &backup);
+                eprintln!("[MTProto] backed up session to {:?}", backup);
+            }
+            let (client, token) = try_request_code(api_id, api_hash, phone, session_path, /* fresh */ true).await
+                .map_err(|e2| format!("retry sau AUTH_RESTART: {}. Hint: kiểm tra mạng + thử lại sau 30s.", e2))?;
+            let mut pending = state.pending.lock().await;
+            *pending = Some(LoginPending::AwaitingCode {
+                client,
+                token,
+                phone: phone.to_string(),
+            });
+            Ok(())
+        }
+        Err(e) => Err(e),
+    }
+}
 
-    let session = if session_path.exists() {
+/// Phase 25.1.L — Helper: 1 attempt connect + request OTP. `fresh=true` thì
+/// dùng Session::new() bỏ qua session file cũ.
+async fn try_request_code(
+    api_id: i32,
+    api_hash: &str,
+    phone: &str,
+    session_path: &PathBuf,
+    fresh: bool,
+) -> Result<(Client, LoginToken), String> {
+    eprintln!("[MTProto] request_code start: phone={}, api_id={}, fresh={}", phone, api_id, fresh);
+
+    let session = if !fresh && session_path.exists() {
         eprintln!("[MTProto] loading existing session: {:?}", session_path);
         Session::load_file(session_path).map_err(|e| format!("load session: {}", e))?
     } else {
-        eprintln!("[MTProto] new session (no file at {:?})", session_path);
+        eprintln!("[MTProto] new session (fresh={} or no file at {:?})", fresh, session_path);
         Session::new()
     };
 
@@ -134,13 +179,7 @@ pub async fn request_code(
         .map_err(|e| format!("request OTP: {}", e))?;
     eprintln!("[MTProto] OTP token received, waiting submit_code");
 
-    let mut pending = state.pending.lock().await;
-    *pending = Some(LoginPending::AwaitingCode {
-        client,
-        token,
-        phone: phone.to_string(),
-    });
-    Ok(())
+    Ok((client, token))
 }
 
 #[derive(Debug, Serialize)]
@@ -347,7 +386,7 @@ pub struct MtprotoUploadInfo {
     pub size_bytes: i64,
 }
 
-async fn open_authorized_client(
+pub async fn open_authorized_client(
     api_id: i32,
     api_hash: &str,
     session_path: &PathBuf,
@@ -592,7 +631,7 @@ fn bot_channel_to_mtproto_id(bot_id: i64) -> i64 {
 }
 
 /// Resolve channel PackedChat — load cache hoặc iter_dialogs lần đầu, cache vào keyring (JSON).
-async fn resolve_or_load_channel(
+pub async fn resolve_or_load_channel(
     client: &Client,
     uid: &str,
     bot_channel_id: i64,

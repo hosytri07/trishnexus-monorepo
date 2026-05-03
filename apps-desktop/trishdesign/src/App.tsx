@@ -6,31 +6,38 @@
  */
 
 import { useEffect, useMemo, useState } from 'react';
+import { useAuth } from '@trishteam/auth/react';
 import logoUrl from './assets/logo.png';
 import { UserPanel } from './components/UserPanel.js';
+import { LockedPanel } from './components/LockedPanel.js';
 import { DashboardPanel } from './modules/engineer/DashboardPanel.js';
 import { DocumentsPanel } from './modules/engineer/DocumentsPanel.js';
-import { RoadDamagePanel } from './modules/engineer/RoadDamagePanel.js';
-import { TrafficSafetyPanel } from './modules/engineer/TrafficSafetyPanel.js';
+import {
+  RoadDamageModule,
+  AtgtModule,
+  CrossSectionModule,
+  CadChatbotModule,
+} from './modules/engineer/RoadDamageModule.js';
 import { SurveyPanel } from './modules/engineer/SurveyPanel.js';
 import { AutoLispPanel } from './modules/engineer/AutoLispPanel.js';
 import { StructuralPanel } from './modules/engineer/StructuralPanel.js';
 import { EstimatePanel } from './modules/engineer/EstimatePanel.js';
 import { GISMapPanel } from './modules/engineer/GISMapPanel.js';
-import { ChatbotPanel } from './modules/engineer/ChatbotPanel.js';
 import { SettingsPanel } from './modules/engineer/SettingsPanel.js';
+import { useApiKeysSync } from './lib/use-api-keys-sync.js';
 
 type ModuleId =
   | 'dashboard'
   | 'documents'
   | 'roaddamage'
   | 'atgt'
+  | 'cross_section'
+  | 'chatbot'
   | 'survey'
   | 'autolisp'
   | 'structural'
   | 'estimate'
   | 'gismap'
-  | 'chatbot'
   | 'settings';
 
 interface NavItem {
@@ -40,16 +47,19 @@ interface NavItem {
 }
 
 const NAV_ITEMS: NavItem[] = [
-  { id: 'dashboard', icon: '🏠', label: 'Dashboard & Dự án' },
-  { id: 'documents', icon: '📂', label: 'Danh mục hồ sơ' },
-  { id: 'roaddamage', icon: '🛣', label: 'Hư hỏng mặt đường' },
-  { id: 'atgt', icon: '🚦', label: 'An toàn giao thông' },
-  { id: 'survey', icon: '🔍', label: 'Khảo sát (OCR)' },
-  { id: 'autolisp', icon: '🧩', label: 'Quản lý Autolisp' },
-  { id: 'structural', icon: '🏗', label: 'Bảng tính kết cấu' },
-  { id: 'estimate', icon: '💰', label: 'Dự toán' },
-  { id: 'gismap', icon: '🌐', label: 'GIS – MAP' },
-  { id: 'chatbot', icon: '🤖', label: 'Chatbot AutoCAD' },
+  { id: 'dashboard',     icon: '🏠', label: 'Dashboard & Dự án' },
+  { id: 'documents',     icon: '📂', label: 'Danh mục hồ sơ' },
+  // 4 module CadPlugin (port từ S-RETC WPF) — TOP-LEVEL
+  { id: 'roaddamage',    icon: '🛣', label: 'Vẽ hư hỏng mặt đường' },
+  { id: 'atgt',          icon: '🚸', label: 'Vẽ hiện trạng ATGT' },
+  { id: 'cross_section', icon: '🌊', label: 'Vẽ mặt cắt hốt sạt' },
+  { id: 'chatbot',       icon: '🤖', label: 'Chatbot AutoCAD' },
+  // Module khác
+  { id: 'survey',        icon: '🔍', label: 'Khảo sát (OCR)' },
+  { id: 'autolisp',      icon: '🧩', label: 'Quản lý Autolisp' },
+  { id: 'structural',    icon: '🏗', label: 'Bảng tính kết cấu' },
+  { id: 'estimate',      icon: '💰', label: 'Dự toán' },
+  { id: 'gismap',        icon: '🌐', label: 'GIS – MAP' },
 ];
 
 const SETTINGS_ITEM: NavItem = { id: 'settings', icon: '⚙', label: 'Cài đặt' };
@@ -81,6 +91,12 @@ function loadCollapsed(): boolean {
 export function App(): JSX.Element {
   const [active, setActive] = useState<ModuleId>(() => loadActive());
   const [collapsed, setCollapsed] = useState<boolean>(() => loadCollapsed());
+  const { role } = useAuth();
+  const isAdmin = role === 'admin';
+
+  // Phase 28.8 — Subscribe Firestore API keys (admin set qua TrishAdmin)
+  // → mirror vào localStorage. Tự cập nhật realtime khi admin đổi key.
+  useApiKeysSync();
 
   useEffect(() => {
     try {
@@ -106,15 +122,25 @@ export function App(): JSX.Element {
   const renderPanel = (): JSX.Element => {
     switch (active) {
       case 'dashboard': return <DashboardPanel />;
-      case 'documents': return <DocumentsPanel />;
-      case 'roaddamage': return <RoadDamagePanel />;
-      case 'atgt': return <TrafficSafetyPanel />;
+      case 'documents':
+        return isAdmin
+          ? <DocumentsPanel />
+          : <LockedPanel feature="📂 Danh mục hồ sơ" icon="📂" description="Hệ thống templates văn bản nghiệm thu / thanh toán / hoàn công cho dự án giao thông VN. Đang được biên soạn bởi admin." />;
+      case 'roaddamage': return <RoadDamageModule />;
+      case 'atgt': return <AtgtModule />;
+      case 'cross_section': return <CrossSectionModule />;
+      case 'chatbot': return <CadChatbotModule />;
       case 'survey': return <SurveyPanel />;
       case 'autolisp': return <AutoLispPanel />;
-      case 'structural': return <StructuralPanel />;
-      case 'estimate': return <EstimatePanel />;
+      case 'structural':
+        return isAdmin
+          ? <StructuralPanel />
+          : <LockedPanel feature="🏗 Bảng tính kết cấu" icon="🏗" description="Form nhập liệu kết cấu (móng, cột, dầm, sàn) → tính toán theo TCVN. Bảng Excel template phức tạp đang được code lại." />;
+      case 'estimate':
+        return isAdmin
+          ? <EstimatePanel />
+          : <LockedPanel feature="💰 Dự toán" icon="💰" description="Lập dự toán theo định mức + đơn giá Sở XD 63 tỉnh. Đang chờ data đơn giá chuẩn của các tỉnh." />;
       case 'gismap': return <GISMapPanel />;
-      case 'chatbot': return <ChatbotPanel />;
       case 'settings': return <SettingsPanel />;
       default: return <DashboardPanel />;
     }
@@ -189,11 +215,14 @@ export function App(): JSX.Element {
       </aside>
 
       <main className="td-main">
-        <div className="td-breadcrumb muted small">
-          <span>{activeItem.icon}</span>
-          <span>·</span>
-          <span>{activeItem.label}</span>
-        </div>
+        {/* CadPlugin 4 modules có header riêng → ẩn breadcrumb để không lặp */}
+        {!['roaddamage', 'atgt', 'cross_section', 'chatbot'].includes(active) && (
+          <div className="td-breadcrumb muted small">
+            <span>{activeItem.icon}</span>
+            <span>·</span>
+            <span>{activeItem.label}</span>
+          </div>
+        )}
         {renderPanel()}
       </main>
     </div>

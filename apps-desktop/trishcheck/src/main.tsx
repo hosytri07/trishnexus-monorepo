@@ -3,9 +3,10 @@ import { createRoot } from 'react-dom/client';
 import { installTauriTelemetry } from '@trishteam/telemetry/tauri';
 import { App } from './App.js';
 import packageJson from '../package.json' with { type: 'json' };
-// Phase 24.3 — design-system: Plus Jakarta Sans + emerald + utility CSS.
+// Phase 30.3 — design-system: Plus Jakarta Sans + emerald + utility CSS.
 import '@trishteam/design-system';
 import './styles.css';
+import './theme-bridge.css';
 
 // Phase 21 prep — telemetry: window.onerror + unhandledrejection + Rust panic
 installTauriTelemetry({
@@ -18,6 +19,8 @@ if (!container) throw new Error('Missing #root');
 
 createRoot(container).render(
   <StrictMode>
-    <App />
+    <div className="ts-app" style={{ minHeight: '100vh' }}>
+      <App />
+    </div>
   </StrictMode>,
 );

@@ -7,6 +7,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { Trash2, RotateCcw, AlertCircle, Loader2, RefreshCw, Trash } from 'lucide-react';
+import { useDialog } from './InlineDialog';
 
 interface FileRow {
   id: string;
@@ -27,6 +28,7 @@ export function TrashPage({ uid }: { uid: string }): JSX.Element {
   const [bulkBusy, setBulkBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [purgedCount, setPurgedCount] = useState<number | null>(null);
+  const { confirmAsync, DialogElement } = useDialog();
 
   useEffect(() => { void load(); }, []);
 
@@ -53,7 +55,11 @@ export function TrashPage({ uid }: { uid: string }): JSX.Element {
   }
 
   async function purge(file: FileRow) {
-    if (!confirm(`Xoá VĨNH VIỄN "${file.name}"? Telegram messages + index sẽ bị xoá. KHÔNG khôi phục được.`)) return;
+    const ok = await confirmAsync(
+      `Xoá VĨNH VIỄN "${file.name}"?\n\nTelegram messages + index sẽ bị xoá. KHÔNG khôi phục được.`,
+      { title: '⚠ Xoá vĩnh viễn', danger: true, okLabel: 'Xoá vĩnh viễn' }
+    );
+    if (!ok) return;
     setBusyId(file.id);
     try {
       const cmd = file.pipeline === 'mtproto' ? 'file_purge_mtproto' : 'file_purge';
@@ -65,7 +71,11 @@ export function TrashPage({ uid }: { uid: string }): JSX.Element {
 
   async function emptyTrash() {
     if (items.length === 0) return;
-    if (!confirm(`Xoá VĨNH VIỄN ${items.length} file trong thùng rác? KHÔNG khôi phục được.`)) return;
+    const ok = await confirmAsync(
+      `Xoá VĨNH VIỄN ${items.length} file trong thùng rác?\n\nKHÔNG khôi phục được.`,
+      { title: '⚠ Đổ Thùng rác', danger: true, okLabel: `Xoá vĩnh viễn ${items.length} file` }
+    );
+    if (!ok) return;
     setBulkBusy(true);
     try {
       for (const f of items) {
@@ -190,6 +200,7 @@ export function TrashPage({ uid }: { uid: string }): JSX.Element {
           </table>
         </div>
       )}
+      {DialogElement}
     </div>
   );
 }

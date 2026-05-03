@@ -11,6 +11,7 @@ import { NextResponse, type NextRequest } from 'next/server';
 import { adminDb, adminAuth, adminReady } from '@/lib/firebase-admin';
 
 export const runtime = 'nodejs';
+export const dynamic = 'force-dynamic';
 
 // Admin allowlist — email được phép xem requests. Sync với /admin allowlist trên web.
 const ADMIN_EMAILS = ['hosytri77@gmail.com', 'trishteam.official@gmail.com'];

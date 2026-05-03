@@ -21,6 +21,7 @@ import { FilesPage } from './FilesPage';
 import { SharesPage } from './SharesPage';
 import { DashboardPage } from './DashboardPage';
 import { TrashPage } from './TrashPage';
+import { useDialog } from './InlineDialog';
 import { HelpPage } from './HelpPage';
 import { RequestsPanel } from './RequestsPanel';
 import { CommentsPanel } from './CommentsPanel';
@@ -221,6 +222,7 @@ function SettingsPage({ uid, onReset }: { uid: string; onReset: () => Promise<vo
   // Phase 24.1.Q — bỏ profile/firebaseUser/signOut destructure vì card "Tài khoản
   // TrishTEAM" đã được xoá (duplicate với sidebar TrishAdmin).
   const [stats, setStats] = useState<DriveStats>({ total: 0, totalBytes: 0, lastUploadMs: null });
+  const { confirmAsync, alertAsync, DialogElement: SettingsDialog } = useDialog();
 
   useEffect(() => {
     void loadStats();
@@ -243,12 +245,16 @@ function SettingsPage({ uid, onReset }: { uid: string; onReset: () => Promise<vo
   }
 
   async function reset() {
-    if (!confirm('Xoá Telegram credentials? File đã upload vẫn còn trên Telegram channel, nhưng index local mất — phải import lại.')) return;
+    const ok = await confirmAsync(
+      'Xoá Telegram credentials?\n\nFile đã upload vẫn còn trên Telegram channel, nhưng index local mất — phải import lại.',
+      { title: '⚠ Reset Bot API config', danger: true, okLabel: 'Reset config' }
+    );
+    if (!ok) return;
     try {
       await invoke('creds_delete', { uid });
       await onReset();
     } catch (e) {
-      alert('Lỗi reset: ' + String(e));
+      await alertAsync('Lỗi reset: ' + String(e), { title: '❌ Lỗi', kindStyle: 'error' });
     }
   }
 
@@ -256,6 +262,9 @@ function SettingsPage({ uid, onReset }: { uid: string; onReset: () => Promise<vo
     <div className="space-y-4">
       {/* Phase 24.1.Q — bỏ card "Tài khoản TrishTEAM" duplicate vì sidebar
           TrishAdmin đã có avatar + email + nút Đăng xuất. */}
+
+      {/* Phase 25.0.D — HTTP API external Bearer Token */}
+      <HttpApiCard uid={uid} />
 
       {/* Cloud Telegram (Bot API hiện tại) */}
       <div className="card">
@@ -292,9 +301,9 @@ function SettingsPage({ uid, onReset }: { uid: string; onReset: () => Promise<vo
           </div>
         </div>
         <div className="grid gap-3 md:grid-cols-3 mt-4">
-          <Stat label="Tổng files" value={String(stats.total)} hint="Phase 22.5" />
+          <Stat label="Tổng files" value={String(stats.total)} hint="—" />
           <Stat label="Storage Telegram" value={formatBytes(stats.totalBytes)} hint="Bot API + MTProto" />
-          <Stat label="Last upload" value={formatLastUpload(stats.lastUploadMs)} hint={stats.lastUploadMs ? 'Phase 22.5' : '—'} />
+          <Stat label="Last upload" value={formatLastUpload(stats.lastUploadMs)} hint="—" />
         </div>
         <div className="mt-4 flex gap-2 flex-wrap">
           <button className="btn-secondary" onClick={loadStats}>
@@ -308,16 +317,17 @@ function SettingsPage({ uid, onReset }: { uid: string; onReset: () => Promise<vo
         <div className="card-header">
           <div>
             <h2 className="card-title">About</h2>
-            <p className="card-subtitle">TrishDrive v0.1.0-alpha · TrishTEAM ecosystem · Phase 22.4d</p>
+            <p className="card-subtitle">TrishDrive v0.1.0-alpha · TrishTEAM ecosystem</p>
           </div>
         </div>
         <div className="mt-3 text-xs space-y-1.5" style={{ color: 'var(--color-text-muted)' }}>
           <div>📦 Tham khảo: <a href="https://github.com/caamer20/Telegram-Drive" style={{ color: 'var(--color-text-link)' }}>caamer20/Telegram-Drive</a></div>
           <div>🔐 Encryption: AES-256-GCM · PBKDF2-SHA256 200k rounds</div>
-          <div>📡 Transport: Telegram Bot API (Phase 22.5) · MTProto (Phase 23)</div>
+          <div>📡 Transport: Telegram Bot API + MTProto</div>
           <div>💾 Index: SQLite + FTS5 search</div>
         </div>
       </div>
+      {SettingsDialog}
     </div>
   );
 }
@@ -362,6 +372,7 @@ function MtprotoStatusCard({ uid }: { uid: string }): JSX.Element {
   const [err, setErr] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [showSetup, setShowSetup] = useState(false);
+  const { confirmAsync, DialogElement: MtStatusDialog } = useDialog();
 
   async function load() {
     setLoading(true);
@@ -375,7 +386,11 @@ function MtprotoStatusCard({ uid }: { uid: string }): JSX.Element {
   }
 
   async function signout() {
-    if (!confirm('Đăng xuất MTProto? Phải verify lại phone OTP nếu muốn dùng tiếp.')) return;
+    const ok = await confirmAsync(
+      'Đăng xuất MTProto?\n\nPhải verify lại phone OTP nếu muốn dùng tiếp.',
+      { title: '🚪 Đăng xuất MTProto', danger: true, okLabel: 'Đăng xuất' }
+    );
+    if (!ok) return;
     try {
       await invoke('mtproto_signout', { uid });
       await load();
@@ -438,10 +453,11 @@ function MtprotoStatusCard({ uid }: { uid: string }): JSX.Element {
       {isConnected && <MtprotoTestPanel uid={uid} />}
 
       <div className="mt-3 text-xs" style={{ color: 'var(--color-text-muted)' }}>
-        🚧 Phase 23.3 — test upload/download/delete MTProto trên Saved Messages. Sau khi xác nhận work, Phase 23.4 sẽ wire vào pipeline file_upload thay Bot API.
+        🚧 Test upload/download/delete MTProto trên Saved Messages. Sắp wire vào pipeline file_upload thay Bot API.
       </div>
     </div>
     {showSetup && <MtprotoSetupModal uid={uid} onClose={() => { setShowSetup(false); void load(); }} />}
+    {MtStatusDialog}
     </>
   );
 }
@@ -455,6 +471,7 @@ function MtprotoTestPanel({ uid }: { uid: string }): JSX.Element {
   const [busy, setBusy] = useState<'up' | 'dl' | 'del' | null>(null);
   const [info, setInfo] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
+  const { confirmAsync, DialogElement: MtTestDialog } = useDialog();
 
   async function pickFile() {
     try {
@@ -500,7 +517,11 @@ function MtprotoTestPanel({ uid }: { uid: string }): JSX.Element {
     try {
       const id = parseInt(delMsgId.trim(), 10);
       if (isNaN(id)) throw new Error('message_id phải là số');
-      if (!confirm(`Xoá message ${id} khỏi Saved Messages?`)) { setBusy(null); return; }
+      const ok = await confirmAsync(
+        `Xoá message ${id} khỏi Saved Messages?`,
+        { title: '🗑 Xoá message', danger: true, okLabel: 'Xoá' }
+      );
+      if (!ok) { setBusy(null); return; }
       await invoke('mtproto_test_delete', { uid, messageIds: [id] });
       setInfo(`✓ Đã xoá message ${id}`);
     } catch (e) { setErr(String(e)); }
@@ -574,6 +595,7 @@ function MtprotoTestPanel({ uid }: { uid: string }): JSX.Element {
           </button>
         </div>
       </div>
+      {MtTestDialog}
     </div>
   );
 }

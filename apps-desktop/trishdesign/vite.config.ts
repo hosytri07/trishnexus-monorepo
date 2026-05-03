@@ -30,4 +30,8 @@ export default defineConfig({
     outDir: 'dist',
     emptyOutDir: true,
   },
+  optimizeDeps: {
+    // Pre-bundle xlsx (CJS) cho Vite ESM dev server
+    include: ['xlsx'],
+  },
 });

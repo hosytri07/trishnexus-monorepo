@@ -16,7 +16,7 @@ import { openPath } from '@tauri-apps/plugin-opener';
 import { getFirebaseAuth } from '@trishteam/auth';
 import {
   BookOpen, Download, Folder, FileText, Search, RefreshCw,
-  AlertCircle, FileQuestion, Loader2, CheckCircle2, Eye, Send, X, Bell, MessageSquare,
+  AlertCircle, FileQuestion, Loader2, CheckCircle2, Eye, Send, X, Bell, MessageSquare, Lock,
 } from 'lucide-react';
 import { loadSubscribedFolders } from './SettingsModal';
 import { CommentModal } from './CommentModal';
@@ -35,9 +35,15 @@ interface LibraryItem {
   expires_at: number | null;
   max_downloads: number | null;
   download_count: number;
+  /** Phase 25.1.F — Thumbnail URL từ share API (admin generate qua FFmpeg, lưu Telegram). */
+  thumb_url?: string;
+  /** Phase 25.1.G — Public no-password shares: server lưu key plaintext.
+   *  Client embed key này vào URL fragment để decrypt mà không cần password user. */
+  library_password_hex?: string;
 }
 
-const SHARE_API_BASE = 'https://trishteam.io.vn';
+// Vercel canonical = www.trishteam.io.vn. Non-www → 307 redirect strip Authorization.
+const SHARE_API_BASE = 'https://www.trishteam.io.vn';
 
 export function LibraryScreen(): JSX.Element {
   const [items, setItems] = useState<LibraryItem[]>([]);
@@ -45,9 +51,13 @@ export function LibraryScreen(): JSX.Element {
   const [err, setErr] = useState<string | null>(null);
   const [search, setSearch] = useState('');
   const [activeFolder, setActiveFolder] = useState<string>(''); // '' = all
-  const [busyToken, setBusyToken] = useState<string | null>(null);
+  // Phase 25.1.H — Set<token> để hỗ trợ concurrent downloads (nhiều file cùng lúc).
+  const [busyTokens, setBusyTokens] = useState<Set<string>>(new Set());
   const [previewToken, setPreviewToken] = useState<string | null>(null);
   const [downloadedToken, setDownloadedToken] = useState<string | null>(null);
+  // Phase 25.1.I — Modal nhập password cho file public-có-password (server không lưu plaintext key)
+  const [passwordPromptItem, setPasswordPromptItem] = useState<LibraryItem | null>(null);
+  const [passwordPromptMode, setPasswordPromptMode] = useState<'download' | 'preview'>('download');
   const [showRequestModal, setShowRequestModal] = useState(false);
   const [commentItem, setCommentItem] = useState<LibraryItem | null>(null);
 
@@ -225,26 +235,59 @@ export function LibraryScreen(): JSX.Element {
 
   async function downloadItem(item: LibraryItem) {
     setErr(null);
-    setBusyToken(item.token);
+    if (busyTokens.has(item.token)) return;
+
+    // Phase 25.1.I — File public CÓ password: server không lưu library_password_hex (bảo mật).
+    // → user phải nhập password thủ công. Mở modal prompt thay vì gọi share_paste_and_download.
+    if (!item.library_password_hex) {
+      setPasswordPromptMode('download');
+      setPasswordPromptItem(item);
+      return;
+    }
+
+    await runDownload(item, null);
+  }
+
+  /**
+   * Phase 25.1.H + 25.1.I — Helper chung: download với password tuỳ chọn.
+   * Gọi từ downloadItem (no-pass) hoặc từ PasswordPromptModal (có-pass).
+   */
+  async function runDownload(item: LibraryItem, userPassword: string | null) {
+    setErr(null);
+    if (busyTokens.has(item.token)) return;
+
+    let dest: string | null = null;
     try {
-      const dest = await saveDialog({ defaultPath: item.file_name, title: `Lưu ${item.file_name}` });
-      if (typeof dest !== 'string') {
-        setBusyToken(null);
-        return;
-      }
-      // share_paste_and_download Rust tự parse URL + extract key from #k=... fragment
-      // Item URL có thể có fragment hoặc không (tùy admin tạo public/private password).
+      const r = await saveDialog({ defaultPath: item.file_name, title: `Lưu ${item.file_name}` });
+      if (typeof r !== 'string') return;
+      dest = r;
+    } catch (e) {
+      setErr(String(e));
+      return;
+    }
+
+    setBusyTokens((prev) => new Set(prev).add(item.token));
+    try {
+      const finalUrl = item.library_password_hex
+        ? `${item.url.split('#')[0]}#k=${item.library_password_hex}`
+        : item.url;
+      const downloadId = `lib-${item.token}-${Date.now()}`;
       await invoke('share_paste_and_download', {
-        url: item.url,
-        password: null,
+        url: finalUrl,
+        password: userPassword,
         destPath: dest,
+        downloadId,
       });
       setDownloadedToken(item.token);
       setTimeout(() => setDownloadedToken(null), 3000);
     } catch (e) {
       setErr(String(e));
     } finally {
-      setBusyToken(null);
+      setBusyTokens((prev) => {
+        const next = new Set(prev);
+        next.delete(item.token);
+        return next;
+      });
     }
   }
 
@@ -256,17 +299,32 @@ export function LibraryScreen(): JSX.Element {
    */
   async function previewItem(item: LibraryItem) {
     setErr(null);
+    // Phase 25.1.I — File public-có-password: prompt password thay vì fail
+    if (!item.library_password_hex) {
+      setPasswordPromptMode('preview');
+      setPasswordPromptItem(item);
+      return;
+    }
+    await runPreview(item, null);
+  }
+
+  async function runPreview(item: LibraryItem, userPassword: string | null) {
+    setErr(null);
     setPreviewToken(item.token);
     try {
       const tempDir = await invoke<string>('get_preview_temp_dir');
       const safeName = item.file_name.replace(/[<>:"/\\|?*]/g, '_').slice(0, 200) || 'preview.bin';
       const tempPath = `${tempDir}\\${Date.now()}_${safeName}`;
+      const finalUrl = item.library_password_hex
+        ? `${item.url.split('#')[0]}#k=${item.library_password_hex}`
+        : item.url;
+      const downloadId = `preview-${item.token}-${Date.now()}`;
       await invoke('share_paste_and_download', {
-        url: item.url,
-        password: null,
+        url: finalUrl,
+        password: userPassword,
         destPath: tempPath,
+        downloadId,
       });
-      // Mở OS default viewer
       await openPath(tempPath);
     } catch (e) {
       setErr(String(e));
@@ -316,6 +374,22 @@ export function LibraryScreen(): JSX.Element {
           fileToken={commentItem.token}
           fileName={commentItem.file_name}
           onClose={() => setCommentItem(null)}
+        />
+      )}
+      {passwordPromptItem && (
+        <PasswordPromptModal
+          item={passwordPromptItem}
+          mode={passwordPromptMode}
+          onClose={() => setPasswordPromptItem(null)}
+          onConfirm={async (pwd) => {
+            const item = passwordPromptItem;
+            setPasswordPromptItem(null);
+            if (passwordPromptMode === 'download') {
+              await runDownload(item, pwd);
+            } else {
+              await runPreview(item, pwd);
+            }
+          }}
         />
       )}
 
@@ -399,7 +473,7 @@ export function LibraryScreen(): JSX.Element {
               <FileCard
                 key={item.token}
                 item={item}
-                busy={busyToken === item.token}
+                busy={busyTokens.has(item.token)}
                 previewing={previewToken === item.token}
                 downloaded={downloadedToken === item.token}
                 onDownload={() => void downloadItem(item)}
@@ -579,13 +653,26 @@ function FileCard({
   return (
     <div className="card" style={{ padding: 14, display: 'flex', flexDirection: 'column', gap: 10 }}>
       <div className="flex items-start gap-3">
-        <div style={{
-          width: 40, height: 40, borderRadius: 10,
-          background: 'var(--color-accent-soft)', color: 'var(--color-accent-primary)',
-          display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
-        }}>
-          <FileText className="h-5 w-5" />
-        </div>
+        {/* Phase 25.1.F — Thumbnail nếu admin có sinh (FFmpeg) — fallback icon */}
+        {item.thumb_url ? (
+          <img
+            src={item.thumb_url}
+            alt=""
+            style={{
+              width: 60, height: 60, borderRadius: 8, objectFit: 'cover', flexShrink: 0,
+              border: '1px solid var(--color-border-subtle)',
+            }}
+            onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
+          />
+        ) : (
+          <div style={{
+            width: 40, height: 40, borderRadius: 10,
+            background: 'var(--color-accent-soft)', color: 'var(--color-accent-primary)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+          }}>
+            <FileText className="h-5 w-5" />
+          </div>
+        )}
         <div style={{ minWidth: 0, flex: 1 }}>
           <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--color-text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={item.file_name}>
             {item.file_name}
@@ -661,4 +748,88 @@ function formatDate(ms: number): string {
   if (diff < 86_400_000) return `${Math.round(diff / 3_600_000)}h ago`;
   if (diff < 7 * 86_400_000) return `${Math.round(diff / 86_400_000)}d ago`;
   return d.toLocaleDateString('vi-VN');
+}
+
+/**
+ * Phase 25.1.I — PasswordPromptModal
+ *
+ * File public-có-password: server KHÔNG lưu plaintext key (theo Phase 25.1.G chỉ
+ * lưu cho file no-password). User phải nhập password thủ công khi click Tải/Xem.
+ */
+function PasswordPromptModal({
+  item, mode, onClose, onConfirm,
+}: {
+  item: LibraryItem;
+  mode: 'download' | 'preview';
+  onClose: () => void;
+  onConfirm: (password: string) => Promise<void>;
+}): JSX.Element {
+  const [password, setPassword] = useState('');
+  const [busy, setBusy] = useState(false);
+
+  async function submit() {
+    if (!password.trim()) return;
+    setBusy(true);
+    try {
+      await onConfirm(password);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div
+      style={{
+        position: 'fixed', inset: 0, background: 'rgba(15,14,12,0.5)',
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        zIndex: 100, padding: 16,
+      }}
+      onClick={onClose}
+    >
+      <div className="card" style={{ maxWidth: 440, width: '100%' }} onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-start justify-between">
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <div style={{ width: 36, height: 36, borderRadius: 10, background: 'var(--color-accent-soft)', color: 'var(--color-accent-primary)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <Lock className="h-4 w-4" />
+            </div>
+            <div>
+              <h2 className="card-title" style={{ margin: 0 }}>File có password</h2>
+              <p className="card-subtitle" style={{ marginTop: 2, fontSize: 11 }}>{item.file_name}</p>
+            </div>
+          </div>
+          <button className="btn-secondary" onClick={onClose} style={{ padding: 6 }}>
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+
+        <p style={{ fontSize: 12, color: 'var(--color-text-muted)', marginTop: 12, lineHeight: 1.5 }}>
+          File này được admin đặt password riêng để bảo vệ. Nhập password admin gửi cho bạn để
+          {mode === 'download' ? ' tải xuống' : ' xem trước'}.
+        </p>
+
+        <div style={{ marginTop: 14 }}>
+          <label style={{ fontSize: 12, fontWeight: 500, color: 'var(--color-text-muted)' }}>Password</label>
+          <input
+            type="password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            onKeyDown={(e) => { if (e.key === 'Enter' && password.trim()) void submit(); }}
+            placeholder="Nhập password admin gửi"
+            className="input-field"
+            style={{ marginTop: 4 }}
+            autoFocus
+            disabled={busy}
+          />
+        </div>
+
+        <div className="flex gap-2 justify-end" style={{ marginTop: 18 }}>
+          <button className="btn-secondary" onClick={onClose} disabled={busy}>Huỷ</button>
+          <button className="btn-primary" onClick={() => void submit()} disabled={!password.trim() || busy}>
+            {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
+            {mode === 'download' ? 'Tải về' : 'Xem'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
 }

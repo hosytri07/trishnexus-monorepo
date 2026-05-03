@@ -18,6 +18,7 @@
 import { NextRequest } from 'next/server';
 
 export const runtime = 'nodejs'; // Cần Node.js runtime để gửi file đa phần
+export const dynamic = 'force-dynamic';
 
 const MAX_MESSAGE_LEN = 4000;
 const MIN_MESSAGE_LEN = 5;

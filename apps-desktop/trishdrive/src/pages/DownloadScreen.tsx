@@ -154,10 +154,12 @@ export function DownloadScreen({ onDone }: { onDone: (row: HistoryRow) => void }
       savePending(rest);
       setPendingList(rest);
       try {
+        const downloadId = `pending-${first.id}-${Date.now()}`;
         await invoke<HistoryRow>('share_paste_and_download', {
           url: first.url,
           password: first.password,
           destPath: first.dest_path,
+          downloadId,
         });
         setScheduledMsg(`✓ Tự động tải xong: ${first.dest_path.split(/[\\/]/).pop()}. Còn ${rest.length} pending.`);
         setTimeout(() => setScheduledMsg(null), 6000);
@@ -351,10 +353,13 @@ export function DownloadScreen({ onDone }: { onDone: (row: HistoryRow) => void }
     speedBpsRef.current = 0;
 
     try {
+      // Phase 25.1.H — pass downloadId duy nhất để DownloadManager track per-file progress.
+      const downloadId = `paste-${Date.now()}`;
       const row = await invoke<HistoryRow>('share_paste_and_download', {
         url: url.trim(),
         password: password.trim() || null,
         destPath: destPath.trim(),
+        downloadId,
       });
       setSuccess(row);
       onDone(row);

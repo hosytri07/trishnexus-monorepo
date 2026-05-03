@@ -1,0 +1,10 @@
+/**
+ * theme-bridge.css — Phase 32.1
+ *
+ * TrishShortcut dùng design-system tokens DIRECTLY (không có legacy vars cần
+ * map). File này chỉ giữ làm placeholder + override font cho html/body.
+ */
+
+html, body, #root {
+  font-family: var(--font-sans);
+}

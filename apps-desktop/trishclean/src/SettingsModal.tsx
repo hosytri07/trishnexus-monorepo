@@ -110,26 +110,6 @@ export function SettingsModal({ initial, onClose, onSave }: Props): JSX.Element 
             </div>
           </div>
 
-          {/* Auto check update */}
-          <div className="setting-row">
-            <div className="setting-label">
-              <strong>Kiểm tra bản mới khi mở app</strong>
-              <p className="muted small">
-                Fetch registry từ trishteam.io.vn — không cần login.
-              </p>
-            </div>
-            <div className="setting-control">
-              <label className="toggle">
-                <input
-                  type="checkbox"
-                  checked={draft.autoCheckUpdate}
-                  onChange={(e) => update('autoCheckUpdate', e.target.checked)}
-                />
-                <span>{draft.autoCheckUpdate ? 'Bật' : 'Tắt'}</span>
-              </label>
-            </div>
-          </div>
-
           {/* Confirm before clean */}
           <div className="setting-row">
             <div className="setting-label">

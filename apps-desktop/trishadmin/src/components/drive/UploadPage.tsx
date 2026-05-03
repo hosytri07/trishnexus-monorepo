@@ -49,9 +49,18 @@ export function UploadPage({ uid, onUploadDone }: { uid: string; onUploadDone: (
   const [pickedPath, setPickedPath] = useState<string | null>(null);
   const [progressData, setProgressData] = useState<ProgressEvent | null>(null);
   const [startTime, setStartTime] = useState<number>(0);
-  const [useMtproto, setUseMtproto] = useState<boolean>(() => {
-    return localStorage.getItem('trishdrive-pipeline') === 'mtproto';
+  // Phase 25.0.A — 3 modes: 'auto' (default, route by size), 'mtproto' (force), 'botapi' (force)
+  type PipelineMode = 'auto' | 'mtproto' | 'botapi';
+  const [pipelineMode, setPipelineMode] = useState<PipelineMode>(() => {
+    const v = localStorage.getItem('trishdrive-pipeline');
+    if (v === 'mtproto' || v === 'botapi') return v;
+    return 'auto';
   });
+  // Backward compat: useMtproto = boolean | null (null = auto)
+  const useMtproto: boolean | null = pipelineMode === 'auto' ? null : pipelineMode === 'mtproto';
+  function setUseMtproto(v: boolean | null): void {
+    setPipelineMode(v === null ? 'auto' : v ? 'mtproto' : 'botapi');
+  }
   const [mtprotoReady, setMtprotoReady] = useState<boolean>(false);
 
   useEffect(() => {
@@ -66,8 +75,8 @@ export function UploadPage({ uid, onUploadDone }: { uid: string; onUploadDone: (
   }, []);
 
   useEffect(() => {
-    localStorage.setItem('trishdrive-pipeline', useMtproto ? 'mtproto' : 'botapi');
-  }, [useMtproto]);
+    localStorage.setItem('trishdrive-pipeline', pipelineMode);
+  }, [pipelineMode]);
 
   async function loadFolders() {
     try {
@@ -83,7 +92,7 @@ export function UploadPage({ uid, onUploadDone }: { uid: string; onUploadDone: (
       const s = await invoke<MtprotoStatus>('mtproto_status', { uid });
       const ready = s.configured && s.authorized;
       setMtprotoReady(ready);
-      if (!ready && useMtproto) setUseMtproto(false); // auto-fallback nếu chưa setup
+      if (!ready && useMtproto === true) setUseMtproto(null); // auto-fallback nếu chưa setup
     } catch {
       setMtprotoReady(false);
     }
@@ -111,7 +120,16 @@ export function UploadPage({ uid, onUploadDone }: { uid: string; onUploadDone: (
     setProgressData(null);
     setStartTime(Date.now());
     try {
-      const command = useMtproto && mtprotoReady ? 'file_upload_mtproto' : 'file_upload';
+      // Phase 25.0.A — Default auto-route: > 50MB → MTProto, ≤ 50MB → Bot API.
+      // Manual override (radio) vẫn còn cho admin force chọn 1 path cụ thể.
+      let command: string;
+      if (useMtproto === true && mtprotoReady) {
+        command = 'file_upload_mtproto';
+      } else if (useMtproto === false) {
+        command = 'file_upload';
+      } else {
+        command = 'file_upload_auto';
+      }
       const r = await invoke<UploadResult>(command, {
         uid,
         filePath: pickedPath,
@@ -121,6 +139,12 @@ export function UploadPage({ uid, onUploadDone }: { uid: string; onUploadDone: (
       setResult(r);
       setProgressData(null);
       onUploadDone();
+      // Phase 25.0.B — Sinh thumbnail async, không chặn UX
+      void invoke('file_generate_and_upload_thumb', {
+        uid,
+        fileId: r.file_id,
+        filePath: pickedPath,
+      }).catch((e) => console.warn('[thumb] skip (FFmpeg lỗi hoặc không hỗ trợ):', e));
       setTimeout(() => {
         setPickedPath(null);
         setNote('');
@@ -140,7 +164,7 @@ export function UploadPage({ uid, onUploadDone }: { uid: string; onUploadDone: (
         <div>
           <h2 className="card-title">Upload file mới</h2>
           <p className="card-subtitle">
-            File chia chunk 49MB + mã hoá AES-256-GCM trước khi upload Telegram. Limit 2GB/file (Bot API). Phase 23 dùng MTProto sẽ ≤ 4GB.
+            File chia chunk 19MB + mã hoá AES-256-GCM trước khi upload Telegram. Limit 2GB/file (Bot API). Bật MTProto để upload ≤ 4GB.
           </p>
         </div>
       </div>
@@ -179,32 +203,44 @@ export function UploadPage({ uid, onUploadDone }: { uid: string; onUploadDone: (
         )}
       </div>
 
-      {/* Pipeline toggle — MTProto vs Bot API */}
+      {/* Pipeline mode — Phase 25.0.A 3 modes */}
       <div className="mt-4 p-3 rounded-xl" style={{ background: 'var(--color-surface-row)', border: '1px solid var(--color-border-default)' }}>
-        <div className="flex items-start justify-between gap-3">
-          <div style={{ flex: 1 }}>
-            <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--color-text-primary)' }}>
-              Phương thức upload
-            </div>
-            <div style={{ fontSize: 11, color: 'var(--color-text-muted)', marginTop: 2, lineHeight: 1.5 }}>
-              {useMtproto && mtprotoReady ? (
-                <><strong style={{ color: 'var(--color-accent-primary)' }}>MTProto</strong> · chunk 100MB · upload thẳng từ user account · file 2GB ~20 chunks (nhanh 5x)</>
-              ) : (
-                <><strong>Bot API</strong> · chunk 19MB · qua Telegram bot · file 2GB ~108 chunks {!mtprotoReady && '· (Setup MTProto ở Settings để tăng tốc)'}</>
-              )}
-            </div>
-          </div>
-          <label className="flex items-center gap-2 cursor-pointer" style={{ opacity: mtprotoReady ? 1 : 0.5 }}>
+        <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--color-text-primary)', marginBottom: 8 }}>
+          Phương thức upload
+        </div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+          <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontSize: 12 }}>
             <input
-              type="checkbox"
-              checked={useMtproto && mtprotoReady}
-              onChange={e => setUseMtproto(e.target.checked)}
-              disabled={!mtprotoReady || busy}
-              style={{ width: 16, height: 16, accentColor: 'var(--color-accent-primary)' }}
+              type="radio"
+              name="pipeline-mode"
+              checked={pipelineMode === 'auto'}
+              onChange={() => setPipelineMode('auto')}
+              disabled={busy}
+              style={{ accentColor: 'var(--color-accent-primary)' }}
             />
-            <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--color-text-primary)' }}>
-              Dùng MTProto
-            </span>
+            <span><strong style={{ color: 'var(--color-accent-primary)' }}>🚀 Auto (khuyến nghị)</strong> — file ≤ 50MB qua Bot API, &gt; 50MB qua MTProto.{!mtprotoReady && ' ⚠ Cần setup MTProto ở Settings cho file lớn.'}</span>
+          </label>
+          <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontSize: 12, opacity: mtprotoReady ? 1 : 0.5 }}>
+            <input
+              type="radio"
+              name="pipeline-mode"
+              checked={pipelineMode === 'mtproto'}
+              onChange={() => setPipelineMode('mtproto')}
+              disabled={!mtprotoReady || busy}
+              style={{ accentColor: 'var(--color-accent-primary)' }}
+            />
+            <span><strong>🔥 MTProto (force)</strong> — chunk 100MB, file đến 2GB/4GB Premium.</span>
+          </label>
+          <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontSize: 12 }}>
+            <input
+              type="radio"
+              name="pipeline-mode"
+              checked={pipelineMode === 'botapi'}
+              onChange={() => setPipelineMode('botapi')}
+              disabled={busy}
+              style={{ accentColor: 'var(--color-accent-primary)' }}
+            />
+            <span><strong>🤖 Bot API (force)</strong> — chunk 19MB, đơn giản, file ≤ 50MB.</span>
           </label>
         </div>
       </div>

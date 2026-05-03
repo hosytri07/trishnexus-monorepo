@@ -43,6 +43,15 @@ hmac = "0.12"
 rand = "0.8"
 hex = "0.4"
 urlencoding = "2.1"
+url = "2"
+
+# Phase 25.1.E — WebDAV mount Z:\ (read-only proxy → Telegram cache local)
+dav-server = { version = "0.7", default-features = false, features = ["localfs"] }
+hyper = { version = "1", features = ["server", "http1"] }
+hyper-util = { version = "0.1", features = ["tokio", "server-auto"] }
+http-body-util = "0.1"
+bytes = "1"
+async-trait = "0.1"
 
 # Bỏ Phase 26.1.A: keyring + grammers-* (admin-only, đã chuyển sang TrishAdmin).
 

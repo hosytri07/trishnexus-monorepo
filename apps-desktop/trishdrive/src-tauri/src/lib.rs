@@ -13,6 +13,7 @@
 
 mod crypto;
 mod db;
+mod webdav;
 
 use rusqlite::params;
 use serde::{Deserialize, Serialize};
@@ -35,14 +36,20 @@ struct DownloadControl {
 
 /// Phase 26.1.G — progress event emit sau mỗi chunk download.
 /// Frontend listen `drive-progress` → render % + speed + ETA.
+///
+/// Phase 25.1.H — Thêm `download_id` để hỗ trợ concurrent downloads.
+/// Mỗi download có ID riêng, frontend track Map<download_id, progress> để
+/// render multiple progress bars cùng lúc.
 #[derive(Serialize, Clone)]
 struct DownloadProgress {
+    /// Phase 25.1.H — ID duy nhất per download (frontend gen, fallback empty string).
+    download_id: String,
     current_chunk: i64,
     total_chunks: i64,
     bytes_done: i64,
     total_bytes: i64,
     file_name: String,
-    /// 'downloading' | 'decrypting' | 'verifying' | 'done' | 'error'
+    /// 'downloading' | 'decrypting' | 'verifying' | 'done' | 'error' | 'paused'
     phase: String,
 }
 
@@ -372,6 +379,7 @@ async fn proxy_download_chunk(
 
 /// Phase 26.2.D — Public Tauri command. Read speed limit từ state, gọi helper.
 /// Phase 26.2.B — Reset pause/cancel flags at start.
+/// Phase 25.1.H — Optional `download_id` để hỗ trợ concurrent downloads.
 #[tauri::command]
 async fn share_paste_and_download(
     app: tauri::AppHandle,
@@ -380,13 +388,15 @@ async fn share_paste_and_download(
     url: String,
     password: Option<String>,
     dest_path: String,
+    download_id: Option<String>,
 ) -> Result<HistoryRow, String> {
     let mbps = state.0.lock().map(|g| *g).unwrap_or(0.0);
     let bps = if mbps > 0.0 { mbps * 1_048_576.0 } else { 0.0 };
     // Reset control flags
     ctrl.paused.store(false, Ordering::SeqCst);
     ctrl.cancelled.store(false, Ordering::SeqCst);
-    do_share_paste_and_download(app, bps, ctrl.paused.clone(), ctrl.cancelled.clone(), url, password, dest_path).await
+    let did = download_id.unwrap_or_default();
+    do_share_paste_and_download(app, bps, ctrl.paused.clone(), ctrl.cancelled.clone(), url, password, dest_path, did).await
 }
 
 /// Helper internal — KHÔNG nhận tauri::State để có thể gọi từ
@@ -399,6 +409,7 @@ async fn do_share_paste_and_download(
     url: String,
     password: Option<String>,
     dest_path: String,
+    download_id: String,
 ) -> Result<HistoryRow, String> {
     use sha2::{Digest, Sha256};
     use tokio::io::AsyncWriteExt;
@@ -433,6 +444,7 @@ async fn do_share_paste_and_download(
 
     // Emit start
     let _ = app.emit("drive-progress", DownloadProgress {
+        download_id: download_id.clone(),
         current_chunk: 0, total_chunks,
         bytes_done: 0, total_bytes,
         file_name: info.file_name.clone(),
@@ -454,6 +466,7 @@ async fn do_share_paste_and_download(
                 return Err("Đã huỷ download bởi user".into());
             }
             let _ = app.emit("drive-progress", DownloadProgress {
+                download_id: download_id.clone(),
                 current_chunk: (i + 1) as i64, total_chunks,
                 bytes_done, total_bytes,
                 file_name: info.file_name.clone(),
@@ -471,6 +484,7 @@ async fn do_share_paste_and_download(
         let encrypted = proxy_download_chunk(&token, &bot_token, chunk, chunk_pipeline, i == 0).await
             .map_err(|e| {
                 let _ = app.emit("drive-progress", DownloadProgress {
+                    download_id: download_id.clone(),
                     current_chunk: (i + 1) as i64, total_chunks,
                     bytes_done, total_bytes,
                     file_name: info.file_name.clone(),
@@ -500,6 +514,7 @@ async fn do_share_paste_and_download(
 
         // Emit progress sau mỗi chunk
         let _ = app.emit("drive-progress", DownloadProgress {
+            download_id: download_id.clone(),
             current_chunk: (i + 1) as i64, total_chunks,
             bytes_done, total_bytes,
             file_name: info.file_name.clone(),
@@ -511,6 +526,7 @@ async fn do_share_paste_and_download(
 
     // Emit verify phase
     let _ = app.emit("drive-progress", DownloadProgress {
+        download_id: download_id.clone(),
         current_chunk: total_chunks, total_chunks,
         bytes_done: total_bytes, total_bytes,
         file_name: info.file_name.clone(),
@@ -549,6 +565,7 @@ async fn do_share_paste_and_download(
 
     // Emit done
     let _ = app.emit("drive-progress", DownloadProgress {
+        download_id: download_id.clone(),
         current_chunk: total_chunks, total_chunks,
         bytes_done: total_bytes, total_bytes,
         file_name: row.file_name.clone(),
@@ -679,6 +696,8 @@ async fn share_queue_download(
 
         // Gọi do_share_paste_and_download helper (không cần re-parse URL).
         let password_for_download = key_from_fragment.unwrap_or_default();
+        // Phase 25.1.H — queue download dùng download_id = format!("queue-{}", queue_index)
+        let did = format!("queue-{}", queue_index);
         match do_share_paste_and_download(
             app.clone(),
             speed_limit_bps,
@@ -687,6 +706,7 @@ async fn share_queue_download(
             url.clone(),
             if password_for_download.is_empty() { None } else { Some(password_for_download) },
             dest_path_str,
+            did,
         ).await {
             Ok(row) => {
                 success += 1;
@@ -750,6 +770,249 @@ fn cleanup_preview_temp() {
 // Tauri builder + run
 // ============================================================
 
+// ============================================================
+// Phase 25.1.E — WebDAV mount commands
+// ============================================================
+
+use std::sync::Mutex as StdMutex;
+
+#[derive(Default)]
+struct WebDavServerState {
+    handle: StdMutex<Option<tokio::task::JoinHandle<()>>>,
+    port: StdMutex<Option<u16>>,
+}
+
+#[tauri::command]
+async fn webdav_start(
+    app: tauri::AppHandle,
+    state: tauri::State<'_, WebDavServerState>,
+    port: u16,
+) -> Result<u16, String> {
+    let cache = webdav::cache_dir(&app)?;
+    {
+        let mut h = state.handle.lock().unwrap();
+        if let Some(handle) = h.take() { handle.abort(); }
+    }
+    let cache_clone = cache.clone();
+    let handle = tokio::spawn(async move {
+        if let Err(e) = webdav::run_webdav(cache_clone, port).await {
+            eprintln!("[webdav] server error: {}", e);
+        }
+    });
+    {
+        let mut h = state.handle.lock().unwrap();
+        *h = Some(handle);
+        let mut p = state.port.lock().unwrap();
+        *p = Some(port);
+    }
+    Ok(port)
+}
+
+#[tauri::command]
+fn webdav_stop(state: tauri::State<'_, WebDavServerState>) -> Result<(), String> {
+    let mut h = state.handle.lock().unwrap();
+    if let Some(handle) = h.take() { handle.abort(); }
+    let mut p = state.port.lock().unwrap();
+    *p = None;
+    Ok(())
+}
+
+#[tauri::command]
+fn webdav_status(state: tauri::State<'_, WebDavServerState>) -> Result<Option<u16>, String> {
+    let p = state.port.lock().unwrap();
+    Ok(*p)
+}
+
+#[tauri::command]
+fn webdav_cache_size(app: tauri::AppHandle) -> Result<u64, String> {
+    let dir = webdav::cache_dir(&app)?;
+    Ok(webdav::cache_size(&dir))
+}
+
+#[tauri::command]
+fn webdav_cache_evict(app: tauri::AppHandle, target_bytes: u64) -> Result<(usize, u64), String> {
+    let dir = webdav::cache_dir(&app)?;
+    Ok(webdav::evict_lru(&dir, target_bytes))
+}
+
+/// Phase 25.1.E.2 — Auto map Z: drive + set label "TrishTEAM Cloud"
+#[tauri::command]
+fn webdav_mount_drive(drive_letter: String, port: u16) -> Result<String, String> {
+    #[cfg(target_os = "windows")]
+    {
+        let dl = drive_letter.trim().trim_end_matches(':').to_uppercase();
+        if dl.len() != 1 || !dl.chars().all(|c| c.is_ascii_alphabetic()) {
+            return Err(format!("Drive letter '{}' không hợp lệ", drive_letter));
+        }
+        let url = format!("http://127.0.0.1:{}/", port);
+
+        // 1. Unmount cũ (silent ignore nếu chưa mount)
+        let _ = std::process::Command::new("net")
+            .args(["use", &format!("{}:", dl), "/delete", "/yes"])
+            .output();
+
+        // 2. net use Z: http://127.0.0.1:8766/ /persistent:no
+        let out = std::process::Command::new("net")
+            .args(["use", &format!("{}:", dl), &url, "/persistent:no"])
+            .output()
+            .map_err(|e| format!("net use spawn fail: {}", e))?;
+        if !out.status.success() {
+            let stderr = String::from_utf8_lossy(&out.stderr);
+            let stdout = String::from_utf8_lossy(&out.stdout);
+            return Err(format!("net use fail: {} {}", stdout, stderr));
+        }
+
+        // 3. Set drive label "TrishTEAM Cloud" qua registry MountPoints2.
+        // WebDAV mount key: HKCU\Software\Microsoft\Windows\CurrentVersion\Explorer\
+        //   MountPoints2\##<host>@<port>\_LabelFromReg
+        // Path encode: "\\127.0.0.1@8766" → "##127.0.0.1@8766"
+        let mount_key = format!(
+            r"HKCU\Software\Microsoft\Windows\CurrentVersion\Explorer\MountPoints2\##127.0.0.1@{}",
+            port
+        );
+        let _ = std::process::Command::new("reg")
+            .args([
+                "add", &mount_key,
+                "/v", "_LabelFromReg",
+                "/t", "REG_SZ",
+                "/d", "TrishTEAM Cloud",
+                "/f",
+            ])
+            .output();
+
+        // 4. Refresh Explorer để label mới hiện ngay (không cần kill explorer).
+        // Cách nhẹ: gọi SHChangeNotify qua PowerShell. Nếu fail, Trí có thể F5
+        // trong This PC để refresh thủ công.
+        let _ = std::process::Command::new("powershell")
+            .args([
+                "-NoProfile", "-Command",
+                "$sig = '[DllImport(\"shell32.dll\", CharSet=CharSet.Auto)] public static extern void SHChangeNotify(int wEventId, int uFlags, IntPtr dwItem1, IntPtr dwItem2);'; \
+                 $type = Add-Type -MemberDefinition $sig -Name 'Win32SHChangeNotify' -Namespace Win32Functions -PassThru; \
+                 $type::SHChangeNotify(0x08000000, 0, [IntPtr]::Zero, [IntPtr]::Zero)",
+            ])
+            .output();
+
+        Ok(format!("Đã mount {}:\\ → {} (label 'TrishTEAM Cloud'). Nếu tên cũ còn → F5 trong This PC.", dl, url))
+    }
+    #[cfg(not(target_os = "windows"))]
+    {
+        Err("WebDAV auto-mount chỉ hỗ trợ Windows. macOS/Linux: dùng Finder/Nautilus connect to server thủ công.".into())
+    }
+}
+
+#[tauri::command]
+fn webdav_unmount_drive(drive_letter: String) -> Result<(), String> {
+    #[cfg(target_os = "windows")]
+    {
+        let dl = drive_letter.trim().trim_end_matches(':').to_uppercase();
+        if dl.len() != 1 { return Err("Drive letter không hợp lệ".into()); }
+        let out = std::process::Command::new("net")
+            .args(["use", &format!("{}:", dl), "/delete", "/yes"])
+            .output()
+            .map_err(|e| format!("net use /delete fail: {}", e))?;
+        if !out.status.success() {
+            let stderr = String::from_utf8_lossy(&out.stderr);
+            // Code 2250 = chưa mount → không phải lỗi
+            if !stderr.contains("2250") && !stderr.is_empty() {
+                return Err(format!("Unmount fail: {}", stderr));
+            }
+        }
+        Ok(())
+    }
+    #[cfg(not(target_os = "windows"))]
+    { Ok(()) }
+}
+
+/// Lấy cache dir path mà KHÔNG mở Explorer (dùng cho sync logic).
+#[tauri::command]
+fn webdav_get_cache_dir(app: tauri::AppHandle) -> Result<String, String> {
+    let dir = webdav::cache_dir(&app)?;
+    Ok(dir.to_string_lossy().to_string())
+}
+
+/// Phase 25.1.E.3 — Fetch TrishTEAM Library list từ Rust để bypass CORS dev mode.
+/// Truyền Firebase ID token, return JSON list items.
+/// Redirect-aware: thử cả với/không www để xử lý Vercel host redirect strip auth header.
+#[tauri::command]
+async fn fetch_library_list(token: String) -> Result<serde_json::Value, String> {
+    if token.trim().is_empty() {
+        return Err("Token rỗng — frontend chưa truyền Firebase ID token. Đăng nhập lại?".into());
+    }
+    let token_trim = token.trim().to_string();
+
+    // Manual redirect follow — giữ Authorization header qua mỗi hop (reqwest mặc định strip cross-host)
+    let client = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(30))
+        .redirect(reqwest::redirect::Policy::none())
+        .build()
+        .map_err(|e| format!("client: {}", e))?;
+
+    let mut current_url = "https://www.trishteam.io.vn/api/drive/library/list".to_string();
+    let mut hops: Vec<String> = Vec::new();
+    for hop_idx in 0..5 {
+        hops.push(current_url.clone());
+        let resp = client
+            .get(&current_url)
+            .header("Authorization", format!("Bearer {}", token_trim))
+            .send()
+            .await
+            .map_err(|e| format!("Network hop {} {}: {}", hop_idx, current_url, e))?;
+        let status = resp.status();
+        if status.is_success() {
+            let text = resp.text().await.map_err(|e| format!("Read: {}", e))?;
+            return serde_json::from_str(&text)
+                .map_err(|e| format!("Parse JSON: {} — body: {}", e, &text[..text.len().min(200)]));
+        }
+        if status.is_redirection() {
+            let loc = resp.headers()
+                .get("location")
+                .and_then(|v| v.to_str().ok())
+                .ok_or_else(|| format!("Status {} không có Location header", status))?
+                .to_string();
+            // Nếu loc relative → join với current_url base
+            current_url = if loc.starts_with("http") {
+                loc
+            } else {
+                let base = url::Url::parse(&current_url).map_err(|e| format!("URL parse: {}", e))?;
+                base.join(&loc).map_err(|e| format!("URL join: {}", e))?.to_string()
+            };
+            continue;
+        }
+        // Non-success non-redirect → trả lỗi với chain
+        let text = resp.text().await.unwrap_or_default();
+        return Err(format!(
+            "API {} (token len={}) hop {}: {}\nChain: {}",
+            status, token_trim.len(), hop_idx, &text[..text.len().min(300)], hops.join(" → ")
+        ));
+    }
+    Err(format!("Quá nhiều redirect (>5). Chain: {}", hops.join(" → ")))
+}
+
+#[tauri::command]
+fn webdav_open_cache_dir(app: tauri::AppHandle) -> Result<String, String> {
+    let dir = webdav::cache_dir(&app)?;
+    let dir_str = dir.to_string_lossy().to_string();
+    // Spawn Explorer trực tiếp (Windows). Trên macOS dùng `open`, Linux dùng `xdg-open`.
+    #[cfg(target_os = "windows")]
+    {
+        std::process::Command::new("explorer.exe")
+            .arg(&dir_str)
+            .spawn()
+            .map_err(|e| format!("Spawn explorer fail: {} (path: {})", e, dir_str))?;
+    }
+    #[cfg(target_os = "macos")]
+    {
+        std::process::Command::new("open").arg(&dir_str).spawn()
+            .map_err(|e| format!("open fail: {}", e))?;
+    }
+    #[cfg(target_os = "linux")]
+    {
+        std::process::Command::new("xdg-open").arg(&dir_str).spawn()
+            .map_err(|e| format!("xdg-open fail: {}", e))?;
+    }
+    Ok(dir_str)
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     use tauri::{
@@ -769,6 +1032,7 @@ pub fn run() {
         .plugin(tauri_plugin_process::init())
         .manage(SpeedLimit::default())
         .manage(DownloadControl::default())
+        .manage(WebDavServerState::default())
         .invoke_handler(tauri::generate_handler![
             app_version,
             ping,
@@ -787,6 +1051,18 @@ pub fn run() {
             share_paste_and_download,
             share_queue_download,
             get_preview_temp_dir,
+            // Phase 25.1.E — WebDAV mount + cache LRU
+            webdav_start,
+            webdav_stop,
+            webdav_status,
+            webdav_cache_size,
+            webdav_cache_evict,
+            webdav_open_cache_dir,
+            webdav_get_cache_dir,
+            fetch_library_list,
+            // Phase 25.1.E.2 — Auto-mount + label
+            webdav_mount_drive,
+            webdav_unmount_drive,
         ])
         .on_window_event(|window, event| {
             // Phase 26.5.G — close button → emit event cho frontend quyết định

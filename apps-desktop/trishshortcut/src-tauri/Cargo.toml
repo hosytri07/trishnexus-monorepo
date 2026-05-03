@@ -1,0 +1,51 @@
+[package]
+name = "trishshortcut"
+version = "1.0.0"
+description = "TrishShortcut — quản lý shortcut Windows với icon hiển thị + workspace mode + hotkey toàn cục"
+authors = ["TrishTEAM <hosytri77@gmail.com>"]
+edition = "2021"
+rust-version = "1.77"
+
+[[bin]]
+name = "trishshortcut"
+path = "src/main.rs"
+
+[lib]
+name = "trishshortcut_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+path = "src/lib.rs"
+
+[build-dependencies]
+tauri-build = { version = "2.6", features = [] }
+
+# Pin tauri 2.11 để match tauri-runtime 2.11 transitive dep + tauri-build 2.6.
+# NPM @tauri-apps/api cũng phải bump ^2.11.0 để khớp major.minor.
+[dependencies]
+tauri = { version = "2.11", features = ["protocol-asset", "tray-icon"] }
+tauri-plugin-dialog = "2"
+tauri-plugin-opener = "2"
+tauri-plugin-global-shortcut = "2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+sha2 = "0.10"
+hex = "0.4"
+
+# Phase 32.3 — Icon extraction (Windows ExtractIconEx) + scan + lnk parsing
+[target.'cfg(target_os = "windows")'.dependencies]
+windows = { version = "0.58", features = [
+    "Win32_Foundation",
+    "Win32_UI_Shell",
+    "Win32_UI_WindowsAndMessaging",
+    "Win32_Graphics_Gdi",
+    "Win32_System_Com",
+    "Win32_System_LibraryLoader",
+    "Win32_Storage_FileSystem",
+] }
+lnk = "0.5"
+winreg = "0.52"
+dirs = "5"
+# Phase 32.3.B — extract icon dùng PowerShell System.Drawing.Icon
+# (không dùng systemicons vì conflict gtk-sys với tauri-plugin-dialog 2.0)
+
+[features]
+custom-protocol = ["tauri/custom-protocol"]

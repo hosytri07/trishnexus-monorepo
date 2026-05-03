@@ -1,0 +1,27 @@
+/**
+ * theme-bridge.css — Phase 33
+ *
+ * Map legacy CSS vars (--bg, --fg, --accent, --border, --surface, ...) sang
+ * design-system tokens. Đặt SAU `@trishteam/design-system` + `styles.css`.
+ *
+ * TrishLauncher dùng vars: --bg, --surface, --text, --muted, --border,
+ *   --accent, --accent-hover, --amber, --blue.
+ */
+
+:root,
+:root[data-theme='light'],
+:root[data-theme='dark'] {
+  --bg: var(--color-surface-bg);
+  --surface: var(--color-surface-card);
+  --text: var(--color-text-primary);
+  --muted: var(--color-text-muted);
+  --border: var(--color-border-default);
+  --accent: var(--color-accent-primary);
+  --accent-hover: var(--color-accent-secondary);
+  --amber: var(--semantic-warning);
+  --blue: var(--semantic-info);
+}
+
+html, body, #root {
+  font-family: var(--font-sans);
+}

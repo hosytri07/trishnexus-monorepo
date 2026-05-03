@@ -33,7 +33,7 @@
       "endpoints": [
         "https://trishteam.io.vn/api/updates/trishdrive/{{target}}/{{current_version}}"
       ],
-      "pubkey": "PLACEHOLDER_RUN_TAURI_SIGNER_GENERATE_TO_REPLACE",
+      "pubkey": "",
       "windows": {
         "installMode": "passive"
       }

@@ -86,19 +86,6 @@
         }
       }
     },
-    "createUpdaterArtifacts": true
-  },
-  "plugins": {
-    "updater": {
-      "active": false,
-      "endpoints": [
-        "https://trishteam.io.vn/api/updates/trishlauncher/{{target}}/{{current_version}}"
-      ],
-      "dialog": true,
-      "pubkey": "PLACEHOLDER_RUN_TAURI_SIGNER_GENERATE_TO_REPLACE",
-      "windows": {
-        "installMode": "passive"
-      }
-    }
+    "createUpdaterArtifacts": false
   }
 }

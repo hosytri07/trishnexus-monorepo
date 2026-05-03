@@ -35,8 +35,6 @@ import {
   purgeOldSessions,
   getDiskUsage,
   getAppVersion,
-  checkForUpdate,
-  openExternal,
   type ScanStats,
   type CleanPreset,
   type TrashManifest,
@@ -158,7 +156,6 @@ const CATEGORY_ORDER: CleanCategory[] = [
 export function App(): JSX.Element {
   const [tab, setTab] = useState<Tab>('quick');
   const [appVersion, setAppVersion] = useState('dev');
-  const [updateBadge, setUpdateBadge] = useState<string | null>(null);
   const [settings, setSettings] = useState<AppSettings>(loadSettings());
   const [showSettings, setShowSettings] = useState(false);
   const [toast, setToast] = useState<{ msg: string; kind: ToastKind } | null>(null);
@@ -201,15 +198,6 @@ export function App(): JSX.Element {
           if (purged > 0) {
             console.log(`[trishclean] auto-purged ${purged} old sessions`);
           }
-        } catch {
-          /* ignore */
-        }
-      }
-      // Check update
-      if (settings.autoCheckUpdate) {
-        try {
-          const info = await checkForUpdate(v);
-          if (info.hasUpdate) setUpdateBadge(info.latest);
         } catch {
           /* ignore */
         }
@@ -267,20 +255,6 @@ export function App(): JSX.Element {
         </div>
 
         <div className="topbar-right">
-          {updateBadge && (
-            <button
-              type="button"
-              className="btn btn-update"
-              onClick={() =>
-                void openExternal(
-                  'https://github.com/hosytri07/trishnexus-monorepo/releases',
-                )
-              }
-              title={`Có bản v${updateBadge} mới`}
-            >
-              ⬆ v{updateBadge}
-            </button>
-          )}
           <button
             type="button"
             className="btn btn-ghost btn-icon"

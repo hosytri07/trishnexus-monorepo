@@ -1,8 +1,8 @@
 {
   "name": "@trishteam/trishadmin",
-  "version": "1.2.0",
+  "version": "1.0.0",
   "private": true,
-  "description": "TrishAdmin — quản lý hệ sinh thái TrishTEAM (users, keys, broadcasts, registry) + TrishDrive Telegram cloud (Phase 24.1). CHỈ dành cho admin.",
+  "description": "TrishAdmin — quản lý hệ sinh thái TrishTEAM (users, keys, broadcasts, registry) + TrishDrive Telegram cloud. CHỈ dành cho admin.",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -14,6 +14,7 @@
     "tauri:build": "tauri build"
   },
   "dependencies": {
+    "@trishteam/admin-keys": "workspace:*",
     "@trishteam/auth": "workspace:*",
     "@trishteam/core": "workspace:*",
     "@trishteam/data": "workspace:*",

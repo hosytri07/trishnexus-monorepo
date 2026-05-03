@@ -22,6 +22,7 @@ interface ProgressEvent {
   total_bytes: number;
 }
 import { Download, Trash2, FileText, Image as ImgIcon, Film, Music, Archive, FileQuestion, Loader2, RefreshCw, AlertCircle, Share2, Copy, X, CheckCircle2, Folder, FolderPlus, Edit3, MoveRight } from 'lucide-react';
+import { useDialog } from './InlineDialog';
 
 interface FileRow {
   id: string;
@@ -51,6 +52,7 @@ export function FilesPage({ uid, search, refreshTick }: { uid: string; search: s
   const [err, setErr] = useState<string | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [sort, setSort] = useState<'date' | 'name' | 'size'>('date');
+  const { confirmAsync, promptAsync, alertAsync, DialogElement } = useDialog();
   const [shareModal, setShareModal] = useState<FileRow | null>(null);
   const [editModal, setEditModal] = useState<FileRow | null>(null);
   const [downloadProgress, setDownloadProgress] = useState<ProgressEvent | null>(null);
@@ -87,7 +89,7 @@ export function FilesPage({ uid, search, refreshTick }: { uid: string; search: s
   }
 
   async function createFolder() {
-    const name = prompt('Tên folder mới:');
+    const name = await promptAsync('Đặt tên folder mới:', '', { title: '📁 Tạo folder', placeholder: 'VD: Báo cáo Q1' });
     if (!name?.trim()) return;
     try {
       await invoke('folder_create', { name: name.trim(), parentId: null });
@@ -96,7 +98,7 @@ export function FilesPage({ uid, search, refreshTick }: { uid: string; search: s
   }
 
   async function renameFolder(folder: FolderRow) {
-    const newName = prompt('Tên mới:', folder.name);
+    const newName = await promptAsync('Tên mới:', folder.name, { title: '✏ Đổi tên folder' });
     if (!newName?.trim() || newName.trim() === folder.name) return;
     try {
       await invoke('folder_rename', { folderId: folder.id, newName: newName.trim() });
@@ -105,7 +107,11 @@ export function FilesPage({ uid, search, refreshTick }: { uid: string; search: s
   }
 
   async function deleteFolder(folder: FolderRow) {
-    if (!confirm(`Xoá folder "${folder.name}"? File trong folder sẽ về root, không bị xoá.`)) return;
+    const ok = await confirmAsync(
+      `Xoá folder "${folder.name}"?\n\nFile trong folder sẽ về root, không bị xoá.`,
+      { title: '🗑 Xoá folder', danger: true, okLabel: 'Xoá folder' }
+    );
+    if (!ok) return;
     try {
       await invoke('folder_delete', { folderId: folder.id });
       if (activeFolder === folder.id) setActiveFolder('');
@@ -158,7 +164,11 @@ export function FilesPage({ uid, search, refreshTick }: { uid: string; search: s
   }
 
   async function deleteFile(file: FileRow) {
-    if (!confirm(`Xoá "${file.name}"? File sẽ vào Thùng rác 30 ngày trước khi xoá vĩnh viễn.`)) return;
+    const ok = await confirmAsync(
+      `Xoá "${file.name}"?\n\nFile sẽ vào Thùng rác 30 ngày trước khi xoá vĩnh viễn.`,
+      { title: '🗑 Xoá file', danger: true, okLabel: 'Vào Thùng rác' }
+    );
+    if (!ok) return;
     setBusyId(file.id);
     setErr(null);
     try {
@@ -193,7 +203,11 @@ export function FilesPage({ uid, search, refreshTick }: { uid: string; search: s
   async function bulkDelete() {
     const ids = Array.from(selectedIds);
     if (ids.length === 0) return;
-    if (!confirm(`Xoá ${ids.length} file? Tất cả sẽ vào Thùng rác 30 ngày trước khi xoá vĩnh viễn.`)) return;
+    const ok = await confirmAsync(
+      `Xoá ${ids.length} file?\n\nTất cả sẽ vào Thùng rác 30 ngày trước khi xoá vĩnh viễn.`,
+      { title: '🗑 Xoá nhiều file', danger: true, okLabel: `Vào Thùng rác (${ids.length})` }
+    );
+    if (!ok) return;
     setBulkBusy(true);
     setErr(null);
     try {
@@ -210,20 +224,21 @@ export function FilesPage({ uid, search, refreshTick }: { uid: string; search: s
     const ids = Array.from(selectedIds);
     if (ids.length === 0) return;
     if (folders.length === 0) {
-      alert('Tạo folder trước khi move.');
+      await alertAsync('Chưa có folder nào — tạo folder trước khi move.', { title: '⚠ Không có folder', kindStyle: 'error' });
       return;
     }
     const opts = ['_root', ...folders.map(f => f.id)];
     const labels = ['📁 Root', ...folders.map(f => f.name)];
-    const choiceStr = prompt(
-      `Move ${ids.length} file vào folder nào?\n\n` +
-      opts.map((_, i) => `  ${i + 1}. ${labels[i]}`).join('\n') +
-      `\n\nNhập số:`
+    const choiceStr = await promptAsync(
+      `Move ${ids.length} file vào folder nào? Nhập số:\n\n` +
+      opts.map((_, i) => `  ${i + 1}. ${labels[i]}`).join('\n'),
+      '1',
+      { title: `📦 Move ${ids.length} file`, placeholder: 'Số folder...' }
     );
     if (!choiceStr) return;
     const choice = parseInt(choiceStr, 10);
     if (isNaN(choice) || choice < 1 || choice > opts.length) {
-      alert('Số không hợp lệ');
+      await alertAsync(`Số không hợp lệ (phải từ 1 đến ${opts.length}).`, { title: '⚠ Sai số', kindStyle: 'error' });
       return;
     }
     const targetFolderId = opts[choice - 1] === '_root' ? null : opts[choice - 1];
@@ -254,7 +269,7 @@ export function FilesPage({ uid, search, refreshTick }: { uid: string; search: s
   }, [files]);
 
   return (
-    <div className="grid gap-4" style={{ gridTemplateColumns: '220px 1fr' }}>
+    <div className="grid gap-4" style={{ gridTemplateColumns: 'minmax(180px, 220px) minmax(0, 1fr)' }}>
       {/* Folder sidebar */}
       <div className="card" style={{ padding: 14, height: 'fit-content', position: 'sticky', top: 0 }}>
         <div className="flex items-center justify-between mb-3">
@@ -367,8 +382,8 @@ export function FilesPage({ uid, search, refreshTick }: { uid: string; search: s
       {editModal && <EditMetaModal file={editModal} folders={folders} onClose={() => setEditModal(null)} onSaved={() => { setEditModal(null); void load(); }} />}
 
       {filtered.length > 0 && (
-        <div className="overflow-auto mt-4">
-          <table className="data-table">
+        <div className="mt-4" style={{ width: '100%' }}>
+          <table className="data-table" style={{ width: '100%', tableLayout: 'fixed' }}>
             <thead>
               <tr>
                 <th style={{ width: 30 }}>
@@ -379,11 +394,11 @@ export function FilesPage({ uid, search, refreshTick }: { uid: string; search: s
                     style={{ width: 14, height: 14, accentColor: 'var(--color-accent-primary)', cursor: 'pointer' }}
                   />
                 </th>
-                <th></th>
+                <th style={{ width: 40 }}></th>
                 <th>Tên</th>
-                <th>Size</th>
-                <th>Ngày</th>
-                <th></th>
+                <th style={{ width: 90, whiteSpace: 'nowrap' }}>Size</th>
+                <th style={{ width: 110, whiteSpace: 'nowrap' }}>Ngày</th>
+                <th style={{ width: 156, whiteSpace: 'nowrap' }}></th>
               </tr>
             </thead>
             <tbody>
@@ -398,9 +413,9 @@ export function FilesPage({ uid, search, refreshTick }: { uid: string; search: s
                     />
                   </td>
                   <td style={{ width: 40 }}><FileIcon mime={f.mime} /></td>
-                  <td>
+                  <td style={{ minWidth: 0, maxWidth: 0 }}>
                     <div className="flex items-center gap-2" style={{ fontWeight: 500, color: 'var(--color-text-primary)' }}>
-                      <span>{f.name}</span>
+                      <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }} title={f.name}>{f.name}</span>
                       {f.pipeline === 'mtproto' && (
                         <span title="Upload qua MTProto user account" style={{ fontSize: 9, fontWeight: 700, padding: '1px 5px', borderRadius: 4, background: 'rgba(16,185,129,0.15)', color: 'var(--color-accent-primary)', letterSpacing: 0.4 }}>
                           MT
@@ -473,6 +488,7 @@ export function FilesPage({ uid, search, refreshTick }: { uid: string; search: s
         </div>
       )}
       </div>
+      {DialogElement}
     </div>
   );
 }
@@ -571,6 +587,18 @@ interface ShareCreateResult {
   short_url?: string | null;
 }
 
+interface ExistingShare {
+  token: string;
+  file_id: string;
+  file_name: string;
+  url: string;
+  short_url: string | null;
+  created_at: number;
+  expires_at: number | null;
+  download_count: number;
+  revoked: boolean;
+}
+
 function ShareModal({ uid, file, onClose }: { uid: string; file: FileRow; onClose: () => void }): JSX.Element {
   const [usePassword, setUsePassword] = useState(false);
   const [password, setPassword] = useState('');
@@ -582,6 +610,38 @@ function ShareModal({ uid, file, onClose }: { uid: string; file: FileRow; onClos
   const [result, setResult] = useState<ShareCreateResult | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+  // Phase 25.0.F — preload existing shares (idempotent: 1 file = 1 link)
+  const [existingShare, setExistingShare] = useState<ExistingShare | null>(null);
+  const [loadingExisting, setLoadingExisting] = useState(true);
+  const [forceCreateNew, setForceCreateNew] = useState(false);
+
+  useEffect(() => {
+    void (async () => {
+      try {
+        const list = await invoke<ExistingShare[]>('share_list', { uid });
+        const now = Date.now();
+        const active = list.find((s) =>
+          s.file_id === file.id
+          && !s.revoked
+          && (s.expires_at === null || s.expires_at > now)
+        );
+        if (active) setExistingShare(active);
+      } catch (e) {
+        console.warn('[share-modal] preload existing fail', e);
+      } finally {
+        setLoadingExisting(false);
+      }
+    })();
+  }, [uid, file.id]);
+
+  async function copyExistingUrl(): Promise<void> {
+    if (!existingShare) return;
+    try {
+      await navigator.clipboard.writeText(existingShare.short_url || existingShare.url);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch { setErr('Không copy được'); }
+  }
 
   async function create() {
     if (usePassword && password.length < 8) {
@@ -591,6 +651,15 @@ function ShareModal({ uid, file, onClose }: { uid: string; file: FileRow; onClos
     setBusy(true);
     setErr(null);
     try {
+      // Phase 25.0.F — nếu forceCreateNew && có existingShare → auto-revoke link cũ
+      // để giữ idempotent: 1 file = 1 link active.
+      if (forceCreateNew && existingShare) {
+        try {
+          await invoke('share_revoke', { uid, token: existingShare.token });
+        } catch (re) {
+          console.warn('[share-modal] revoke old fail (continue)', re);
+        }
+      }
       const r = await invoke<ShareCreateResult>('share_create', {
         uid,
         fileId: file.id,
@@ -642,7 +711,46 @@ function ShareModal({ uid, file, onClose }: { uid: string; file: FileRow; onClos
           <button className="icon-btn" onClick={onClose}><X className="h-4 w-4" /></button>
         </div>
 
-        {!result ? (
+        {/* Phase 25.0.F — File đã có link active → hiện link cũ thay vì tạo mới */}
+        {loadingExisting ? (
+          <div className="mt-4 p-4 text-center" style={{ color: 'var(--color-text-muted)', fontSize: 13 }}>
+            ⏳ Đang kiểm tra link share đã có...
+          </div>
+        ) : existingShare && !forceCreateNew && !result ? (
+          <div className="mt-4 space-y-3">
+            <div className="p-3 rounded-xl" style={{ background: 'var(--color-accent-soft)', border: '1px solid var(--color-accent-primary)' }}>
+              <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--color-accent-primary)', marginBottom: 6 }}>
+                ✓ File này đã có link share
+              </div>
+              <p style={{ fontSize: 11, color: 'var(--color-text-muted)', margin: 0, marginBottom: 8 }}>
+                Tạo từ {new Date(existingShare.created_at).toLocaleDateString('vi-VN')} ·{' '}
+                {existingShare.download_count} lượt tải
+                {existingShare.expires_at ? ` · Hết hạn ${new Date(existingShare.expires_at).toLocaleDateString('vi-VN')}` : ' · Không hết hạn'}
+              </p>
+              <div className="p-2 rounded" style={{ background: 'var(--color-surface-card)', border: '1px solid var(--color-border-default)', fontFamily: 'monospace', fontSize: 11, wordBreak: 'break-all' }}>
+                {existingShare.short_url || existingShare.url}
+              </div>
+              <button
+                className="btn-primary mt-3"
+                style={{ width: '100%' }}
+                onClick={() => void copyExistingUrl()}
+              >
+                {copied ? <CheckCircle2 className="h-4 w-4 inline" style={{ marginRight: 6 }} /> : <Copy className="h-4 w-4 inline" style={{ marginRight: 6 }} />}
+                {copied ? 'Đã copy ✓' : 'Copy link share'}
+              </button>
+            </div>
+            <button
+              className="btn-secondary"
+              style={{ width: '100%', borderStyle: 'dashed' }}
+              onClick={() => setForceCreateNew(true)}
+            >
+              🔄 Tạo link MỚI thay thế (revoke link cũ)
+            </button>
+            <p style={{ fontSize: 11, color: 'var(--color-text-muted)', margin: 0, lineHeight: 1.5 }}>
+              💡 Nếu muốn xoá link share, vào tab <strong>Link share</strong> → revoke link.
+            </p>
+          </div>
+        ) : !result ? (
           <>
             <div className="mt-4 space-y-3">
               <div className="p-3 rounded-xl" style={{ background: 'var(--color-surface-row)' }}>

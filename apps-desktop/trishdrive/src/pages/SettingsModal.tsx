@@ -121,6 +121,172 @@ export function SettingsModal({
   /** Phase 26.4.A — list folder admin từng có, để render checkbox subscribe. */
   availableFolders?: string[];
 }): JSX.Element {
+  // Phase 25.1.E — WebDAV mount state
+  const [webdavRunning, setWebdavRunning] = useState<number | null>(null);
+  const [webdavPort, setWebdavPort] = useState<number>(() => {
+    const v = parseInt(localStorage.getItem('webdav-port') ?? '8766', 10);
+    return Number.isFinite(v) && v > 1024 ? v : 8766;
+  });
+  const [webdavDriveLetter, setWebdavDriveLetter] = useState<string>(() => {
+    return localStorage.getItem('webdav-drive-letter') ?? 'Z';
+  });
+  const [webdavCacheBytes, setWebdavCacheBytes] = useState<number>(0);
+  const [webdavCacheCapGB, setWebdavCacheCapGB] = useState<number>(() => {
+    const v = parseFloat(localStorage.getItem('webdav-cache-cap-gb') ?? '2');
+    return Number.isFinite(v) && v > 0 ? v : 2;
+  });
+  const [webdavMsg, setWebdavMsg] = useState<string | null>(null);
+  const [syncing, setSyncing] = useState(false);
+  const [syncProgress, setSyncProgress] = useState<{ current: number; total: number; name: string } | null>(null);
+
+  useEffect(() => {
+    void invoke<number | null>('webdav_status').then((p) => setWebdavRunning(p)).catch(() => {});
+    void invoke<number>('webdav_cache_size').then(setWebdavCacheBytes).catch(() => {});
+  }, []);
+
+  useEffect(() => { try { localStorage.setItem('webdav-port', String(webdavPort)); } catch {} }, [webdavPort]);
+  useEffect(() => { try { localStorage.setItem('webdav-drive-letter', webdavDriveLetter); } catch {} }, [webdavDriveLetter]);
+  useEffect(() => { try { localStorage.setItem('webdav-cache-cap-gb', String(webdavCacheCapGB)); } catch {} }, [webdavCacheCapGB]);
+
+  async function handleWebdavStart(): Promise<void> {
+    try {
+      const p = await invoke<number>('webdav_start', { port: webdavPort });
+      setWebdavRunning(p);
+      // Phase 25.1.E.2 — Auto mount Z: + set label "TrishTEAM Cloud"
+      try {
+        const mountMsg = await invoke<string>('webdav_mount_drive', {
+          driveLetter: webdavDriveLetter,
+          port: p,
+        });
+        setWebdavMsg(`✓ WebDAV chạy tại http://127.0.0.1:${p}/. ${mountMsg}`);
+      } catch (mountErr) {
+        setWebdavMsg(`✓ WebDAV chạy port ${p} nhưng auto-mount fail: ${String(mountErr)}. Map thủ công: net use ${webdavDriveLetter}: http://127.0.0.1:${p}/`);
+      }
+    } catch (e) {
+      setWebdavMsg(`✗ Start fail: ${String(e)}`);
+    }
+  }
+  async function handleWebdavStop(): Promise<void> {
+    try {
+      // Unmount drive trước rồi stop server
+      try {
+        await invoke('webdav_unmount_drive', { driveLetter: webdavDriveLetter });
+      } catch { /* silent — drive có thể chưa mount */ }
+      await invoke('webdav_stop');
+      setWebdavRunning(null);
+      setWebdavMsg(`✓ Đã unmount ${webdavDriveLetter}:\\ + dừng WebDAV server.`);
+    } catch (e) {
+      setWebdavMsg(`✗ Stop fail: ${String(e)}`);
+    }
+  }
+  async function handleEvictCache(): Promise<void> {
+    try {
+      const target = Math.floor(webdavCacheCapGB * 1024 * 1024 * 1024 * 0.8);
+      const [n, freed] = await invoke<[number, number]>('webdav_cache_evict', { targetBytes: target });
+      const newSize = await invoke<number>('webdav_cache_size');
+      setWebdavCacheBytes(newSize);
+      setWebdavMsg(`✓ Đã xoá ${n} file (${(freed / 1024 / 1024).toFixed(1)} MB).`);
+    } catch (e) {
+      setWebdavMsg(`✗ Evict fail: ${String(e)}`);
+    }
+  }
+  /**
+   * Phase 25.1.E.3 — Sync TrishTEAM Library xuống cache để mount Z:\
+   * Fetch /api/drive/library/list → for each share → share_paste_and_download
+   * → cache/TrishTEAM Library/{folder}/{file_name}
+   */
+  async function handleSyncLibrary(): Promise<void> {
+    setSyncing(true);
+    setSyncProgress(null);
+    setWebdavMsg('⏳ Đang fetch list từ trishteam.io.vn...');
+    try {
+      // 1. Get cache dir (KHÔNG mở Explorer)
+      const cacheDir = await invoke<string>('webdav_get_cache_dir');
+      const libraryRoot = `${cacheDir}\\TrishTEAM Library`;
+      console.log('[sync] cache dir:', cacheDir);
+      console.log('[sync] library root:', libraryRoot);
+
+      // 2. Fetch library list từ trishteam.io.vn API
+      const { getFirebaseAuth } = await import('@trishteam/auth');
+      const auth = getFirebaseAuth();
+      const user = auth.currentUser;
+      if (!user) throw new Error('Cần đăng nhập Firebase trước');
+      const token = await user.getIdToken();
+      console.log('[sync] token length:', token.length, 'starts:', token.slice(0, 20) + '...');
+      console.log('[sync] fetching library list via Rust (bypass CORS)...');
+      // Gọi qua Rust để bypass CORS dev mode + xử lý redirect HTTPS
+      const data = await invoke<{ items: Array<{ token: string; file_name: string; file_size_bytes: number; folder_label: string | null; url: string }> }>('fetch_library_list', { token });
+      const items = data.items || [];
+      console.log('[sync] received items:', items.length, items);
+
+      if (items.length === 0) {
+        setWebdavMsg('⚠ Library API trả về 0 file. Có thể (a) admin chưa publish file nào với is_public=true, (b) API filter sai. Vào TrishAdmin → Drive → Link share → set "public" cho file muốn share.');
+        return;
+      }
+
+      setWebdavMsg(`📥 Đang download ${items.length} file...`);
+
+      // 3. Loop download
+      let okCount = 0;
+      let skipCount = 0;
+      let failCount = 0;
+      const failures: string[] = [];
+      for (let i = 0; i < items.length; i++) {
+        const item = items[i];
+        setSyncProgress({ current: i + 1, total: items.length, name: item.file_name });
+        const folder = (item.folder_label?.trim() || '_root').replace(/[<>:"/\\|?*]/g, '_');
+        const safeName = item.file_name.replace(/[<>:"/\\|?*]/g, '_').slice(0, 200) || 'file.bin';
+        const destPath = `${libraryRoot}\\${folder}\\${safeName}`;
+        console.log(`[sync] [${i + 1}/${items.length}] ${item.file_name} → ${destPath}`);
+        try {
+          // Phase 25.1.H — pass downloadId để DownloadManager track per-file progress.
+          const downloadId = `sync-${item.token}-${i}-${Date.now()}`;
+          await invoke('share_paste_and_download', {
+            url: item.url,
+            password: null,
+            destPath,
+            downloadId,
+          });
+          okCount++;
+          console.log(`[sync] ✓ OK ${item.file_name}`);
+        } catch (e) {
+          const msg = String(e);
+          console.warn(`[sync] ✗ ${item.file_name}:`, e);
+          if (msg.toLowerCase().includes('already exists') || msg.includes('đã tồn tại')) {
+            skipCount++;
+          } else {
+            failCount++;
+            failures.push(`${item.file_name}: ${msg.slice(0, 80)}`);
+          }
+        }
+      }
+      setSyncProgress(null);
+      const summary = `✓ Sync xong ${items.length} file: ${okCount} mới, ${skipCount} đã có, ${failCount} fail.`;
+      const detail = failures.length > 0 ? `\n\nLỗi:\n${failures.slice(0, 5).join('\n')}` : '';
+      setWebdavMsg(`${summary}${detail}\nVào ổ ${webdavDriveLetter}:\\TrishTEAM Library để xem.`);
+      // Refresh cache size
+      const newSize = await invoke<number>('webdav_cache_size');
+      setWebdavCacheBytes(newSize);
+    } catch (e) {
+      console.error('[sync] fatal:', e);
+      setWebdavMsg(`✗ Sync fail: ${String(e)}`);
+      setSyncProgress(null);
+    } finally {
+      setSyncing(false);
+    }
+  }
+
+  async function handleOpenCacheDir(): Promise<void> {
+    try {
+      const dir = await invoke<string>('webdav_open_cache_dir');
+      console.log('[webdav] cache dir:', dir);
+      setWebdavMsg(`✓ Cache dir: ${dir}`);
+    } catch (e) {
+      console.error('[webdav] open cache fail:', e);
+      setWebdavMsg(`✗ Lỗi: ${String(e)}`);
+    }
+  }
+
   const [closeBehavior, setCloseBehavior] = useState<CloseBehavior>(loadCloseBehavior);
   const [cleanupDays, setCleanupDays] = useState<number>(loadCleanupDays);
   const [subscribedFolders, setSubscribedFolders] = useState<string[]>(loadSubscribedFolders);
@@ -292,6 +458,125 @@ export function SettingsModal({
             </label>
           </div>
         </div>
+
+        {/* Phase 25.1.E — WebDAV mount đã được gỡ ở Phase 25.1.E.4 (chưa cần thiết).
+            Rust commands giữ lại trong lib.rs cho phase tương lai nếu cần. */}
+        {false && (<>
+        <div className="mt-5">
+          <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: 0.04 }}>
+            ☁ WebDAV mount — Map TrishTEAM Library thành ổ ảo
+          </label>
+          <div className="p-3 rounded-xl mt-2" style={{ background: 'var(--color-surface-row)', border: '1px solid var(--color-border-subtle)' }}>
+            <p style={{ fontSize: 11, color: 'var(--color-text-muted)', margin: 0, marginBottom: 10 }}>
+              Mount Library TrishTEAM (admin curate) thành ổ Z:\ trên Windows Explorer. AutoCAD/Office mở file trực tiếp từ ổ này.
+              <strong> Read-only</strong> — admin sở hữu, user chỉ đọc.
+            </p>
+            <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', marginBottom: 8 }}>
+              <label style={{ fontSize: 12 }}>Drive letter:</label>
+              <select
+                value={webdavDriveLetter}
+                onChange={(e) => setWebdavDriveLetter(e.target.value)}
+                style={{ padding: '4px 8px', fontSize: 12, background: 'var(--color-surface-card)', border: '1px solid var(--color-border-default)', borderRadius: 6 }}
+              >
+                {['Z','Y','X','W','V','U','T','S'].map((l) => <option key={l} value={l}>{l}:\</option>)}
+              </select>
+              <label style={{ fontSize: 12, marginLeft: 8 }}>Port:</label>
+              <input
+                type="number"
+                value={webdavPort}
+                onChange={(e) => setWebdavPort(parseInt(e.target.value, 10) || 8766)}
+                style={{ width: 80, padding: '4px 8px', fontSize: 12, background: 'var(--color-surface-card)', border: '1px solid var(--color-border-default)', borderRadius: 6 }}
+              />
+              <label style={{ fontSize: 12, marginLeft: 8 }}>Cache cap (GB):</label>
+              <input
+                type="number"
+                step={0.5}
+                min={0.5}
+                value={webdavCacheCapGB}
+                onChange={(e) => setWebdavCacheCapGB(parseFloat(e.target.value) || 2)}
+                style={{ width: 70, padding: '4px 8px', fontSize: 12, background: 'var(--color-surface-card)', border: '1px solid var(--color-border-default)', borderRadius: 6 }}
+              />
+            </div>
+            <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+              {webdavRunning ? (
+                <>
+                  <span style={{ fontSize: 12, padding: '3px 8px', background: 'var(--color-success-soft, #d1fae5)', color: 'var(--color-success, #059669)', borderRadius: 4 }}>
+                    ● Đang chạy: 127.0.0.1:{webdavRunning}
+                  </span>
+                  <button onClick={handleWebdavStop} style={{ fontSize: 12, padding: '4px 10px', background: '#dc2626', color: 'white', border: 'none', borderRadius: 6, cursor: 'pointer' }}>
+                    ⏹ Dừng
+                  </button>
+                </>
+              ) : (
+                <button onClick={handleWebdavStart} style={{ fontSize: 12, padding: '4px 10px', background: 'var(--color-accent-primary)', color: 'white', border: 'none', borderRadius: 6, cursor: 'pointer' }}>
+                  ▶ Khởi động WebDAV
+                </button>
+              )}
+              <span className="muted" style={{ fontSize: 11 }}>
+                Cache: {(webdavCacheBytes / 1024 / 1024).toFixed(1)} MB / {(webdavCacheCapGB * 1024).toFixed(0)} MB
+              </span>
+              <button onClick={handleEvictCache} style={{ fontSize: 11, padding: '3px 8px', background: 'transparent', color: 'var(--color-text-primary)', border: '1px solid var(--color-border-default)', borderRadius: 4, cursor: 'pointer' }}>
+                🗑 Xoá LRU
+              </button>
+              <button onClick={handleOpenCacheDir} style={{ fontSize: 11, padding: '3px 8px', background: 'transparent', color: 'var(--color-text-primary)', border: '1px solid var(--color-border-default)', borderRadius: 4, cursor: 'pointer' }}>
+                📂 Mở cache dir
+              </button>
+            </div>
+            {/* Phase 25.1.E.3 — Sync TrishTEAM Library button */}
+            <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', marginTop: 10, paddingTop: 10, borderTop: '1px solid var(--color-border-subtle)' }}>
+              <button
+                onClick={() => void handleSyncLibrary()}
+                disabled={syncing}
+                style={{
+                  fontSize: 12, padding: '6px 12px',
+                  background: syncing ? 'var(--color-surface-row)' : 'var(--color-accent-primary)',
+                  color: syncing ? 'var(--color-text-muted)' : 'white',
+                  border: 'none', borderRadius: 6, cursor: syncing ? 'wait' : 'pointer', fontWeight: 600,
+                }}
+              >
+                {syncing ? '⏳ Đang sync...' : '🔄 Sync TrishTEAM Library xuống cache'}
+              </button>
+              <span className="muted" style={{ fontSize: 11 }}>
+                Tải tất cả file public Trí đã share xuống ổ {webdavDriveLetter}:\TrishTEAM Library
+              </span>
+            </div>
+            {syncProgress && (
+              <div style={{ marginTop: 8, padding: '8px 10px', background: 'var(--color-accent-soft)', borderRadius: 6, fontSize: 11 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
+                  <span>📥 [{syncProgress.current}/{syncProgress.total}] {syncProgress.name}</span>
+                  <span>{Math.round((syncProgress.current / syncProgress.total) * 100)}%</span>
+                </div>
+                <div style={{ height: 4, background: 'rgba(0,0,0,0.1)', borderRadius: 2, overflow: 'hidden' }}>
+                  <div style={{
+                    width: `${(syncProgress.current / syncProgress.total) * 100}%`,
+                    height: '100%',
+                    background: 'var(--color-accent-primary)',
+                    transition: 'width 200ms',
+                  }} />
+                </div>
+              </div>
+            )}
+            {webdavMsg && (
+              <div style={{ fontSize: 11, marginTop: 8, padding: '6px 10px', background: 'var(--color-accent-soft)', borderRadius: 4 }}>
+                {webdavMsg}
+              </div>
+            )}
+            {webdavRunning && (
+              <details style={{ marginTop: 8 }}>
+                <summary style={{ fontSize: 11, cursor: 'pointer', color: 'var(--color-text-muted)' }}>📖 Hướng dẫn map ổ {webdavDriveLetter}:\</summary>
+                <ol style={{ fontSize: 11, marginTop: 6, paddingLeft: 20, color: 'var(--color-text-muted)' }}>
+                  <li>Mở Windows Explorer → "This PC"</li>
+                  <li>Click "Computer" tab → "Map network drive"</li>
+                  <li>Drive: <code>{webdavDriveLetter}:</code></li>
+                  <li>Folder: <code>http://127.0.0.1:{webdavRunning}/</code></li>
+                  <li>Tick "Reconnect at sign-in" → Finish</li>
+                  <li>Hoặc command line: <code>net use {webdavDriveLetter}: http://127.0.0.1:{webdavRunning}/</code></li>
+                </ol>
+              </details>
+            )}
+          </div>
+        </div>
+        </>)}
 
         {/* Phase 26.4.A — Subscribe folders */}
         {availableFolders && availableFolders.length > 0 && (

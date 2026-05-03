@@ -169,11 +169,11 @@ function UploadSection(): JSX.Element {
       </ol>
       <H>File lớn ≥ 1GB</H>
       <P>App đọc file streaming (không load full vào RAM), nên upload file 5GB+ vẫn OK. Chia chunk 19MB → 5GB ≈ 270 chunks → upload tuần tự ~30-60 phút tuỳ tốc độ mạng.</P>
-      <H>Limit hiện tại (Phase 22)</H>
+      <H>Giới hạn hiện tại</H>
       <ul style={{ fontSize: 13, color: 'var(--color-text-secondary)', lineHeight: 1.8, marginTop: 8, paddingLeft: 20 }}>
         <li>Chunk size 19MB (Bot API getFile limit 20MB)</li>
-        <li>Upload tuần tự (chưa parallel) — Phase 22.5e</li>
-        <li>Chưa pause/resume — Phase 22.5f</li>
+        <li>Upload tuần tự (chưa parallel)</li>
+        <li>Chưa pause/resume</li>
         <li>Dung lượng tổng: <strong>không giới hạn</strong> (Telegram free unlimited channel size)</li>
       </ul>
     </>
@@ -217,7 +217,7 @@ function ShareSection(): JSX.Element {
         password qua SMS). Recipient mở URL → nhập password → file tự decrypt + tải về browser.
       </P>
       <H>Quản lý link đã tạo</H>
-      <P>Phase 22.7c sẽ thêm tab "Shared by me" để xem + revoke link đã tạo. Hiện tại link tự hết hạn theo cấu hình.</P>
+      <P>Hiện tại link tự hết hạn theo cấu hình. Tương lai sẽ thêm tab "Shared by me" để xem và revoke.</P>
       <div style={{ background: 'var(--color-accent-soft)', borderRadius: 10, padding: 12, marginTop: 12 }}>
         <strong style={{ fontSize: 12, color: 'var(--color-accent-primary)' }}>🔒 Zero-knowledge</strong>
         <p style={{ fontSize: 12, color: 'var(--color-text-secondary)', marginTop: 4 }}>
@@ -283,7 +283,7 @@ function TroubleshootSection(): JSX.Element {
       <H>"Telegram trả message không có document"</H>
       <P>Có thể do Bot API limit hoặc network timeout. Thử lại upload, nếu vẫn fail check internet.</P>
       <H>Download chậm</H>
-      <P>Telegram CDN free có rate limit. File 1GB có thể tải 5-15 phút. Phase 23 (MTProto) sẽ cải thiện.</P>
+      <P>Telegram CDN free có rate limit. File 1GB có thể tải 5-15 phút. Bật MTProto trong Settings để tăng tốc.</P>
       <H>Quên passphrase</H>
       <P>KHÔNG có recovery — passphrase chỉ lưu trên máy bạn (DPAPI). Nếu mất → bắt buộc <strong>Reset config</strong> trong Settings, file đã upload sẽ trở thành dữ liệu rác trong Telegram channel (Trí phải xoá thủ công).</P>
       <H>Setup bot fail</H>

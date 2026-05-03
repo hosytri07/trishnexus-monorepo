@@ -8,6 +8,7 @@ import { NextResponse, type NextRequest } from 'next/server';
 import { adminDb, adminAuth, adminReady } from '@/lib/firebase-admin';
 
 export const runtime = 'nodejs';
+export const dynamic = 'force-dynamic';
 
 const ADMIN_EMAILS = ['hosytri77@gmail.com', 'trishteam.official@gmail.com'];
 

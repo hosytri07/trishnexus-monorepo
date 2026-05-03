@@ -23,6 +23,7 @@ mod creds;
 mod crypto;
 mod db;
 mod mtproto;
+mod http_api;
 mod telegram;
 
 use std::{
@@ -131,6 +132,78 @@ fn tg_ping() -> String {
 #[tauri::command]
 async fn tg_test_bot(token: String) -> Result<telegram::BotInfo, String> {
     telegram::get_me(&token).await
+}
+
+// Phase 28.14 — LISP library upload (chat_id as string để support @channelname)
+#[derive(Debug, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TgUploadLispRequest {
+    pub bot_token: String,
+    pub chat_id: String,
+    pub caption: String,
+    pub filename: String,
+    pub file_data: Vec<u8>,
+}
+
+#[derive(Debug, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TgUploadLispResponse {
+    pub file_id: String,
+    pub file_path: String,
+}
+
+#[tauri::command]
+async fn tg_upload_lisp(req: TgUploadLispRequest) -> Result<TgUploadLispResponse, String> {
+    let url = format!("https://api.telegram.org/bot{}/sendDocument", req.bot_token);
+    let part = reqwest::multipart::Part::bytes(req.file_data)
+        .file_name(req.filename.clone());
+    let form = reqwest::multipart::Form::new()
+        .text("chat_id", req.chat_id.clone())
+        .text("caption", req.caption.clone())
+        .part("document", part);
+    let client = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(180))
+        .build()
+        .map_err(|e| format!("client: {}", e))?;
+    let resp = client.post(&url).multipart(form).send().await
+        .map_err(|e| format!("Network: {}", e))?;
+    let text = resp.text().await.map_err(|e| format!("Read: {}", e))?;
+    let json: serde_json::Value = serde_json::from_str(&text)
+        .map_err(|e| format!("Parse: {}", e))?;
+    if !json.get("ok").and_then(|v| v.as_bool()).unwrap_or(false) {
+        return Err(format!("Telegram error: {}", text));
+    }
+    let file_id = json
+        .pointer("/result/document/file_id")
+        .and_then(|v| v.as_str())
+        .ok_or("Missing file_id in response")?
+        .to_string();
+
+    // getFile để lấy file_path tươi (sẽ refresh ở client mỗi lần download)
+    let get_url = format!("https://api.telegram.org/bot{}/getFile?file_id={}", req.bot_token, file_id);
+    let getf = client.get(&get_url).send().await.map_err(|e| format!("getFile: {}", e))?;
+    let getf_text = getf.text().await.map_err(|e| format!("getFile read: {}", e))?;
+    let getf_json: serde_json::Value = serde_json::from_str(&getf_text)
+        .map_err(|e| format!("getFile parse: {}", e))?;
+    let file_path = getf_json
+        .pointer("/result/file_path")
+        .and_then(|v| v.as_str())
+        .unwrap_or("")
+        .to_string();
+
+    Ok(TgUploadLispResponse { file_id, file_path })
+}
+
+#[tauri::command]
+async fn read_file_bytes(path: String) -> Result<Vec<u8>, String> {
+    tokio::fs::read(&path).await.map_err(|e| format!("Read file: {}", e))
+}
+
+#[tauri::command]
+fn file_size(path: String) -> Result<u64, String> {
+    std::fs::metadata(&path)
+        .map(|m| m.len())
+        .map_err(|e| format!("metadata: {}", e))
 }
 
 #[tauri::command]
@@ -305,6 +378,7 @@ async fn file_upload(
         note,
         deleted_at: None,
         pipeline: "botapi".to_string(),
+        thumb_tg_file_id: None,
     };
     db::insert_file(&conn, &row).map_err(|e| format!("insert file: {}", e))?;
 
@@ -314,70 +388,130 @@ async fn file_upload(
         bytes_done: 0, total_bytes: size as i64,
     });
 
-    let mut chunk_buf = vec![0u8; CHUNK_SIZE];
-    let mut bytes_done: usize = 0;
-
-    for idx in 0..total_chunks {
-        let remaining = size - bytes_done;
-        let to_read = remaining.min(CHUNK_SIZE);
-        chunk_buf.resize(to_read, 0);
-        let mut read_total = 0;
-        while read_total < to_read {
-            let n = file.read(&mut chunk_buf[read_total..]).await.map_err(|e| format!("read chunk: {}", e))?;
-            if n == 0 { break; }
-            read_total += n;
+    // Phase 25.0.C — Parallel upload 3 chunks song song.
+    // Pass 1: read tất cả chunks vào memory (file ≤50MB-ish nên RAM acceptable).
+    // Pass 2: spawn upload tasks với buffer_unordered(3).
+    let mut chunks_data: Vec<(i64, Vec<u8>)> = Vec::with_capacity(total_chunks as usize);
+    {
+        let mut chunk_buf = vec![0u8; CHUNK_SIZE];
+        let mut bytes_read: usize = 0;
+        for idx in 0..total_chunks {
+            let remaining = size - bytes_read;
+            let to_read = remaining.min(CHUNK_SIZE);
+            chunk_buf.resize(to_read, 0);
+            let mut read_total = 0;
+            while read_total < to_read {
+                let n = file.read(&mut chunk_buf[read_total..]).await.map_err(|e| format!("read chunk: {}", e))?;
+                if n == 0 { break; }
+                read_total += n;
+            }
+            if read_total != to_read {
+                let _ = db::delete_file(&conn, &file_id);
+                return Err(format!("Read short: expect {} got {} at chunk {}", to_read, read_total, idx));
+            }
+            chunks_data.push((idx, chunk_buf[..to_read].to_vec()));
+            bytes_read += to_read;
         }
-        if read_total != to_read {
-            let _ = db::delete_file(&conn, &file_id);
-            return Err(format!("Read short: expect {} got {} at chunk {}", to_read, read_total, idx));
-        }
+    }
 
-        let encrypted = crypto::encrypt(&creds.master_key_hex, &chunk_buf[..to_read])?;
-        let nonce_hex = hex::encode(&encrypted[..crypto::NONCE_SIZE]);
-        let chunk_filename = if total_chunks > 1 {
-            format!("{}.part{:03}.enc", filename, idx)
-        } else {
-            format!("{}.enc", filename)
-        };
+    // Pass 2: parallel encrypt + upload (concurrency 3 — Telegram rate-limit)
+    use futures::stream::{self, StreamExt};
+    use std::sync::atomic::{AtomicI64, Ordering};
+    use std::sync::Arc;
+    const CONCURRENCY: usize = 3;
+    let bot_token = creds.bot_token.clone();
+    let master_key_hex = creds.master_key_hex.clone();
+    let channel_id = creds.channel_id;
+    let filename_clone = filename.clone();
+    let total_chunks_for_name = total_chunks;
+    // Shared progress counter for parallel upload tasks
+    let bytes_done_atomic = Arc::new(AtomicI64::new(0));
+    let chunks_done_atomic = Arc::new(AtomicI64::new(0));
+    let app_handle = app.clone();
+    let file_id_for_emit = file_id.clone();
+    let size_for_emit = size as i64;
 
-        // Retry 3 lần với exponential backoff
-        let mut last_err = String::new();
-        let mut msg_opt = None;
-        for attempt in 0..3 {
-            let encrypted_clone = encrypted.clone();
-            match telegram::send_document(&creds.bot_token, creds.channel_id, encrypted_clone, &chunk_filename).await {
-                Ok(m) => { msg_opt = Some(m); break; }
-                Err(e) => {
-                    last_err = e;
-                    if attempt < 2 {
-                        let delay_secs = 1u64 << attempt;
-                        tokio::time::sleep(std::time::Duration::from_secs(delay_secs)).await;
+    type UploadOut = Result<(i64, i64, Option<String>, i64, String), String>;
+    let upload_tasks = stream::iter(chunks_data.into_iter())
+        .map(|(idx, plaintext): (i64, Vec<u8>)| {
+            let bot_token = bot_token.clone();
+            let master_key_hex = master_key_hex.clone();
+            let filename = filename_clone.clone();
+            let bytes_done_a = bytes_done_atomic.clone();
+            let chunks_done_a = chunks_done_atomic.clone();
+            let app_h = app_handle.clone();
+            let fid_emit = file_id_for_emit.clone();
+            let total_bytes_emit = size_for_emit;
+            async move {
+                let to_read = plaintext.len();
+                let encrypted = crypto::encrypt(&master_key_hex, &plaintext)?;
+                let nonce_hex = hex::encode(&encrypted[..crypto::NONCE_SIZE]);
+                let chunk_filename = if total_chunks_for_name > 1 {
+                    format!("{}.part{:03}.enc", filename, idx)
+                } else {
+                    format!("{}.enc", filename)
+                };
+                // Retry 3 lần
+                let mut last_err = String::new();
+                for attempt in 0..3 {
+                    match telegram::send_document(&bot_token, channel_id, encrypted.clone(), &chunk_filename).await {
+                        Ok(m) => {
+                            let document = m.document.ok_or_else(|| "msg missing document".to_string())?;
+                            // Emit progress: bytes + chunks tăng atomic
+                            let new_bytes = bytes_done_a.fetch_add(to_read as i64, Ordering::SeqCst) + to_read as i64;
+                            let new_chunks = chunks_done_a.fetch_add(1, Ordering::SeqCst) + 1;
+                            let _ = app_h.emit("drive-progress", ProgressEvent {
+                                op: "upload".into(),
+                                file_id: fid_emit.clone(),
+                                current_chunk: new_chunks,
+                                total_chunks: total_chunks_for_name,
+                                bytes_done: new_bytes,
+                                total_bytes: total_bytes_emit,
+                            });
+                            return Ok::<_, String>((idx, m.message_id, Some(document.file_id), to_read as i64, nonce_hex));
+                        }
+                        Err(e) => {
+                            last_err = e;
+                            if attempt < 2 {
+                                tokio::time::sleep(std::time::Duration::from_secs(1u64 << attempt)).await;
+                            }
+                        }
                     }
                 }
+                Err(format!("chunk {} fail sau 3 lần: {}", idx, last_err))
+            }
+        })
+        .buffer_unordered(CONCURRENCY);
+
+    let results: Vec<UploadOut> = upload_tasks.collect().await;
+    let mut chunk_rows: Vec<db::ChunkRow> = Vec::with_capacity(total_chunks as usize);
+    for r in results {
+        match r {
+            Ok((idx, msg_id, tg_file_id, byte_size, nonce_hex)) => {
+                chunk_rows.push(db::ChunkRow {
+                    file_id: file_id.clone(), idx,
+                    tg_message_id: msg_id,
+                    tg_file_id,
+                    byte_size, nonce_hex,
+                });
+            }
+            Err(e) => {
+                let _ = db::delete_file(&conn, &file_id);
+                return Err(format!("Upload chunk parallel fail: {}", e));
             }
         }
-        let msg = msg_opt.ok_or_else(|| {
-            let _ = db::delete_file(&conn, &file_id);
-            format!("Upload chunk {}/{} fail sau 3 lần thử: {}", idx + 1, total_chunks, last_err)
-        })?;
-        let document = msg.document.ok_or_else(|| "Telegram trả message không có document".to_string())?;
-        let chunk_row = db::ChunkRow {
-            file_id: file_id.clone(),
-            idx,
-            tg_message_id: msg.message_id,
-            tg_file_id: Some(document.file_id),
-            byte_size: to_read as i64,
-            nonce_hex,
-        };
-        db::insert_chunk(&conn, &chunk_row).map_err(|e| format!("insert chunk: {}", e))?;
-
-        bytes_done += to_read;
-        let _ = app.emit("drive-progress", ProgressEvent {
-            op: "upload".into(), file_id: file_id.clone(),
-            current_chunk: idx + 1, total_chunks,
-            bytes_done: bytes_done as i64, total_bytes: size as i64,
-        });
     }
+    // Insert chunks theo idx order (download cần đúng thứ tự)
+    chunk_rows.sort_by_key(|c| c.idx);
+    for c in chunk_rows.iter() {
+        db::insert_chunk(&conn, c).map_err(|e| format!("insert chunk: {}", e))?;
+    }
+    // Final emit 100%
+    let _ = app.emit("drive-progress", ProgressEvent {
+        op: "upload".into(), file_id: file_id.clone(),
+        current_chunk: total_chunks, total_chunks,
+        bytes_done: size as i64, total_bytes: size as i64,
+    });
 
     Ok(UploadResult {
         file_id,
@@ -702,6 +836,11 @@ struct ShareCreatePayload {
     /// Lấy từ folder_id của file trong DB (resolve sang folder.name).
     #[serde(skip_serializing_if = "Option::is_none")]
     folder_label: Option<String>,
+    /// Phase 25.1.G — Public no-password shares: gửi key plaintext lên server
+    /// để Library API trả cho user app auto-decrypt. CHỈ set khi is_public=true
+    /// và user không nhập password (key auto-gen random).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    library_password_hex: Option<String>,
 }
 
 #[derive(serde::Serialize)]
@@ -811,6 +950,15 @@ async fn share_create(
         None
     };
 
+    let public_flag = is_public.unwrap_or(false);
+    // Phase 25.1.G — public + no-password → gửi effective_password (random hex)
+    // lên server để Library API trả cho user app auto-decrypt.
+    let library_password_hex = if public_flag && no_password {
+        Some(effective_password.clone())
+    } else {
+        None
+    };
+
     let payload = ShareCreatePayload {
         owner_uid: uid,
         file_id,
@@ -823,8 +971,9 @@ async fn share_create(
         encrypted_master_key_hex: encrypted_master_key,
         expires_at,
         max_downloads,
-        is_public: is_public.unwrap_or(false),
+        is_public: public_flag,
         folder_label,
+        library_password_hex,
     };
 
     let url = format!("{}/api/drive/share/create", SHARE_API_BASE);
@@ -1021,7 +1170,193 @@ fn db_files_list_trashed(app: tauri::AppHandle) -> Result<Vec<db::FileRow>, Stri
 // MTProto upload/download/purge pipeline (chunk 100MB)
 // ============================================================
 
-const MTPROTO_CHUNK_SIZE: usize = 100 * 1024 * 1024;
+/// Phase 25.1.J — Hạ chunk MTProto từ 100MB → 19MB.
+///
+/// Lý do: download qua website `/api/drive/share/[token]/proxy` route forward
+/// MTProto message sang log channel rồi gọi Bot API `getFile`. Bot API giới hạn
+/// `getFile` trả file ≤ 20MB. File >20MB upload nguyên 1 chunk MTProto sẽ KHÔNG
+/// tải được qua website hoặc TrishDrive User app (cùng pipeline).
+///
+/// Giảm xuống 19MB đồng bộ với `CHUNK_SIZE` của Bot API → mỗi chunk forward
+/// + getFile đều dưới 20MB. Trade-off: upload nhiều chunk hơn (file 100MB →
+/// 6 chunks thay vì 1), nhưng vẫn nhanh hơn Bot API thuần vì MTProto upload
+/// stream được, không bị rate-limit như sendDocument.
+///
+/// File MTProto cũ (size > 19MB · 1 chunk) phải re-upload sau khi update.
+const MTPROTO_CHUNK_SIZE: usize = 19 * 1024 * 1024;
+
+// ============================================================
+// Phase 25.0.B — FFmpeg thumbnail generator
+// ============================================================
+
+/// Detect kind từ extension. Return None nếu không thumbnailable.
+fn thumb_kind_from_path(path: &str) -> Option<&'static str> {
+    let ext = std::path::Path::new(path)
+        .extension()
+        .and_then(|e| e.to_str())
+        .map(|e| e.to_ascii_lowercase())
+        .unwrap_or_default();
+    match ext.as_str() {
+        "mp4" | "mov" | "avi" | "mkv" | "webm" | "flv" | "wmv" | "m4v" | "3gp" => Some("video"),
+        "mp3" | "wav" | "ogg" | "flac" | "m4a" | "aac" | "opus" => Some("audio"),
+        "pdf" => Some("pdf"),
+        "jpg" | "jpeg" | "png" | "gif" | "bmp" | "webp" => Some("image"),
+        _ => None,
+    }
+}
+
+/// Sinh thumbnail JPG bytes (max 250x250) cho video/audio/PDF/image.
+/// Dùng FFmpeg subprocess. Nếu FFmpeg không có, return Err — caller xử lý skip.
+#[tauri::command]
+async fn generate_thumbnail(file_path: String) -> Result<Vec<u8>, String> {
+    let kind = thumb_kind_from_path(&file_path)
+        .ok_or_else(|| "Không hỗ trợ thumbnail cho định dạng này".to_string())?;
+
+    // Output JPG vào temp file để đọc bytes
+    let tmp_dir = std::env::temp_dir();
+    let tmp_name = format!("trishdrive_thumb_{}.jpg", std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_nanos()).unwrap_or(0));
+    let tmp_path = tmp_dir.join(&tmp_name);
+    let tmp_str = tmp_path.to_string_lossy().to_string();
+
+    let args: Vec<String> = match kind {
+        "video" => vec![
+            "-y".into(), "-i".into(), file_path.clone(),
+            "-ss".into(), "00:00:01".into(),    // skip 1 giây để skip black intro
+            "-vframes".into(), "1".into(),
+            "-vf".into(), "scale='min(250,iw)':'-1'".into(),
+            "-q:v".into(), "5".into(),
+            tmp_str.clone(),
+        ],
+        "audio" => vec![
+            "-y".into(), "-i".into(), file_path.clone(),
+            "-filter_complex".into(),
+            "showwavespic=s=250x100:colors=#10b981".into(),
+            "-frames:v".into(), "1".into(),
+            tmp_str.clone(),
+        ],
+        "pdf" => {
+            // pdftoppm preferable; FFmpeg can read 1st page via -i image2 nhưng yêu cầu MuPDF.
+            // Fallback: try ffmpeg với "image2" demuxer; nếu fail thì user chấp nhận no thumb.
+            vec![
+                "-y".into(), "-i".into(), file_path.clone(),
+                "-vframes".into(), "1".into(),
+                "-vf".into(), "scale='min(250,iw)':'-1'".into(),
+                tmp_str.clone(),
+            ]
+        }
+        "image" => vec![
+            "-y".into(), "-i".into(), file_path.clone(),
+            "-vf".into(), "scale='min(250,iw)':'-1'".into(),
+            "-q:v".into(), "5".into(),
+            tmp_str.clone(),
+        ],
+        _ => return Err("kind không hỗ trợ".into()),
+    };
+
+    let output = tokio::process::Command::new("ffmpeg")
+        .args(&args)
+        .output()
+        .await
+        .map_err(|e| format!("Spawn ffmpeg lỗi (cài FFmpeg + thêm vào PATH): {}", e))?;
+
+    if !output.status.success() {
+        let _ = std::fs::remove_file(&tmp_path);
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        return Err(format!("FFmpeg fail: {}", stderr.lines().last().unwrap_or("?")));
+    }
+
+    let bytes = tokio::fs::read(&tmp_path).await
+        .map_err(|e| format!("Đọc thumbnail temp: {}", e))?;
+    let _ = std::fs::remove_file(&tmp_path);
+    Ok(bytes)
+}
+
+/// Sinh thumbnail rồi upload lên Telegram channel + lưu DB.
+/// Idempotent: nếu file đã có thumb_tg_file_id, skip.
+#[tauri::command]
+async fn file_generate_and_upload_thumb(
+    app: tauri::AppHandle,
+    uid: String,
+    file_id: String,
+    file_path: String,
+) -> Result<Option<String>, String> {
+    let creds = creds::load_creds(&uid)?
+        .ok_or_else(|| "Chưa setup Telegram".to_string())?;
+
+    // Check existing
+    let db_path_buf = db::db_path(&app)?;
+    let conn = db::open(&db_path_buf).map_err(|e| format!("db: {}", e))?;
+    if let Ok(Some(_existing)) = db::get_thumb_file_id(&conn, &file_id) {
+        return Ok(None); // đã có rồi, skip
+    }
+
+    let thumb_bytes = match generate_thumbnail(file_path.clone()).await {
+        Ok(b) => b,
+        Err(e) => return Err(e),
+    };
+    if thumb_bytes.is_empty() {
+        return Err("Thumbnail rỗng".into());
+    }
+
+    // Upload thumbnail (KHÔNG encrypt — thumbnail là metadata, chấp nhận plain)
+    let thumb_filename = format!("{}.thumb.jpg", file_id);
+    let msg = telegram::send_document(
+        &creds.bot_token,
+        creds.channel_id,
+        thumb_bytes,
+        &thumb_filename,
+    ).await.map_err(|e| format!("upload thumb: {}", e))?;
+
+    let document = msg.document.ok_or_else(|| "msg missing document".to_string())?;
+    db::update_thumb(&conn, &file_id, &document.file_id, msg.message_id)
+        .map_err(|e| format!("update thumb db: {}", e))?;
+
+    Ok(Some(document.file_id))
+}
+
+/// Phase 25.0.A — Auto-route upload theo size:
+///   > 50MB → MTProto (nếu có session) — upload 1 chunk lớn 2GB/4GB
+///   ≤ 50MB → Bot API (nhanh, đơn giản, không cần MTProto session)
+///   > 50MB nhưng chưa có MTProto → trả lỗi yêu cầu admin setup MTProto.
+const BOT_API_UPLOAD_LIMIT: u64 = 50 * 1024 * 1024;
+
+#[tauri::command]
+async fn file_upload_auto(
+    app: tauri::AppHandle,
+    uid: String,
+    file_path: String,
+    folder_id: Option<String>,
+    note: Option<String>,
+) -> Result<UploadResult, String> {
+    let metadata = tokio::fs::metadata(&file_path).await
+        .map_err(|e| format!("metadata: {}", e))?;
+    let size = metadata.len();
+
+    if size <= BOT_API_UPLOAD_LIMIT {
+        // Đường nhanh: Bot API (chunk 19MB nếu cần)
+        return file_upload(app, uid, file_path, folder_id, note).await;
+    }
+
+    // File > 50MB — cần MTProto userbot
+    let mt_cfg = creds::load_mtproto_config(&uid)?;
+    if mt_cfg.is_none() {
+        return Err(format!(
+            "File này {} MB > 50 MB — cần MTProto userbot để upload (Bot API max 50MB). \
+             Setup MTProto: Settings → MTProto → đăng ký api_id/hash tại my.telegram.org → đăng nhập số ĐT.",
+            size / 1024 / 1024
+        ));
+    }
+    let session_path = mtproto_session_path(&app, &uid)?;
+    if !session_path.exists() {
+        return Err(
+            "MTProto đã có config nhưng chưa đăng nhập. Vào Settings → MTProto → Setup → nhập OTP.".into()
+        );
+    }
+
+    file_upload_mtproto(app, uid, file_path, folder_id, note).await
+}
 
 #[tauri::command]
 async fn file_upload_mtproto(
@@ -1032,6 +1367,7 @@ async fn file_upload_mtproto(
     note: Option<String>,
 ) -> Result<UploadResult, String> {
     use sha2::{Digest, Sha256};
+    use std::sync::Arc;
     use tokio::io::{AsyncReadExt, AsyncSeekExt};
 
     let creds = creds::load_creds(&uid)?
@@ -1103,6 +1439,7 @@ async fn file_upload_mtproto(
         note,
         deleted_at: None,
         pipeline: "mtproto".to_string(),
+        thumb_tg_file_id: None,
     };
     db::insert_file(&conn, &row).map_err(|e| format!("insert file: {}", e))?;
 
@@ -1112,11 +1449,38 @@ async fn file_upload_mtproto(
         bytes_done: 0, total_bytes: size as i64,
     });
 
+    // Phase 25.2.A — Parallel chunks upload MTProto (3 song song).
+    //
+    // Trước: tuần tự — mỗi chunk open client → upload → send_message → close.
+    // 100MB file (6 chunk) ≈ 3-4 phút.
+    //
+    // Sau: open client 1 lần + spawn parallel với semaphore=3.
+    // - Loop main đọc + encrypt 1 chunk khi có slot trống → bộ nhớ tối đa
+    //   ~3-4 chunk × 19MB = 57-76MB (an toàn cả file 10GB+).
+    // - Spawn task upload + send_message dùng client.clone() (Arc internally).
+    // - Telegram cho phép multiple RPC concurrent trên cùng MTProto session.
+    // Kỳ vọng: upload 100MB ~30-60s, file 1GB ~5-10 phút.
+    // grammers Client + PackedChat đều cheap-clone (Arc internal cho Client,
+    // Copy fields cho PackedChat) → spawn task chỉ cần .clone() là đủ.
+    let client = mtproto::open_authorized_client(mt_cfg.api_id, &mt_cfg.api_hash, &session_path).await?;
+    let channel = mtproto::resolve_or_load_channel(&client, &uid, creds.channel_id).await?;
+
+    use std::sync::atomic::{AtomicI64, Ordering as AtomicOrdering};
+    let bytes_done_atomic = Arc::new(AtomicI64::new(0));
+    let total_size_i64 = size as i64;
+    let semaphore = Arc::new(tokio::sync::Semaphore::new(3));
+
+    let mut tasks: Vec<tokio::task::JoinHandle<Result<(i64, i64, String, i64), String>>> = Vec::with_capacity(total_chunks as usize);
     let mut chunk_buf = vec![0u8; MTPROTO_CHUNK_SIZE];
-    let mut bytes_done: usize = 0;
+    let mut bytes_read: usize = 0;
 
     for idx in 0..total_chunks {
-        let remaining = size - bytes_done;
+        // Đợi semaphore (tối đa 3 chunk song song) trước khi đọc chunk tiếp theo
+        // → bộ nhớ không bao giờ giữ quá 4 chunks (3 uploading + 1 đang đọc).
+        let permit = semaphore.clone().acquire_owned().await
+            .map_err(|e| format!("semaphore: {}", e))?;
+
+        let remaining = size - bytes_read;
         let to_read = remaining.min(MTPROTO_CHUNK_SIZE);
         chunk_buf.resize(to_read, 0);
         let mut read_total = 0;
@@ -1129,58 +1493,90 @@ async fn file_upload_mtproto(
             let _ = db::delete_file(&conn, &file_id);
             return Err(format!("Read short chunk {}: expect {} got {}", idx, to_read, read_total));
         }
+        bytes_read += to_read;
 
         let encrypted = crypto::encrypt(&creds.master_key_hex, &chunk_buf[..to_read])?;
-        let nonce_hex = hex::encode(&encrypted[..crypto::NONCE_SIZE]);
+        let nonce_hex_str = hex::encode(&encrypted[..crypto::NONCE_SIZE]);
         let chunk_filename = if total_chunks > 1 {
             format!("{}.part{:03}.enc", filename, idx)
         } else {
             format!("{}.enc", filename)
         };
 
-        let app_progress = app.clone();
-        let file_id_progress = file_id.clone();
-        let baseline_bytes = bytes_done;
-        let total_size_for_progress = size;
-        let chunk_idx_for_progress = idx;
-        let total_chunks_for_progress = total_chunks;
+        let client_c = client.clone();
+        let channel_c = channel.clone();
+        let app_c = app.clone();
+        let file_id_c = file_id.clone();
+        let bytes_done_c = bytes_done_atomic.clone();
+        let total_chunks_c = total_chunks;
 
-        let upload_info = mtproto::upload_bytes_to_channel(
-            mt_cfg.api_id, &mt_cfg.api_hash, &session_path,
-            &uid, creds.channel_id,
-            encrypted, &chunk_filename,
-            move |bytes_in_chunk| {
-                let _ = app_progress.emit("drive-progress", ProgressEvent {
-                    op: "upload".into(),
-                    file_id: file_id_progress.clone(),
-                    current_chunk: chunk_idx_for_progress + 1,
-                    total_chunks: total_chunks_for_progress,
-                    bytes_done: (baseline_bytes + bytes_in_chunk) as i64,
-                    total_bytes: total_size_for_progress as i64,
-                });
-            },
-        ).await.map_err(|e| {
+        let task = tokio::spawn(async move {
+            let _permit = permit; // hold permit until task ends (release on drop)
+            let bytes_len = encrypted.len();
+            let cursor = std::io::Cursor::new(encrypted);
+            // ProgressReader để đảm bảo signature compatible — không dùng callback
+            // vì progress concurrent từ 3 chunk khác nhau sẽ rối, dùng atomic tổng.
+            let mut reader = mtproto::ProgressReader::new(cursor, |_| {});
+            let uploaded = client_c.upload_stream(&mut reader, bytes_len, chunk_filename).await
+                .map_err(|e| format!("upload_stream chunk {}: {}", idx, e))?;
+            let msg = client_c.send_message(
+                channel_c,
+                grammers_client::InputMessage::text("").document(uploaded),
+            ).await
+                .map_err(|e| format!("send_message chunk {}: {}", idx, e))?;
+
+            // Cộng dồn bytes_done atomic + emit progress
+            let new_done = bytes_done_c.fetch_add(bytes_len as i64, AtomicOrdering::SeqCst) + bytes_len as i64;
+            let _ = app_c.emit("drive-progress", ProgressEvent {
+                op: "upload".into(),
+                file_id: file_id_c,
+                current_chunk: idx + 1,
+                total_chunks: total_chunks_c,
+                bytes_done: new_done,
+                total_bytes: total_size_i64,
+            });
+
+            Ok((idx, msg.id() as i64, nonce_hex_str, bytes_len as i64))
+        });
+        tasks.push(task);
+    }
+
+    // Collect results theo thứ tự spawn (không cần sort vì idx đã track)
+    let mut results: Vec<(i64, i64, String, i64)> = Vec::with_capacity(tasks.len());
+    for task in tasks {
+        let r = task.await.map_err(|e| {
             let _ = db::delete_file(&conn, &file_id);
-            format!("Upload chunk {}/{} fail: {}", idx + 1, total_chunks, e)
+            format!("join task: {}", e)
+        })?.map_err(|e| {
+            let _ = db::delete_file(&conn, &file_id);
+            e
         })?;
+        results.push(r);
+    }
+    // Sort theo idx để insert DB đúng thứ tự (offsets phải đúng cho download)
+    results.sort_by_key(|(idx, _, _, _)| *idx);
 
+    for (idx, message_id, nonce_hex, byte_size) in results {
         let chunk_row = db::ChunkRow {
             file_id: file_id.clone(),
             idx,
-            tg_message_id: upload_info.message_id,
+            tg_message_id: message_id,
             tg_file_id: None,
-            byte_size: to_read as i64,
+            byte_size,
             nonce_hex,
         };
         db::insert_chunk(&conn, &chunk_row).map_err(|e| format!("insert chunk: {}", e))?;
-
-        bytes_done += to_read;
-        let _ = app.emit("drive-progress", ProgressEvent {
-            op: "upload".into(), file_id: file_id.clone(),
-            current_chunk: idx + 1, total_chunks,
-            bytes_done: bytes_done as i64, total_bytes: size as i64,
-        });
     }
+
+    // Final progress emit
+    let _ = app.emit("drive-progress", ProgressEvent {
+        op: "upload".into(),
+        file_id: file_id.clone(),
+        current_chunk: total_chunks,
+        total_chunks,
+        bytes_done: total_size_i64,
+        total_bytes: total_size_i64,
+    });
 
     Ok(UploadResult {
         file_id,
@@ -1291,6 +1687,137 @@ async fn file_purge_mtproto(
 }
 
 // ============================================================
+// Phase 25.0.D — HTTP API external (Bearer Token + Axum)
+// ============================================================
+
+// Helper functions called by http_api.rs (cross-module bridge)
+pub(crate) async fn http_api_dispatch_upload(
+    app: tauri::AppHandle,
+    uid: String,
+    file_path: String,
+    folder_id: Option<String>,
+    note: Option<String>,
+) -> Result<UploadResult, String> {
+    file_upload_auto(app, uid, file_path, folder_id, note).await
+}
+
+pub(crate) fn http_api_dispatch_list(app: tauri::AppHandle) -> Result<Vec<http_api::ApiFileItem>, String> {
+    let path = db::db_path(&app)?;
+    let conn = db::open(&path).map_err(|e| format!("db: {}", e))?;
+    let files = db::list_files(&conn, None, None).map_err(|e| format!("list: {}", e))?;
+    Ok(files.into_iter().map(|f| http_api::ApiFileItem {
+        id: f.id,
+        name: f.name,
+        size_bytes: f.size_bytes,
+        created_at: f.created_at,
+        pipeline: f.pipeline,
+    }).collect())
+}
+
+pub(crate) async fn http_api_dispatch_download(
+    app: tauri::AppHandle,
+    uid: String,
+    file_id: String,
+) -> Result<Vec<u8>, String> {
+    // Download tới file tạm rồi đọc bytes (đơn giản hơn streaming Axum body)
+    let tmp = std::env::temp_dir().join(format!(
+        "trishdrive-api-dl-{}-{}",
+        std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_nanos()).unwrap_or(0),
+        file_id
+    ));
+    let tmp_str = tmp.to_string_lossy().to_string();
+    let path = db::db_path(&app)?;
+    let conn = db::open(&path).map_err(|e| format!("db: {}", e))?;
+    let f = db::get_file(&conn, &file_id).map_err(|e| format!("query: {}", e))?
+        .ok_or_else(|| "File không tồn tại".to_string())?;
+    drop(conn);
+    if f.pipeline == "mtproto" {
+        file_download_mtproto(app, uid, file_id, tmp_str.clone()).await?;
+    } else {
+        file_download(app, uid, file_id, tmp_str.clone()).await?;
+    }
+    let bytes = tokio::fs::read(&tmp).await.map_err(|e| format!("read tmp: {}", e))?;
+    let _ = tokio::fs::remove_file(&tmp).await;
+    Ok(bytes)
+}
+
+// Tauri commands cho UI quản lý API token + start/stop server
+#[tauri::command]
+fn api_token_get(uid: String) -> Result<Option<String>, String> {
+    creds::load_api_token(&uid)
+}
+
+#[tauri::command]
+fn api_token_generate(uid: String) -> Result<String, String> {
+    let token = uuid::Uuid::new_v4().simple().to_string();
+    creds::save_api_token(&uid, &token)?;
+    Ok(token)
+}
+
+#[tauri::command]
+fn api_token_revoke(uid: String) -> Result<(), String> {
+    creds::delete_api_token(&uid)
+}
+
+use std::sync::Mutex as StdMutex;
+struct HttpServerState {
+    handle: StdMutex<Option<tokio::task::JoinHandle<()>>>,
+    port: StdMutex<Option<u16>>,
+}
+impl Default for HttpServerState {
+    fn default() -> Self {
+        Self { handle: StdMutex::new(None), port: StdMutex::new(None) }
+    }
+}
+
+#[tauri::command]
+async fn http_api_start(
+    app: tauri::AppHandle,
+    state: tauri::State<'_, HttpServerState>,
+    uid: String,
+    port: u16,
+) -> Result<u16, String> {
+    let token = creds::load_api_token(&uid)?
+        .ok_or_else(|| "Chưa generate API token. Bấm 'Generate token' trước.".to_string())?;
+    // Stop existing server nếu có
+    {
+        let mut h = state.handle.lock().unwrap();
+        if let Some(handle) = h.take() { handle.abort(); }
+    }
+    let api_state = http_api::ApiState {
+        uid,
+        token,
+        app_handle: app,
+    };
+    let handle = tokio::spawn(async move {
+        let _ = http_api::run_server(api_state, port).await;
+    });
+    {
+        let mut h = state.handle.lock().unwrap();
+        *h = Some(handle);
+        let mut p = state.port.lock().unwrap();
+        *p = Some(port);
+    }
+    Ok(port)
+}
+
+#[tauri::command]
+fn http_api_stop(state: tauri::State<'_, HttpServerState>) -> Result<(), String> {
+    let mut h = state.handle.lock().unwrap();
+    if let Some(handle) = h.take() { handle.abort(); }
+    let mut p = state.port.lock().unwrap();
+    *p = None;
+    Ok(())
+}
+
+#[tauri::command]
+fn http_api_status(state: tauri::State<'_, HttpServerState>) -> Result<Option<u16>, String> {
+    let p = state.port.lock().unwrap();
+    Ok(*p)
+}
+
+// ============================================================
 // Tauri builder + run
 // ============================================================
 
@@ -1300,6 +1827,7 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_opener::init())
         .manage(mtproto::MtprotoState::default())
+        .manage(HttpServerState::default())
         .invoke_handler(tauri::generate_handler![
             // TrishAdmin gốc (Phase 18.7.a)
             app_version,
@@ -1311,6 +1839,22 @@ pub fn run() {
             tg_ping,
             tg_test_bot,
             tg_get_chat,
+            // Phase 28.14 — LISP library upload helpers
+            tg_upload_lisp,
+            read_file_bytes,
+            file_size,
+            // Phase 25.0.A — Auto upload (Bot API ≤50MB, MTProto >50MB)
+            file_upload_auto,
+            // Phase 25.0.B — FFmpeg thumbnail
+            generate_thumbnail,
+            file_generate_and_upload_thumb,
+            // Phase 25.0.D — HTTP API external Bearer Token
+            api_token_get,
+            api_token_generate,
+            api_token_revoke,
+            http_api_start,
+            http_api_stop,
+            http_api_status,
             creds_save,
             creds_load,
             creds_delete,

@@ -83,18 +83,6 @@
         }
       }
     },
-    "createUpdaterArtifacts": true
-  },
-  "plugins": {
-    "updater": {
-      "active": false,
-      "endpoints": [
-        "https://trishteam.io.vn/api/updates/trishcheck/{{target}}/{{current_version}}"
-      ],
-      "pubkey": "PLACEHOLDER_RUN_TAURI_SIGNER_GENERATE_TO_REPLACE",
-      "windows": {
-        "installMode": "passive"
-      }
-    }
+    "createUpdaterArtifacts": false
   }
 }

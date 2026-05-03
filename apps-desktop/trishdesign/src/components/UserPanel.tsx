@@ -1,5 +1,5 @@
 /**
- * Phase 14.4.7 — UserPanel cho TrishDesign sidebar.
+ * Phase 28.5 — UserPanel cho TrishDesign sidebar.
  *
  * Hiển thị info user + role badge + dropdown menu (logout, activate key).
  * Đặt cuối sidebar trước footer version.
@@ -13,7 +13,7 @@ const ROLE_CONFIG: Record<string, { label: string; bg: string; color: string }> 
   admin: { label: '🛡 Admin', bg: 'rgba(168, 85, 247, 0.18)', color: '#c4b5fd' },
   user: { label: '✨ User', bg: 'rgba(74, 222, 128, 0.18)', color: '#86efac' },
   trial: { label: '⏳ Trial', bg: 'rgba(251, 191, 36, 0.18)', color: '#fcd34d' },
-  guest: { label: '👤 Guest', bg: 'rgba(148, 163, 184, 0.18)', color: '#94a3b8' },
+  guest: { label: '👤 Khách', bg: 'rgba(148, 163, 184, 0.18)', color: '#94a3b8' },
 };
 
 interface Props {
@@ -37,13 +37,19 @@ export function UserPanel({ collapsed = false }: Props): JSX.Element {
   }, [open]);
 
   const config = ROLE_CONFIG[role] ?? ROLE_CONFIG.guest!;
-  const displayName = profile?.display_name ?? profile?.email?.split('@')[0] ?? 'User';
+  // Prefer display_name → email local → fallback Khách
+  const emailLocal = profile?.email ? profile.email.split('@')[0] : null;
+  const displayName = (
+    profile?.display_name?.trim()
+    || emailLocal
+    || 'Khách'
+  );
   const initials = displayName
-    .split(/\s+/)
+    .split(/[\s_.\-]+/)
     .filter(Boolean)
     .slice(0, 2)
     .map((p) => p[0]?.toUpperCase() ?? '')
-    .join('');
+    .join('') || displayName.slice(0, 2).toUpperCase();
 
   async function handleOpenProfile(): Promise<void> {
     try {
@@ -54,7 +60,7 @@ export function UserPanel({ collapsed = false }: Props): JSX.Element {
   }
 
   async function handleSignOut(): Promise<void> {
-    if (!confirm('Đăng xuất khỏi TrishDesign?')) return;
+    if (!window.confirm('Đăng xuất khỏi TrishDesign?')) return;
     setOpen(false);
     await signOut();
   }
@@ -62,7 +68,7 @@ export function UserPanel({ collapsed = false }: Props): JSX.Element {
   if (loading) {
     return (
       <div className="td-user-panel td-user-panel-loading">
-        <span className="muted small">…</span>
+        <span className="muted small">Đang tải…</span>
       </div>
     );
   }

@@ -8,6 +8,8 @@ import { NextResponse, type NextRequest } from 'next/server';
 import { adminDb, adminReady } from '@/lib/firebase-admin';
 
 export const runtime = 'nodejs';
+// Next.js 14: route dùng searchParams → buộc dynamic, không static-render
+export const dynamic = 'force-dynamic';
 
 export async function GET(req: NextRequest) {
   try {
