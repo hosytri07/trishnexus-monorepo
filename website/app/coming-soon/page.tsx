@@ -26,9 +26,8 @@ function pad(n: number) {
 export default function ComingSoonPage() {
   const starfieldRef = useRef<HTMLCanvasElement | null>(null);
   const fxRef = useRef<HTMLCanvasElement | null>(null);
-  const audioCtxRef = useRef<AudioContext | null>(null);
-  const masterGainRef = useRef<GainNode | null>(null);
-  const oscillatorsRef = useRef<{ osc: OscillatorNode; lfo: OscillatorNode }[]>([]);
+  const audioElRef = useRef<HTMLAudioElement | null>(null);
+  const chimeCtxRef = useRef<AudioContext | null>(null);
   const chimeRef = useRef<(() => void) | null>(null);
   const [now, setNow] = useState<number | null>(null);
   const [warpKey, setWarpKey] = useState(0);
@@ -73,112 +72,96 @@ export default function ComingSoonPage() {
     return () => clearTimeout(t);
   }, []);
 
-  // ── Audio: ambient drone + chime ────────────────────────────────────
+  // ── Audio: <audio> loop "Moonlight Drive" + chime synth mỗi phút ─────
   useEffect(() => {
-    if (!audioOn) {
-      // Tear down nếu đang chạy
-      oscillatorsRef.current.forEach(({ osc, lfo }) => {
-        try { osc.stop(); lfo.stop(); } catch {}
-      });
-      oscillatorsRef.current = [];
-      if (audioCtxRef.current) {
-        audioCtxRef.current.close().catch(() => {});
-        audioCtxRef.current = null;
-        masterGainRef.current = null;
-        chimeRef.current = null;
+    const el = audioElRef.current;
+    if (!el) return;
+
+    if (audioOn) {
+      // Fade-in nhẹ: bắt đầu vol 0 → 0.45 trong 2s
+      el.volume = 0;
+      el.currentTime = 0;
+      const playP = el.play();
+      if (playP && typeof playP.catch === 'function') {
+        playP.catch(() => {
+          // Autoplay block — user gesture đã có nên ít khi xảy ra
+        });
       }
-      return;
+      let v = 0;
+      const target = 0.45;
+      const step = target / 40; // 40 ticks * 50ms = 2s
+      const fadeId = setInterval(() => {
+        v = Math.min(target, v + step);
+        if (audioElRef.current) audioElRef.current.volume = v;
+        if (v >= target) clearInterval(fadeId);
+      }, 50);
+
+      // Setup chime context (riêng, không liên quan audio file)
+      const Ctx = (window.AudioContext ||
+        (window as unknown as { webkitAudioContext: typeof AudioContext })
+          .webkitAudioContext) as typeof AudioContext;
+      if (Ctx && !chimeCtxRef.current) {
+        chimeCtxRef.current = new Ctx();
+      }
+      chimeRef.current = () => {
+        const c = chimeCtxRef.current;
+        if (!c) return;
+        const t0 = c.currentTime;
+        // Tone 1: 880Hz (A5)
+        const osc1 = c.createOscillator();
+        const g1 = c.createGain();
+        osc1.type = 'sine';
+        osc1.frequency.value = 880;
+        osc1.connect(g1).connect(c.destination);
+        g1.gain.setValueAtTime(0, t0);
+        g1.gain.linearRampToValueAtTime(0.18, t0 + 0.01);
+        g1.gain.exponentialRampToValueAtTime(0.001, t0 + 1.4);
+        osc1.start(t0);
+        osc1.stop(t0 + 1.5);
+        // Tone 2: 1320Hz (E6) overtone
+        const osc2 = c.createOscillator();
+        const g2 = c.createGain();
+        osc2.type = 'sine';
+        osc2.frequency.value = 1320;
+        osc2.connect(g2).connect(c.destination);
+        g2.gain.setValueAtTime(0, t0);
+        g2.gain.linearRampToValueAtTime(0.08, t0 + 0.01);
+        g2.gain.exponentialRampToValueAtTime(0.001, t0 + 0.9);
+        osc2.start(t0);
+        osc2.stop(t0 + 1.0);
+      };
+
+      return () => {
+        clearInterval(fadeId);
+      };
+    } else {
+      // Tắt: fade-out 0.6s rồi pause
+      const startVol = el.volume;
+      let v = startVol;
+      const fadeId = setInterval(() => {
+        v = Math.max(0, v - startVol / 12);
+        if (audioElRef.current) audioElRef.current.volume = v;
+        if (v <= 0) {
+          clearInterval(fadeId);
+          if (audioElRef.current) audioElRef.current.pause();
+        }
+      }, 50);
+      chimeRef.current = null;
+      return () => {
+        clearInterval(fadeId);
+      };
     }
-
-    // Setup khi user bật
-    const Ctx = (window.AudioContext ||
-      (window as unknown as { webkitAudioContext: typeof AudioContext })
-        .webkitAudioContext) as typeof AudioContext;
-    if (!Ctx) return;
-    const ctx = new Ctx();
-    audioCtxRef.current = ctx;
-
-    // Master gain — fade in nhẹ
-    const master = ctx.createGain();
-    master.gain.setValueAtTime(0, ctx.currentTime);
-    master.gain.linearRampToValueAtTime(0.18, ctx.currentTime + 2.5);
-    master.connect(ctx.destination);
-    masterGainRef.current = master;
-
-    // Lowpass filter cho âm trầm ấm
-    const filter = ctx.createBiquadFilter();
-    filter.type = 'lowpass';
-    filter.frequency.value = 700;
-    filter.Q.value = 1;
-    filter.connect(master);
-
-    // Drone: 3 sine oscillator harmonics quanh A2 (110Hz)
-    const fund = 110;
-    const harmonics = [1, 1.5, 2.0]; // A2, E3, A3
-    harmonics.forEach((mult, i) => {
-      const osc = ctx.createOscillator();
-      osc.type = 'sine';
-      osc.frequency.value = fund * mult;
-
-      // LFO chậm cho slight detune → âm "thở"
-      const lfo = ctx.createOscillator();
-      const lfoGain = ctx.createGain();
-      lfo.type = 'sine';
-      lfo.frequency.value = 0.08 + i * 0.04;
-      lfoGain.gain.value = 1.5;
-      lfo.connect(lfoGain).connect(osc.frequency);
-
-      const oscGain = ctx.createGain();
-      oscGain.gain.value = 0.32 / (i + 1);
-      osc.connect(oscGain).connect(filter);
-
-      osc.start();
-      lfo.start();
-      oscillatorsRef.current.push({ osc, lfo });
-    });
-
-    // Chime bell 2-tone — gọi khi qua phút
-    chimeRef.current = () => {
-      const c = audioCtxRef.current;
-      const m = masterGainRef.current;
-      if (!c || !m) return;
-      const t0 = c.currentTime;
-      // Tone 1: 880Hz (A5)
-      const osc1 = c.createOscillator();
-      const g1 = c.createGain();
-      osc1.type = 'sine';
-      osc1.frequency.value = 880;
-      osc1.connect(g1).connect(m);
-      g1.gain.setValueAtTime(0, t0);
-      g1.gain.linearRampToValueAtTime(0.7, t0 + 0.01);
-      g1.gain.exponentialRampToValueAtTime(0.001, t0 + 1.4);
-      osc1.start(t0);
-      osc1.stop(t0 + 1.5);
-      // Tone 2: 1320Hz (E6) — overtone bell-like
-      const osc2 = c.createOscillator();
-      const g2 = c.createGain();
-      osc2.type = 'sine';
-      osc2.frequency.value = 1320;
-      osc2.connect(g2).connect(m);
-      g2.gain.setValueAtTime(0, t0);
-      g2.gain.linearRampToValueAtTime(0.32, t0 + 0.01);
-      g2.gain.exponentialRampToValueAtTime(0.001, t0 + 0.9);
-      osc2.start(t0);
-      osc2.stop(t0 + 1.0);
-    };
-
-    // Chime entrance khi user bật
-    setTimeout(() => chimeRef.current?.(), 300);
-
-    return () => {
-      // cleanup khi audioOn đổi sang false (đã handle ở đầu) hoặc unmount
-      oscillatorsRef.current.forEach(({ osc, lfo }) => {
-        try { osc.stop(); lfo.stop(); } catch {}
-      });
-      oscillatorsRef.current = [];
-      ctx.close().catch(() => {});
-    };
   }, [audioOn]);
+
+  // Cleanup chime context khi unmount
+  useEffect(() => {
+    return () => {
+      if (chimeCtxRef.current) {
+        chimeCtxRef.current.close().catch(() => {});
+        chimeCtxRef.current = null;
+      }
+    };
+  }, []);
 
   // ── Layer 0: Starfield + shooting stars ──────────────────────────────
   useEffect(() => {
@@ -897,6 +880,16 @@ export default function ComingSoonPage() {
           color: rgba(232, 239, 255, 0.35);
           letter-spacing: 0.08em;
           animation: fadeUp 1.2s ease-out 1.4s both;
+          text-align: center;
+          padding: 0 12px;
+        }
+        .footer .music-credit a {
+          color: rgba(74, 222, 128, 0.6);
+          text-decoration: none;
+          transition: color 0.2s;
+        }
+        .footer .music-credit a:hover {
+          color: #4ade80;
         }
 
         .finished {
@@ -975,6 +968,14 @@ export default function ComingSoonPage() {
       <canvas ref={fxRef} className="fx" aria-hidden />
       <div className="vignette" aria-hidden />
 
+      <audio
+        ref={audioElRef}
+        src="/audio/moonlight-drive.mp3"
+        loop
+        preload="auto"
+        aria-hidden
+      />
+
       {warpKey > 0 && (
         <div key={warpKey} className="warp-ring" aria-hidden />
       )}
@@ -1051,7 +1052,12 @@ export default function ComingSoonPage() {
           Ra mắt vào <strong>09:00 sáng Thứ Năm, 07/05/2026</strong> (giờ Việt Nam)
         </div>
 
-        <div className="footer">© 2026 TrishTEAM · trishteam.io.vn</div>
+        <div className="footer">
+          © 2026 TrishTEAM · trishteam.io.vn
+          <span className="music-credit">
+            {' · '}Music: <a href="https://www.bensound.com" target="_blank" rel="noopener noreferrer">Moonlight Drive — Bensound</a>
+          </span>
+        </div>
       </div>
     </div>
   );
