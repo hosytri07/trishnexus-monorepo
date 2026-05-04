@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import { Plus_Jakarta_Sans } from 'next/font/google';
+import { headers } from 'next/headers';
 import './globals.css';
 import { ThemeProvider } from '@/components/theme-provider';
 import { AuthProvider } from '@/lib/auth-context';
@@ -115,6 +116,25 @@ export const viewport = {
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
+  // Phase 35 — Maintenance mode: middleware set header `x-maintenance=1` khi
+  // rewrite về /coming-soon. Layout đọc header này để bỏ qua TopNav/SideNav
+  // + tất cả Provider, render trực tiếp landing page → loại bỏ Firebase load,
+  // ambient orbs, analytics… không cần thiết khi đang ẩn website.
+  const isMaintenance = headers().get('x-maintenance') === '1';
+
+  if (isMaintenance) {
+    return (
+      <html
+        lang="vi"
+        data-theme="dark"
+        className={plusJakartaSans.variable}
+        suppressHydrationWarning
+      >
+        <body className="font-display">{children}</body>
+      </html>
+    );
+  }
+
   return (
     // data-theme="dark" là default. ThemeProvider có thể swap sang "light" runtime.
     <html
