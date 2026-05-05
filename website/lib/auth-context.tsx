@@ -48,6 +48,8 @@ export type SessionUser = {
   activated_key_id?: string;
   /** Phase 19.12 — Cloudinary public_id của avatar */
   cloudinary_avatar_id?: string;
+  /** Phase 36.1 — Per-app key activation map */
+  app_keys?: Record<string, { key_id: string; activated_at: number; expires_at: number } | undefined>;
 };
 
 type AuthContextValue = {
@@ -145,6 +147,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           (data.activated_key_id as string) ?? undefined,
         cloudinary_avatar_id:
           (data.cloudinary_avatar_id as string) ?? undefined,
+        // Phase 36.1 — per-app key activation map
+        app_keys: (data.app_keys as SessionUser['app_keys']) ?? undefined,
       };
     },
     [],

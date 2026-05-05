@@ -59,6 +59,7 @@ export function KeyGate({
   const firebaseUser = auth?.firebaseUser ?? null;
   const profile = auth?.profile ?? null;
   const loading = auth?.loading ?? false;
+  const signOutFn = auth?.signOut;
 
   const [sessionHandle, setSessionHandle] = useState<SessionHandle | null>(null);
   const [showModal, setShowModal] = useState(false);
@@ -207,6 +208,25 @@ export function KeyGate({
         onSessionLost={handleSessionLost}
         hostname={hostname}
         os={os}
+        // Phase 38.x — Email + signOut callback (account key only)
+        currentUserEmail={
+          keyType === 'account' ? (firebaseUser?.email ?? undefined) : undefined
+        }
+        onSignOut={
+          keyType === 'account' && signOutFn
+            ? async () => {
+                // Cleanup session handle hiện tại trước khi signOut
+                if (sessionHandle) {
+                  sessionHandle.stop();
+                  setSessionHandle(null);
+                }
+                await signOutFn();
+                // Sau signOut, AuthProvider re-render với firebaseUser=null
+                // → KeyGate sẽ render children (auth flow của app) thay vì modal
+                setShowModal(false);
+              }
+            : undefined
+        }
         // KHÔNG cho đóng modal khi chưa activate (force user nhập key)
       />
     </>

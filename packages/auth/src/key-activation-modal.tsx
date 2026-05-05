@@ -55,6 +55,17 @@ export interface KeyActivationModalProps {
   onClose?: () => void;
   /** Mặc định 'account'. Set 'standalone' cho apps no-login. */
   keyType?: 'account' | 'standalone';
+  /**
+   * Phase 38.x — Email user đang login (account key only). Hiển thị trên modal
+   * để user biết đang dùng account nào, có nhầm không. Pass undefined cho
+   * standalone keys.
+   */
+  currentUserEmail?: string;
+  /**
+   * Phase 38.x — Callback đăng xuất Firebase Auth (account key only).
+   * User click "Đổi account" → gọi callback → modal sẽ tự đóng vì user state đổi.
+   */
+  onSignOut?: () => void | Promise<void>;
 }
 
 /** Format raw 16 chars → "XXXX-XXXX-XXXX-XXXX" (chỉ uppercase + alphanumeric) */
@@ -102,6 +113,8 @@ export const KeyActivationModal: FC<KeyActivationModalProps> = ({
   isOpen,
   onClose,
   keyType = 'account',
+  currentUserEmail,
+  onSignOut,
 }) => {
   const [keyInput, setKeyInput] = useState('');
   const [submitting, setSubmitting] = useState(false);
@@ -253,6 +266,65 @@ export const KeyActivationModal: FC<KeyActivationModalProps> = ({
             được admin cấp.
           </p>
         </div>
+
+        {/* Phase 38.x — Hiện email user + nút đổi account (account key only) */}
+        {keyType === 'account' && currentUserEmail && (
+          <div
+            style={{
+              marginBottom: 16,
+              padding: '10px 14px',
+              background: 'rgba(16, 185, 129, 0.08)',
+              border: '1px solid rgba(74, 222, 128, 0.25)',
+              borderRadius: 10,
+              display: 'flex',
+              alignItems: 'center',
+              gap: 10,
+              fontSize: 13,
+            }}
+          >
+            <span style={{ flex: 1, minWidth: 0 }}>
+              <span style={{ color: 'var(--color-text-muted, #9CA3AF)', fontSize: 11 }}>
+                Đang đăng nhập:
+              </span>
+              <br />
+              <strong
+                style={{
+                  display: 'block',
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  whiteSpace: 'nowrap',
+                  fontSize: 13,
+                }}
+                title={currentUserEmail}
+              >
+                {currentUserEmail}
+              </strong>
+            </span>
+            {onSignOut && (
+              <button
+                type="button"
+                onClick={() => void onSignOut()}
+                disabled={submitting}
+                style={{
+                  flexShrink: 0,
+                  padding: '6px 12px',
+                  fontSize: 11,
+                  fontWeight: 600,
+                  border: '1px solid rgba(220, 38, 38, 0.3)',
+                  borderRadius: 6,
+                  background: 'rgba(220, 38, 38, 0.06)',
+                  color: '#DC2626',
+                  cursor: submitting ? 'not-allowed' : 'pointer',
+                  fontFamily: 'inherit',
+                  whiteSpace: 'nowrap',
+                }}
+                title="Đăng xuất + đổi account khác"
+              >
+                ↩ Đổi account
+              </button>
+            )}
+          </div>
+        )}
 
         <form onSubmit={handleSubmit}>
           <label

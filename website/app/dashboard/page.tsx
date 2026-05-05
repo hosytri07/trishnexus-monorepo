@@ -87,24 +87,24 @@ function formatDate(ts: number): string {
 }
 
 export default function DashboardPage(): JSX.Element {
-  const { user, profile, role, loading: authLoading } = useAuth();
+  const { user, role, loading: authLoading } = useAuth();
   const [sessions, setSessions] = useState<SessionRow[]>([]);
   const [loadingSessions, setLoadingSessions] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [actionMsg, setActionMsg] = useState<string | null>(null);
 
-  // Lấy app_keys từ profile
+  // Lấy app_keys từ user (SessionUser từ website auth-context)
   const appKeys: AppKeyEntry[] = useMemo(() => {
-    if (!profile?.app_keys) return [];
-    return Object.entries(profile.app_keys)
-      .filter(([_, v]) => !!v)
+    if (!user?.app_keys) return [];
+    return Object.entries(user.app_keys)
+      .filter(([, v]) => !!v)
       .map(([appId, v]) => ({
         appId,
         keyId: v!.key_id,
         activatedAt: v!.activated_at,
         expiresAt: v!.expires_at,
       }));
-  }, [profile]);
+  }, [user]);
 
   // Listen sessions của user qua collectionGroup query
   useEffect(() => {
@@ -114,7 +114,7 @@ export default function DashboardPage(): JSX.Element {
     const now = Date.now();
     const q = query(
       collectionGroup(db, 'sessions'),
-      where('uid', '==', user.uid),
+      where('uid', '==', user.id),
       where('expires_at', '>', now),
     );
 
@@ -195,7 +195,7 @@ export default function DashboardPage(): JSX.Element {
       <div className="mb-6">
         <h1 className="text-3xl font-bold">Dashboard</h1>
         <p className="text-sm text-slate-500 mt-1">
-          {profile?.display_name ?? user.email}
+          {user.name ?? user.email}
           {role && <span className="ml-2 text-xs uppercase tracking-wider px-2 py-0.5 bg-emerald-100 text-emerald-700 rounded">{role}</span>}
         </p>
       </div>
