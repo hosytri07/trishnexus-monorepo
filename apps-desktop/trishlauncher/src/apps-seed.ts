@@ -284,8 +284,8 @@ export const SEED_REGISTRY: AppRegistry = {
       id: 'trishoffice',
       name: 'TrishOffice',
       tagline:
-        'Bộ công cụ văn phòng kỹ sư XD: Project Launcher + File Rename + Biên bản tự động + Photo Report (sắp ra mắt)',
-      logo_url: 'https://trishteam.io.vn/logos/trishoffice.png',
+        'HRM/ERP-light quản lý công ty: nhân sự · chấm công · tài sản · quy trình duyệt · tài liệu nội bộ · kế toán (sắp ra mắt)',
+      logo_url: 'https://trishteam.io.vn/logos/TrishOffice.png',
       version: '0.1.0',
       size_bytes: 0,
       status: 'coming_soon',

@@ -1,0 +1,38 @@
+[package]
+name = "trishoffice"
+version = "0.1.0"
+description = "TrishOffice — BuildOffice Assistant cho kỹ sư XD/GT (TrishTEAM ecosystem)"
+authors = ["TrishTEAM <hosytri77@gmail.com>"]
+edition = "2021"
+rust-version = "1.77"
+
+[[bin]]
+name = "trishoffice"
+path = "src/main.rs"
+
+[lib]
+name = "trishoffice_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+path = "src/lib.rs"
+
+[build-dependencies]
+tauri-build = { version = "2.0", features = [] }
+
+[dependencies]
+tauri = { version = "2.0", features = [] }
+tauri-plugin-dialog = "2.0"
+tauri-plugin-opener = "2.0"
+tauri-plugin-process = "2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+walkdir = "2.5"
+dirs = "5"
+# Phase 36.5 — Machine ID cho key concurrent control
+trishteam-machine-id = { path = "../../../packages/machine-id" }
+
+[profile.release]
+panic = "abort"
+codegen-units = 1
+lto = true
+opt-level = "s"
+strip = true

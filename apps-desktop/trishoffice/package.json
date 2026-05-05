@@ -1,0 +1,41 @@
+{
+  "name": "@trishteam/trishoffice",
+  "private": true,
+  "version": "0.1.0",
+  "description": "TrishOffice — BuildOffice Assistant: Project Launcher + File Rename Pro + Biên bản tự động + Photo Report + Công văn manager. Part of TrishTEAM ecosystem (Phase 38.6).",
+  "type": "module",
+  "scripts": {
+    "dev": "vite --port=3000 --host=0.0.0.0",
+    "build": "vite build",
+    "preview": "vite preview",
+    "typecheck": "tsc --noEmit",
+    "lint": "tsc --noEmit",
+    "tauri": "tauri",
+    "tauri:dev": "tauri dev",
+    "tauri:build": "tauri build"
+  },
+  "dependencies": {
+    "@tauri-apps/api": "^2.0.0",
+    "@tauri-apps/plugin-dialog": "^2.0.0",
+    "@tauri-apps/plugin-opener": "^2.0.0",
+    "@tauri-apps/plugin-process": "^2.0.0",
+    "@trishteam/auth": "workspace:*",
+    "@trishteam/data": "workspace:*",
+    "@trishteam/design-system": "workspace:*",
+    "@trishteam/telemetry": "workspace:*",
+    "@vitejs/plugin-react": "^5.0.4",
+    "firebase": "^10.14.1",
+    "lucide-react": "^0.460.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "vite": "^6.2.0",
+    "xlsx": "^0.18.5"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "^2.0.0",
+    "@types/node": "^22.14.0",
+    "@types/react": "^18.3.3",
+    "@types/react-dom": "^18.3.0",
+    "typescript": "~5.8.2"
+  }
+}

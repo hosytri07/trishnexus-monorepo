@@ -291,26 +291,36 @@ export const APP_GUIDES: AppGuide[] = [
     slug: 'trishoffice',
     title: 'TrishOffice',
     icon: '🏢',
-    shortDesc: 'Bộ công cụ văn phòng kỹ sư XD (sắp ra mắt — Phase 38.6)',
+    shortDesc: 'HRM/ERP-light quản lý công ty (sắp ra mắt — Phase 38.6)',
     keyType: 'account',
     intro:
-      'TrishOffice = "BuildOffice Assistant": Project Launcher + File Rename Pro + Biên bản tự động + Photo Report + Công văn manager. Tự động hóa workflow văn phòng kỹ sư xây dựng / giao thông Việt Nam.',
+      'TrishOffice là bộ phần mềm quản lý công ty cho doanh nghiệp XD-GT vừa và nhỏ (5-50 người): nhân sự, chấm công, tài sản công ty, quy trình duyệt, tài liệu nội bộ, kế toán. KHÔNG trùng với TrishISO (hồ sơ ISO chất lượng + thiết bị kỹ thuật) hay TrishFinance (bán hàng + nhà trọ + thu chi cá nhân).',
     sections: [
       {
-        heading: 'Project Launcher',
-        body: 'Tạo dự án mới với folder structure chuẩn (10 thư mục: 01_HoSoPhapLy / 02_BanVeCAD / 03_BanVePDF / 04_DuToan / 05_NghiemThu / 06_HinhAnh / 07_CongVan / 08_HoanCong / 09_ISO / 10_XuatBan). Mở nhanh file CAD/Excel/Word/PDF + cloud links.',
+        heading: 'Nhân sự + Chấm công',
+        body: 'Quản lý hồ sơ nhân viên (info, hợp đồng, lương cơ bản, BHXH, nghỉ phép). Chấm công Phase 1 = manual nhập giờ vào/ra (admin/HR gõ tay), tính giờ làm + OT + ngày nghỉ. Phase 2+ sẽ tự động hóa khi công ty lớn.',
       },
       {
-        heading: 'File Rename Pro',
-        body: 'Đổi tên hàng loạt theo mẫu chuẩn: TenDuAn_HangMuc_MaBanVe_Revision_Ngay.pdf. Hỗ trợ .dwg/.pdf/.docx/.xlsx, chuẩn hóa tiếng Việt không dấu, preview trước khi đổi.',
+        heading: 'Tài sản công ty',
+        body: 'Quản lý laptop, máy in, xe, văn phòng phẩm — cấp phát + thu hồi + bảo hành. Khác TrishISO (quản lý thiết bị KỸ THUẬT như máy thí nghiệm cần hiệu chuẩn).',
+      },
+      {
+        heading: 'Quy trình duyệt + Tài liệu',
+        body: 'Yêu cầu mua sắm / xin phép / công tác phí với workflow phê duyệt nhiều cấp (nhân viên → trưởng phòng → giám đốc). Tài liệu nội bộ: quy định, quy chế, biểu mẫu công ty (≠ ISO chất lượng).',
+      },
+      {
+        heading: 'Kế toán',
+        body: 'Module kế toán đầy đủ trong TrishOffice (không tách app riêng): bảng lương + thuế TNCN + BHXH + BHYT + công đoàn + báo cáo BCTC. Phase 38.6.7.',
       },
     ],
     features: [
-      'Project Launcher + folder chuẩn',
-      'File Rename Pro hàng loạt',
-      'Biên bản nghiệm thu Excel→Word',
-      'Photo Report (chèn ảnh hiện trường)',
-      'Công văn manager + audit',
+      'Nhân sự + Hợp đồng + BHXH',
+      'Chấm công manual (Phase 1)',
+      'Tài sản công ty + cấp phát',
+      'Quy trình duyệt nhiều cấp',
+      'Tài liệu nội bộ + biểu mẫu',
+      'Kế toán + lương + thuế',
+      'Dashboard điều hành KPI',
     ],
   },
 ];

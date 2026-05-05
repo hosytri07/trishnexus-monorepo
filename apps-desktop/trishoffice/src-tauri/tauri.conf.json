@@ -1,0 +1,55 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "TrishOffice",
+  "version": "0.1.0",
+  "identifier": "vn.trishteam.office",
+  "build": {
+    "beforeDevCommand": "pnpm dev",
+    "devUrl": "http://localhost:3000",
+    "beforeBuildCommand": "pnpm build",
+    "frontendDist": "../dist"
+  },
+  "app": {
+    "windows": [
+      {
+        "label": "main",
+        "title": "TrishOffice — BuildOffice Assistant",
+        "width": 1280,
+        "height": 800,
+        "minWidth": 1024,
+        "minHeight": 600,
+        "resizable": true,
+        "center": true
+      }
+    ],
+    "security": {
+      "csp": "default-src 'self' ipc: http://ipc.localhost; img-src 'self' data: asset: http://asset.localhost; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'; font-src 'self' data:; connect-src 'self' https://*.googleapis.com https://*.firebaseio.com https://trishteam.io.vn https://api.ipify.org"
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": ["nsis"],
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.icns",
+      "icons/icon.ico"
+    ],
+    "category": "Productivity",
+    "copyright": "© 2026 TrishTEAM",
+    "shortDescription": "TrishOffice — BuildOffice Assistant cho kỹ sư XD/GT",
+    "longDescription": "Bộ công cụ văn phòng kỹ sư xây dựng/giao thông VN: Project Launcher (folder chuẩn 10 thư mục), File Rename Pro (đổi tên hàng loạt), Folder Index (xuất danh mục), Photo Report (chèn ảnh vào Word), Cong Van Manager (sổ công văn).",
+    "publisher": "TrishTEAM",
+    "homepage": "https://trishteam.io.vn",
+    "windows": {
+      "nsis": {
+        "installMode": "perMachine",
+        "languages": ["English", "Vietnamese"],
+        "displayLanguageSelector": true,
+        "installerIcon": "icons/icon.ico"
+      }
+    },
+    "createUpdaterArtifacts": false
+  }
+}
