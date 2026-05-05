@@ -1063,6 +1063,8 @@ pub fn run() {
             // Phase 25.1.E.2 — Auto-mount + label
             webdav_mount_drive,
             webdav_unmount_drive,
+            // Phase 36.5 — Machine ID cho key concurrent control
+            get_device_id,
         ])
         .on_window_event(|window, event| {
             // Phase 26.5.G — close button → emit event cho frontend quyết định
@@ -1141,4 +1143,10 @@ pub fn run() {
         })
         .run(tauri::generate_context!())
         .expect("error while running TrishDrive User app");
+}
+
+/// Phase 36.5 — Trả về machine_id 16 hex chars (stable cross-reboot).
+#[tauri::command]
+fn get_device_id() -> String {
+    trishteam_machine_id::get_machine_id()
 }

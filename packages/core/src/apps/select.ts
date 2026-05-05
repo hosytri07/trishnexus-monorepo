@@ -149,6 +149,30 @@ export function loginRequiredBadge(kind: LoginRequired): {
   }
 }
 
+/**
+ * Phase 36.1 — Badge cho yêu cầu key activation.
+ *
+ * @param requiresKey nếu undefined/false → 'Free'
+ * @param keyType 'account' (cần login + key) | 'standalone' (chỉ key, no login)
+ */
+export function keyTypeBadge(
+  requiresKey?: boolean,
+  keyType?: 'account' | 'standalone',
+): {
+  emoji: string;
+  label: string;
+  color: 'green' | 'orange' | 'red' | 'purple' | 'gray';
+} {
+  if (!requiresKey) {
+    return { emoji: '🆓', label: 'Free', color: 'green' };
+  }
+  if (keyType === 'standalone') {
+    return { emoji: '🔒', label: 'Key máy', color: 'orange' };
+  }
+  // account (default)
+  return { emoji: '🗝', label: 'Key tài khoản', color: 'red' };
+}
+
 /** Format file size "25 MB" / "1.2 GB". */
 export function formatSize(bytes: number): string {
   if (!Number.isFinite(bytes) || bytes <= 0) return '—';

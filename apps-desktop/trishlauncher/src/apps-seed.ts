@@ -67,6 +67,8 @@ export const SEED_REGISTRY: AppRegistry = {
       status: 'scheduled',
       release_at: RELEASE_AT_DEFAULT,
       login_required: 'none',
+      requires_key: true,
+      key_type: 'standalone',
       platforms: ['windows_x64'],
       screenshots: [],
       changelog_url:
@@ -89,6 +91,8 @@ export const SEED_REGISTRY: AppRegistry = {
       status: 'scheduled',
       release_at: RELEASE_AT_DEFAULT,
       login_required: 'none',
+      requires_key: true,
+      key_type: 'standalone',
       platforms: ['windows_x64'],
       screenshots: [],
       changelog_url:
@@ -112,6 +116,8 @@ export const SEED_REGISTRY: AppRegistry = {
       status: 'scheduled',
       release_at: RELEASE_AT_DEFAULT,
       login_required: 'none',
+      requires_key: true,
+      key_type: 'standalone',
       platforms: ['windows_x64'],
       screenshots: [],
       changelog_url:
@@ -135,6 +141,8 @@ export const SEED_REGISTRY: AppRegistry = {
       status: 'scheduled',
       release_at: RELEASE_AT_DEFAULT,
       login_required: 'trial',
+      requires_key: true,
+      key_type: 'account',
       platforms: ['windows_x64'],
       screenshots: [],
       changelog_url:
@@ -157,6 +165,8 @@ export const SEED_REGISTRY: AppRegistry = {
       status: 'scheduled',
       release_at: RELEASE_AT_DEFAULT,
       login_required: 'user',
+      requires_key: true,
+      key_type: 'account',
       platforms: ['windows_x64'],
       screenshots: [],
       changelog_url:
@@ -169,6 +179,125 @@ export const SEED_REGISTRY: AppRegistry = {
         },
       },
     },
+    // ===== 5 app mới Phase 36+ (account/standalone key) =====
+    {
+      id: 'trishshortcut',
+      name: 'TrishShortcut',
+      tagline:
+        'Quick Launcher Ctrl+Space + favorite + workspace + hotkey + tray + drag-drop',
+      logo_url: 'https://trishteam.io.vn/logos/trishshortcut.png',
+      version: '1.0.0',
+      size_bytes: 0,
+      status: 'scheduled',
+      release_at: RELEASE_AT_DEFAULT,
+      login_required: 'none',
+      requires_key: true,
+      key_type: 'standalone',
+      platforms: ['windows_x64'],
+      screenshots: [],
+      changelog_url:
+        'https://github.com/hosytri07/trishnexus-monorepo/releases/tag/trishshortcut-v1.0.0',
+      download: {
+        windows_x64: {
+          url: 'https://github.com/hosytri07/trishnexus-monorepo/releases/download/trishshortcut-v1.0.0/TrishShortcut_1.0.0_x64-setup.exe',
+          sha256: '',
+          installer_args: [],
+        },
+      },
+    },
+    {
+      id: 'trishdrive',
+      name: 'TrishDrive',
+      tagline:
+        'Cloud storage cá nhân qua Telegram Bot — encrypt AES-256 + share link',
+      logo_url: 'https://trishteam.io.vn/logos/trishdrive.png',
+      version: '1.0.0',
+      size_bytes: 0,
+      status: 'scheduled',
+      release_at: RELEASE_AT_DEFAULT,
+      login_required: 'trial',
+      requires_key: true,
+      key_type: 'account',
+      platforms: ['windows_x64'],
+      screenshots: [],
+      changelog_url:
+        'https://github.com/hosytri07/trishnexus-monorepo/releases/tag/trishdrive-v1.0.0',
+      download: {
+        windows_x64: {
+          url: 'https://github.com/hosytri07/trishnexus-monorepo/releases/download/trishdrive-v1.0.0/TrishDrive_1.0.0_x64-setup.exe',
+          sha256: '',
+          installer_args: [],
+        },
+      },
+    },
+    {
+      id: 'trishfinance',
+      name: 'TrishFinance',
+      tagline:
+        'Quản lý tài chính cá nhân + bán hàng (POS) + phòng trọ + thu chi tổng hợp',
+      logo_url: 'https://trishteam.io.vn/logos/trishfinance.png',
+      version: '1.0.0',
+      size_bytes: 0,
+      status: 'scheduled',
+      release_at: RELEASE_AT_DEFAULT,
+      login_required: 'user',
+      requires_key: true,
+      key_type: 'account',
+      platforms: ['windows_x64'],
+      screenshots: [],
+      changelog_url:
+        'https://github.com/hosytri07/trishnexus-monorepo/releases/tag/trishfinance-v1.0.0',
+      download: {
+        windows_x64: {
+          url: 'https://github.com/hosytri07/trishnexus-monorepo/releases/download/trishfinance-v1.0.0/TrishFinance_1.0.0_x64-setup.exe',
+          sha256: '',
+          installer_args: [],
+        },
+      },
+    },
+    {
+      id: 'trishiso',
+      name: 'TrishISO',
+      tagline:
+        'Quản lý hồ sơ ISO + thiết bị nội bộ + lịch hiệu chuẩn/bảo trì',
+      logo_url: 'https://trishteam.io.vn/logos/trishiso.png',
+      version: '1.0.0',
+      size_bytes: 0,
+      status: 'scheduled',
+      release_at: RELEASE_AT_DEFAULT,
+      login_required: 'user',
+      requires_key: true,
+      key_type: 'account',
+      platforms: ['windows_x64'],
+      screenshots: [],
+      changelog_url:
+        'https://github.com/hosytri07/trishnexus-monorepo/releases/tag/trishiso-v1.0.0',
+      download: {
+        windows_x64: {
+          url: 'https://github.com/hosytri07/trishnexus-monorepo/releases/download/trishiso-v1.0.0/TrishISO_1.0.0_x64-setup.exe',
+          sha256: '',
+          installer_args: [],
+        },
+      },
+    },
+    {
+      id: 'trishoffice',
+      name: 'TrishOffice',
+      tagline:
+        'Bộ công cụ văn phòng kỹ sư XD: Project Launcher + File Rename + Biên bản tự động + Photo Report (sắp ra mắt)',
+      logo_url: 'https://trishteam.io.vn/logos/trishoffice.png',
+      version: '0.1.0',
+      size_bytes: 0,
+      status: 'coming_soon',
+      login_required: 'user',
+      requires_key: true,
+      key_type: 'account',
+      platforms: ['windows_x64'],
+      screenshots: [],
+      changelog_url: '',
+      download: { windows_x64: { url: '', sha256: '', installer_args: [] } },
+    },
+
     // ===== 4 app DEPRECATED (đã gộp vào TrishLibrary 1.0) =====
     {
       id: 'trishnote',

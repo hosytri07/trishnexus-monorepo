@@ -41,6 +41,21 @@ export {
   type AuthState,
 } from './auth-state.js';
 
+// Phase 36.6 — Key session client
+export {
+  registerSession,
+  heartbeatSession,
+  endSession as endKeySession,
+  startHeartbeatLoop,
+  listenSessionKick,
+  activateAndStartSession,
+  getPublicIp,
+  type RegisterSessionParams,
+  type RegisterSessionResult,
+  type SessionApiError,
+  type SessionHandle,
+} from './key-session.js';
+
 // Re-export role helpers + types từ @trishteam/data cho convenience
 export {
   type UserRole,

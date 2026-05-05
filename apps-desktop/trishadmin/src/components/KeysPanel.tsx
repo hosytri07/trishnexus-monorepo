@@ -285,6 +285,23 @@ interface GenerateKeysModalProps {
   onDone: (msg: string) => Promise<void>;
 }
 
+// Phase 36.1 — App ID options cho key generate (sync với apps-registry.json)
+const APP_ID_OPTIONS: { value: string; label: string; type: 'account' | 'standalone' }[] = [
+  { value: 'all', label: '🌐 All apps (bundle)', type: 'account' },
+  // Account keys
+  { value: 'trishlibrary', label: '📚 TrishLibrary', type: 'account' },
+  { value: 'trishdrive', label: '☁️ TrishDrive', type: 'account' },
+  { value: 'trishdesign', label: '✏️ TrishDesign', type: 'account' },
+  { value: 'trishfinance', label: '💰 TrishFinance', type: 'account' },
+  { value: 'trishiso', label: '📋 TrishISO', type: 'account' },
+  { value: 'trishoffice', label: '🏢 TrishOffice', type: 'account' },
+  // Standalone keys
+  { value: 'trishshortcut', label: '⌨️ TrishShortcut', type: 'standalone' },
+  { value: 'trishcheck', label: '🔍 TrishCheck', type: 'standalone' },
+  { value: 'trishclean', label: '🧹 TrishClean', type: 'standalone' },
+  { value: 'trishfont', label: '🔤 TrishFont', type: 'standalone' },
+];
+
 function GenerateKeysModal({
   adminUid,
   onClose,
@@ -292,15 +309,26 @@ function GenerateKeysModal({
 }: GenerateKeysModalProps): JSX.Element {
   const [count, setCount] = useState(1);
   const [note, setNote] = useState('');
-  const [expireDays, setExpireDays] = useState(0);
+  const [recipient, setRecipient] = useState('');
+  const [expireDays, setExpireDays] = useState(365);
+  const [appId, setAppId] = useState('all');
+  const [maxConcurrent, setMaxConcurrent] = useState(1);
   const [busy, setBusy] = useState(false);
   const [generated, setGenerated] = useState<string[] | null>(null);
   const [error, setError] = useState<string | null>(null);
+
+  // Auto-derive type từ appId selected
+  const selectedApp = APP_ID_OPTIONS.find((o) => o.value === appId);
+  const keyType = selectedApp?.type ?? 'account';
 
   async function handleSubmit(e: React.FormEvent): Promise<void> {
     e.preventDefault();
     if (count < 1 || count > 50) {
       setError('Count phải từ 1 đến 50');
+      return;
+    }
+    if (maxConcurrent < 1 || maxConcurrent > 99) {
+      setError('Max concurrent phải từ 1 đến 99');
       return;
     }
     setBusy(true);
@@ -312,13 +340,17 @@ function GenerateKeysModal({
         {
           count,
           note: note.trim() || undefined,
+          recipient: recipient.trim() || undefined,
           expiresAt,
           createdByUid: adminUid,
+          type: keyType,
+          appId,
+          maxConcurrent,
         },
         { uid: adminUid },
       );
       setGenerated(keys.map((k) => k.code));
-      await onDone(`✓ Sinh ${keys.length} key thành công`);
+      await onDone(`✓ Sinh ${keys.length} key (${appId}, ${keyType}) thành công`);
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     } finally {
@@ -352,18 +384,70 @@ function GenerateKeysModal({
                   disabled={busy}
                 />
               </label>
+
+              {/* Phase 36.1 — App ID + auto-derive type */}
               <label className="form-label">
-                <span>Ghi chú (tuỳ chọn)</span>
+                <span>App áp dụng key</span>
+                <select
+                  value={appId}
+                  onChange={(e) => setAppId(e.target.value)}
+                  disabled={busy}
+                  style={{ width: '100%', padding: '6px 8px' }}
+                >
+                  {APP_ID_OPTIONS.map((opt) => (
+                    <option key={opt.value} value={opt.value}>
+                      {opt.label} ({opt.type})
+                    </option>
+                  ))}
+                </select>
+                <small style={{ fontSize: 11, color: '#6B7280', marginTop: 4 }}>
+                  Loại key: <strong>{keyType}</strong>{' '}
+                  {keyType === 'account'
+                    ? '— bind vào user.uid (cần login)'
+                    : '— bind vào machine_id (no-login)'}
+                </small>
+              </label>
+
+              <label className="form-label">
+                <span>Max IP/máy đồng thời (1–99)</span>
+                <input
+                  type="number"
+                  min={1}
+                  max={99}
+                  value={maxConcurrent}
+                  onChange={(e) =>
+                    setMaxConcurrent(parseInt(e.target.value, 10) || 1)
+                  }
+                  disabled={busy}
+                />
+                <small style={{ fontSize: 11, color: '#6B7280' }}>
+                  1 = chỉ 1 thiết bị tại 1 thời điểm. 5 = team nhỏ. 99 = không giới hạn.
+                </small>
+              </label>
+
+              <label className="form-label">
+                <span>Người nhận key (tuỳ chọn — audit)</span>
+                <input
+                  type="text"
+                  value={recipient}
+                  onChange={(e) => setRecipient(e.target.value)}
+                  placeholder="Vd: Anh Nam – Cty XYZ"
+                  disabled={busy}
+                />
+              </label>
+
+              <label className="form-label">
+                <span>Ghi chú nội bộ (tuỳ chọn)</span>
                 <input
                   type="text"
                   value={note}
                   onChange={(e) => setNote(e.target.value)}
-                  placeholder="Cấp cho khách X / batch tháng 4 / …"
+                  placeholder="Cấp cho tester / batch tháng 5 / …"
                   disabled={busy}
                 />
               </label>
               <label className="form-label">
-                <span>Hết hạn sau (ngày — 0 = không expire)</span>
+                <span>Hết hạn sau (ngày — 0 = vô thời hạn, default 365)</span>
                 <input
                   type="number"
                   min={0}

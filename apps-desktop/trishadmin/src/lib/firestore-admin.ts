@@ -9,6 +9,7 @@
 import {
   addDoc,
   collection,
+  collectionGroup,
   deleteDoc,
   doc,
   getDoc,
@@ -416,6 +417,15 @@ export interface CreateKeyInput {
   note?: string;
   expiresAt?: number;
   createdByUid: string;
+  // Phase 36.1 — extended key fields
+  /** 'account' (apps có login) | 'standalone' (apps no-login). Default 'account'. */
+  type?: 'account' | 'standalone';
+  /** App ID hoặc 'all' (bundle). Default 'all'. */
+  appId?: string;
+  /** Số session đồng thời tối đa (1-99). Default 1. */
+  maxConcurrent?: number;
+  /** Tên người nhận key (audit) */
+  recipient?: string;
 }
 
 /** Strip mọi field undefined trước khi gửi setDoc — Firestore không cho phép. */
@@ -442,6 +452,12 @@ export async function createKeys(
       code,
       status: 'active',
       ...(input.note ? { note: input.note } : {}),
+      ...(input.recipient ? { recipient: input.recipient } : {}),
+      // Phase 36.1 — extended fields
+      type: input.type ?? 'account',
+      // @ts-expect-error AppId union: caller pass string, runtime cast OK
+      app_id: input.appId ?? 'all',
+      max_concurrent: input.maxConcurrent ?? 1,
       expires_at: input.expiresAt ?? 0,
       created_at: now,
       created_by_uid: input.createdByUid,
@@ -458,12 +474,154 @@ export async function createKeys(
       details: {
         count: input.count,
         note: input.note,
+        recipient: input.recipient,
+        type: input.type ?? 'account',
+        app_id: input.appId ?? 'all',
+        max_concurrent: input.maxConcurrent ?? 1,
         expires_at: input.expiresAt ?? 0,
         codes: out.map((k) => k.code),
       },
     });
   }
   return out;
+}
+
+/**
+ * Phase 37.5 — Extend expiry của 1 key (admin có thể gia hạn).
+ */
+export async function extendKeyExpiry(
+  keyId: string,
+  newExpiresAt: number,
+  actor?: ActorContext,
+  code?: string,
+): Promise<void> {
+  const db = getFirebaseDb();
+  await updateDoc(doc(db, paths.key(keyId)), {
+    expires_at: newExpiresAt,
+  });
+  if (actor) {
+    await writeAudit({
+      action: 'key.extend_expiry',
+      actor_uid: actor.uid,
+      actor_email: actor.email,
+      target_type: 'key',
+      target_id: keyId,
+      target_label: code,
+      details: { new_expires_at: newExpiresAt },
+    });
+  }
+}
+
+/**
+ * Phase 37.6 — List active sessions (collectionGroup query qua Firestore).
+ * Trả các session có expires_at > now (vẫn active).
+ */
+export interface ActiveSessionRow {
+  session_id: string;
+  key_id: string;
+  app_id: string;
+  machine_id: string;
+  ip_address: string;
+  uid?: string;
+  hostname?: string;
+  os?: string;
+  started_at: number;
+  last_heartbeat: number;
+  expires_at: number;
+  /** Document path để delete (kicks) — "keys/{keyId}/sessions/{sessionId}" */
+  doc_path: string;
+}
+
+export async function listActiveSessions(maxRows = 200): Promise<ActiveSessionRow[]> {
+  const db = getFirebaseDb();
+  const now = Date.now();
+  const q = query(
+    collectionGroup(db, 'sessions'),
+    where('expires_at', '>', now),
+    fbLimit(maxRows),
+  );
+  const snap = await getDocs(q);
+  return snap.docs.map((d) => {
+    const data = d.data() as Record<string, unknown>;
+    return {
+      session_id: d.id,
+      key_id: (data.key_id as string) ?? d.ref.parent.parent?.id ?? '',
+      app_id: (data.app_id as string) ?? '',
+      machine_id: (data.machine_id as string) ?? '',
+      ip_address: (data.ip_address as string) ?? '',
+      uid: (data.uid as string) ?? undefined,
+      hostname: (data.hostname as string) ?? undefined,
+      os: (data.os as string) ?? undefined,
+      started_at: (data.started_at as number) ?? 0,
+      last_heartbeat: (data.last_heartbeat as number) ?? 0,
+      expires_at: (data.expires_at as number) ?? 0,
+      doc_path: d.ref.path,
+    };
+  });
+}
+
+/**
+ * Phase 37.6 — Force kick 1 session (admin trực tiếp xóa session doc).
+ * Client của session đó sẽ detect mất doc qua onSnapshot listener → auto logout.
+ */
+export async function kickSession(
+  keyId: string,
+  sessionId: string,
+  actor?: ActorContext,
+): Promise<void> {
+  const db = getFirebaseDb();
+  const sessionRef = doc(db, 'keys', keyId, 'sessions', sessionId);
+  const snap = await getDoc(sessionRef);
+  if (!snap.exists()) return;
+  const data = snap.data();
+  await deleteDoc(sessionRef);
+  if (actor) {
+    await writeAudit({
+      action: 'session.force_kick',
+      actor_uid: actor.uid,
+      actor_email: actor.email,
+      target_type: 'session',
+      target_id: sessionId,
+      target_label: keyId,
+      details: {
+        session_uid: data?.uid,
+        machine_id: data?.machine_id,
+        ip: data?.ip_address,
+        app_id: data?.app_id,
+      },
+    });
+  }
+}
+
+/**
+ * Phase 37.5 — Reset binding (clear bound_uid + bound_machine_id).
+ * Dùng khi user mất key / format máy / cần cấp lại cho user khác.
+ * Sau khi reset, key về status='active' để cấp lại.
+ */
+export async function resetKeyBinding(
+  keyId: string,
+  actor?: ActorContext,
+  code?: string,
+): Promise<void> {
+  const db = getFirebaseDb();
+  await updateDoc(doc(db, paths.key(keyId)), {
+    status: 'active' as ActivationKey['status'],
+    bound_uid: null,
+    bound_machine_id: null,
+    used_by_uid: null,
+    used_at: null,
+    activated_at: null,
+  });
+  if (actor) {
+    await writeAudit({
+      action: 'key.binding_reset',
+      actor_uid: actor.uid,
+      actor_email: actor.email,
+      target_type: 'key',
+      target_id: keyId,
+      target_label: code,
+    });
+  }
 }
 
 export async function revokeKey(

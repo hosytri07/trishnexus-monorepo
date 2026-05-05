@@ -15,11 +15,17 @@ fn app_version() -> &'static str {
     env!("CARGO_PKG_VERSION")
 }
 
+/// Phase 36.5 — Trả về machine_id 16 hex chars (stable cross-reboot).
+#[tauri::command]
+fn get_device_id() -> String {
+    trishteam_machine_id::get_machine_id()
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_process::init())
-        .invoke_handler(tauri::generate_handler![app_version])
+        .invoke_handler(tauri::generate_handler![app_version, get_device_id])
         .run(tauri::generate_context!())
         .expect("error while running TrishISO");
 }

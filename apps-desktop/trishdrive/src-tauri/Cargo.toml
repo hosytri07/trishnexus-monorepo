@@ -55,6 +55,9 @@ async-trait = "0.1"
 
 # Bỏ Phase 26.1.A: keyring + grammers-* (admin-only, đã chuyển sang TrishAdmin).
 
+# Phase 36.5 — Machine ID cho key concurrent control
+trishteam-machine-id = { path = "../../../packages/machine-id" }
+
 [profile.release]
 panic = "abort"
 codegen-units = 1

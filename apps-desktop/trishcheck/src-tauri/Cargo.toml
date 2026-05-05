@@ -28,6 +28,8 @@ sha2 = "0.10"
 # OpenSSL. Async runtime cần thiết cho reqwest::Client.
 reqwest = { version = "0.12", default-features = false, features = ["rustls-tls"] }
 tokio = { version = "1", features = ["rt-multi-thread", "macros"] }
+# Phase 36.5 — Machine ID cho key concurrent control
+trishteam-machine-id = { path = "../../../packages/machine-id" }
 
 [features]
 custom-protocol = ["tauri/custom-protocol"]

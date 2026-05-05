@@ -26,6 +26,8 @@ tauri = { version = "2.0", features = [] }
 tauri-plugin-process = "2"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
+# Phase 36.5 — Machine ID cho key concurrent control
+trishteam-machine-id = { path = "../../../packages/machine-id" }
 
 [profile.release]
 panic = "abort"

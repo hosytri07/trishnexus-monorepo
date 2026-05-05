@@ -1151,8 +1151,16 @@ pub fn run() {
             is_admin,
             get_packs_folder_info,
             clear_all_packs,
-            app_version
+            app_version,
+            // Phase 36.5 — Machine ID cho key concurrent control
+            get_device_id,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
+}
+
+/// Phase 36.5 — Trả về machine_id 16 hex chars (stable cross-reboot).
+#[tauri::command]
+fn get_device_id() -> String {
+    trishteam_machine_id::get_machine_id()
 }

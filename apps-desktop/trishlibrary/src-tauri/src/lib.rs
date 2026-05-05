@@ -2171,7 +2171,16 @@ pub fn run() {
             library_search,
             library_index_status,
             library_index_clear,
+            // Phase 36.5 — Machine ID cho key concurrent control
+            get_device_id,
         ])
         .run(tauri::generate_context!())
         .expect("error while running TrishLibrary");
+}
+
+/// Phase 36.5 — Trả về machine_id 16 hex chars (stable cross-reboot).
+/// Dùng cho key activation + concurrent session control.
+#[tauri::command]
+fn get_device_id() -> String {
+    trishteam_machine_id::get_machine_id()
 }

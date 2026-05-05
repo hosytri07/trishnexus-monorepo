@@ -1,6 +1,6 @@
 {
-  "schema_version": 4,
-  "updated_at": "2026-05-03T22:00+07:00",
+  "schema_version": 5,
+  "updated_at": "2026-05-04T20:00+07:00",
   "ecosystem": {
     "name": "TrishTEAM",
     "tagline": "Hệ sinh thái phần mềm + tri thức + công cụ cho kỹ sư xây dựng / giao thông Việt Nam",
@@ -8,18 +8,19 @@
     "website": "https://trishteam.io.vn"
   },
   "release_at_default": "2026-05-07T09:00:00+07:00",
-  "_note": "Phase 33 — Reset toàn bộ ecosystem về v1.0.0 cho wave release đầu tiên. TrishDesign countdown 7/5/2026. TrishAdmin private (build local, không tag public).",
+  "_note": "Phase 36.1 — Schema v5: thêm requires_key + key_type metadata. 11 apps active. Keys do admin cấp nội bộ, KHÔNG bán.",
   "apps": [
     {
       "id": "trishlauncher",
       "name": "TrishLauncher",
-      "tagline": "Hub trung tâm — cài đặt + cập nhật + chạy 8 app TrishTEAM trong 1 nơi",
+      "tagline": "Hub trung tâm — cài đặt + cập nhật + chạy 11 app TrishTEAM trong 1 nơi",
       "logo_url": "https://trishteam.io.vn/logos/trishlauncher.png",
       "version": "1.0.0",
       "size_bytes": 0,
       "status": "released",
       "release_at": "2026-05-07T09:00:00+07:00",
       "login_required": "none",
+      "requires_key": false,
       "platforms": ["windows_x64"],
       "screenshots": [],
       "changelog_url": "https://github.com/hosytri07/trishnexus-monorepo/releases/tag/trishlauncher-v1.0.0",
@@ -32,42 +33,23 @@
       }
     },
     {
-      "id": "trishlibrary",
-      "name": "TrishLibrary",
-      "tagline": "All-in-one: Thư viện · Ghi chú · Tài liệu · Ảnh — PDF Tools + chuyển đổi đa định dạng + database tra cứu (cầu/đường VN, biển báo, định mức)",
-      "logo_url": "https://trishteam.io.vn/logos/trishlibrary.png",
-      "version": "1.0.0",
-      "size_bytes": 0,
-      "status": "released",
-      "release_at": "2026-05-07T09:00:00+07:00",
-      "login_required": "trial",
-      "platforms": ["windows_x64"],
-      "screenshots": [],
-      "changelog_url": "https://github.com/hosytri07/trishnexus-monorepo/releases/tag/trishlibrary-v1.0.0",
-      "download": {
-        "windows_x64": {
-          "url": "https://github.com/hosytri07/trishnexus-monorepo/releases/download/trishlibrary-v1.0.0/TrishLibrary_1.0.0_x64-setup.exe",
-          "sha256": "",
-          "installer_args": []
-        }
-      }
-    },
-    {
-      "id": "trishfont",
-      "name": "TrishFont",
-      "tagline": "Quản lý font tiếng Việt + AutoCAD .shx + Pair AI gợi ý font đôi",
-      "logo_url": "https://trishteam.io.vn/logos/trishfont.png",
+      "id": "trishshortcut",
+      "name": "TrishShortcut",
+      "tagline": "Quản lý shortcut Windows: apps · games · folders · URLs với icon + workspace + hotkey toàn cục + Quick Launcher (Ctrl+Space)",
+      "logo_url": "https://trishteam.io.vn/logos/trishshortcut.png",
       "version": "1.0.0",
       "size_bytes": 0,
       "status": "released",
       "release_at": "2026-05-07T09:00:00+07:00",
       "login_required": "none",
+      "requires_key": true,
+      "key_type": "standalone",
       "platforms": ["windows_x64"],
       "screenshots": [],
-      "changelog_url": "https://github.com/hosytri07/trishnexus-monorepo/releases/tag/trishfont-v1.0.0",
+      "changelog_url": "https://github.com/hosytri07/trishnexus-monorepo/releases/tag/trishshortcut-v1.0.0",
       "download": {
         "windows_x64": {
-          "url": "https://github.com/hosytri07/trishnexus-monorepo/releases/download/trishfont-v1.0.0/TrishFont_1.0.0_x64-setup.exe",
+          "url": "https://github.com/hosytri07/trishnexus-monorepo/releases/download/trishshortcut-v1.0.0/TrishShortcut_1.0.0_x64-setup.exe",
           "sha256": "",
           "installer_args": []
         }
@@ -83,6 +65,8 @@
       "status": "released",
       "release_at": "2026-05-07T09:00:00+07:00",
       "login_required": "none",
+      "requires_key": true,
+      "key_type": "standalone",
       "platforms": ["windows_x64"],
       "screenshots": [],
       "changelog_url": "https://github.com/hosytri07/trishnexus-monorepo/releases/tag/trishcheck-v1.0.0",
@@ -104,12 +88,83 @@
       "status": "released",
       "release_at": "2026-05-07T09:00:00+07:00",
       "login_required": "none",
+      "requires_key": true,
+      "key_type": "standalone",
       "platforms": ["windows_x64"],
       "screenshots": [],
       "changelog_url": "https://github.com/hosytri07/trishnexus-monorepo/releases/tag/trishclean-v1.0.0",
       "download": {
         "windows_x64": {
           "url": "https://github.com/hosytri07/trishnexus-monorepo/releases/download/trishclean-v1.0.0/TrishClean_1.0.0_x64-setup.exe",
+          "sha256": "",
+          "installer_args": []
+        }
+      }
+    },
+    {
+      "id": "trishfont",
+      "name": "TrishFont",
+      "tagline": "Quản lý font tiếng Việt + AutoCAD .shx + Pair AI gợi ý font đôi",
+      "logo_url": "https://trishteam.io.vn/logos/trishfont.png",
+      "version": "1.0.0",
+      "size_bytes": 0,
+      "status": "released",
+      "release_at": "2026-05-07T09:00:00+07:00",
+      "login_required": "none",
+      "requires_key": true,
+      "key_type": "standalone",
+      "platforms": ["windows_x64"],
+      "screenshots": [],
+      "changelog_url": "https://github.com/hosytri07/trishnexus-monorepo/releases/tag/trishfont-v1.0.0",
+      "download": {
+        "windows_x64": {
+          "url": "https://github.com/hosytri07/trishnexus-monorepo/releases/download/trishfont-v1.0.0/TrishFont_1.0.0_x64-setup.exe",
+          "sha256": "",
+          "installer_args": []
+        }
+      }
+    },
+    {
+      "id": "trishlibrary",
+      "name": "TrishLibrary",
+      "tagline": "All-in-one: Thư viện · Ghi chú · Tài liệu · Ảnh — PDF Tools + chuyển đổi đa định dạng + database tra cứu (cầu/đường VN, biển báo, định mức)",
+      "logo_url": "https://trishteam.io.vn/logos/trishlibrary.png",
+      "version": "1.0.0",
+      "size_bytes": 0,
+      "status": "released",
+      "release_at": "2026-05-07T09:00:00+07:00",
+      "login_required": "trial",
+      "requires_key": true,
+      "key_type": "account",
+      "platforms": ["windows_x64"],
+      "screenshots": [],
+      "changelog_url": "https://github.com/hosytri07/trishnexus-monorepo/releases/tag/trishlibrary-v1.0.0",
+      "download": {
+        "windows_x64": {
+          "url": "https://github.com/hosytri07/trishnexus-monorepo/releases/download/trishlibrary-v1.0.0/TrishLibrary_1.0.0_x64-setup.exe",
+          "sha256": "",
+          "installer_args": []
+        }
+      }
+    },
+    {
+      "id": "trishdrive",
+      "name": "TrishDrive",
+      "tagline": "Cloud storage cá nhân qua Telegram Bot — encrypt AES-256 + share link + sync 2-way",
+      "logo_url": "https://trishteam.io.vn/logos/trishdrive.png",
+      "version": "1.0.0",
+      "size_bytes": 0,
+      "status": "released",
+      "release_at": "2026-05-07T09:00:00+07:00",
+      "login_required": "trial",
+      "requires_key": true,
+      "key_type": "account",
+      "platforms": ["windows_x64"],
+      "screenshots": [],
+      "changelog_url": "https://github.com/hosytri07/trishnexus-monorepo/releases/tag/trishdrive-v1.0.0",
+      "download": {
+        "windows_x64": {
+          "url": "https://github.com/hosytri07/trishnexus-monorepo/releases/download/trishdrive-v1.0.0/TrishDrive_1.0.0_x64-setup.exe",
           "sha256": "",
           "installer_args": []
         }
@@ -125,6 +180,8 @@
       "status": "released",
       "release_at": "2026-05-07T09:00:00+07:00",
       "login_required": "user",
+      "requires_key": true,
+      "key_type": "account",
       "platforms": ["windows_x64", "web"],
       "screenshots": [],
       "changelog_url": "https://github.com/hosytri07/trishnexus-monorepo/releases/tag/trishfinance-v1.0.0",
@@ -135,7 +192,9 @@
           "installer_args": []
         },
         "web": {
-          "url": "https://finance.trishteam.io.vn"
+          "url": "https://finance.trishteam.io.vn",
+          "sha256": "",
+          "installer_args": []
         }
       }
     },
@@ -149,33 +208,14 @@
       "status": "released",
       "release_at": "2026-05-07T09:00:00+07:00",
       "login_required": "user",
+      "requires_key": true,
+      "key_type": "account",
       "platforms": ["windows_x64"],
       "screenshots": [],
       "changelog_url": "https://github.com/hosytri07/trishnexus-monorepo/releases/tag/trishiso-v1.0.0",
       "download": {
         "windows_x64": {
           "url": "https://github.com/hosytri07/trishnexus-monorepo/releases/download/trishiso-v1.0.0/TrishISO_1.0.0_x64-setup.exe",
-          "sha256": "",
-          "installer_args": []
-        }
-      }
-    },
-    {
-      "id": "trishshortcut",
-      "name": "TrishShortcut",
-      "tagline": "Quản lý shortcut Windows: apps · games · folders · URLs với icon hiển thị + workspace mode + hotkey toàn cục + quick launcher (Ctrl+Space)",
-      "logo_url": "https://trishteam.io.vn/logos/trishshortcut.png",
-      "version": "1.0.0",
-      "size_bytes": 0,
-      "status": "released",
-      "release_at": "2026-05-07T09:00:00+07:00",
-      "login_required": "none",
-      "platforms": ["windows_x64"],
-      "screenshots": [],
-      "changelog_url": "https://github.com/hosytri07/trishnexus-monorepo/releases/tag/trishshortcut-v1.0.0",
-      "download": {
-        "windows_x64": {
-          "url": "https://github.com/hosytri07/trishnexus-monorepo/releases/download/trishshortcut-v1.0.0/TrishShortcut_1.0.0_x64-setup.exe",
           "sha256": "",
           "installer_args": []
         }
@@ -191,6 +231,30 @@
       "status": "scheduled",
       "release_at": "2026-05-07T09:00:00+07:00",
       "login_required": "user",
+      "requires_key": true,
+      "key_type": "account",
+      "platforms": ["windows_x64"],
+      "screenshots": [],
+      "changelog_url": "",
+      "download": {
+        "windows_x64": {
+          "url": "",
+          "sha256": "",
+          "installer_args": []
+        }
+      }
+    },
+    {
+      "id": "trishoffice",
+      "name": "TrishOffice",
+      "tagline": "Bộ công cụ văn phòng kỹ sư XD: Project Launcher + File Rename Pro + Biên bản tự động + Photo Report + Công văn (sắp ra mắt Phase 38)",
+      "logo_url": "https://trishteam.io.vn/logos/trishoffice.png",
+      "version": "0.1.0",
+      "size_bytes": 0,
+      "status": "coming_soon",
+      "login_required": "user",
+      "requires_key": true,
+      "key_type": "account",
       "platforms": ["windows_x64"],
       "screenshots": [],
       "changelog_url": "",

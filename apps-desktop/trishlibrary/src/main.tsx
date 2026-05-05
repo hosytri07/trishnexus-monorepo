@@ -2,6 +2,7 @@ import { createRoot } from 'react-dom/client';
 import { AuthProvider } from '@trishteam/auth/react';
 import { installTauriTelemetry } from '@trishteam/telemetry/tauri';
 import { Root } from './Root.js';
+import { KeyGate } from './KeyGate.js';
 import packageJson from '../package.json' with { type: 'json' };
 // Phase 30.1 — design-system: Plus Jakarta Sans + emerald + utility CSS.
 // (index.ts đã side-effect import fonts + theme.css)
@@ -25,7 +26,9 @@ if (!container) throw new Error('Missing #root');
 createRoot(container).render(
   <div className="ts-app" style={{ minHeight: '100vh' }}>
     <AuthProvider>
-      <Root />
+      <KeyGate>
+        <Root />
+      </KeyGate>
     </AuthProvider>
   </div>,
 );

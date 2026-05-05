@@ -5,6 +5,7 @@ import {
   statusLabel,
   loginRequiredLabel,
   loginRequiredBadge,
+  keyTypeBadge,
   formatSize,
   type AppForUi,
   type Platform,
@@ -518,6 +519,23 @@ function AppCard({
                   <span
                     className={`badge badge-login badge-login-${b.color}`}
                     title={loginRequiredLabel(app.login_required)}
+                  >
+                    {b.emoji} {b.label}
+                  </span>
+                );
+              })()}
+              {(() => {
+                // Phase 36.1 — Badge key activation type
+                const b = keyTypeBadge(app.requires_key, app.key_type);
+                if (!app.requires_key) return null; // không hiện cho free
+                return (
+                  <span
+                    className={`badge badge-login badge-login-${b.color}`}
+                    title={
+                      app.key_type === 'standalone'
+                        ? 'Cần kích hoạt key 16 ký tự — bind vào máy này (không cần đăng nhập tài khoản)'
+                        : 'Cần đăng nhập + kích hoạt key 16 ký tự — bind vào tài khoản TrishTEAM'
+                    }
                   >
                     {b.emoji} {b.label}
                   </span>

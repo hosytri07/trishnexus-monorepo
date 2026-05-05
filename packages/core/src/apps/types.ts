@@ -69,6 +69,20 @@ export type AppRegistryEntry = {
   screenshots: string[];
   changelog_url: string;
   download: Partial<Record<Platform, DownloadTarget>>;
+
+  // Phase 36.1 — Key activation metadata
+  /**
+   * App có cần kích hoạt key không. Default false (free).
+   * Khi true, user phải nhập key 16 chars (admin cấp) để dùng.
+   */
+  requires_key?: boolean;
+  /**
+   * Loại key cần thiết:
+   * - 'account':    bind vào user.uid (apps có login: Library/Drive/Design/Finance/ISO/Office)
+   * - 'standalone': bind vào machine_id (apps no-login: Shortcut/Check/Clean/Font)
+   * - undefined nếu requires_key = false
+   */
+  key_type?: 'account' | 'standalone';
 };
 
 /**

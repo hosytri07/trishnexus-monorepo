@@ -31,6 +31,23 @@ import {
 import { signOut as firebaseSignOut } from './sign-in.js';
 import { loadProfile } from './profile.js';
 
+// Phase 37.1 — re-export KeyActivationModal qua /react entry
+export {
+  KeyActivationModal,
+  type KeyActivationModalProps,
+} from './key-activation-modal.js';
+
+// Phase 37.3 — Hook + helpers cho key session lifecycle
+export {
+  useKeySession,
+  quickActivate,
+  type KeySessionState,
+  type UseKeySessionOptions,
+} from './use-key-session.js';
+
+// Phase 37.3 — KeyGate generic shared
+export { KeyGate, type KeyGateProps } from './key-gate.js';
+
 export interface AuthContextValue extends AuthState {
   /** Quick role check */
   role: UserRole | 'guest';
