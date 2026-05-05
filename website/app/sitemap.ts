@@ -20,6 +20,7 @@
  */
 import type { MetadataRoute } from 'next';
 import { adminDb, adminReady } from '@/lib/firebase-admin';
+import { APP_GUIDES } from '@/lib/huong-dan-content';
 
 const BASE_URL =
   process.env.NEXT_PUBLIC_SITE_URL?.replace(/\/$/, '') ||
@@ -73,6 +74,9 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     make('/', 1.0, daily),
     make('/downloads', 0.9),
     make('/blog', 0.9, daily),
+
+    // Phase 39.1 — Hướng dẫn 11 apps (SEO quan trọng)
+    make('/huong-dan', 0.85, weekly),
 
     // Apps đồng bộ với desktop
     make('/thu-vien', 0.8),
@@ -128,5 +132,13 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     priority: 0.85,
   }));
 
-  return [...staticRoutes, ...postEntries];
+  // Phase 39.1 — append /huong-dan/[slug] cho 11 apps
+  const guideEntries: MetadataRoute.Sitemap = APP_GUIDES.map((g) => ({
+    url: `${BASE_URL}/huong-dan/${g.slug}`,
+    lastModified: now,
+    changeFrequency: weekly,
+    priority: 0.8,
+  }));
+
+  return [...staticRoutes, ...postEntries, ...guideEntries];
 }

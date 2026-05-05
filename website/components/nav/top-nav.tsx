@@ -11,7 +11,7 @@
  */
 import { useState } from 'react';
 import Link from 'next/link';
-import { Sparkles, Download, Newspaper, Heart, Menu, Settings as SettingsIcon, Shield } from 'lucide-react';
+import { Sparkles, Download, Newspaper, Heart, Menu, Settings as SettingsIcon, Shield, BookOpen } from 'lucide-react';
 import { ThemeToggle } from '@/components/theme-toggle';
 import { NavPanels } from './nav-panels';
 import { MobileDrawer } from './mobile-drawer';
@@ -60,6 +60,7 @@ export function TopNav() {
           {/* Quick action buttons — md+ */}
           <div className="hidden md:flex items-center gap-1.5">
             <NavCta href="/downloads" icon={<Download size={14} strokeWidth={2.25} />} label="Tải về" primary />
+            <NavCta href="/huong-dan" icon={<BookOpen size={14} strokeWidth={2.25} />} label="Hướng dẫn" />
             <NavCta href="/blog" icon={<Newspaper size={14} strokeWidth={2.25} />} label="Blog" />
             <NavCta href="/ung-ho" icon={<Heart size={14} strokeWidth={2.25} />} label="Ủng hộ tôi" accent="#EC4899" />
           </div>
