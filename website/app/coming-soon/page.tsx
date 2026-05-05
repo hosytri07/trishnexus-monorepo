@@ -12,11 +12,11 @@ import { useEffect, useMemo, useRef, useState } from 'react';
  *  Layer 4: Warp ring nở mỗi khi qua phút mới + entrance load (Effect 3)
  *  Layer 10: UI overlay — badge, tagline, countdown, footer
  *
- * Countdown realtime đến 09:00 sáng 07/05/2026 GMT+7. Quá hạn → reload sau
+ * Countdown realtime đến 09:00 sáng 11/05/2026 GMT+7. Quá hạn → reload sau
  * 5s; middleware unlock site, redirect /coming-soon → /.
  */
 
-const TARGET_ISO = '2026-05-07T09:00:00+07:00';
+const TARGET_ISO = '2026-05-11T09:00:00+07:00';
 const TARGET_TS = new Date(TARGET_ISO).getTime();
 
 function pad(n: number) {
@@ -1049,7 +1049,7 @@ export default function ComingSoonPage() {
         )}
 
         <div className="target-line">
-          Ra mắt vào <strong>09:00 sáng Thứ Năm, 07/05/2026</strong> (giờ Việt Nam)
+          Ra mắt vào <strong>09:00 sáng Thứ Hai, 11/05/2026</strong> (giờ Việt Nam)
         </div>
 
         <div className="footer">

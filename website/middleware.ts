@@ -30,7 +30,7 @@ import type { NextRequest } from 'next/server';
  *  - File tĩnh có extension (favicon.ico, .png, .json, manifest, sitemap, robots…)
  */
 
-const DEFAULT_UNLOCK_ISO = '2026-05-07T09:00:00+07:00';
+const DEFAULT_UNLOCK_ISO = '2026-05-11T09:00:00+07:00';
 const UNLOCK_TS = new Date(
   process.env.MAINTENANCE_UNLOCK_TS || DEFAULT_UNLOCK_ISO
 ).getTime();
