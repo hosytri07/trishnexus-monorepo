@@ -16,10 +16,9 @@ export { setUserRole } from "./setUserRole";
 export { exchangeForWebToken } from "./exchangeForWebToken";
 export { exchangeOneshotToken } from "./exchangeOneshotToken";
 
-// Phase 36.3-4 — Key/session management
-export {
-  registerKeySession,
-  heartbeatKeySession,
-  endKeySession,
-} from "./registerKeySession";
-export { cleanupExpiredSessions } from "./cleanupExpiredSessions";
+// Phase 36.3-4 — Key/session management ĐÃ MOVE sang Vercel API routes:
+//   POST /api/keys/register-session
+//   POST /api/keys/heartbeat
+//   POST /api/keys/end-session
+// File registerKeySession.ts + cleanupExpiredSessions.ts giữ làm reference
+// nhưng KHÔNG export (tránh deploy fail vì Spark plan).

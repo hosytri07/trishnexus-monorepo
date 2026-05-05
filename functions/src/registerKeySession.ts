@@ -1,5 +1,5 @@
 /**
- * Phase 36.3 — registerKeySession (onCall).
+ * Phase 36.3 — registerKeySession (Functions v1, deploy được trên Spark plan).
  *
  * Đăng ký 1 active session khi user/device login app + nhập key. Atomic:
  *  1. Validate key (active, not expired, app_id match, type match).
@@ -12,7 +12,7 @@
  * Input:
  *   {
  *     key_code: string;       // "XXXX-XXXX-XXXX-XXXX" hoặc 16 chars no dash
- *     app_id: AppId;
+ *     app_id: string;
  *     machine_id: string;     // 16 hex chars, hash từ Rust
  *     ip_address: string;
  *     hostname?: string;
@@ -28,23 +28,13 @@
  *     expires_at: number,
  *     kicked_session_id?: string,  // nếu đã kick session cũ
  *   }
- *
- * Errors:
- *   - 'key/not-found'
- *   - 'key/revoked'
- *   - 'key/expired'
- *   - 'key/wrong-app'
- *   - 'key/wrong-type'
- *   - 'key/wrong-binding' — đã bind user/machine khác
  */
 
-import { onCall, HttpsError } from 'firebase-functions/v2/https';
-import { logger } from 'firebase-functions/v2';
-import * as admin from 'firebase-admin';
-import { FieldValue } from 'firebase-admin/firestore';
-import { randomUUID } from 'crypto';
+import * as functions from "firebase-functions/v1";
+import * as admin from "firebase-admin";
+import { randomUUID } from "crypto";
 
-const REGION = 'asia-southeast1';
+const REGION = "asia-southeast1";
 const SESSION_EXPIRY_MS = 15 * 60 * 1000; // 15 phút sau heartbeat cuối
 
 interface RegisterSessionInput {
@@ -59,41 +49,43 @@ interface RegisterSessionInput {
 
 /** Normalize "XXXX-XXXX-XXXX-XXXX" → "XXXXXXXXXXXXXXXX" (16 chars upper) */
 function normalizeKeyCode(input: string): string {
-  return input.toUpperCase().replace(/[^A-Z0-9]/g, '');
+  return input.toUpperCase().replace(/[^A-Z0-9]/g, "");
 }
 
-export const registerKeySession = onCall(
-  {
-    cors: true,
-    region: REGION,
-    timeoutSeconds: 30,
-  },
-  async (req) => {
-    const auth = req.auth;
-    const data = req.data as RegisterSessionInput;
+export const registerKeySession = functions
+  .region(REGION)
+  .runWith({ timeoutSeconds: 30, memory: "256MB" })
+  .https.onCall(async (data: RegisterSessionInput, context) => {
+    const auth = context.auth;
 
     // Validate input
-    if (!data || typeof data !== 'object') {
-      throw new HttpsError('invalid-argument', 'Missing payload');
+    if (!data || typeof data !== "object") {
+      throw new functions.https.HttpsError("invalid-argument", "Missing payload");
     }
     const keyCodeRaw = data.key_code;
     const appId = data.app_id;
     const machineId = data.machine_id;
-    const ipAddress = data.ip_address || 'unknown';
+    const ipAddress = data.ip_address || "unknown";
 
-    if (!keyCodeRaw || typeof keyCodeRaw !== 'string') {
-      throw new HttpsError('invalid-argument', 'key_code required');
+    if (!keyCodeRaw || typeof keyCodeRaw !== "string") {
+      throw new functions.https.HttpsError("invalid-argument", "key_code required");
     }
-    if (!appId || typeof appId !== 'string') {
-      throw new HttpsError('invalid-argument', 'app_id required');
+    if (!appId || typeof appId !== "string") {
+      throw new functions.https.HttpsError("invalid-argument", "app_id required");
     }
-    if (!machineId || typeof machineId !== 'string' || machineId.length < 8) {
-      throw new HttpsError('invalid-argument', 'machine_id required (>= 8 chars)');
+    if (!machineId || typeof machineId !== "string" || machineId.length < 8) {
+      throw new functions.https.HttpsError(
+        "invalid-argument",
+        "machine_id required (>= 8 chars)",
+      );
     }
 
     const keyCode = normalizeKeyCode(keyCodeRaw);
     if (keyCode.length !== 16) {
-      throw new HttpsError('invalid-argument', 'key_code must be 16 alphanumeric chars');
+      throw new functions.https.HttpsError(
+        "invalid-argument",
+        "key_code must be 16 alphanumeric chars",
+      );
     }
 
     const db = admin.firestore();
@@ -101,50 +93,52 @@ export const registerKeySession = onCall(
 
     // 1. Find key by code
     const keysSnap = await db
-      .collection('keys')
-      .where('code', '==', keyCode)
+      .collection("keys")
+      .where("code", "==", keyCode)
       .limit(1)
       .get();
 
     if (keysSnap.empty) {
-      throw new HttpsError('not-found', 'key/not-found');
+      throw new functions.https.HttpsError("not-found", "key/not-found");
     }
     const keyDoc = keysSnap.docs[0]!;
     const key = keyDoc.data();
     const keyId = keyDoc.id;
 
     // 2. Validate key
-    if (key.status === 'revoked') {
-      throw new HttpsError('permission-denied', 'key/revoked');
+    if (key.status === "revoked") {
+      throw new functions.https.HttpsError("permission-denied", "key/revoked");
     }
     if (key.expires_at && key.expires_at > 0 && now >= key.expires_at) {
-      throw new HttpsError('permission-denied', 'key/expired');
+      throw new functions.https.HttpsError("permission-denied", "key/expired");
     }
 
-    // Backward-compat: keys cũ không có app_id → coi như 'all'
-    const keyAppId = key.app_id ?? 'all';
-    if (keyAppId !== 'all' && keyAppId !== appId) {
-      throw new HttpsError('permission-denied', 'key/wrong-app');
+    // Backward-compat: keys cũ không có app_id → coi như "all"
+    const keyAppId = key.app_id ?? "all";
+    if (keyAppId !== "all" && keyAppId !== appId) {
+      throw new functions.https.HttpsError("permission-denied", "key/wrong-app");
     }
 
-    // Backward-compat: keys cũ không có type → 'account'
-    const keyType = key.type ?? 'account';
+    // Backward-compat: keys cũ không có type → "account"
+    const keyType = key.type ?? "account";
 
     // 3. Validate binding
-    if (keyType === 'account') {
+    if (keyType === "account") {
       if (!auth) {
-        throw new HttpsError('unauthenticated', 'Account key requires login');
+        throw new functions.https.HttpsError(
+          "unauthenticated",
+          "Account key requires login",
+        );
       }
-      // Check binding
       if (key.bound_uid && key.bound_uid !== auth.uid) {
-        throw new HttpsError('permission-denied', 'key/wrong-binding');
+        throw new functions.https.HttpsError("permission-denied", "key/wrong-binding");
       }
-    } else if (keyType === 'standalone') {
+    } else if (keyType === "standalone") {
       if (key.bound_machine_id && key.bound_machine_id !== machineId) {
-        throw new HttpsError('permission-denied', 'key/wrong-binding');
+        throw new functions.https.HttpsError("permission-denied", "key/wrong-binding");
       }
     } else {
-      throw new HttpsError('invalid-argument', 'key/unknown-type');
+      throw new functions.https.HttpsError("invalid-argument", "key/unknown-type");
     }
 
     const maxConcurrent = key.max_concurrent ?? 1;
@@ -158,22 +152,22 @@ export const registerKeySession = onCall(
       const keyRef = keyDoc.ref;
       const keyTx = await tx.get(keyRef);
       if (!keyTx.exists) {
-        throw new HttpsError('not-found', 'key/not-found');
+        throw new functions.https.HttpsError("not-found", "key/not-found");
       }
       const keyData = keyTx.data()!;
 
       // Bind key on first activate
       const updates: Record<string, unknown> = {};
-      if (keyData.status === 'active') {
-        updates.status = 'used';
+      if (keyData.status === "active") {
+        updates.status = "used";
         updates.activated_at = now;
       }
-      if (keyType === 'account' && !keyData.bound_uid) {
+      if (keyType === "account" && !keyData.bound_uid) {
         updates.bound_uid = auth!.uid;
         updates.used_by_uid = auth!.uid;
         updates.used_at = now;
       }
-      if (keyType === 'standalone' && !keyData.bound_machine_id) {
+      if (keyType === "standalone" && !keyData.bound_machine_id) {
         updates.bound_machine_id = machineId;
         updates.used_at = now;
       }
@@ -182,9 +176,9 @@ export const registerKeySession = onCall(
       }
 
       // Count active sessions
-      const sessionsRef = keyRef.collection('sessions');
+      const sessionsRef = keyRef.collection("sessions");
       const activeSessionsSnap = await tx.get(
-        sessionsRef.where('expires_at', '>', now),
+        sessionsRef.where("expires_at", ">", now),
       );
 
       const activeSessions = activeSessionsSnap.docs;
@@ -199,7 +193,6 @@ export const registerKeySession = onCall(
           expires_at: now + SESSION_EXPIRY_MS,
           ip_address: ipAddress,
         });
-        // Trả session_id của session cũ (KHÔNG tạo mới)
         return;
       }
 
@@ -213,18 +206,18 @@ export const registerKeySession = onCall(
         kickedSessionId = oldest.id;
 
         // Audit log
-        const auditRef = db.collection('audit_logs').doc();
+        const auditRef = db.collection("audit_logs").doc();
         tx.set(auditRef, {
           id: auditRef.id,
-          type: 'session_kicked',
+          type: "session_kicked",
           key_id: keyId,
           uid: oldest.data().uid,
           machine_id: oldest.data().machine_id,
           ip: oldest.data().ip_address,
           app_id: oldest.data().app_id,
-          actor_uid: keyType === 'account' ? auth!.uid : undefined,
+          actor_uid: keyType === "account" ? auth!.uid : undefined,
           details: {
-            reason: 'new_login_other_machine',
+            reason: "new_login_other_machine",
             kicked_session_id: oldest.id,
             new_machine_id: machineId,
           },
@@ -240,7 +233,7 @@ export const registerKeySession = onCall(
         app_id: appId,
         machine_id: machineId,
         ip_address: ipAddress,
-        uid: keyType === 'account' ? auth!.uid : null,
+        uid: keyType === "account" ? auth!.uid : null,
         user_agent: data.user_agent ?? null,
         os: data.os ?? null,
         hostname: data.hostname ?? null,
@@ -250,12 +243,12 @@ export const registerKeySession = onCall(
       });
 
       // Audit log session_start
-      const auditRef = db.collection('audit_logs').doc();
+      const auditRef = db.collection("audit_logs").doc();
       tx.set(auditRef, {
         id: auditRef.id,
-        type: 'session_start',
+        type: "session_start",
         key_id: keyId,
-        uid: keyType === 'account' ? auth!.uid : undefined,
+        uid: keyType === "account" ? auth!.uid : undefined,
         machine_id: machineId,
         ip: ipAddress,
         app_id: appId,
@@ -264,8 +257,8 @@ export const registerKeySession = onCall(
       });
 
       // Phase 36.1 — update user.app_keys nếu account key
-      if (keyType === 'account' && auth) {
-        const userRef = db.collection('users').doc(auth.uid);
+      if (keyType === "account" && auth) {
+        const userRef = db.collection("users").doc(auth.uid);
         tx.set(
           userRef,
           {
@@ -282,9 +275,9 @@ export const registerKeySession = onCall(
       }
 
       // Standalone key → /device_activations/{compositeId}
-      if (keyType === 'standalone') {
+      if (keyType === "standalone") {
         const compositeId = `${machineId}_${appId}`;
-        const deviceRef = db.collection('device_activations').doc(compositeId);
+        const deviceRef = db.collection("device_activations").doc(compositeId);
         tx.set(deviceRef, {
           composite_id: compositeId,
           machine_id: machineId,
@@ -299,7 +292,7 @@ export const registerKeySession = onCall(
       }
     });
 
-    logger.info('Key session registered', {
+    functions.logger.info("Key session registered", {
       keyId,
       sessionId,
       appId,
@@ -315,37 +308,35 @@ export const registerKeySession = onCall(
       expires_at: now + SESSION_EXPIRY_MS,
       kicked_session_id: kickedSessionId,
     };
-  },
-);
+  });
 
 /**
- * heartbeatKeySession — onCall.
+ * heartbeatKeySession — onCall v1.
  * Update last_heartbeat của 1 session đang active.
  */
-export const heartbeatKeySession = onCall(
-  {
-    cors: true,
-    region: REGION,
-    timeoutSeconds: 10,
-  },
-  async (req) => {
-    const data = req.data as { key_id: string; session_id: string };
+export const heartbeatKeySession = functions
+  .region(REGION)
+  .runWith({ timeoutSeconds: 10, memory: "128MB" })
+  .https.onCall(async (data: { key_id: string; session_id: string }) => {
     if (!data?.key_id || !data?.session_id) {
-      throw new HttpsError('invalid-argument', 'key_id + session_id required');
+      throw new functions.https.HttpsError(
+        "invalid-argument",
+        "key_id + session_id required",
+      );
     }
 
     const db = admin.firestore();
     const now = Date.now();
     const sessionRef = db
-      .collection('keys')
+      .collection("keys")
       .doc(data.key_id)
-      .collection('sessions')
+      .collection("sessions")
       .doc(data.session_id);
 
     const sessionSnap = await sessionRef.get();
     if (!sessionSnap.exists) {
       // Session bị kick → app cần logout
-      return { ok: false, reason: 'session_not_found' };
+      return { ok: false, reason: "session_not_found" };
     }
 
     await sessionRef.update({
@@ -354,30 +345,28 @@ export const heartbeatKeySession = onCall(
     });
 
     return { ok: true, expires_at: now + SESSION_EXPIRY_MS };
-  },
-);
+  });
 
 /**
- * endKeySession — onCall.
+ * endKeySession — onCall v1.
  * Logout chủ động: xóa session.
  */
-export const endKeySession = onCall(
-  {
-    cors: true,
-    region: REGION,
-    timeoutSeconds: 10,
-  },
-  async (req) => {
-    const data = req.data as { key_id: string; session_id: string };
+export const endKeySession = functions
+  .region(REGION)
+  .runWith({ timeoutSeconds: 10, memory: "128MB" })
+  .https.onCall(async (data: { key_id: string; session_id: string }) => {
     if (!data?.key_id || !data?.session_id) {
-      throw new HttpsError('invalid-argument', 'key_id + session_id required');
+      throw new functions.https.HttpsError(
+        "invalid-argument",
+        "key_id + session_id required",
+      );
     }
 
     const db = admin.firestore();
     const sessionRef = db
-      .collection('keys')
+      .collection("keys")
       .doc(data.key_id)
-      .collection('sessions')
+      .collection("sessions")
       .doc(data.session_id);
 
     const sessionSnap = await sessionRef.get();
@@ -385,19 +374,17 @@ export const endKeySession = onCall(
       const sessionData = sessionSnap.data()!;
       await sessionRef.delete();
 
-      // Audit
-      await db.collection('audit_logs').add({
-        type: 'session_expired',
+      await db.collection("audit_logs").add({
+        type: "session_expired",
         key_id: data.key_id,
         uid: sessionData.uid,
         machine_id: sessionData.machine_id,
         ip: sessionData.ip_address,
         app_id: sessionData.app_id,
-        details: { reason: 'user_logout', session_id: data.session_id },
+        details: { reason: "user_logout", session_id: data.session_id },
         timestamp: Date.now(),
       });
     }
 
     return { ok: true };
-  },
-);
+  });
