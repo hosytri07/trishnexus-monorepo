@@ -2111,6 +2111,185 @@ fn library_index_clear() -> Result<(), String> {
 }
 
 // ============================================================
+// Phase 38.2.1 — PDF Binder với bookmarks (Phase 38 PDF Pro)
+// ============================================================
+
+#[derive(serde::Deserialize)]
+struct BinderItem {
+    path: String,
+    bookmark_label: String,
+}
+
+#[derive(serde::Serialize)]
+struct BinderResult {
+    page_count: u32,
+    bookmark_count: u32,
+    missing_files: Vec<String>,
+}
+
+/// Gộp nhiều PDF theo thứ tự + tạo bookmark từ label cho từng PDF.
+/// Mỗi item: { path, bookmark_label } → bookmark trỏ tới trang đầu của PDF đó.
+/// Nếu file không tồn tại → skip + báo trong missing_files.
+#[tauri::command]
+fn pdf_binder(
+    items: Vec<BinderItem>,
+    output_path: String,
+) -> Result<BinderResult, String> {
+    if items.is_empty() {
+        return Err("Cần ít nhất 1 PDF trong danh mục".to_string());
+    }
+
+    let mut merged = lopdf::Document::with_version("1.5");
+    let mut max_id: u32 = 1;
+    let mut all_pages: Vec<lopdf::ObjectId> = Vec::new();
+    let mut bookmarks: Vec<(String, usize)> = Vec::new(); // (label, page_index)
+    let mut missing_files: Vec<String> = Vec::new();
+    let mut all_objects: std::collections::BTreeMap<lopdf::ObjectId, lopdf::Object> =
+        std::collections::BTreeMap::new();
+    let mut all_page_objects: std::collections::BTreeMap<
+        lopdf::ObjectId,
+        lopdf::Object,
+    > = std::collections::BTreeMap::new();
+
+    for item in &items {
+        if !std::path::Path::new(&item.path).exists() {
+            missing_files.push(item.path.clone());
+            continue;
+        }
+        let mut doc = lopdf::Document::load(&item.path)
+            .map_err(|e| format!("load {}: {e}", item.path))?;
+        doc.renumber_objects_with(max_id);
+        max_id = doc.max_id + 1;
+
+        let start_page_index = all_pages.len();
+        bookmarks.push((item.bookmark_label.clone(), start_page_index));
+
+        for (_, page_id) in doc.get_pages() {
+            if let Ok(obj) = doc.get_object(page_id) {
+                all_pages.push(page_id);
+                all_page_objects.insert(page_id, obj.to_owned());
+            }
+        }
+        all_objects.extend(doc.objects);
+    }
+
+    if all_pages.is_empty() {
+        return Err(format!(
+            "Không có file PDF hợp lệ. Thiếu {} files.",
+            missing_files.len()
+        ));
+    }
+
+    // Insert all objects
+    for (id, obj) in all_objects {
+        merged.objects.insert(id, obj);
+    }
+
+    // 2. Build pages tree
+    let pages_id = merged.new_object_id();
+    let kids: Vec<lopdf::Object> = all_pages
+        .iter()
+        .map(|id| lopdf::Object::Reference(*id))
+        .collect();
+
+    // Patch each page's /Parent → new pages_id
+    for (id, mut page_obj) in all_page_objects {
+        if let lopdf::Object::Dictionary(ref mut d) = page_obj {
+            d.set("Parent", pages_id);
+        }
+        merged.objects.insert(id, page_obj);
+    }
+
+    let mut pages_dict = lopdf::Dictionary::new();
+    pages_dict.set("Type", "Pages");
+    pages_dict.set("Count", all_pages.len() as i64);
+    pages_dict.set("Kids", kids);
+    merged
+        .objects
+        .insert(pages_id, lopdf::Object::Dictionary(pages_dict));
+
+    // 3. Build outlines (bookmarks tree)
+    let outlines_id = merged.new_object_id();
+    let mut outline_ids: Vec<lopdf::ObjectId> = Vec::new();
+    for (label, page_idx) in &bookmarks {
+        let outline_id = merged.new_object_id();
+        let page_id = all_pages[*page_idx];
+        let mut outline_dict = lopdf::Dictionary::new();
+        outline_dict.set(
+            "Title",
+            lopdf::Object::String(label.as_bytes().to_vec(), lopdf::StringFormat::Literal),
+        );
+        outline_dict.set("Parent", outlines_id);
+        // Dest = [page_id, /Fit]
+        outline_dict.set(
+            "Dest",
+            vec![
+                lopdf::Object::Reference(page_id),
+                lopdf::Object::Name(b"Fit".to_vec()),
+            ],
+        );
+        merged
+            .objects
+            .insert(outline_id, lopdf::Object::Dictionary(outline_dict));
+        outline_ids.push(outline_id);
+    }
+
+    // Link prev/next siblings
+    for i in 0..outline_ids.len() {
+        let id = outline_ids[i];
+        if let Some(lopdf::Object::Dictionary(d)) = merged.objects.get_mut(&id) {
+            if i > 0 {
+                d.set("Prev", outline_ids[i - 1]);
+            }
+            if i + 1 < outline_ids.len() {
+                d.set("Next", outline_ids[i + 1]);
+            }
+        }
+    }
+
+    // Build outlines root dict
+    let mut outlines_dict = lopdf::Dictionary::new();
+    outlines_dict.set("Type", "Outlines");
+    outlines_dict.set("Count", outline_ids.len() as i64);
+    if let Some(first) = outline_ids.first() {
+        outlines_dict.set("First", *first);
+    }
+    if let Some(last) = outline_ids.last() {
+        outlines_dict.set("Last", *last);
+    }
+    merged
+        .objects
+        .insert(outlines_id, lopdf::Object::Dictionary(outlines_dict));
+
+    // 4. Catalog
+    let catalog_id = merged.new_object_id();
+    let mut catalog = lopdf::Dictionary::new();
+    catalog.set("Type", "Catalog");
+    catalog.set("Pages", pages_id);
+    catalog.set("Outlines", outlines_id);
+    // PageMode = UseOutlines → mở PDF tự hiện sidebar bookmarks
+    catalog.set("PageMode", "UseOutlines");
+    merged
+        .objects
+        .insert(catalog_id, lopdf::Object::Dictionary(catalog));
+    merged.trailer.set("Root", catalog_id);
+    merged.compress();
+
+    if let Some(parent) = PathBuf::from(&output_path).parent() {
+        fs::create_dir_all(parent).map_err(|e| format!("create_dir: {e}"))?;
+    }
+    merged
+        .save(&output_path)
+        .map_err(|e| format!("save: {e}"))?;
+
+    Ok(BinderResult {
+        page_count: all_pages.len() as u32,
+        bookmark_count: bookmarks.len() as u32,
+        missing_files,
+    })
+}
+
+// ============================================================
 // Main entry
 // ============================================================
 
@@ -2173,6 +2352,8 @@ pub fn run() {
             library_index_clear,
             // Phase 36.5 — Machine ID cho key concurrent control
             get_device_id,
+            // Phase 38.2.1 — PDF Binder với bookmarks
+            pdf_binder,
         ])
         .run(tauri::generate_context!())
         .expect("error while running TrishLibrary");

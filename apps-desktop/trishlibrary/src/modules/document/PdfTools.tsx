@@ -28,11 +28,13 @@ type ToolId =
   | 'encrypt'
   | 'decrypt'
   | 'ocr'
-  | 'extractImg';
+  | 'extractImg'
+  | 'binder';
 
 const TOOLS: Array<{ id: ToolId; icon: string; title: string; desc: string }> = [
   { id: 'info', icon: '📊', title: 'PDF Info', desc: 'Xem số trang, dung lượng, metadata' },
   { id: 'merge', icon: '🔗', title: 'Merge PDF', desc: 'Gộp ≥2 PDF thành 1' },
+  { id: 'binder', icon: '📚', title: 'PDF Binder', desc: 'Gộp PDF theo danh mục + tự tạo bookmark sidebar (Phase 38.2 PRO)' },
   { id: 'split', icon: '✂', title: 'Split PDF', desc: 'Tách mỗi trang thành 1 file' },
   { id: 'extract', icon: '📤', title: 'Extract pages', desc: 'Trích trang ra PDF mới' },
   { id: 'delete', icon: '🗑', title: 'Delete pages', desc: 'Xóa trang khỏi PDF' },
@@ -102,6 +104,7 @@ export function PdfTools({
       )}
       {active === 'ocr' && <ToolOcr onClose={close} onLog={pushLog} />}
       {active === 'extractImg' && <ToolExtractImg onClose={close} onLog={pushLog} />}
+      {active === 'binder' && <ToolBinder onClose={close} onLog={pushLog} />}
     </>
   );
 
@@ -1599,6 +1602,242 @@ function ToolExtractImg({
           disabled={busy || !path}
         >
           {busy ? '⏳ Đang trích…' : path ? '🖼 Chọn folder → Trích ảnh' : '📁 Chọn PDF'}
+        </button>
+      </div>
+    </ToolModal>
+  );
+}
+
+// ============================================================
+// Phase 38.2.1 — PDF Binder với bookmarks
+// ============================================================
+
+interface BinderItem {
+  path: string;
+  bookmark_label: string;
+}
+
+function ToolBinder({
+  onClose,
+  onLog,
+}: {
+  onClose: () => void;
+  onLog: (msg: string) => void;
+}): JSX.Element {
+  const [items, setItems] = useState<BinderItem[]>([]);
+  const [busy, setBusy] = useState(false);
+
+  async function pickFiles(): Promise<void> {
+    const sel = await openDialog({
+      multiple: true,
+      filters: [{ name: 'PDF', extensions: ['pdf'] }],
+    });
+    if (!sel) return;
+    const paths = Array.isArray(sel) ? sel : [sel];
+    setItems((prev) => [
+      ...prev,
+      ...paths.map((p) => ({
+        path: p,
+        // Default bookmark = filename without extension
+        bookmark_label:
+          p
+            .split(/[\\/]/)
+            .pop()
+            ?.replace(/\.pdf$/i, '') ?? 'Untitled',
+      })),
+    ]);
+  }
+
+  function moveUp(idx: number): void {
+    if (idx === 0) return;
+    setItems((prev) => {
+      const next = [...prev];
+      [next[idx - 1], next[idx]] = [next[idx]!, next[idx - 1]!];
+      return next;
+    });
+  }
+
+  function moveDown(idx: number): void {
+    setItems((prev) => {
+      if (idx >= prev.length - 1) return prev;
+      const next = [...prev];
+      [next[idx], next[idx + 1]] = [next[idx + 1]!, next[idx]!];
+      return next;
+    });
+  }
+
+  function removeItem(idx: number): void {
+    setItems((prev) => prev.filter((_, i) => i !== idx));
+  }
+
+  function updateLabel(idx: number, label: string): void {
+    setItems((prev) =>
+      prev.map((it, i) => (i === idx ? { ...it, bookmark_label: label } : it)),
+    );
+  }
+
+  async function run(): Promise<void> {
+    if (items.length === 0) {
+      onLog('⚠ Chưa chọn PDF nào.');
+      return;
+    }
+    const dest = await saveDialog({
+      title: 'Lưu PDF gộp',
+      defaultPath: 'HoSo_HoanCong.pdf',
+      filters: [{ name: 'PDF', extensions: ['pdf'] }],
+    });
+    if (!dest) return;
+    setBusy(true);
+    try {
+      const result = await invoke<{
+        page_count: number;
+        bookmark_count: number;
+        missing_files: string[];
+      }>('pdf_binder', { items, outputPath: dest });
+      onLog(
+        `✓ Đã gộp ${result.bookmark_count} PDF (${result.page_count} trang). Bookmark sidebar đã tạo. ${result.missing_files.length > 0 ? `⚠ ${result.missing_files.length} file thiếu: ${result.missing_files.join(', ')}` : ''}`,
+      );
+      onClose();
+    } catch (err) {
+      onLog(`✗ Lỗi: ${String(err)}`);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <ToolModal title="📚 PDF Binder — Gộp + Bookmark" onClose={onClose}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+        <p style={{ fontSize: 12, color: '#6B7280', margin: 0 }}>
+          Gộp nhiều PDF theo thứ tự + tự tạo bookmark sidebar. Mở PDF kết quả ở
+          Acrobat/Foxit/Edge sẽ thấy panel bookmark bên trái với danh mục từng PDF.
+          <br />
+          💡 Phù hợp hồ sơ nghiệm thu / hoàn công có nhiều PDF nhỏ cần đóng thành 1 bộ.
+        </p>
+
+        <div style={{ display: 'flex', gap: 8 }}>
+          <button type="button" className="btn btn-ghost" onClick={() => void pickFiles()}>
+            ➕ Thêm PDF…
+          </button>
+          {items.length > 0 && (
+            <button
+              type="button"
+              className="btn btn-ghost"
+              onClick={() => setItems([])}
+              disabled={busy}
+            >
+              🗑 Xóa hết
+            </button>
+          )}
+          <span style={{ marginLeft: 'auto', fontSize: 11, color: '#9CA3AF' }}>
+            {items.length} file
+          </span>
+        </div>
+
+        {items.length === 0 ? (
+          <div
+            style={{
+              padding: 24,
+              textAlign: 'center',
+              border: '1px dashed var(--color-border-default, #D1D5DB)',
+              borderRadius: 8,
+              color: '#9CA3AF',
+              fontSize: 13,
+            }}
+          >
+            Chưa có file. Bấm "➕ Thêm PDF…" hoặc kéo thả vào đây.
+          </div>
+        ) : (
+          <div
+            style={{
+              maxHeight: 360,
+              overflowY: 'auto',
+              border: '1px solid var(--color-border-subtle, #E5E7EB)',
+              borderRadius: 8,
+            }}
+          >
+            {items.map((item, idx) => (
+              <div
+                key={`${item.path}-${idx}`}
+                style={{
+                  padding: 10,
+                  borderBottom: '1px solid var(--color-border-subtle, #E5E7EB)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 8,
+                  fontSize: 12,
+                }}
+              >
+                <span style={{ minWidth: 24, color: '#9CA3AF' }}>#{idx + 1}</span>
+                <input
+                  type="text"
+                  value={item.bookmark_label}
+                  onChange={(e) => updateLabel(idx, e.target.value)}
+                  placeholder="Tên bookmark (sẽ hiện trong sidebar PDF)"
+                  style={{
+                    flex: 1,
+                    padding: '6px 10px',
+                    border: '1px solid var(--color-border-default, #D1D5DB)',
+                    borderRadius: 4,
+                    fontSize: 12,
+                    fontWeight: 600,
+                  }}
+                />
+                <span
+                  style={{
+                    fontSize: 10,
+                    color: '#9CA3AF',
+                    maxWidth: 180,
+                    whiteSpace: 'nowrap',
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                  }}
+                  title={item.path}
+                >
+                  {item.path.split(/[\\/]/).pop()}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => moveUp(idx)}
+                  disabled={idx === 0}
+                  style={{ padding: '2px 6px', fontSize: 11 }}
+                  title="Lên"
+                >
+                  ↑
+                </button>
+                <button
+                  type="button"
+                  onClick={() => moveDown(idx)}
+                  disabled={idx === items.length - 1}
+                  style={{ padding: '2px 6px', fontSize: 11 }}
+                  title="Xuống"
+                >
+                  ↓
+                </button>
+                <button
+                  type="button"
+                  onClick={() => removeItem(idx)}
+                  style={{ padding: '2px 6px', fontSize: 11, color: '#DC2626' }}
+                  title="Xóa khỏi danh sách"
+                >
+                  ✕
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+
+        <button
+          type="button"
+          className="btn btn-primary"
+          onClick={() => void run()}
+          disabled={busy || items.length === 0}
+        >
+          {busy
+            ? '⏳ Đang gộp…'
+            : items.length > 0
+              ? `📚 Gộp ${items.length} PDF + tạo bookmark`
+              : 'Cần ≥1 PDF'}
         </button>
       </div>
     </ToolModal>

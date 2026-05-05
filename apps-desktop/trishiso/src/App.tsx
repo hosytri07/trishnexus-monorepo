@@ -9,9 +9,10 @@ import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, Tooltip as ReTooltip,
 import { Archive, BarChart3, Building2, CalendarDays, CheckCircle2, ChevronLeft, ChevronRight, ClipboardList, Cloud, CloudUpload, Download, Edit3, FileCheck2, FileText, FolderOpen, FolderUp, HardDrive, Home, Link2, LogOut, MapPin, MessageSquare, Plus, QrCode, RefreshCcw, Search, Settings as SettingsIcon, Shield, Trash2, Upload, FileSpreadsheet, Copy, X, Printer, Paperclip, UserCheck, Undo2, Clock, AlertTriangle, PackageCheck, Sun, Moon } from 'lucide-react';
 import { LoginScreen } from './pages/LoginScreen';
 import { SettingsModal } from './pages/SettingsModal';
+import { HoanCongPage } from './pages/HoanCongPage';
 import logoUrl from './assets/logo.png';
 
-type PageKey = 'dashboard' | 'projects' | 'equipment' | 'loans' | 'calendar' | 'isoStorage' | 'formLinks' | 'approvals' | 'imports' | 'templates' | 'storage' | 'reports';
+type PageKey = 'dashboard' | 'projects' | 'equipment' | 'loans' | 'calendar' | 'isoStorage' | 'formLinks' | 'approvals' | 'imports' | 'templates' | 'storage' | 'reports' | 'hoanCong';
 type FileStatus = 'Đã có' | 'Chưa có' | 'Thiếu bản ký' | 'Thiếu scan' | 'Cần cập nhật';
 type ProjectStatus = 'Đầy đủ' | 'Đang hoàn thiện' | 'Thiếu nhiều';
 
@@ -976,7 +977,7 @@ function MainApp() {
       </div>
       <nav className="space-y-1">
         {[
-          ['dashboard', Home, 'Tổng quan'], ['projects', FolderOpen, 'Hồ sơ tổng quát'], ['equipment', PackageCheck, 'Thiết bị nội bộ'], ['calendar', CalendarDays, 'Lịch bảo trì'], ['loans', UserCheck, 'Mượn/trả hồ sơ'], ['isoStorage', FolderOpen, 'Lưu trữ ISO'], ['formLinks', FileCheck2, 'Liên kết BM-HS'], ['approvals', CheckCircle2, 'Duyệt hồ sơ'], ['imports', FileSpreadsheet, 'Nhập Excel'], ['templates', ClipboardList, 'Mẫu mục lục'], ['storage', Archive, 'Kho lưu trữ'], ['reports', BarChart3, 'Báo cáo'],
+          ['dashboard', Home, 'Tổng quan'], ['projects', FolderOpen, 'Hồ sơ tổng quát'], ['equipment', PackageCheck, 'Thiết bị nội bộ'], ['calendar', CalendarDays, 'Lịch bảo trì'], ['loans', UserCheck, 'Mượn/trả hồ sơ'], ['isoStorage', FolderOpen, 'Lưu trữ ISO'], ['formLinks', FileCheck2, 'Liên kết BM-HS'], ['approvals', CheckCircle2, 'Duyệt hồ sơ'], ['hoanCong', ClipboardList, 'Checklist hoàn công'], ['imports', FileSpreadsheet, 'Nhập Excel'], ['templates', ClipboardList, 'Mẫu mục lục'], ['storage', Archive, 'Kho lưu trữ'], ['reports', BarChart3, 'Báo cáo'],
         ].map(([key, Icon, label]) => {
           const isActive = page === key;
           return (
@@ -1061,6 +1062,7 @@ function MainApp() {
         {page === 'templates' && <TemplatesPage templates={templates} />}
         {page === 'storage' && <StoragePage projects={projects} attachments={attachments} />}
         {page === 'reports' && <ReportsPage projects={projects} mucLuc={mucLuc} attachments={attachments} warnings={warnings} provinceStats={provinceStats} statusStats={statusStats} onExport={exportReport} />}
+        {page === 'hoanCong' && <HoanCongPage />}
       </div>
     </main>
 
