@@ -94,6 +94,52 @@ export async function saveDesignFile(
   });
 }
 
+/**
+ * Phase 28.4.G — Project export/import (.tdproject.json).
+ * Tái dùng 2 Rust commands `load_design_file` / `save_design_file` (chỉ là
+ * read/write text file generic, tên nhầm lẫn nhưng hoạt động đúng).
+ */
+export async function pickAndLoadProjectJson(): Promise<{
+  path: string;
+  text: string;
+} | null> {
+  if (!isInTauri()) {
+    return null;
+  }
+  const selected = await openDialog({
+    multiple: false,
+    title: 'Nhập hồ sơ TrishDesign',
+    filters: [
+      { name: 'TrishDesign Project', extensions: ['json', 'tdproject.json'] },
+      { name: 'Tất cả', extensions: ['*'] },
+    ],
+  });
+  if (!selected || typeof selected !== 'string') return null;
+  const result = await invoke<DesignLoadResult>('load_design_file', {
+    path: selected,
+  });
+  return { path: result.path, text: result.text };
+}
+
+export async function saveProjectJson(
+  payload: string,
+  suggestedName: string,
+): Promise<{ path: string; bytes: number } | null> {
+  if (!isInTauri()) {
+    return { path: `(dev) ${suggestedName}`, bytes: payload.length };
+  }
+  const dest = await saveDialog({
+    title: 'Xuất hồ sơ TrishDesign',
+    defaultPath: suggestedName,
+    filters: [{ name: 'TrishDesign Project', extensions: ['json'] }],
+  });
+  if (!dest) return null;
+  return invoke<DesignSaveResult>('save_design_file', {
+    path: dest,
+    payload,
+  });
+}
+
 export async function revealFile(path: string): Promise<void> {
   if (!isInTauri()) {
     console.log('[dev] reveal', path);

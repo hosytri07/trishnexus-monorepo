@@ -191,15 +191,31 @@ function cmdHatchSelectLast(pattern: string, scale: number, angle: number): stri
 }
 
 // ============================================================
-// INTERNAL — Segment vertical space (cho stack vertical)
+// INTERNAL — Segment vertical space (cho stack vertical multi-segment)
 // ============================================================
+const BAOLUT_CHUNK_SIZE_M = 500; // mode bão lũ: chia 1 segment thành các chunk 500m, vẽ song song xếp dọc
+const BAOLUT_CHUNK_PADDING_DRAW = 8; // drawing units padding giữa các chunk (chỗ cho text cọc)
+
 function segmentVerticalSpace(segment: RoadSegment): number {
   const halfW = segment.roadWidth / 2;
-  return halfW * 2 * segment.drawing.scaleY + 5 + 20 + 25;
+  const scaleY = segment.drawing.scaleY;
+  const segmentLength = segment.endStation - segment.startStation;
+  const baoLut = segment.drawing.baoLutMode;
+
+  // Mode bão lũ: tính theo số chunk
+  const numChunks =
+    baoLut && segmentLength > BAOLUT_CHUNK_SIZE_M
+      ? Math.ceil(segmentLength / BAOLUT_CHUNK_SIZE_M)
+      : 1;
+
+  // Chiều cao 1 chunk = roadWidth * scaleY + padding
+  const oneChunkHeight = halfW * 2 * scaleY + BAOLUT_CHUNK_PADDING_DRAW;
+  // Tổng chiều cao tất cả chunk + tables (5 + 20 + 25 cho title + 3 bảng + spacing)
+  return numChunks * oneChunkHeight + 5 + 20 + 25;
 }
 
 // ============================================================
-// INTERNAL — Segment body (vẽ 1 segment ở vị trí originY)
+// INTERNAL — Segment body (orchestrator: chia chunk khi mode bão lũ)
 // ============================================================
 function segmentBodyCommands(
   segment: RoadSegment,
@@ -212,47 +228,11 @@ function segmentBodyCommands(
   const { scaleX, scaleY } = segment.drawing;
   const segmentLength = segment.endStation - segment.startStation;
   const halfWidth = segment.roadWidth / 2;
-  const halfDpc = (segment.medianWidth ?? 0) / 2;
-
-  const X = (m: number) => (m * scaleX).toFixed(3);
-  const Y = (m: number) => (m * scaleY + originY).toFixed(3);
+  const baoLut = segment.drawing.baoLutMode;
 
   cmds.push('\n\n\n');
 
-  // 1. Khuôn đường
-  cmds.push(cmdLayerSet(prefs.layers.KHUONDUONG.name));
-  cmds.push(`._LINE ${X(0)},${Y(halfWidth)} ${X(segmentLength)},${Y(halfWidth)} `);
-  cmds.push(`._LINE ${X(0)},${Y(-halfWidth)} ${X(segmentLength)},${Y(-halfWidth)} `);
-  cmds.push(`._LINE ${X(0)},${Y(-halfWidth)} ${X(0)},${Y(halfWidth)} `);
-  cmds.push(`._LINE ${X(segmentLength)},${Y(-halfWidth)} ${X(segmentLength)},${Y(halfWidth)} `);
-
-  if (segment.roadType === 'dual' && halfDpc > 0) {
-    cmds.push(`._LINE ${X(0)},${Y(halfDpc)} ${X(segmentLength)},${Y(halfDpc)} `);
-    cmds.push(`._LINE ${X(0)},${Y(-halfDpc)} ${X(segmentLength)},${Y(-halfDpc)} `);
-  }
-
-  // 2. Tim đường + Vạch chia làn
-  cmds.push(cmdLayerSet(prefs.layers.TIM.name));
-  cmds.push(`._LINE ${X(0)},${Y(0)} ${X(segmentLength)},${Y(0)} `);
-
-  cmds.push(cmdLayerSet(prefs.layers.VACHLAN.name));
-  if (segment.roadType === 'single') {
-    const laneWidth = segment.roadWidth / Math.max(segment.laneCount, 1);
-    for (let k = 1; k < segment.laneCount; k++) {
-      const yLane = -halfWidth + k * laneWidth;
-      if (Math.abs(yLane) < 0.01) continue;
-      cmds.push(`._LINE ${X(0)},${Y(yLane)} ${X(segmentLength)},${Y(yLane)} `);
-    }
-  } else if (halfDpc > 0) {
-    const lanesPerSide = Math.max(Math.floor(segment.laneCount / 2), 1);
-    const laneWidth = (halfWidth - halfDpc) / lanesPerSide;
-    for (let k = 1; k < lanesPerSide; k++) {
-      cmds.push(`._LINE ${X(0)},${Y(halfDpc + k * laneWidth)} ${X(segmentLength)},${Y(halfDpc + k * laneWidth)} `);
-      cmds.push(`._LINE ${X(0)},${Y(-halfDpc - k * laneWidth)} ${X(segmentLength)},${Y(-halfDpc - k * laneWidth)} `);
-    }
-  }
-
-  // 3. Cọc H
+  // Auto-stakes (nếu segment chưa khai báo cọc) — tính 1 lần dùng cho mọi chunk
   let stakes: RoadStake[] = segment.stakes;
   if (stakes.length === 0) {
     stakes = [];
@@ -266,24 +246,142 @@ function segmentBodyCommands(
     }
   }
 
+  // Chia chunks theo mode
+  type Chunk = { startM: number; endM: number; originY: number };
+  const chunks: Chunk[] = [];
+  const oneChunkHeight = halfWidth * 2 * scaleY + BAOLUT_CHUNK_PADDING_DRAW;
+
+  if (baoLut && segmentLength > BAOLUT_CHUNK_SIZE_M) {
+    const numChunks = Math.ceil(segmentLength / BAOLUT_CHUNK_SIZE_M);
+    for (let i = 0; i < numChunks; i++) {
+      const startM = i * BAOLUT_CHUNK_SIZE_M;
+      const endM = Math.min((i + 1) * BAOLUT_CHUNK_SIZE_M, segmentLength);
+      const chunkOriginY = originY - i * oneChunkHeight;
+      chunks.push({ startM, endM, originY: chunkOriginY });
+    }
+  } else {
+    chunks.push({ startM: 0, endM: segmentLength, originY });
+  }
+
+  // Vẽ từng chunk (đường + cọc + miếng) — mỗi chunk dùng X reset từ 0
+  for (const chunk of chunks) {
+    cmds.push(...drawSegmentChunk(segment, damageCodes, prefs, stakes, chunk.startM, chunk.endM, chunk.originY));
+  }
+
+  // Title segment + 3 bảng (vẽ 1 lần ở chunk đầu cho title, dưới chunk cuối cho tables)
+  const firstChunk = chunks[0]!;
+  const lastChunk = chunks[chunks.length - 1]!;
+
+  // Title trên chunk đầu (mode bão lũ: title trên dải đầu tiên)
+  // Nếu là mode bão lũ → title hiển thị tổng (ví dụ "Km1064 — Km1065")
+  const titleY = halfWidth * scaleY + 3 + firstChunk.originY;
+  cmds.push(cmdLayerSet(prefs.layers.TEXT.name));
+  // Tâm X tính theo độ dài chunk đầu (dải trên cùng) — không phải tổng segment
+  const firstChunkDrawW = (firstChunk.endM - firstChunk.startM) * scaleX;
+  cmds.push(cmdTextCenter(
+    (firstChunkDrawW / 2).toFixed(3),
+    titleY.toFixed(2),
+    1.0,
+    0,
+    segment.name,
+  ));
+
+  // 3 bảng dưới chunk cuối
+  const tableTopY = -halfWidth * scaleY - 6 + lastChunk.originY;
+  const stats = computeStatistics(segment, damageCodes);
+  cmds.push(...generateStatsTable(stats, tableTopY, prefs, 0));
+  cmds.push(...generateRatioTable(stats, tableTopY, prefs, 37));
+  cmds.push(...generateHatchLegend(stats, damageCodes, tableTopY, prefs, 74));
+
+  return cmds;
+}
+
+// ============================================================
+// INTERNAL — Vẽ 1 chunk segment (range [startM, endM]) tại originY
+// Không vẽ title + tables (orchestrator lo). Mọi chunk đều bắt đầu X=0.
+// ============================================================
+function drawSegmentChunk(
+  segment: RoadSegment,
+  damageCodes: DamageCode[],
+  prefs: DrawingPrefs,
+  stakes: RoadStake[],
+  startM: number,
+  endM: number,
+  chunkOriginY: number,
+): string[] {
+  const cmds: string[] = [];
+  const { scaleX, scaleY } = segment.drawing;
+  const halfWidth = segment.roadWidth / 2;
+  const halfDpc = (segment.medianWidth ?? 0) / 2;
+  const chunkLength = endM - startM;
+
+  // X reset về 0 cho từng chunk (mỗi chunk vẽ song song dọc trục X từ 0)
+  const X = (mLocal: number) => (mLocal * scaleX).toFixed(3);
+  const Y = (m: number) => (m * scaleY + chunkOriginY).toFixed(3);
+
+  // 1. Khuôn đường
+  cmds.push(cmdLayerSet(prefs.layers.KHUONDUONG.name));
+  cmds.push(`._LINE ${X(0)},${Y(halfWidth)} ${X(chunkLength)},${Y(halfWidth)} `);
+  cmds.push(`._LINE ${X(0)},${Y(-halfWidth)} ${X(chunkLength)},${Y(-halfWidth)} `);
+  cmds.push(`._LINE ${X(0)},${Y(-halfWidth)} ${X(0)},${Y(halfWidth)} `);
+  cmds.push(`._LINE ${X(chunkLength)},${Y(-halfWidth)} ${X(chunkLength)},${Y(halfWidth)} `);
+
+  if (segment.roadType === 'dual' && halfDpc > 0) {
+    cmds.push(`._LINE ${X(0)},${Y(halfDpc)} ${X(chunkLength)},${Y(halfDpc)} `);
+    cmds.push(`._LINE ${X(0)},${Y(-halfDpc)} ${X(chunkLength)},${Y(-halfDpc)} `);
+  }
+
+  // 2. Tim đường + Vạch chia làn
+  cmds.push(cmdLayerSet(prefs.layers.TIM.name));
+  cmds.push(`._LINE ${X(0)},${Y(0)} ${X(chunkLength)},${Y(0)} `);
+
+  cmds.push(cmdLayerSet(prefs.layers.VACHLAN.name));
+  if (segment.roadType === 'single') {
+    const laneWidth = segment.roadWidth / Math.max(segment.laneCount, 1);
+    for (let k = 1; k < segment.laneCount; k++) {
+      const yLane = -halfWidth + k * laneWidth;
+      if (Math.abs(yLane) < 0.01) continue;
+      cmds.push(`._LINE ${X(0)},${Y(yLane)} ${X(chunkLength)},${Y(yLane)} `);
+    }
+  } else if (halfDpc > 0) {
+    const lanesPerSide = Math.max(Math.floor(segment.laneCount / 2), 1);
+    const laneWidth = (halfWidth - halfDpc) / lanesPerSide;
+    for (let k = 1; k < lanesPerSide; k++) {
+      cmds.push(`._LINE ${X(0)},${Y(halfDpc + k * laneWidth)} ${X(chunkLength)},${Y(halfDpc + k * laneWidth)} `);
+      cmds.push(`._LINE ${X(0)},${Y(-halfDpc - k * laneWidth)} ${X(chunkLength)},${Y(-halfDpc - k * laneWidth)} `);
+    }
+  }
+
+  // 3. Cọc H — filter theo range chunk
   cmds.push(cmdLayerSet(prefs.layers.COCH.name));
   for (const stake of stakes) {
-    const x = stake.station - segment.startStation;
-    if (x < 0 || x > segmentLength) continue;
-    cmds.push(`._LINE ${X(x)},${Y(halfWidth + 0.5)} ${X(x)},${Y(-halfWidth - 0.5)} `);
+    const xAbs = stake.station - segment.startStation;
+    if (xAbs < startM || xAbs > endM) continue;
+    const xLocal = xAbs - startM; // X local trong chunk
+    cmds.push(`._LINE ${X(xLocal)},${Y(halfWidth + 0.5)} ${X(xLocal)},${Y(-halfWidth - 0.5)} `);
     cmds.push(cmdLayerSet(prefs.layers.TEXT.name));
     const stakeText = `${stake.label}=${stake.station}`;
-    cmds.push(cmdText(X(x), Y(halfWidth + 1.5), prefs.stationTextHeight, 90, stakeText));
+    cmds.push(cmdText(X(xLocal), Y(halfWidth + 1.5), prefs.stationTextHeight, 90, stakeText));
     cmds.push(cmdLayerSet(prefs.layers.COCH.name));
   }
 
-  // 4. Miếng hư hỏng
+  // 4. Miếng hư hỏng — filter theo range chunk (cắt clip nếu miếng spans 2 chunk)
   for (const piece of segment.damagePieces) {
     const code = damageCodes.find((dc) => dc.code === piece.damageCode);
     if (!code) continue;
 
-    const xStart = piece.startStation - segment.startStation;
-    const xEnd = xStart + piece.length;
+    const pieceStartAbs = piece.startStation - segment.startStation;
+    const pieceEndAbs = pieceStartAbs + piece.length;
+
+    // Skip nếu hoàn toàn ngoài chunk
+    if (pieceEndAbs <= startM || pieceStartAbs >= endM) continue;
+
+    // Clip vào trong chunk
+    const xStartAbs = Math.max(pieceStartAbs, startM);
+    const xEndAbs = Math.min(pieceEndAbs, endM);
+    const xStart = xStartAbs - startM;
+    const xEnd = xEndAbs - startM;
+
     const cachTim = piece.cachTim ?? 0;
     const mode = segment.cachTimMode ?? 'tim';
     let yBottom: number; let yTop: number;
@@ -315,11 +413,12 @@ function segmentBodyCommands(
         yBottom = -cachTim - piece.width;
       }
     }
+
     // Rectangle border
     cmds.push(cmdLayerSet(prefs.layers.MIENG.name));
     cmds.push(`._RECTANG ${X(xStart)},${Y(yBottom)} ${X(xEnd)},${Y(yTop)}`);
 
-    // HATCH dùng Select Last (deterministic 100%)
+    // HATCH dùng Select Last (giữ NGUYÊN cơ chế hatch hiện tại)
     cmds.push(cmdLayerSet(code.layerName));
     cmds.push(cmdHatchSelectLast(code.hatchPattern, code.hatchScale, code.hatchAngle));
     const xMid = (xStart + xEnd) / 2;
@@ -329,7 +428,7 @@ function segmentBodyCommands(
     cmds.push(cmdLayerSet(prefs.layers.TEXT.name));
     cmds.push(cmdTextCenter(X(xMid), Y(yMid), prefs.pieceLabelTextHeight * 1.2, 0, piece.pieceNumber));
 
-    // Kích thước
+    // Kích thước (đặt nguyên kích thước thực, không clip)
     cmds.push(cmdLayerSet(prefs.layers.KICHTHUOC.name));
     cmds.push(cmdTextCenter(
       X(xMid),
@@ -339,29 +438,13 @@ function segmentBodyCommands(
       `KT(${piece.length.toFixed(1)}x${piece.width.toFixed(1)})`,
     ));
 
-    // Lý trình
-    cmds.push(cmdLayerSet(prefs.layers.TEXT.name));
-    const stationStr = `+${(piece.startStation % 1000).toString().padStart(3, '0')}`;
-    cmds.push(cmdText(X(xStart), Y(halfWidth + 1.2), prefs.stationTextHeight, 90, stationStr));
+    // Lý trình (chỉ hiện nếu start gốc thuộc chunk này)
+    if (pieceStartAbs >= startM && pieceStartAbs < endM) {
+      cmds.push(cmdLayerSet(prefs.layers.TEXT.name));
+      const stationStr = `+${(piece.startStation % 1000).toString().padStart(3, '0')}`;
+      cmds.push(cmdText(X(xStart), Y(halfWidth + 1.2), prefs.stationTextHeight, 90, stationStr));
+    }
   }
-
-  // 5. Title đoạn + 3 bảng
-  const titleY = halfWidth * scaleY + 3 + originY;
-  cmds.push(cmdLayerSet(prefs.layers.TEXT.name));
-  cmds.push(cmdTextCenter(
-    String(segmentLength * scaleX / 2),
-    titleY.toFixed(2),
-    1.0,
-    0,
-    segment.name,
-  ));
-
-  const tableTopY = -halfWidth * scaleY - 6 + originY;
-  const stats = computeStatistics(segment, damageCodes);
-  // Layout 3 bảng ngang: Bảng 1 (x=0) → Bảng 2 (x=37) → Legend (x=74)
-  cmds.push(...generateStatsTable(stats, tableTopY, prefs, 0));
-  cmds.push(...generateRatioTable(stats, tableTopY, prefs, 37));
-  cmds.push(...generateHatchLegend(stats, damageCodes, tableTopY, prefs, 74));
 
   return cmds;
 }

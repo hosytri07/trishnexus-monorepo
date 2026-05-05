@@ -16,16 +16,16 @@ const FONT_SIZE_KEY = 'trishdesign:fontSize';
 let mediaQuery: MediaQueryList | null = null;
 let mediaListener: ((e: MediaQueryListEvent) => void) | null = null;
 
-/** Đọc theme đã save, default 'auto' */
+/** Đọc theme đã save, default 'dark' (đồng bộ ecosystem TrishTEAM) */
 export function getStoredTheme(): ThemeMode {
-  if (typeof window === 'undefined') return 'auto';
+  if (typeof window === 'undefined') return 'dark';
   try {
     const v = window.localStorage.getItem(STORAGE_KEY);
     if (v === 'light' || v === 'dark' || v === 'auto') return v;
   } catch {
     /* ignore */
   }
-  return 'auto';
+  return 'dark';
 }
 
 export function getStoredFontSize(): FontSize {

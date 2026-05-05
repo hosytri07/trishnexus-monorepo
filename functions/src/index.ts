@@ -15,3 +15,11 @@ if (admin.apps.length === 0) {
 export { setUserRole } from "./setUserRole";
 export { exchangeForWebToken } from "./exchangeForWebToken";
 export { exchangeOneshotToken } from "./exchangeOneshotToken";
+
+// Phase 36.3-4 — Key/session management
+export {
+  registerKeySession,
+  heartbeatKeySession,
+  endKeySession,
+} from "./registerKeySession";
+export { cleanupExpiredSessions } from "./cleanupExpiredSessions";

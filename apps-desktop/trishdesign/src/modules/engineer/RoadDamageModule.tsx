@@ -32,6 +32,7 @@
  */
 
 import { useEffect, useMemo, useState } from 'react';
+import { createPortal } from 'react-dom';
 import {
   type Project,
   type RoadSegment,
@@ -65,6 +66,8 @@ import {
 import { AtgtPanel } from './AtgtPanel.js';
 import { BaoLuPanel as BaoLuPanelV2 } from './BaoLuPanel.js';
 import { CadChatbotPanel } from './CadChatbotPanel.js';
+import { serializeProject, parseProjectFile, suggestExportFilename } from '../../lib/project-io.js';
+import { saveProjectJson, pickAndLoadProjectJson, revealFile } from '../../tauri-bridge.js';
 
 // ============================================================
 // Custom Dialog system — thay native window.alert/confirm/prompt
@@ -287,6 +290,108 @@ function HuHongPanel(): JSX.Element {
   // Modal states
   const [openModal, setOpenModal] = useState<null | 'cocH' | 'banVe' | 'hatch' | 'layers' | 'segments' | 'projects'>(null);
 
+  // Phase 28.4.G — Modal tạo đoạn (3 trường: Tên / Km bắt đầu / Km kết thúc)
+  const [showCreateSeg, setShowCreateSeg] = useState(false);
+  const [createSegForm, setCreateSegForm] = useState<{
+    name: string;
+    kmStart: string;
+    kmEnd: string;
+    kmEndDirty: boolean;
+  }>({ name: '', kmStart: '', kmEnd: '', kmEndDirty: false });
+
+  function openCreateSeg(): void {
+    // Default Km bắt đầu: parse từ tên đoạn cuối nếu có (vd "Km1064 - Km1065" → 1065)
+    // Lý trình thực tế (startStation/endStation) cố định 0-1000m, không liên quan tới Km
+    let kmStart = '0';
+    if (activeProject && activeProject.segments.length > 0) {
+      const last = activeProject.segments[activeProject.segments.length - 1]!;
+      // Parse số Km cuối từ tên đoạn cuối (vd "Km1064 - Km1065" → "1065")
+      const match = last.name.match(/Km\s*(\d+(?:\.\d+)?)\s*[-–]\s*Km\s*(\d+(?:\.\d+)?)/i);
+      if (match) {
+        kmStart = match[2]!; // Km kết thúc của đoạn cuối = Km bắt đầu mới
+      }
+    }
+    const kmEnd = String(Number(kmStart) + 1);
+    setCreateSegForm({ name: '', kmStart, kmEnd, kmEndDirty: false });
+    setShowCreateSeg(true);
+  }
+
+  function onKmStartChange(v: string): void {
+    setCreateSegForm((prev) => ({
+      ...prev,
+      kmStart: v,
+      // Auto +1 cho kmEnd nếu user CHƯA sửa tay
+      kmEnd: prev.kmEndDirty ? prev.kmEnd : String((Number(v) || 0) + 1),
+    }));
+  }
+
+  function onKmEndChange(v: string): void {
+    setCreateSegForm((prev) => ({ ...prev, kmEnd: v, kmEndDirty: true }));
+  }
+
+  // Phase 28.4.G — Xuất hồ sơ ra JSON
+  async function handleExportProject(): Promise<void> {
+    if (!activeProject) {
+      await dialog.alert('Chưa có hồ sơ để xuất.');
+      return;
+    }
+    try {
+      const json = serializeProject(activeProject, db.damageCodes);
+      const filename = suggestExportFilename(activeProject.name);
+      const result = await saveProjectJson(json, filename);
+      if (!result) return; // user huỷ
+      const yes = await dialog.confirm(
+        `Đã xuất hồ sơ vào:\n${result.path}\n\n(${result.bytes} bytes — ${activeProject.segments.length} đoạn)\n\nMở thư mục chứa file?`,
+      );
+      if (yes) await revealFile(result.path);
+    } catch (err) {
+      await dialog.alert(`Lỗi xuất hồ sơ: ${(err as Error).message}`);
+    }
+  }
+
+  // Phase 28.4.G — Nhập hồ sơ từ JSON
+  async function handleImportProject(): Promise<void> {
+    try {
+      const loaded = await pickAndLoadProjectJson();
+      if (!loaded) return; // user huỷ
+      const parsed = parseProjectFile(loaded.text);
+      const newId = designDb.importProject(parsed.project);
+      setActiveSegmentId(parsed.project.segments[0]?.id ?? null);
+      await dialog.alert(
+        `Đã nhập hồ sơ "${parsed.project.name}"\n${parsed.project.segments.length} đoạn · ID mới: ${newId}\n\nNguồn: ${loaded.path}`,
+      );
+    } catch (err) {
+      await dialog.alert(`Lỗi nhập hồ sơ: ${(err as Error).message}`);
+    }
+  }
+
+  async function submitCreateSeg(): Promise<void> {
+    if (!activeProject) return;
+    const kmStart = Number(createSegForm.kmStart);
+    const kmEnd = Number(createSegForm.kmEnd);
+    // Lý trình thực tế CỐ ĐỊNH 0 - 1000m (1km, cọc H interval 100m → H1=100, H9=900)
+    // Km input chỉ dùng để build tên đoạn cho user phân biệt nhiều đoạn.
+    const customName = createSegForm.name.trim();
+    let name = customName;
+    if (!name) {
+      if (isFinite(kmStart) && isFinite(kmEnd)) {
+        // Format Km: integer hoặc decimal (vd Km1064 hoặc Km1064.5)
+        const fmt = (v: number) => `Km${v}`;
+        name = `${fmt(kmStart)} - ${fmt(kmEnd)}`;
+      }
+    }
+    // KHÔNG pass roadType/roadWidth/laneCount/drawing — để createSegment tự
+    // inherit từ segment CUỐI trong project (Cài đặt bản vẽ + khổ đường giữ
+    // nguyên giữa các đoạn). Nếu là đoạn ĐẦU TIÊN, fallback về defaults.
+    const id = designDb.createSegment(activeProject.id, {
+      startStation: 0,
+      endStation: 1000,
+      name: name || undefined,
+    });
+    setActiveSegmentId(id);
+    setShowCreateSeg(false);
+  }
+
   // ============================================================
   // Project / Segment selectors row
   // ============================================================
@@ -315,9 +420,26 @@ function HuHongPanel(): JSX.Element {
           <button
             type="button"
             className="acad-btn acad-btn-ghost"
-            title="Quản lý / chỉnh sửa / xóa hồ sơ"
-            onClick={() => setOpenModal('projects')}
-          >📋</button>
+            title="Sửa tên / Xóa hồ sơ"
+            onClick={() => {
+              console.log('[TrishDesign] Sửa/Xóa clicked, projects:', db.projects.length);
+              setOpenModal('projects');
+            }}
+          >✏️ Sửa/Xóa</button>
+        )}
+        <button
+          type="button"
+          className="acad-btn acad-btn-ghost"
+          title="Nhập hồ sơ từ file .tdproject.json"
+          onClick={() => void handleImportProject()}
+        >📥 Nhập</button>
+        {activeProject && (
+          <button
+            type="button"
+            className="acad-btn acad-btn-ghost"
+            title={`Xuất hồ sơ "${activeProject.name}" ra file .tdproject.json`}
+            onClick={() => void handleExportProject()}
+          >💾 Xuất</button>
         )}
 
         {activeProject && (
@@ -336,24 +458,7 @@ function HuHongPanel(): JSX.Element {
             <button
               type="button"
               className="acad-btn acad-btn-ghost"
-              onClick={async () => {
-                const startStr = await dialog.prompt('Lý trình bắt đầu (mét, vd: 0 hoặc 1500):', '0');
-                if (startStr === null) return;
-                const endStr = await dialog.prompt('Lý trình kết thúc (mét):', String((Number(startStr) || 0) + 1000));
-                if (endStr === null) return;
-                const start = Number(startStr) || 0;
-                const end = Number(endStr) || (start + 1000);
-                const customName = await dialog.prompt('Tên đoạn (Enter để tự sinh "Km0 - Km1"):', '');
-                const id = designDb.createSegment(activeProject.id, {
-                  startStation: start,
-                  endStation: end,
-                  roadType: 'single',
-                  roadWidth: 7,
-                  laneCount: 2,
-                  name: customName?.trim() ? customName.trim() : undefined,
-                });
-                setActiveSegmentId(id);
-              }}
+              onClick={openCreateSeg}
             >+ Đoạn</button>
             {activeProject.segments.length > 0 && (
               <button
@@ -369,6 +474,112 @@ function HuHongPanel(): JSX.Element {
     );
   }
 
+  // Phase 28.4.G — Modals fragment (render trong MỌI return path để
+  // modal luôn hoạt động kể cả khi early-return ở empty states)
+  const modalsFragment = (
+    <>
+      {openModal === 'projects' && (
+        <ProjectsManagerModal
+          db={db}
+          designDb={designDb}
+          onClose={() => setOpenModal(null)}
+        />
+      )}
+      {activeProject && openModal === 'segments' && (
+        <SegmentsManagerModal
+          project={activeProject}
+          designDb={designDb}
+          activeSegmentId={activeSegmentId}
+          onSelectSegment={setActiveSegmentId}
+          onClose={() => setOpenModal(null)}
+        />
+      )}
+      {showCreateSeg && (
+        <div
+          className="acad-modal-backdrop"
+          onClick={() => setShowCreateSeg(false)}
+          style={{ zIndex: 2147483647 }}
+        >
+          <div
+            className="acad-modal"
+            style={{ maxWidth: 480 }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="acad-modal-head">
+              <span className="acad-modal-title">✏️ Tạo đoạn mới</span>
+              <button
+                type="button"
+                className="acad-modal-close"
+                onClick={() => setShowCreateSeg(false)}
+              >✕</button>
+            </div>
+            <div className="acad-modal-body" style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+              <div>
+                <label style={{ fontSize: 12, fontWeight: 600, marginBottom: 4, display: 'block' }}>
+                  Tên đoạn (để trống = tự sinh "Km{createSegForm.kmStart || 0} - Km{createSegForm.kmEnd || 1}"):
+                </label>
+                <input
+                  type="text"
+                  className="acad-input"
+                  value={createSegForm.name}
+                  placeholder="vd: Km1064 - Km1065"
+                  onChange={(e) => setCreateSegForm((prev) => ({ ...prev, name: e.target.value }))}
+                  autoFocus
+                  onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); void submitCreateSeg(); } }}
+                />
+              </div>
+              <div>
+                <label style={{ fontSize: 12, fontWeight: 600, marginBottom: 4, display: 'block' }}>Số Km bắt đầu (chỉ để gắn tên):</label>
+                <div className="acad-km-input">
+                  <span className="acad-km-prefix">Km</span>
+                  <input
+                    type="number"
+                    step="0.001"
+                    className="acad-input"
+                    value={createSegForm.kmStart}
+                    onChange={(e) => onKmStartChange(e.target.value)}
+                    onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); void submitCreateSeg(); } }}
+                  />
+                </div>
+              </div>
+              <div>
+                <label style={{ fontSize: 12, fontWeight: 600, marginBottom: 4, display: 'block' }}>Số Km kết thúc (chỉ để gắn tên):</label>
+                <div className="acad-km-input">
+                  <span className="acad-km-prefix">Km</span>
+                  <input
+                    type="number"
+                    step="0.001"
+                    className="acad-input"
+                    value={createSegForm.kmEnd}
+                    onChange={(e) => onKmEndChange(e.target.value)}
+                    onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); void submitCreateSeg(); } }}
+                  />
+                </div>
+              </div>
+              <div style={{ fontSize: 11, opacity: 0.7 }}>
+                💡 Km chỉ dùng để TẠO TÊN ĐOẠN cho dễ phân biệt.
+                Lý trình thực tế của đoạn vẫn là <strong>0 — 1000m</strong> (1km, cọc H interval 100m → H1=100).
+                Đoạn tự lưu vào hồ sơ "{activeProject?.name ?? ''}".
+              </div>
+            </div>
+            <div
+              style={{
+                display: 'flex',
+                justifyContent: 'flex-end',
+                gap: 8,
+                padding: '12px 18px',
+                borderTop: '1px solid var(--color-border-default, #E5E7EB)',
+              }}
+            >
+              <button type="button" className="acad-btn acad-btn-ghost" onClick={() => setShowCreateSeg(false)}>Hủy</button>
+              <button type="button" className="acad-btn acad-btn-primary" onClick={() => void submitCreateSeg()}>OK</button>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
+  );
+
   if (!activeProject) {
     return (
       <>
@@ -377,6 +588,7 @@ function HuHongPanel(): JSX.Element {
           <strong>Chưa có hồ sơ</strong>
           <p>Bấm "+ Hồ sơ" tạo hồ sơ đầu tiên để bắt đầu khảo sát.</p>
         </div>
+        {modalsFragment}
       </>
     );
   }
@@ -389,6 +601,7 @@ function HuHongPanel(): JSX.Element {
           <strong>Chưa có đoạn đường</strong>
           <p>Bấm "+ Đoạn" tạo đoạn đầu tiên trong hồ sơ "{activeProject.name}".</p>
         </div>
+        {modalsFragment}
       </>
     );
   }
@@ -461,22 +674,7 @@ function HuHongPanel(): JSX.Element {
           onClose={() => setOpenModal(null)}
         />
       )}
-      {openModal === 'segments' && (
-        <SegmentsManagerModal
-          project={activeProject}
-          designDb={designDb}
-          activeSegmentId={activeSegmentId}
-          onSelectSegment={setActiveSegmentId}
-          onClose={() => setOpenModal(null)}
-        />
-      )}
-      {openModal === 'projects' && (
-        <ProjectsManagerModal
-          db={db}
-          designDb={designDb}
-          onClose={() => setOpenModal(null)}
-        />
-      )}
+      {modalsFragment}
     </>
   );
 }
@@ -1647,16 +1845,33 @@ function ModalShell({
   width?: number;
   footer?: React.ReactNode;
 }): JSX.Element {
+  // Phase 28.4.G — Dùng class CSS có sẵn (đã có dark theme variant)
+  // + inline z-index 2147483647 để chắc render trên đầu mọi parent.
   return (
-    <div className="acad-modal-backdrop" /* click outside KHÔNG đóng — phải bấm Hủy/✕ */>
-      <div className="acad-modal" style={{ maxWidth: width }} onClick={(e) => e.stopPropagation()}>
+    <div
+      className="acad-modal-backdrop"
+      style={{ zIndex: 2147483647 }}
+    >
+      <div
+        className="acad-modal"
+        style={{ maxWidth: width }}
+        onClick={(e) => e.stopPropagation()}
+      >
         <div className="acad-modal-head">
           <span className="acad-modal-title">{title}</span>
           <button type="button" className="acad-modal-close" onClick={onClose}>✕</button>
         </div>
         <div className="acad-modal-body">{children}</div>
         {footer && (
-          <div style={{ padding: '10px 18px', borderTop: '1px solid #E5E7EB', display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
+          <div
+            style={{
+              padding: '10px 18px',
+              borderTop: '1px solid var(--color-border-default, #E5E7EB)',
+              display: 'flex',
+              justifyContent: 'flex-end',
+              gap: 8,
+            }}
+          >
             {footer}
           </div>
         )}

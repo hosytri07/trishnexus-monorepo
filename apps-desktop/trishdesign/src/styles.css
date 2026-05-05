@@ -1054,6 +1054,35 @@ body {
 }
 .acad-input-narrow { width: 100%; max-width: 72px; }
 
+/* Km prefix input — Phase 28.4.G: tạo đoạn lý trình "Km____" */
+.acad-km-input {
+  display: flex;
+  align-items: stretch;
+  width: 100%;
+}
+.acad-km-prefix {
+  display: inline-flex;
+  align-items: center;
+  padding: 0 10px;
+  background: #F3F4F6;
+  border: 1px solid #D1D5DB;
+  border-right: none;
+  border-radius: 4px 0 0 4px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #10B981;
+  user-select: none;
+}
+.acad-km-input .acad-input {
+  border-radius: 0 4px 4px 0;
+  flex: 1;
+}
+[data-theme='dark'] .acad-km-prefix {
+  background: var(--color-surface-card);
+  border-color: var(--color-border-default);
+  color: #4ADE80;
+}
+
 .acad-radio-row {
   display: flex;
   align-items: center;

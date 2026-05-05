@@ -143,44 +143,87 @@ export function useDesignDb() {
     setDb((d) => ({ ...d, activeProjectId: id, updatedAt: Date.now() }));
   }, []);
 
-  // --------------------------------------------------------
-  // Segments
-  // --------------------------------------------------------
-  const createSegment = useCallback((projectId: string, input: Partial<RoadSegment> & {
-    startStation: number;
-    endStation: number;
-    roadType: 'single' | 'dual';
-    roadWidth: number;
-    laneCount: number;
-  }): string => {
-    const id = newId('seg');
+  /**
+   * Phase 28.4.G — Import 1 project đã serialize sẵn (từ file JSON xuất).
+   * Project được tạo ID mới + segment ID mới (tránh trùng với project đã có).
+   * Damage pieces giữ nguyên (chỉ regen ID nếu trùng).
+   */
+  const importProject = useCallback((project: Project): string => {
     const now = Date.now();
-    const segment: RoadSegment = {
-      id,
-      projectId,
-      name: input.name ?? autoSegmentName(input.startStation, input.endStation),
-      startStation: input.startStation,
-      endStation: input.endStation,
-      roadType: input.roadType,
-      roadWidth: input.roadWidth,
-      laneCount: input.laneCount,
-      medianWidth: input.medianWidth,
-      stakes: input.stakes ?? [],
-      damagePieces: [],
-      drawing: input.drawing ?? defaultDrawingSettings(),
-      notes: input.notes,
+    const newProjectId = newId('prj');
+    const cloned: Project = {
+      ...project,
+      id: newProjectId,
       createdAt: now,
       updatedAt: now,
+      segments: project.segments.map((s) => ({
+        ...s,
+        id: newId('seg'),
+        projectId: newProjectId,
+        damagePieces: s.damagePieces.map((p) => ({ ...p, id: newId('dp') })),
+        stakes: s.stakes.map((stk) => ({ ...stk, id: stk.id || newId('stk') })),
+      })),
     };
     setDb((d) => ({
       ...d,
-      projects: d.projects.map((p) =>
-        p.id === projectId
-          ? { ...p, segments: [...p.segments, segment], updatedAt: now }
-          : p,
-      ),
+      projects: [...d.projects, cloned],
+      activeProjectId: newProjectId,
       updatedAt: now,
     }));
+    return newProjectId;
+  }, []);
+
+  // --------------------------------------------------------
+  // Segments
+  // --------------------------------------------------------
+  /**
+   * Phase 28.4.G — Tạo segment mới với inherit từ segment CUỐI trong project:
+   * Khổ đường (roadType, roadWidth, laneCount, medianWidth) + drawing settings
+   * (frameType, scaleX, scaleY, baoLutMode) tự kế thừa từ đoạn cuối nếu input
+   * không override. Lý do: user thường vẽ nhiều đoạn cùng cấu hình (cùng khung
+   * A3/A4, cùng tỷ lệ, cùng width đường) — không phải chỉnh lại sau mỗi đoạn.
+   */
+  const createSegment = useCallback((projectId: string, input: Partial<RoadSegment> & {
+    startStation: number;
+    endStation: number;
+    roadType?: 'single' | 'dual';
+    roadWidth?: number;
+    laneCount?: number;
+  }): string => {
+    const id = newId('seg');
+    const now = Date.now();
+    setDb((d) => {
+      const project = d.projects.find((p) => p.id === projectId);
+      if (!project) return d;
+      const lastSeg = project.segments[project.segments.length - 1];
+      const segment: RoadSegment = {
+        id,
+        projectId,
+        name: input.name ?? autoSegmentName(input.startStation, input.endStation),
+        startStation: input.startStation,
+        endStation: input.endStation,
+        roadType: input.roadType ?? lastSeg?.roadType ?? 'single',
+        roadWidth: input.roadWidth ?? lastSeg?.roadWidth ?? 7,
+        laneCount: input.laneCount ?? lastSeg?.laneCount ?? 2,
+        medianWidth: input.medianWidth ?? lastSeg?.medianWidth,
+        stakes: input.stakes ?? [],
+        damagePieces: [],
+        drawing: input.drawing
+          ?? (lastSeg?.drawing ? { ...lastSeg.drawing } : defaultDrawingSettings()),
+        notes: input.notes,
+        createdAt: now,
+        updatedAt: now,
+      };
+      return {
+        ...d,
+        projects: d.projects.map((p) =>
+          p.id === projectId
+            ? { ...p, segments: [...p.segments, segment], updatedAt: now }
+            : p,
+        ),
+        updatedAt: now,
+      };
+    });
     return id;
   }, []);
 
@@ -409,6 +452,7 @@ export function useDesignDb() {
     updateProject,
     deleteProject,
     setActiveProject,
+    importProject,
     // segments
     createSegment,
     updateSegment,

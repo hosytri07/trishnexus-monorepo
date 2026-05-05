@@ -46,6 +46,23 @@ export {
   type UserRole,
   type TrishUser,
   type ActivationKey,
+  // Phase 36.1 — types mới
+  type AppId,
+  type AppKeyBinding,
+  type KeySession,
+  type DeviceActivation,
+  type AuditLog,
+  type AuditLogType,
   ROLE_HIERARCHY,
   hasRoleAtLeast,
+  // Phase 36.1 — defaults + helpers
+  KEY_DEFAULT_EXPIRY_DAYS,
+  KEY_DEFAULT_MAX_CONCURRENT,
+  SESSION_HEARTBEAT_INTERVAL_MS,
+  SESSION_EXPIRY_AFTER_LAST_HEARTBEAT_MS,
+  KICK_GRACE_PERIOD_MS,
+  defaultKeyExpiresAt,
+  normalizeActivationKey,
+  isKeyValid,
+  userHasAppAccess,
 } from '@trishteam/data';

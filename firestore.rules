@@ -143,18 +143,59 @@ service cloud.firestore {
       allow create, update, delete: if isAdmin();
     }
 
-    // --- Phase 16.1.c — /keys/{keyId} (activation keys) ---
-    // Admin tạo + revoke. User đọc 1 key cụ thể bằng ID để activate.
-    // Schema: { code, status: 'active'|'used'|'revoked', created_at, used_by_uid?, used_at?, note? }
+    // --- Phase 16.1.c + Phase 36.1 — /keys/{keyId} (activation keys) ---
+    // Phase 16.1.c schema: { code, status, created_at, used_by_uid?, used_at?, note? }
+    // Phase 36.1 schema: + type ('account'|'standalone'), app_id, bound_uid, bound_machine_id,
+    //                      max_concurrent, recipient, expires_at, activated_at
+    //
+    // Admin tạo + revoke + delete + extend. User read keys active (để query activate).
+    // User update khi activate atomic flow (status active → used + bound_uid = self).
     match /keys/{keyId} {
-      allow read: if isAdmin() || (signedIn() && resource.data.status == 'active');
+      allow read: if isAdmin()
+        || (signedIn() && resource.data.status == 'active')
+        // Phase 36.1: user đã bound key này được đọc (để app fetch expires_at + max_concurrent)
+        || (signedIn() && resource.data.bound_uid == request.auth.uid);
       allow create: if isAdmin();
       allow update: if isAdmin()
+        // Phase 16.1.c legacy activation (không có type/app_id)
         || (signedIn()
             && resource.data.status == 'active'
             && request.resource.data.status == 'used'
-            && request.resource.data.used_by_uid == request.auth.uid);
+            && request.resource.data.used_by_uid == request.auth.uid)
+        // Phase 36.1 — Account key activation: user nhập key cho 1 app cụ thể
+        || (signedIn()
+            && resource.data.status == 'active'
+            && request.resource.data.status == 'used'
+            && request.resource.data.bound_uid == request.auth.uid
+            && resource.data.type == 'account');
       allow delete: if isAdmin();
+
+      // Phase 36.1 — Active sessions subcollection
+      // Track concurrent control. Owner (bound_uid) + admin đọc; ghi chỉ Cloud Function.
+      match /sessions/{sessionId} {
+        allow read: if isAdmin()
+          || (signedIn() && get(/databases/$(database)/documents/keys/$(keyId)).data.bound_uid == request.auth.uid);
+        allow write: if false; // Cloud Function only (Admin SDK bypass)
+      }
+    }
+
+    // --- Phase 36.1 — /device_activations/{compositeId} ---
+    // Composite ID = "{machine_id}_{app_id}" cho apps no-login (Shortcut/Check/Clean/Font).
+    // Read: signed user nào cũng được query theo doc ID (vì cần check máy mình đã activate chưa).
+    // Write: chỉ Cloud Function (atomic với key.status update).
+    match /device_activations/{compositeId} {
+      allow read: if signedIn() || isAdmin();
+      allow write: if false;
+    }
+
+    // --- Phase 36.1 — /audit_logs/{logId} ---
+    // Append-only log mọi action liên quan key/session/permission.
+    // Admin đọc full; user đọc log của chính mình (uid match).
+    // Write: chỉ Cloud Function (Admin SDK).
+    match /audit_logs/{logId} {
+      allow read: if isAdmin()
+        || (signedIn() && resource.data.uid == request.auth.uid);
+      allow write: if false;
     }
 
     // --- Phase 15.2/16.2 — /trishteam_library/{folderId} (admin curated) ---

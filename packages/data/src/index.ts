@@ -96,6 +96,32 @@ export function hasRoleAtLeast(have: UserRole, need: UserRole): boolean {
   return ROLE_HIERARCHY[have] >= ROLE_HIERARCHY[need];
 }
 
+/**
+ * App ID enum — Phase 36.1.
+ * 'all' = key đặc biệt unlock tất cả apps trả phí.
+ */
+export type AppId =
+  | 'trishlauncher'
+  | 'trishlibrary'
+  | 'trishdrive'
+  | 'trishdesign'
+  | 'trishfinance'
+  | 'trishiso'
+  | 'trishoffice'
+  | 'trishshortcut'
+  | 'trishcheck'
+  | 'trishclean'
+  | 'trishfont'
+  | 'trishadmin'
+  | 'all';
+
+/** Phase 36.1 — Per-app key activation entry trong TrishUser */
+export interface AppKeyBinding {
+  key_id: string;
+  activated_at: number;
+  expires_at: number; // copy từ key.expires_at tại thời điểm activate (cache local)
+}
+
 /** TrishUser document trong /users/{uid} */
 export interface TrishUser {
   /** UID = doc ID, lặp lại trong field cho query */
@@ -107,38 +133,215 @@ export interface TrishUser {
   photo_url?: string;
   /** Provider: 'password' | 'google.com' */
   provider?: string;
-  /** Timestamp ms khi user kích hoạt key (Trial → User). 0 = chưa */
+  /** Timestamp ms khi user kích hoạt key đầu tiên (Trial → User). 0 = chưa */
   key_activated_at: number;
-  /** Mã key đã kích hoạt (admin reference) */
+  /** Mã key đã kích hoạt (legacy — Phase 36+ dùng app_keys) */
   activated_key_id?: string;
   created_at: number;
   /** Last login timestamp ms */
   last_login_at?: number;
-  /** Phase 22.6.G — Quyền chỉnh sửa TrishISO (admin cấp riêng cho user thường) */
+
+  /**
+   * 🆕 Phase 36.1 — Per-app key activation map.
+   * User có thể activate Library Key + Finance Key nhưng KHÔNG có ISO Key.
+   * Mỗi app gate riêng dựa trên field này.
+   * Migration: legacy `iso_admin=true` → `app_keys.trishiso` set bởi admin.
+   */
+  app_keys?: Partial<Record<AppId, AppKeyBinding>>;
+
+  /** @deprecated Phase 36 — dùng app_keys.trishiso thay thế. Giữ cho migration. */
   iso_admin?: boolean;
   iso_admin_updated_at?: number;
-  /** Phase 23.10 — Quyền sử dụng TrishFinance (admin cấp riêng, app này off-ecosystem) */
+  /** @deprecated Phase 36 — dùng app_keys.trishfinance thay thế. Giữ cho migration. */
   finance_user?: boolean;
   finance_user_updated_at?: number;
 }
 
-/** Activation key document trong /keys/{keyId} */
+/**
+ * Activation key document trong /keys/{keyId}.
+ *
+ * Phase 36.1: schema mở rộng với type + app_id + max_concurrent + bound fields.
+ * Backward-compat: keys cũ (không có type/app_id) treat như { type:'account', app_id:'all' }.
+ */
 export interface ActivationKey {
   id: string;
-  /** Mã key dạng "TRISH-XXXX-XXXX-XXXX" */
+  /**
+   * Mã key dạng "XXXX-XXXX-XXXX-XXXX" (16 chars alphanumeric, không prefix).
+   * Lưu uppercase, no dashes internally để query nhanh.
+   */
   code: string;
+
+  /**
+   * 🆕 Phase 36.1 — Loại key:
+   * - 'account': bind vào user.uid (apps có login)
+   * - 'standalone': bind vào device.machine_id (apps no-login)
+   * Backward-compat: keys cũ default 'account'.
+   */
+  type?: 'account' | 'standalone';
+
+  /**
+   * 🆕 Phase 36.1 — App được unlock bởi key này.
+   * 'all' = unlock TẤT CẢ apps trả phí của user (admin cấp special).
+   * Backward-compat: keys cũ default 'all'.
+   */
+  app_id?: AppId;
+
   /** Trạng thái */
   status: 'active' | 'used' | 'revoked';
-  /** Note admin (vd "Cấp cho khách hàng X") */
+  /** Note admin nội bộ (vd "Cấp cho tester X") */
   note?: string;
-  /** UID user dùng key này (sau khi used) */
+  /** 🆕 Phase 36.1 — Tên người nhận key (audit, không bắt buộc) */
+  recipient?: string;
+
+  /** UID user dùng key này (sau khi used) — chỉ valid khi type='account' */
   used_by_uid?: string;
+  /** 🆕 Phase 36.1 — alias rõ ràng hơn cho used_by_uid */
+  bound_uid?: string;
+  /** 🆕 Phase 36.1 — Machine ID khi type='standalone' */
+  bound_machine_id?: string;
   used_at?: number;
-  /** Timestamp expire (0 = không expire) */
+  activated_at?: number;
+
+  /**
+   * Timestamp expire (0 = không expire, mặc định = activated_at + 365 ngày).
+   * Admin có thể override bất kỳ giá trị nào khi tạo key.
+   */
   expires_at: number;
+
+  /**
+   * 🆕 Phase 36.1 — Số session đồng thời tối đa (default 1, max 99).
+   * Backward-compat: keys cũ default 1.
+   */
+  max_concurrent?: number;
+
   created_at: number;
   /** Admin UID tạo key */
   created_by_uid: string;
 }
 
-export const DATA_VERSION = '0.2.0';
+/**
+ * 🆕 Phase 36.1 — Active session document trong /keys/{keyId}/sessions/{sessionId}.
+ * Dùng để track concurrent control + cho admin xem ai đang dùng key.
+ */
+export interface KeySession {
+  session_id: string;
+  key_id: string;
+  app_id: AppId;
+  /** Hash hostname + MAC + Windows GUID, 16 hex chars */
+  machine_id: string;
+  /** Public IP detect qua ipify.org, fallback 'unknown' */
+  ip_address: string;
+  ip_country?: string;
+  /** UID nếu type='account', null nếu standalone */
+  uid?: string;
+  user_agent?: string;
+  /** OS + version (vd "Windows 11 Pro") */
+  os?: string;
+  hostname?: string;
+  started_at: number;
+  /** Update mỗi 5min qua heartbeat. Nếu now() - last > 15min → expired. */
+  last_heartbeat: number;
+  expires_at: number;
+}
+
+/**
+ * 🆕 Phase 36.1 — Device activation document trong /device_activations/{compositeId}.
+ * Composite ID = "{machine_id}_{app_id}" để 1 máy có thể activate nhiều apps no-login.
+ * Dùng cho TrishShortcut/Check/Clean/Font (apps không cần login).
+ */
+export interface DeviceActivation {
+  composite_id: string; // "{machine_id}_{app_id}"
+  machine_id: string;
+  app_id: AppId;
+  key_id: string;
+  activated_at: number;
+  /** Copy từ key.expires_at tại thời điểm activate */
+  expires_at: number;
+  hostname?: string;
+  os?: string;
+  ip_first_seen?: string;
+}
+
+/**
+ * 🆕 Phase 36.1 — Audit log document trong /audit_logs/{logId}.
+ * Mọi hành động liên quan key/session/permission được log để admin trace.
+ */
+export type AuditLogType =
+  | 'key_created'
+  | 'key_revoked'
+  | 'key_deleted'
+  | 'key_activated'
+  | 'key_used'
+  | 'key_expired'
+  | 'key_extended'
+  | 'key_binding_reset'
+  | 'session_start'
+  | 'session_kicked'
+  | 'session_blocked'
+  | 'session_expired'
+  | 'permission_change'
+  | 'role_change';
+
+export interface AuditLog {
+  id: string;
+  type: AuditLogType;
+  /** Đối tượng bị tác động */
+  key_id?: string;
+  uid?: string;
+  machine_id?: string;
+  ip?: string;
+  app_id?: AppId;
+  /** Ai thực hiện (admin force kick, user activate...) */
+  actor_uid?: string;
+  /** Chi tiết tự do (vd { from_role: 'trial', to_role: 'user' }) */
+  details?: Record<string, unknown>;
+  timestamp: number;
+}
+
+// ============================================================
+// Phase 36.1 — Defaults
+// ============================================================
+export const KEY_DEFAULT_EXPIRY_DAYS = 365;
+export const KEY_DEFAULT_MAX_CONCURRENT = 1;
+export const SESSION_HEARTBEAT_INTERVAL_MS = 5 * 60 * 1000; // 5 phút
+export const SESSION_EXPIRY_AFTER_LAST_HEARTBEAT_MS = 15 * 60 * 1000; // 15 phút
+export const KICK_GRACE_PERIOD_MS = 5 * 1000; // 5 giây toast trước khi auto logout
+
+/** Helper: tính expires_at default cho key mới */
+export function defaultKeyExpiresAt(now: number = Date.now()): number {
+  return now + KEY_DEFAULT_EXPIRY_DAYS * 24 * 60 * 60 * 1000;
+}
+
+/** Helper: backward-compat cho keys cũ (không có type/app_id field) */
+export function normalizeActivationKey(key: ActivationKey): Required<Pick<ActivationKey, 'type' | 'app_id' | 'max_concurrent'>> & ActivationKey {
+  return {
+    ...key,
+    type: key.type ?? 'account',
+    app_id: key.app_id ?? 'all',
+    max_concurrent: key.max_concurrent ?? KEY_DEFAULT_MAX_CONCURRENT,
+  };
+}
+
+/** Helper: check key còn hiệu lực không */
+export function isKeyValid(key: ActivationKey, now: number = Date.now()): boolean {
+  if (key.status === 'revoked') return false;
+  if (key.expires_at > 0 && now >= key.expires_at) return false;
+  return true;
+}
+
+/** Helper: check user có quyền dùng app không */
+export function userHasAppAccess(
+  user: TrishUser | null,
+  appId: AppId,
+  now: number = Date.now(),
+): boolean {
+  if (!user) return false;
+  if (user.role === 'admin') return true;
+
+  const binding = user.app_keys?.[appId] ?? user.app_keys?.all;
+  if (!binding) return false;
+  if (binding.expires_at > 0 && now >= binding.expires_at) return false;
+  return true;
+}
+
+export const DATA_VERSION = '0.3.0'; // bump cho Phase 36.1 schema
