@@ -55,12 +55,12 @@ export function ApiKeysPanel(): JSX.Element {
   const [keys, setKeys] = useState<Record<ApiKeyProvider, string>>({ groq: '', gemini: '', claude: '', tg_feedback_bot: '', tg_feedback_chat: '', tg_lisp_chat: '' });
   const [drafts, setDrafts] = useState<Record<ApiKeyProvider, string>>({ groq: '', gemini: '', claude: '', tg_feedback_bot: '', tg_feedback_chat: '', tg_lisp_chat: '' });
   const [meta, setMeta] = useState<Record<ApiKeyProvider, KeyMeta | null>>({ groq: null, gemini: null, claude: null, tg_feedback_bot: null, tg_feedback_chat: null, tg_lisp_chat: null });
-  const [showKey, setShowKey] = useState<Record<ApiKeyProvider, boolean>>({ groq: false, gemini: false, claude: false });
+  const [showKey, setShowKey] = useState<Record<ApiKeyProvider, boolean>>({ groq: false, gemini: false, claude: false, tg_feedback_bot: false, tg_feedback_chat: false, tg_lisp_chat: false });
   const [audit, setAudit] = useState<AuditLogEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [savedFlash, setSavedFlash] = useState<string | null>(null);
-  const [busy, setBusy] = useState<Record<ApiKeyProvider, boolean>>({ groq: false, gemini: false, claude: false });
+  const [busy, setBusy] = useState<Record<ApiKeyProvider, boolean>>({ groq: false, gemini: false, claude: false, tg_feedback_bot: false, tg_feedback_chat: false, tg_lisp_chat: false });
   const [showPaid, setShowPaid] = useState(false);
 
   const visibleProviders: ApiKeyProvider[] = showPaid
@@ -136,7 +136,7 @@ export function ApiKeysPanel(): JSX.Element {
   }
 
   const dirty = useMemo(() => {
-    const out: Record<ApiKeyProvider, boolean> = { groq: false, gemini: false, claude: false };
+    const out: Record<ApiKeyProvider, boolean> = { groq: false, gemini: false, claude: false, tg_feedback_bot: false, tg_feedback_chat: false, tg_lisp_chat: false };
     ALL_PROVIDERS.forEach((p) => {
       out[p] = drafts[p] !== keys[p];
     });

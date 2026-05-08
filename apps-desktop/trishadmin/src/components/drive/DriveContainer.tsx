@@ -263,8 +263,8 @@ function SettingsPage({ uid, onReset }: { uid: string; onReset: () => Promise<vo
       {/* Phase 24.1.Q — bỏ card "Tài khoản TrishTEAM" duplicate vì sidebar
           TrishAdmin đã có avatar + email + nút Đăng xuất. */}
 
-      {/* Phase 25.0.D — HTTP API external Bearer Token */}
-      <HttpApiCard uid={uid} />
+      {/* Phase 25.0.D — HTTP API external Bearer Token (component chưa implement, tạm ẩn) */}
+      {/* <HttpApiCard uid={uid} /> */}
 
       {/* Cloud Telegram (Bot API hiện tại) */}
       <div className="card">

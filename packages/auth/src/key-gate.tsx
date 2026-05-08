@@ -43,6 +43,12 @@ export interface KeyGateProps {
   loadingFallback?: ReactNode;
   /** Custom message khi modal hiện */
   customWelcomeMessage?: string;
+  /**
+   * Phase 38.17 — Admin hệ sinh thái (profile.role='admin') tự động bypass
+   * key activation. Chỉ dùng cho keyType='account'.
+   * Default: false (mọi user phải activate key).
+   */
+  skipForAdmin?: boolean;
 }
 
 export function KeyGate({
@@ -54,12 +60,14 @@ export function KeyGate({
   os,
   children,
   loadingFallback,
+  skipForAdmin = false,
 }: KeyGateProps): JSX.Element {
   const auth = keyType === 'account' ? useAuth() : null;
   const firebaseUser = auth?.firebaseUser ?? null;
   const profile = auth?.profile ?? null;
   const loading = auth?.loading ?? false;
   const signOutFn = auth?.signOut;
+  const isEcosystemAdmin = profile?.role === 'admin';
 
   const [sessionHandle, setSessionHandle] = useState<SessionHandle | null>(null);
   const [showModal, setShowModal] = useState(false);
@@ -161,6 +169,11 @@ export function KeyGate({
 
   // Account key + chưa login → để app render auth flow
   if (keyType === 'account' && !firebaseUser) {
+    return <>{children}</>;
+  }
+
+  // Phase 38.17 — Admin hệ sinh thái bypass key activation
+  if (keyType === 'account' && skipForAdmin && isEcosystemAdmin && firebaseUser) {
     return <>{children}</>;
   }
 

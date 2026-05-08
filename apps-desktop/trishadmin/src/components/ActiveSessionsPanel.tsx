@@ -14,6 +14,8 @@ import {
   listActiveSessions,
 } from '../lib/firestore-admin.js';
 import { formatRelative, formatTimestamp } from '../lib/firestore-admin.js';
+import { geoLookupBatch, countryFlagEmoji } from '../lib/geo-lookup.js';
+import type { IpGeoCache } from '@trishteam/data';
 
 interface Props {
   adminUid: string;
@@ -29,8 +31,13 @@ export function ActiveSessionsPanel({ adminUid }: Props): JSX.Element {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [appFilter, setAppFilter] = useState<string>('all');
+  const [countryFilter, setCountryFilter] = useState<string>('all');
   const [search, setSearch] = useState('');
   const [actionMsg, setActionMsg] = useState<string | null>(null);
+  // Phase 24.3 — Geo cache + proxy filter
+  const [geoMap, setGeoMap] = useState<Map<string, IpGeoCache | null>>(new Map());
+  const [showProxyOnly, setShowProxyOnly] = useState(false);
+  const [geoLoading, setGeoLoading] = useState(false);
 
   async function load(): Promise<void> {
     setLoading(true);
@@ -38,11 +45,77 @@ export function ActiveSessionsPanel({ adminUid }: Props): JSX.Element {
     try {
       const list = await listActiveSessions(500);
       setSessions(list);
+      // Phase 24.3 — kick off geo lookup async
+      const ips = list.map((s) => s.ip_address).filter((ip) => ip && ip !== 'unknown');
+      if (ips.length > 0) {
+        setGeoLoading(true);
+        geoLookupBatch(ips)
+          .then((m) => setGeoMap(m))
+          .catch((err) => console.warn('[geo] batch fail:', err))
+          .finally(() => setGeoLoading(false));
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     } finally {
       setLoading(false);
     }
+  }
+
+  // Phase 24.3 — CSV export sessions
+  function exportSessionsCsv(): void {
+    if (filtered.length === 0) {
+      window.alert('Không có session để export');
+      return;
+    }
+    const rows = [
+      [
+        'Session ID',
+        'App',
+        'Key ID',
+        'UID',
+        'Machine ID',
+        'Hostname',
+        'OS',
+        'IP',
+        'Country',
+        'City',
+        'ISP',
+        'Is Proxy',
+        'Started At',
+        'Last Heartbeat',
+        'Expires At',
+      ],
+      ...filtered.map((s) => {
+        const geo = geoMap.get(s.ip_address);
+        return [
+          s.session_id,
+          s.app_id,
+          s.key_id,
+          s.uid ?? '',
+          s.machine_id,
+          s.hostname ?? '',
+          s.os ?? '',
+          s.ip_address,
+          geo?.country ?? '',
+          geo?.city ?? '',
+          geo?.isp ?? '',
+          geo?.is_proxy ? 'YES' : 'no',
+          new Date(s.started_at).toISOString(),
+          new Date(s.last_heartbeat).toISOString(),
+          new Date(s.expires_at).toISOString(),
+        ];
+      }),
+    ];
+    const csv = rows.map((r) => r.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(',')).join('\n');
+    const bom = '﻿';
+    const blob = new Blob([bom + csv], { type: 'text/csv;charset=utf-8;' });
+    const ts = new Date().toISOString().replace(/[:.]/g, '').slice(0, 15);
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.download = `trishteam-sessions-${ts}.csv`;
+    link.click();
+    URL.revokeObjectURL(link.href);
+    setActionMsg(`✓ Đã export ${filtered.length} sessions ra CSV`);
   }
 
   useEffect(() => {
@@ -56,16 +129,31 @@ export function ActiveSessionsPanel({ adminUid }: Props): JSX.Element {
     const q = search.trim().toLowerCase();
     return sessions.filter((s) => {
       if (appFilter !== 'all' && s.app_id !== appFilter) return false;
+      const geo = geoMap.get(s.ip_address);
+      if (countryFilter !== 'all' && geo?.country_code !== countryFilter) return false;
+      if (showProxyOnly && !geo?.is_proxy) return false;
       if (!q) return true;
       return (
         s.uid?.toLowerCase().includes(q) ||
         s.machine_id?.toLowerCase().includes(q) ||
         s.ip_address?.toLowerCase().includes(q) ||
         s.key_id?.toLowerCase().includes(q) ||
-        s.hostname?.toLowerCase().includes(q)
+        s.hostname?.toLowerCase().includes(q) ||
+        geo?.country?.toLowerCase().includes(q) ||
+        geo?.city?.toLowerCase().includes(q) ||
+        geo?.isp?.toLowerCase().includes(q)
       );
     });
-  }, [sessions, appFilter, search]);
+  }, [sessions, appFilter, search, geoMap, countryFilter, showProxyOnly]);
+
+  const uniqueCountries = useMemo(() => {
+    const set = new Set<string>();
+    for (const s of sessions) {
+      const geo = geoMap.get(s.ip_address);
+      if (geo?.country_code) set.add(geo.country_code);
+    }
+    return Array.from(set).sort();
+  }, [sessions, geoMap]);
 
   async function handleKick(s: ActiveSessionRow): Promise<void> {
     if (
@@ -134,6 +222,63 @@ export function ActiveSessionsPanel({ adminUid }: Props): JSX.Element {
             </option>
           ))}
         </select>
+        {uniqueCountries.length > 0 && (
+          <select
+            value={countryFilter}
+            onChange={(e) => setCountryFilter(e.target.value)}
+            style={{
+              padding: '8px 12px',
+              border: '1px solid var(--color-border-default, #D1D5DB)',
+              borderRadius: 6,
+              fontSize: 13,
+              minWidth: 140,
+            }}
+          >
+            <option value="all">🌍 Tất cả nước</option>
+            {uniqueCountries.map((cc) => (
+              <option key={cc} value={cc}>
+                {countryFlagEmoji(cc)} {cc}
+              </option>
+            ))}
+          </select>
+        )}
+        <label
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 6,
+            padding: '8px 10px',
+            border: '1px solid var(--color-border-default, #D1D5DB)',
+            borderRadius: 6,
+            fontSize: 12,
+            cursor: 'pointer',
+            background: showProxyOnly ? 'rgba(220,38,38,0.1)' : 'transparent',
+          }}
+        >
+          <input
+            type="checkbox"
+            checked={showProxyOnly}
+            onChange={(e) => setShowProxyOnly(e.target.checked)}
+          />
+          🔒 Chỉ VPN/Proxy
+        </label>
+        <button
+          type="button"
+          onClick={exportSessionsCsv}
+          disabled={loading || filtered.length === 0}
+          style={{
+            padding: '8px 12px',
+            background: 'transparent',
+            color: 'var(--fg)',
+            border: '1px solid var(--color-border-default, #D1D5DB)',
+            borderRadius: 6,
+            fontSize: 13,
+            cursor: 'pointer',
+          }}
+          title="Export CSV"
+        >
+          📊 CSV
+        </button>
         <button
           type="button"
           onClick={() => void load()}
@@ -149,7 +294,7 @@ export function ActiveSessionsPanel({ adminUid }: Props): JSX.Element {
             cursor: 'pointer',
           }}
         >
-          {loading ? '⏳ Đang tải…' : '🔄 Refresh'}
+          {loading ? '⏳ Đang tải…' : geoLoading ? '🌍 Geo…' : '🔄 Refresh'}
         </button>
       </div>
 
@@ -225,6 +370,37 @@ export function ActiveSessionsPanel({ adminUid }: Props): JSX.Element {
                   </td>
                   <td style={cell}>
                     <code>{s.ip_address}</code>
+                    {(() => {
+                      const geo = geoMap.get(s.ip_address);
+                      if (!geo) return null;
+                      return (
+                        <div style={{ fontSize: 10, color: '#6B7280', marginTop: 2 }}>
+                          {countryFlagEmoji(geo.country_code)} {geo.city ?? '—'}
+                          {geo.country && `, ${geo.country}`}
+                          {geo.isp && (
+                            <div style={{ fontSize: 10, color: '#9CA3AF' }}>
+                              {geo.isp}
+                            </div>
+                          )}
+                          {geo.is_proxy && (
+                            <span
+                              style={{
+                                display: 'inline-block',
+                                marginTop: 2,
+                                padding: '1px 6px',
+                                background: 'rgba(220,38,38,0.15)',
+                                color: '#DC2626',
+                                fontSize: 9,
+                                borderRadius: 4,
+                                fontWeight: 700,
+                              }}
+                            >
+                              🔒 VPN/PROXY
+                            </span>
+                          )}
+                        </div>
+                      );
+                    })()}
                   </td>
                   <td style={cell}>
                     {s.hostname || '—'}

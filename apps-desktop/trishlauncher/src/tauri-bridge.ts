@@ -62,7 +62,19 @@ export async function openExternal(url: string): Promise<void> {
     window.open(url, '_blank', 'noopener,noreferrer');
     return;
   }
-  await openUrl(url);
+  try {
+    await openUrl(url);
+  } catch (err) {
+    // Phase 39.4 — Fallback: nếu plugin-opener fail (vd capability missing),
+    // dùng window.open + log error để dễ debug.
+    console.warn('[trishlauncher] openUrl plugin failed, fallback:', err);
+    try {
+      window.open(url, '_blank', 'noopener,noreferrer');
+    } catch (e) {
+      console.error('[trishlauncher] fallback window.open also failed:', e);
+      alert(`Không mở được URL: ${url}\nLỗi: ${err instanceof Error ? err.message : err}`);
+    }
+  }
 }
 
 // ============================================================
@@ -107,6 +119,62 @@ export async function launchPath(path: string): Promise<void> {
     return;
   }
   await invoke<string>('launch_path', { path });
+}
+
+// ============================================================
+// Phase 39.5 — Auto-download installer + Auto-spawn
+// ============================================================
+
+export interface DownloadProgressEvent {
+  app_id: string;
+  /** 'start' | 'downloading' | 'done' | 'error' */
+  phase: 'start' | 'downloading' | 'done' | 'error';
+  downloaded: number;
+  total: number;
+  /** Absolute path tới file (chỉ ở phase 'done') */
+  path: string | null;
+  error: string | null;
+}
+
+/**
+ * Download installer .exe từ URL về %TEMP%, return absolute path file.
+ * Throw nếu fail. Frontend listen event `download:progress` cho realtime.
+ */
+export async function downloadInstaller(
+  url: string,
+  appId: string,
+): Promise<string> {
+  if (!isInTauri()) {
+    throw new Error('downloadInstaller requires Tauri runtime');
+  }
+  return await invoke<string>('download_installer', { url, appId });
+}
+
+/** Spawn installer (Phase A: không silent — user thấy NSIS UI). */
+export async function runInstaller(path: string): Promise<void> {
+  if (!isInTauri()) {
+    throw new Error('runInstaller requires Tauri runtime');
+  }
+  await invoke<void>('run_installer', { path });
+}
+
+/**
+ * Subscribe realtime download progress events từ Rust.
+ * Trả về unsubscribe function — gọi để stop listen.
+ */
+export async function listenDownloadProgress(
+  callback: (event: DownloadProgressEvent) => void,
+): Promise<() => void> {
+  if (!isInTauri()) {
+    return () => {};
+  }
+  // Lazy import — chỉ load khi cần
+  const { listen } = await import('@tauri-apps/api/event');
+  const unlisten = await listen<DownloadProgressEvent>(
+    'download:progress',
+    (e) => callback(e.payload),
+  );
+  return unlisten;
 }
 
 // ============================================================

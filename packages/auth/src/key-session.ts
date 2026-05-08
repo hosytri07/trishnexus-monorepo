@@ -41,8 +41,11 @@ import { SESSION_HEARTBEAT_INTERVAL_MS } from '@trishteam/data';
 // ============================================================
 // Config
 // ============================================================
+// Phase 24.3 — Use globalThis to avoid Node 'process' type dependency.
+// Browser sees undefined, Next.js SSR sees process.
 const API_BASE =
-  (typeof process !== 'undefined' && process.env?.NEXT_PUBLIC_API_BASE) ||
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  ((globalThis as any).process?.env?.NEXT_PUBLIC_API_BASE as string | undefined) ||
   'https://trishteam.io.vn';
 const IPIFY_URL = 'https://api.ipify.org?format=json';
 const IPIFY_TIMEOUT_MS = 3000;

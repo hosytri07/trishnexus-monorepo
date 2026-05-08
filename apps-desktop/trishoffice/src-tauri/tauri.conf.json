@@ -13,7 +13,7 @@
     "windows": [
       {
         "label": "main",
-        "title": "TrishOffice — BuildOffice Assistant",
+        "title": "TrishOffice — HRM/ERP-light",
         "width": 1280,
         "height": 800,
         "minWidth": 1024,
@@ -38,8 +38,8 @@
     ],
     "category": "Productivity",
     "copyright": "© 2026 TrishTEAM",
-    "shortDescription": "TrishOffice — BuildOffice Assistant cho kỹ sư XD/GT",
-    "longDescription": "Bộ công cụ văn phòng kỹ sư xây dựng/giao thông VN: Project Launcher (folder chuẩn 10 thư mục), File Rename Pro (đổi tên hàng loạt), Folder Index (xuất danh mục), Photo Report (chèn ảnh vào Word), Cong Van Manager (sổ công văn).",
+    "shortDescription": "TrishOffice — HRM/ERP-light quản lý công ty",
+    "longDescription": "TrishOffice — bộ công cụ HRM/ERP-light cho doanh nghiệp 5-50 người: Nhân sự + Chấm công + Tài sản + Quy trình duyệt + Tài liệu nội bộ + Kế toán (lương + thuế TNCN + BHXH). RBAC 8 role: Giám đốc, Phó GĐ, Trưởng phòng, Phó phòng, HR, Kế toán, Nhân viên, Admin IT.",
     "publisher": "TrishTEAM",
     "homepage": "https://trishteam.io.vn",
     "windows": {

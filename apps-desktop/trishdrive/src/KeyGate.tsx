@@ -19,6 +19,8 @@ export function KeyGate({ children }: { children: ReactNode }): JSX.Element {
       appName={APP_NAME}
       keyType="account"
       getMachineId={getMachineId}
+      // Phase 38.17 — Admin hệ sinh thái không cần activate key
+      skipForAdmin
     >
       {children}
     </KeyGateGeneric>

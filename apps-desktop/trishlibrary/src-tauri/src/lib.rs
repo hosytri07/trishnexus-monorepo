@@ -379,8 +379,10 @@ async fn fetch_text(url: String) -> Result<String, String> {
 // Phase 18 — Generic file I/O (cho Document module)
 // ============================================================
 
-const MAX_TEXT_BYTES: u64 = 16 * 1024 * 1024;
-const MAX_BINARY_BYTES: u64 = 32 * 1024 * 1024;
+// Phase 39 — Tăng limit cho engineer xử lý PDF công văn lớn (50-200MB).
+// Trước: 16MB text / 32MB binary → hay reject PDF công văn ngành GT.
+const MAX_TEXT_BYTES: u64 = 64 * 1024 * 1024;       // 64 MB
+const MAX_BINARY_BYTES: u64 = 500 * 1024 * 1024;    // 500 MB
 
 #[tauri::command]
 fn read_text_string(path: String) -> Result<String, String> {
@@ -1709,12 +1711,499 @@ fn check_qpdf() -> Result<ToolStatus, String> {
     Ok(status)
 }
 
+/// Phase 39.fix — Trả về system temp dir path (e.g. C:\Users\X\AppData\Local\Temp).
+/// React side dùng để build temp file paths cho OCR pipeline.
+#[tauri::command]
+fn get_temp_dir() -> String {
+    std::env::temp_dir().to_string_lossy().to_string()
+}
+
+/// Phase 39.fix12 — Trả về app data dir cho TrishLibrary (vd %APPDATA%\TrishLibrary).
+/// Dùng cho cache: tessdata_best, downloads.
+fn trishlibrary_data_dir() -> Result<PathBuf, String> {
+    let base = dirs::data_dir()
+        .ok_or_else(|| "Không xác định được app data dir".to_string())?;
+    let p = base.join("TrishLibrary");
+    fs::create_dir_all(&p).map_err(|e| format!("create_dir: {e}"))?;
+    Ok(p)
+}
+
+/// Phase 39.fix12 — Path tessdata_best directory (cache).
+fn tessdata_best_dir() -> Result<PathBuf, String> {
+    let p = trishlibrary_data_dir()?.join("tessdata_best");
+    fs::create_dir_all(&p).map_err(|e| format!("create_dir: {e}"))?;
+    Ok(p)
+}
+
+/// Phase 39.fix12 — Check tessdata_best đã download cho lang chưa.
+/// `lang_code`: vd "vie", "eng".
+#[tauri::command]
+fn check_tessdata_best(lang_code: String) -> Result<bool, String> {
+    let dir = tessdata_best_dir()?;
+    let file = dir.join(format!("{lang_code}.traineddata"));
+    Ok(file.exists() && fs::metadata(&file).map(|m| m.len() > 1_000_000).unwrap_or(false))
+}
+
+/// Phase 39.fix12 — Download tessdata_best.traineddata cho lang chỉ định.
+/// Source: https://github.com/tesseract-ocr/tessdata_best/raw/main/{lang}.traineddata
+/// Cache: %APPDATA%\TrishLibrary\tessdata_best\{lang}.traineddata
+/// Returns: full path file đã download.
+#[tauri::command]
+async fn download_tessdata_best(lang_code: String) -> Result<String, String> {
+    let dir = tessdata_best_dir()?;
+    let file = dir.join(format!("{lang_code}.traineddata"));
+    if file.exists() && fs::metadata(&file).map(|m| m.len() > 1_000_000).unwrap_or(false) {
+        return Ok(file.to_string_lossy().to_string());
+    }
+    let url = format!(
+        "https://github.com/tesseract-ocr/tessdata_best/raw/main/{lang_code}.traineddata"
+    );
+    let client = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(300))
+        .build()
+        .map_err(|e| format!("client build: {e}"))?;
+    let resp = client.get(&url).send().await
+        .map_err(|e| format!("download fail: {e}"))?;
+    if !resp.status().is_success() {
+        return Err(format!("HTTP {} cho {url}", resp.status()));
+    }
+    let bytes = resp.bytes().await
+        .map_err(|e| format!("read body: {e}"))?;
+    if bytes.len() < 1_000_000 {
+        return Err(format!(
+            "File tải về quá nhỏ ({} bytes), có thể fail",
+            bytes.len()
+        ));
+    }
+    fs::write(&file, &bytes).map_err(|e| format!("write file: {e}"))?;
+    Ok(file.to_string_lossy().to_string())
+}
+
+/// Phase 39.fix12 — Trả TESSDATA_PREFIX dir (chứa tessdata_best đã download).
+/// Set trong env khi spawn tesseract để dùng best model thay vì regular.
+#[tauri::command]
+fn get_tessdata_best_dir() -> Result<String, String> {
+    Ok(tessdata_best_dir()?.to_string_lossy().to_string())
+}
+
+/// Phase 39.fix10 — Check MS Word installed (Windows only).
+/// Detect qua 2 cách:
+///   1. Check default install paths của Office 2010-2021/365.
+///   2. PowerShell probe: try create Word COM object (đảm bảo COM hoạt động).
+#[tauri::command]
+fn check_msword() -> Result<ToolStatus, String> {
+    #[cfg(target_os = "windows")]
+    {
+        // Step 1: Check common install paths
+        let candidates = [
+            r"C:\Program Files\Microsoft Office\root\Office16\WINWORD.EXE",
+            r"C:\Program Files\Microsoft Office\Office16\WINWORD.EXE",
+            r"C:\Program Files\Microsoft Office\Office15\WINWORD.EXE",
+            r"C:\Program Files\Microsoft Office\Office14\WINWORD.EXE",
+            r"C:\Program Files (x86)\Microsoft Office\root\Office16\WINWORD.EXE",
+            r"C:\Program Files (x86)\Microsoft Office\Office16\WINWORD.EXE",
+            r"C:\Program Files (x86)\Microsoft Office\Office15\WINWORD.EXE",
+            r"C:\Program Files (x86)\Microsoft Office\Office14\WINWORD.EXE",
+        ];
+        for p in &candidates {
+            if std::path::Path::new(p).exists() {
+                return Ok(ToolStatus {
+                    available: true,
+                    version: Some(format!("MS Word: {p}")),
+                    hint: "Word sẵn sàng convert PDF→DOCX với chất lượng cao nhất.".to_string(),
+                });
+            }
+        }
+        // Step 2: PowerShell COM probe — cover Office 365 click-to-run + custom install paths
+        let probe = hidden_command("powershell")
+            .arg("-NoProfile")
+            .arg("-NonInteractive")
+            .arg("-Command")
+            .arg("try { $w = New-Object -ComObject Word.Application -ErrorAction Stop; $v = $w.Version; $w.Quit(); Write-Host \"OK $v\" } catch { Write-Host 'NO' }")
+            .output();
+        if let Ok(out) = probe {
+            let stdout = String::from_utf8_lossy(&out.stdout).trim().to_string();
+            if stdout.starts_with("OK") {
+                return Ok(ToolStatus {
+                    available: true,
+                    version: Some(stdout.replace("OK ", "MS Word ")),
+                    hint: "Word COM sẵn sàng convert PDF→DOCX.".to_string(),
+                });
+            }
+        }
+    }
+    Ok(ToolStatus {
+        available: false,
+        version: None,
+        hint: "Không tìm thấy MS Word. Cài Office (Word 2010+) hoặc dùng LibreOffice.".to_string(),
+    })
+}
+
+/// Phase 39.fix10 — Convert PDF (or DOCX) via Microsoft Word COM automation.
+/// Word có built-in PDF→DOCX converter chất lượng cao + tự OCR PDF scan nếu cần.
+/// Spawn PowerShell với Word COM, hidden window, no UI.
+///
+/// `input_path`: full path file PDF/DOCX gốc.
+/// `output_path`: full path file DOCX đích.
+#[tauri::command]
+async fn convert_via_msword(
+    input_path: String,
+    output_path: String,
+) -> Result<(), String> {
+    #[cfg(not(target_os = "windows"))]
+    {
+        return Err("MS Word convert chỉ hỗ trợ Windows".to_string());
+    }
+    #[cfg(target_os = "windows")]
+    {
+        // Build PowerShell script — Word COM open + SaveAs2 + Quit
+        // FileFormat: 16 = wdFormatXMLDocument (.docx)
+        // Path escape: PowerShell single-quote string không escape, replace ' → ''
+        let in_esc = input_path.replace('\'', "''");
+        let out_esc = output_path.replace('\'', "''");
+        let script = format!(
+            r#"
+$ErrorActionPreference = 'Stop'
+try {{
+    $word = New-Object -ComObject Word.Application
+    $word.Visible = $false
+    $word.DisplayAlerts = 0
+    # AutomationSecurity = msoAutomationSecurityForceDisable (no macro prompts)
+    $word.AutomationSecurity = 3
+    $doc = $word.Documents.Open('{in_esc}', $false, $true)
+    $doc.SaveAs2('{out_esc}', 16)
+    $doc.Close($false)
+    $word.Quit()
+    [System.Runtime.InteropServices.Marshal]::ReleaseComObject($doc) | Out-Null
+    [System.Runtime.InteropServices.Marshal]::ReleaseComObject($word) | Out-Null
+    Write-Host 'OK'
+}} catch {{
+    Write-Error $_.Exception.Message
+    exit 1
+}}
+"#
+        );
+
+        if let Some(parent) = PathBuf::from(&output_path).parent() {
+            fs::create_dir_all(parent).map_err(|e| format!("create_dir: {e}"))?;
+        }
+
+        let script_clone = script.clone();
+        tokio::task::spawn_blocking(move || -> Result<(), String> {
+            let output = hidden_command("powershell")
+                .arg("-NoProfile")
+                .arg("-NonInteractive")
+                .arg("-ExecutionPolicy").arg("Bypass")
+                .arg("-Command").arg(&script_clone)
+                .output()
+                .map_err(|e| format!("Không gọi được PowerShell: {e}"))?;
+            if !output.status.success() {
+                let stderr = String::from_utf8_lossy(&output.stderr).to_string();
+                let stdout = String::from_utf8_lossy(&output.stdout).to_string();
+                return Err(format!(
+                    "MS Word convert lỗi: {}\n{}\n\n\
+                    Có thể: (1) Word chưa activate, (2) PDF protected, \
+                    (3) Word bận - đóng tất cả Word đang mở rồi thử lại.",
+                    stderr.trim(), stdout.trim()
+                ));
+            }
+            Ok(())
+        })
+        .await
+        .map_err(|e| format!("msword join: {e}"))?
+    }
+}
+
+/// Phase 39 — Helper: tạo Command với CREATE_NO_WINDOW flag (Windows) để
+/// subprocess KHÔNG hiện CMD console window pop-up. Cross-platform.
+fn hidden_command<S: AsRef<std::ffi::OsStr>>(program: S) -> std::process::Command {
+    let mut cmd = std::process::Command::new(program);
+    #[cfg(target_os = "windows")]
+    {
+        use std::os::windows::process::CommandExt;
+        cmd.creation_flags(0x08000000); // CREATE_NO_WINDOW
+    }
+    cmd
+}
+
+/// Phase 39 — Resolve LibreOffice (soffice) binary path.
+/// LibreOffice headless mode dùng để convert PDF↔DOCX↔ODT preserve format.
+fn resolve_libreoffice_path() -> Option<String> {
+    // Phase 39.fix2 — KHÔNG dùng `--version` probe vì LibreOffice 26.x trên Windows
+    // có bug pop-up "Press Enter to continue..." kể cả với CREATE_NO_WINDOW flag.
+    // Chỉ check file tồn tại ở các default install paths.
+    #[cfg(target_os = "windows")]
+    {
+        let candidates = [
+            r"C:\Program Files\LibreOffice\program\soffice.exe",
+            r"C:\Program Files (x86)\LibreOffice\program\soffice.exe",
+        ];
+        for p in &candidates {
+            if std::path::Path::new(p).exists() {
+                return Some(p.to_string());
+            }
+        }
+    }
+    #[cfg(target_os = "macos")]
+    {
+        let candidates = [
+            "/Applications/LibreOffice.app/Contents/MacOS/soffice",
+            "/usr/local/bin/soffice",
+        ];
+        for p in &candidates {
+            if std::path::Path::new(p).exists() {
+                return Some(p.to_string());
+            }
+        }
+    }
+    #[cfg(target_os = "linux")]
+    {
+        let candidates = [
+            "/usr/bin/soffice",
+            "/usr/bin/libreoffice",
+            "/snap/bin/libreoffice",
+            "/opt/libreoffice/program/soffice",
+        ];
+        for p in &candidates {
+            if std::path::Path::new(p).exists() {
+                return Some(p.to_string());
+            }
+        }
+    }
+    None
+}
+
+/// Phase 39 — Check LibreOffice available.
+/// Phase 39.fix2 — Skip `--version` probe vì LibreOffice 26.x trên Windows pop-up
+/// "Press Enter to continue..." console window. Chỉ check file exists.
+#[tauri::command]
+fn check_libreoffice() -> Result<ToolStatus, String> {
+    match resolve_libreoffice_path() {
+        Some(bin) => Ok(ToolStatus {
+            available: true,
+            version: Some(format!("Phát hiện tại: {bin}")),
+            hint: "LibreOffice sẵn sàng. Convert PDF↔DOCX preserve format.".to_string(),
+        }),
+        None => Ok(ToolStatus {
+            available: false,
+            version: None,
+            hint: "Cài LibreOffice (free): https://www.libreoffice.org/download/download/\n\
+                Windows: tải installer + cài default location. App tự dò.\n\
+                macOS: brew install --cask libreoffice\n\
+                Linux: apt install libreoffice"
+                .to_string(),
+        }),
+    }
+}
+
+/// Phase 39 — Convert file qua LibreOffice headless.
+/// Hỗ trợ: pdf, docx, odt, doc, rtf, html, txt, xlsx, ods, pptx, odp.
+/// Output ghi vào output_dir/{stem}.{target_format}.
+/// Returns: full path output file.
+///
+/// Phase 39.fix:
+///   - Copy input vào temp dir với tên đơn giản (`input.{ext}`) trước khi gọi LibreOffice
+///     để tránh lỗi "no export filter" khi filename có nhiều dấu chấm (vd "CV 2025.12.31.docx")
+///     LibreOffice CLI parse extension sai.
+///   - Windows: spawn với CREATE_NO_WINDOW flag để KHÔNG hiện CMD console window pop-up.
+#[tauri::command]
+async fn convert_via_libreoffice(
+    input_path: String,
+    output_format: String,
+    output_dir: String,
+) -> Result<String, String> {
+    use std::process::Command;
+    let bin = resolve_libreoffice_path()
+        .ok_or_else(|| "LibreOffice chưa cài. Tải tại libreoffice.org".to_string())?;
+
+    fs::create_dir_all(&output_dir).map_err(|e| format!("create_dir: {e}"))?;
+    let input_path_clone = input_path.clone();
+    let output_format_clone = output_format.clone();
+    let output_dir_clone = output_dir.clone();
+
+    tokio::task::spawn_blocking(move || -> Result<String, String> {
+        // 1. Copy input file vào temp với tên đơn giản (tránh lỗi parse extension)
+        let input_path_buf = PathBuf::from(&input_path_clone);
+        let original_stem = input_path_buf
+            .file_stem()
+            .and_then(|s| s.to_str())
+            .unwrap_or("output")
+            .to_string();
+        let original_ext = input_path_buf
+            .extension()
+            .and_then(|s| s.to_str())
+            .unwrap_or("")
+            .to_string();
+        let temp_root = std::env::temp_dir().join("trishlibrary_lo");
+        fs::create_dir_all(&temp_root).map_err(|e| format!("temp_dir: {e}"))?;
+        let pid = std::process::id();
+        let nano = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.subsec_nanos())
+            .unwrap_or(0);
+        let temp_session = temp_root.join(format!("conv_{pid}_{nano}"));
+        fs::create_dir_all(&temp_session).map_err(|e| format!("session_dir: {e}"))?;
+        let safe_input = temp_session.join(format!("input.{original_ext}"));
+        fs::copy(&input_path_buf, &safe_input)
+            .map_err(|e| format!("copy input: {e}"))?;
+
+        // 2. Build isolated UserInstallation path (fix LibreOffice profile lock conflicts)
+        let user_install_dir = temp_session.join("lo_profile");
+        let user_install_url = format!(
+            "file:///{}",
+            user_install_dir.to_string_lossy().replace('\\', "/")
+        );
+
+        // 3. Map output format → explicit LibreOffice filter name (fix "no export filter")
+        // LibreOffice 26.x dev build sometimes fails với generic format names
+        let target_ext_only = output_format_clone
+            .split(':')
+            .next()
+            .unwrap_or(&output_format_clone)
+            .to_lowercase();
+        let convert_to_arg = match target_ext_only.as_str() {
+            "docx" => "docx:MS Word 2007 XML".to_string(),
+            "doc" => "doc:MS Word 97".to_string(),
+            "pdf" => "pdf:writer_pdf_Export".to_string(),
+            "html" | "htm" => "html:HTML (StarWriter)".to_string(),
+            "txt" => "txt:Text".to_string(),
+            "rtf" => "rtf:Rich Text Format".to_string(),
+            "odt" => "odt:writer8".to_string(),
+            "xlsx" => "xlsx:Calc Office Open XML".to_string(),
+            "ods" => "ods:calc8".to_string(),
+            "pptx" => "pptx:Impress Office Open XML".to_string(),
+            _ => output_format_clone.clone(),
+        };
+
+        // 4. Detect input filter — PDF cần force `writer_pdf_import` khi target là DOCX/DOC/ODT/RTF/HTML
+        // (default LibreOffice mở PDF qua Draw → save Writer filter sẽ fail "Write Code:16").
+        let input_ext = PathBuf::from(&input_path_clone)
+            .extension()
+            .and_then(|s| s.to_str())
+            .unwrap_or("")
+            .to_lowercase();
+        let writer_targets = ["docx", "doc", "odt", "rtf", "html", "htm", "txt"];
+        let needs_writer_filter = input_ext == "pdf"
+            && writer_targets.contains(&target_ext_only.as_str());
+
+        // 5. soffice --headless --convert-to {format} --outdir {temp} {safe_input}
+        let mut cmd = hidden_command(&bin);
+        cmd.arg("--headless")
+            .arg("--nologo")
+            .arg("--nofirststartwizard")
+            .arg("--norestore")
+            .arg("--nocrashreport")
+            .arg("--nodefault")
+            .arg(format!("-env:UserInstallation={user_install_url}"));
+        if needs_writer_filter {
+            // Force PDF mở qua Writer module thay vì Draw (default)
+            cmd.arg("--infilter=writer_pdf_import");
+        }
+        cmd.arg("--convert-to").arg(&convert_to_arg)
+            .arg("--outdir").arg(&temp_session)
+            .arg(&safe_input);
+
+        // Phase 39.fix3 — Set current_dir = soffice's parent directory
+        // Fix lỗi "Could not find platform independent libraries <prefix>" — LibreOffice
+        // dev builds (26.x) cần chạy từ install dir để locate Python core + share libs.
+        if let Some(bin_parent) = PathBuf::from(&bin).parent() {
+            cmd.current_dir(bin_parent);
+        }
+
+        let output = cmd.output().map_err(|e| {
+            let _ = fs::remove_dir_all(&temp_session);
+            format!("Không gọi được LibreOffice: {e}")
+        })?;
+        if !output.status.success() {
+            let stderr = String::from_utf8_lossy(&output.stderr).to_string();
+            let stdout = String::from_utf8_lossy(&output.stdout).to_string();
+            let _ = fs::remove_dir_all(&temp_session);
+            return Err(format!("LibreOffice lỗi: {stderr}\n{stdout}"));
+        }
+
+        // 3. Locate output file trong temp_session: input.{target_ext}
+        let target_ext = output_format_clone
+            .split(':')
+            .next()
+            .unwrap_or(&output_format_clone);
+        let temp_out = temp_session.join(format!("input.{target_ext}"));
+        if !temp_out.exists() {
+            let _ = fs::remove_dir_all(&temp_session);
+            return Err(format!(
+                "LibreOffice không tạo file output tại {}",
+                temp_out.display()
+            ));
+        }
+
+        // 4. Move/rename về output_dir/{original_stem}.{target_ext}
+        let final_out = PathBuf::from(&output_dir_clone)
+            .join(format!("{original_stem}.{target_ext}"));
+        fs::create_dir_all(&output_dir_clone).map_err(|e| format!("create out: {e}"))?;
+        // Nếu file đích đã tồn tại, ghi đè
+        if final_out.exists() {
+            let _ = fs::remove_file(&final_out);
+        }
+        // Try rename trước (nhanh nếu cùng partition), fallback copy + remove
+        if fs::rename(&temp_out, &final_out).is_err() {
+            fs::copy(&temp_out, &final_out)
+                .map_err(|e| format!("copy output: {e}"))?;
+            let _ = fs::remove_file(&temp_out);
+        }
+
+        // 5. Cleanup temp session
+        let _ = fs::remove_dir_all(&temp_session);
+
+        Ok(final_out.to_string_lossy().to_string())
+    })
+    .await
+    .map_err(|e| format!("libreoffice join: {e}"))?
+}
+
+/// Phase 39 — Resolve tesseract binary path:
+/// 1. Try `tesseract` từ PATH
+/// 2. Fallback: default Windows install path "C:\Program Files\Tesseract-OCR\tesseract.exe"
+/// 3. Fallback: "C:\Program Files (x86)\Tesseract-OCR\tesseract.exe"
+/// User không cần setup PATH thủ công.
+fn resolve_tesseract_path() -> String {
+    // Try PATH first (hidden window check)
+    if hidden_command("tesseract").arg("--version").output().is_ok() {
+        return "tesseract".to_string();
+    }
+    #[cfg(target_os = "windows")]
+    {
+        let candidates = [
+            r"C:\Program Files\Tesseract-OCR\tesseract.exe",
+            r"C:\Program Files (x86)\Tesseract-OCR\tesseract.exe",
+        ];
+        for p in &candidates {
+            if std::path::Path::new(p).exists() {
+                return p.to_string();
+            }
+        }
+    }
+    #[cfg(target_os = "macos")]
+    {
+        let candidates = [
+            "/opt/homebrew/bin/tesseract",
+            "/usr/local/bin/tesseract",
+        ];
+        for p in &candidates {
+            if std::path::Path::new(p).exists() {
+                return p.to_string();
+            }
+        }
+    }
+    "tesseract".to_string() // sẽ fail nhưng giữ command name
+}
+
 #[tauri::command]
 fn check_tesseract() -> Result<ToolStatus, String> {
-    let mut status = check_command("tesseract", "--version");
+    let bin = resolve_tesseract_path();
+    let mut status = check_command(&bin, "--version");
     if !status.available {
         status.hint = "Cài Tesseract OCR: https://github.com/UB-Mannheim/tesseract/wiki\n\
-            Windows: tải installer + thêm vào PATH + cài Vietnamese language data (vie.traineddata).\n\
+            Windows: tải installer + cài Vietnamese language data (vie.traineddata).\n\
+            App tự dò default path nên không cần setup PATH.\n\
             macOS: brew install tesseract tesseract-lang\n\
             Linux: apt install tesseract-ocr tesseract-ocr-vie"
             .to_string();
@@ -1796,9 +2285,226 @@ async fn pdf_remove_password(
     .map_err(|e| format!("decrypt join: {e}"))?
 }
 
-/// OCR a scanned PDF using Tesseract.
-/// Output is a searchable PDF (text layer over original images) at output_path.
-/// `lang`: e.g. "vie+eng", "eng", "vie".
+/// Phase 39 — OCR an IMAGE bytes (PNG/JPG) → plain text.
+///
+/// Tesseract chỉ accept image input nên React render PDF page → PNG bytes
+/// rồi gọi command này per-page.
+///
+/// `image_bytes`: PNG hoặc JPEG bytes của 1 page đã render.
+/// `lang`: ngôn ngữ tesseract, vd "vie+eng" (default), "eng", "vie".
+/// Returns: text extracted (UTF-8).
+#[tauri::command]
+async fn ocr_image_bytes(
+    image_bytes: Vec<u8>,
+    lang: String,
+    psm: Option<u8>,
+) -> Result<String, String> {
+    use std::io::Write;
+    let lang = if lang.trim().is_empty() { "eng".to_string() } else { lang };
+    // Phase 39.fix7 — PSM 6 (Single uniform block) tốt hơn PSM 1 cho document Việt
+    let psm_str = psm.unwrap_or(6).to_string();
+    tokio::task::spawn_blocking(move || -> Result<String, String> {
+        let temp_dir = std::env::temp_dir().join("trishlibrary_ocr");
+        fs::create_dir_all(&temp_dir).map_err(|e| format!("temp_dir: {e}"))?;
+        let pid = std::process::id();
+        let nano = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.subsec_nanos())
+            .unwrap_or(0);
+        let temp_in = temp_dir.join(format!("ocr_{pid}_{nano}.png"));
+        {
+            let mut f = fs::File::create(&temp_in)
+                .map_err(|e| format!("create temp: {e}"))?;
+            f.write_all(&image_bytes).map_err(|e| format!("write temp: {e}"))?;
+        }
+        let tesseract_bin = resolve_tesseract_path();
+        // Phase 39.fix12 — Set TESSDATA_PREFIX nếu user đã download tessdata_best
+        // (accuracy cao hơn ~10% so với regular tessdata default của UB-Mannheim)
+        let tessdata_best = tessdata_best_dir().ok();
+        let mut cmd = hidden_command(&tesseract_bin);
+        if let Some(td) = &tessdata_best {
+            // Chỉ set nếu thực sự có ít nhất 1 traineddata trong dir
+            if let Ok(entries) = fs::read_dir(td) {
+                if entries.flatten().any(|e| {
+                    e.file_name().to_string_lossy().ends_with(".traineddata")
+                }) {
+                    cmd.env("TESSDATA_PREFIX", td);
+                }
+            }
+        }
+        let output = cmd
+            .arg(&temp_in)
+            .arg("stdout")
+            .arg("-l").arg(&lang)
+            .arg("--psm").arg(&psm_str)
+            .arg("--oem").arg("1")
+            .arg("-c").arg("preserve_interword_spaces=1")
+            .output()
+            .map_err(|e| {
+                let _ = fs::remove_file(&temp_in);
+                format!(
+                    "Không gọi được tesseract: {e}\n\
+                    Cài Tesseract OCR: https://github.com/UB-Mannheim/tesseract/wiki"
+                )
+            })?;
+        let _ = fs::remove_file(&temp_in);
+        if !output.status.success() {
+            let stderr = String::from_utf8_lossy(&output.stderr).to_string();
+            return Err(format!("tesseract lỗi: {stderr}"));
+        }
+        let text = String::from_utf8_lossy(&output.stdout).to_string();
+        Ok(text)
+    })
+    .await
+    .map_err(|e| format!("ocr join: {e}"))?
+}
+
+/// Phase 39 — OCR an image bytes → searchable PDF (single page) bytes.
+/// Tesseract tạo PDF với invisible text layer trên top of original image.
+///
+/// Phase 39.fix5 — `text_only` option: nếu true thì output PDF chỉ chứa text layer
+/// KHÔNG embed image gốc → file rất nhẹ + LibreOffice convert sang DOCX clean
+/// (không bị duplicate image + text overlap).
+#[tauri::command]
+async fn ocr_image_to_pdf_page(
+    image_bytes: Vec<u8>,
+    lang: String,
+    text_only: Option<bool>,
+) -> Result<Vec<u8>, String> {
+    use std::io::Write;
+    let lang = if lang.trim().is_empty() { "eng".to_string() } else { lang };
+    let text_only_flag = text_only.unwrap_or(false);
+    tokio::task::spawn_blocking(move || -> Result<Vec<u8>, String> {
+        let temp_dir = std::env::temp_dir().join("trishlibrary_ocr");
+        fs::create_dir_all(&temp_dir).map_err(|e| format!("temp_dir: {e}"))?;
+        let pid = std::process::id();
+        let nano = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.subsec_nanos())
+            .unwrap_or(0);
+        let stem = temp_dir.join(format!("ocr_pg_{pid}_{nano}"));
+        let temp_in = temp_dir.join(format!("ocr_pg_{pid}_{nano}.png"));
+        {
+            let mut f = fs::File::create(&temp_in)
+                .map_err(|e| format!("create temp: {e}"))?;
+            f.write_all(&image_bytes).map_err(|e| format!("write temp: {e}"))?;
+        }
+        let stem_str = stem.to_string_lossy().to_string();
+        let tesseract_bin = resolve_tesseract_path();
+        let mut cmd = hidden_command(&tesseract_bin);
+        cmd.arg(&temp_in)
+            .arg(&stem_str)
+            .arg("-l").arg(&lang)
+            .arg("--psm").arg("1")
+            .arg("--oem").arg("1");
+        // Phase 39.fix5 — Text-only PDF (no image embed) cho convert→DOCX pipeline
+        if text_only_flag {
+            cmd.arg("-c").arg("textonly_pdf=1");
+        }
+        cmd.arg("pdf");
+        let output = cmd.output().map_err(|e| {
+            let _ = fs::remove_file(&temp_in);
+            format!("Không gọi được tesseract: {e}")
+        })?;
+        let _ = fs::remove_file(&temp_in);
+        if !output.status.success() {
+            let stderr = String::from_utf8_lossy(&output.stderr).to_string();
+            return Err(format!("tesseract lỗi: {stderr}"));
+        }
+        let pdf_path = format!("{stem_str}.pdf");
+        let pdf_bytes = fs::read(&pdf_path)
+            .map_err(|e| format!("read pdf: {e}"))?;
+        let _ = fs::remove_file(&pdf_path);
+        Ok(pdf_bytes)
+    })
+    .await
+    .map_err(|e| format!("ocr join: {e}"))?
+}
+
+/// Phase 39 — Merge nhiều page PDF bytes → 1 PDF file.
+/// Dùng cho OCR pipeline: render → OCR per page → merge thành searchable PDF.
+#[tauri::command]
+async fn merge_pdf_pages_bytes(
+    pages: Vec<Vec<u8>>,
+    output_path: String,
+) -> Result<(), String> {
+    use lopdf::Document;
+    if pages.is_empty() {
+        return Err("Không có page nào để merge".to_string());
+    }
+    if let Some(parent) = PathBuf::from(&output_path).parent() {
+        fs::create_dir_all(parent).map_err(|e| format!("create_dir: {e}"))?;
+    }
+    tokio::task::spawn_blocking(move || -> Result<(), String> {
+        // Save từng page bytes ra temp file (lopdf load qua path tiện hơn)
+        let temp_dir = std::env::temp_dir().join("trishlibrary_ocr_merge");
+        fs::create_dir_all(&temp_dir).map_err(|e| format!("temp_dir: {e}"))?;
+        let pid = std::process::id();
+        let mut temp_files: Vec<PathBuf> = Vec::with_capacity(pages.len());
+        for (i, bytes) in pages.iter().enumerate() {
+            let p = temp_dir.join(format!("merge_{pid}_{i}.pdf"));
+            fs::write(&p, bytes).map_err(|e| format!("write temp {i}: {e}"))?;
+            temp_files.push(p);
+        }
+        // Load + merge với lopdf logic giống pdf_merge có sẵn
+        let mut docs: Vec<Document> = Vec::new();
+        for p in &temp_files {
+            let d = Document::load(p).map_err(|e| format!("load {}: {e}", p.display()))?;
+            docs.push(d);
+        }
+        // Use first as base, append rest
+        let mut base = docs.remove(0);
+        for mut next in docs {
+            // 1. Renumber object IDs to avoid collision
+            let max_id = base.max_id;
+            next.renumber_objects_with(max_id);
+            // 2. Collect new page IDs BEFORE moving next.objects (borrow checker)
+            let next_pages: Vec<lopdf::ObjectId> = next.page_iter().collect();
+            let next_max = next.max_id;
+            // 3. Move objects vào base
+            base.objects.extend(next.objects);
+            base.max_id = next_max;
+            // 4. Append page refs vào /Pages.Kids của base
+            if let Ok(base_pages_id) = base
+                .catalog()
+                .and_then(|c| c.get(b"Pages"))
+                .and_then(|o| o.as_reference())
+            {
+                if let Ok(pages_obj) = base.get_object_mut(base_pages_id) {
+                    if let Ok(pages_dict) = pages_obj.as_dict_mut() {
+                        if let Ok(kids) = pages_dict.get_mut(b"Kids") {
+                            if let Ok(arr) = kids.as_array_mut() {
+                                for pg_id in &next_pages {
+                                    arr.push(lopdf::Object::Reference(*pg_id));
+                                }
+                            }
+                        }
+                        let cur = pages_dict
+                            .get(b"Count")
+                            .and_then(|o| o.as_i64())
+                            .unwrap_or(0);
+                        pages_dict.set(
+                            "Count",
+                            lopdf::Object::Integer(cur + next_pages.len() as i64),
+                        );
+                    }
+                }
+            }
+        }
+        base.save(&output_path).map_err(|e| format!("save: {e}"))?;
+        // Cleanup
+        for p in &temp_files {
+            let _ = fs::remove_file(p);
+        }
+        Ok(())
+    })
+    .await
+    .map_err(|e| format!("merge join: {e}"))?
+}
+
+/// Phase 18.3.b.4 (legacy) — Wrapper cũ. Tesseract KHÔNG accept PDF input,
+/// nên command này CHỈ work nếu input là single-image (PNG/TIFF). Phase 39 dùng
+/// `ocr_image_bytes` + `ocr_image_to_pdf_page` + `merge_pdf_pages_bytes`.
 #[tauri::command]
 async fn pdf_ocr(
     input_path: String,
@@ -1810,27 +2516,41 @@ async fn pdf_ocr(
         fs::create_dir_all(parent).map_err(|e| format!("create_dir: {e}"))?;
     }
     tokio::task::spawn_blocking(move || -> Result<(), String> {
-        // Tesseract output param needs no extension; it adds .pdf automatically
         let stem = PathBuf::from(&output_path)
             .with_extension("")
             .to_string_lossy()
             .to_string();
-        let output = Command::new("tesseract")
+        let tesseract_bin = resolve_tesseract_path();
+        // Phase 39.fix12 — Set TESSDATA_PREFIX nếu user đã download tessdata_best
+        // (accuracy cao hơn ~10% so với regular tessdata default của UB-Mannheim)
+        let tessdata_best = tessdata_best_dir().ok();
+        let mut cmd = hidden_command(&tesseract_bin);
+        if let Some(td) = &tessdata_best {
+            // Chỉ set nếu thực sự có ít nhất 1 traineddata trong dir
+            if let Ok(entries) = fs::read_dir(td) {
+                if entries.flatten().any(|e| {
+                    e.file_name().to_string_lossy().ends_with(".traineddata")
+                }) {
+                    cmd.env("TESSDATA_PREFIX", td);
+                }
+            }
+        }
+        let output = cmd
             .arg(&input_path)
             .arg(&stem)
             .arg("-l")
             .arg(if lang.trim().is_empty() { "eng" } else { lang.as_str() })
+            .arg("--psm").arg("1")
+            .arg("--oem").arg("1")
             .arg("pdf")
             .output()
-            .map_err(|e| {
-                format!(
-                    "Không gọi được tesseract: {e}\n\
-                    Cài Tesseract OCR: https://github.com/UB-Mannheim/tesseract/wiki"
-                )
-            })?;
+            .map_err(|e| format!("Không gọi được tesseract: {e}"))?;
         if !output.status.success() {
             let stderr = String::from_utf8_lossy(&output.stderr).to_string();
-            return Err(format!("tesseract lỗi: {stderr}"));
+            return Err(format!(
+                "tesseract lỗi: {stderr}\n\n\
+                Lưu ý: tesseract không accept PDF multi-page. Dùng OCR mới (render PDF→image trước)."
+            ));
         }
         Ok(())
     })
@@ -2343,6 +3063,22 @@ pub fn run() {
             pdf_set_password,
             pdf_remove_password,
             pdf_ocr,
+            // Phase 39 — OCR native pipeline (render PDF→image ở React, OCR + merge ở Rust)
+            ocr_image_bytes,
+            ocr_image_to_pdf_page,
+            merge_pdf_pages_bytes,
+            // Phase 39 — LibreOffice headless converter (PDF↔DOCX preserve format)
+            check_libreoffice,
+            convert_via_libreoffice,
+            // Phase 39.fix — System temp dir (cho OCR pipeline tạo file tạm)
+            get_temp_dir,
+            // Phase 39.fix10 — MS Word PDF→DOCX (chất lượng cao nhất, có OCR built-in)
+            check_msword,
+            convert_via_msword,
+            // Phase 39.fix12 — tessdata_best download (accuracy text Việt +10%)
+            check_tessdata_best,
+            download_tessdata_best,
+            get_tessdata_best_dir,
             // Phase 18.3.b.5 — Extract embedded images
             pdf_extract_images,
             // Phase 18.1.b — Library Tantivy full-text search

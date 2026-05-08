@@ -237,6 +237,14 @@ async function pickSavePdf(suggested: string): Promise<string | null> {
   return typeof target === 'string' ? target : null;
 }
 
+async function pickSaveTxt(suggested: string): Promise<string | null> {
+  const target = await saveDialog({
+    defaultPath: suggested,
+    filters: [{ name: 'Text', extensions: ['txt'] }],
+  });
+  return typeof target === 'string' ? target : null;
+}
+
 async function pickSaveDir(): Promise<string | null> {
   const target = await openDialog({ directory: true, multiple: false });
   return typeof target === 'string' ? target : null;
@@ -1375,6 +1383,18 @@ function ToolEncrypt({
 // 12. OCR PDF scanned (Tesseract subprocess)
 // ============================================================
 
+/**
+ * Phase 39 — OCR PDF scanned (Native Tesseract pipeline).
+ *
+ * Workflow mới (fix bug Phase 18.3.b.4 — tesseract KHÔNG accept PDF input):
+ *   1. Render từng page PDF → PNG bytes qua pdfjs canvas (300 DPI scale=3).
+ *   2. Per page: invoke 'ocr_image_to_pdf_page' (searchable PDF) hoặc 'ocr_image_bytes' (text only).
+ *   3. Mode "Searchable PDF": merge pages bytes → output.pdf (qua lopdf).
+ *   4. Mode "Text only": concat text → save .txt.
+ *
+ * Tesseract config: --psm 1 (auto page segmentation + OSD), --oem 1 (LSTM neural — chính xác nhất).
+ * Default langs: vie+eng (cần vie.traineddata + eng.traineddata trong tessdata).
+ */
 function ToolOcr({
   onClose,
   onLog,
@@ -1384,8 +1404,12 @@ function ToolOcr({
 }): JSX.Element {
   const [path, setPath] = useState('');
   const [lang, setLang] = useState('vie+eng');
+  const [outputMode, setOutputMode] = useState<'searchable_pdf' | 'text'>('searchable_pdf');
+  const [dpi, setDpi] = useState<200 | 300 | 400 | 600>(300);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  const [progress, setProgress] = useState<{ done: number; total: number } | null>(null);
+  const [cancelRef, setCancelRef] = useState<{ cancel: boolean }>({ cancel: false });
   const [tessStatus, setTessStatus] = useState<{
     available: boolean;
     version?: string;
@@ -1405,28 +1429,116 @@ function ToolOcr({
       setPath(p);
       return;
     }
-    const target = await pickSavePdf(`${stripExt(path)}_ocr.pdf`);
+    const ext = outputMode === 'searchable_pdf' ? 'pdf' : 'txt';
+    const target =
+      outputMode === 'searchable_pdf'
+        ? await pickSavePdf(`${stripExt(path)}_ocr.${ext}`)
+        : await pickSaveTxt(`${stripExt(path)}_ocr.${ext}`);
     if (!target) return;
+
     setBusy(true);
     setErr(null);
+    setProgress(null);
+    const ref = { cancel: false };
+    setCancelRef(ref);
+
     try {
-      await invoke('pdf_ocr', {
-        inputPath: path,
-        outputPath: target,
-        lang,
-      });
-      onLog(`🔍 OCR ${basename(path)} (${lang}) → ${basename(target)}`);
-      window.alert(`✓ Đã OCR xong, tạo searchable PDF\n→ ${target}`);
+      // 1. Read PDF as ArrayBuffer
+      const pdfBytes = await invoke<number[]>('read_binary_file', { path });
+      const buffer = new Uint8Array(pdfBytes).buffer;
+
+      // 2. Init pdfjs + open document
+      const pdfjs = await import('pdfjs-dist');
+      const workerUrl = (
+        await import(
+          // @ts-ignore — Vite ?url suffix
+          'pdfjs-dist/build/pdf.worker.min.mjs?url'
+        )
+      ).default;
+      pdfjs.GlobalWorkerOptions.workerSrc = workerUrl;
+      const pdf = await pdfjs.getDocument({ data: buffer }).promise;
+      const total = pdf.numPages;
+      setProgress({ done: 0, total });
+
+      // 3. Per-page render → OCR
+      const scale = dpi / 96; // pdfjs default DPI ≈ 96
+      const pdfPagesBytes: number[][] = [];
+      const textBuf: string[] = [];
+
+      for (let i = 1; i <= total; i++) {
+        if (ref.cancel) {
+          throw new Error('Đã hủy OCR');
+        }
+        const page = await pdf.getPage(i);
+        const viewport = page.getViewport({ scale });
+        const canvas = document.createElement('canvas');
+        canvas.width = Math.floor(viewport.width);
+        canvas.height = Math.floor(viewport.height);
+        const ctx = canvas.getContext('2d');
+        if (!ctx) throw new Error('Canvas 2D context fail');
+        ctx.fillStyle = '#fff';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        await page.render({ canvasContext: ctx, viewport }).promise;
+
+        // Canvas → PNG blob → bytes
+        const blob = await new Promise<Blob | null>((res) =>
+          canvas.toBlob(res, 'image/png'),
+        );
+        if (!blob) throw new Error('toBlob fail');
+        const ab = await blob.arrayBuffer();
+        const imageBytes = Array.from(new Uint8Array(ab));
+
+        if (outputMode === 'searchable_pdf') {
+          const pageBytes = await invoke<number[]>('ocr_image_to_pdf_page', {
+            imageBytes,
+            lang,
+          });
+          pdfPagesBytes.push(pageBytes);
+        } else {
+          const text = await invoke<string>('ocr_image_bytes', {
+            imageBytes,
+            lang,
+            psm: 6,
+          });
+          textBuf.push(`--- Trang ${i} ---\n${text.trim()}\n`);
+        }
+        setProgress({ done: i, total });
+      }
+
+      // 4. Output
+      if (outputMode === 'searchable_pdf') {
+        await invoke('merge_pdf_pages_bytes', {
+          pages: pdfPagesBytes,
+          outputPath: target,
+        });
+        onLog(
+          `🔍 OCR ${basename(path)} (${total} pages, ${lang}, ${dpi} DPI) → ${basename(target)}`,
+        );
+        window.alert(`✓ Đã OCR xong searchable PDF\n→ ${target}`);
+      } else {
+        const text = textBuf.join('\n');
+        await invoke('write_text_string', { path: target, content: text });
+        onLog(`🔍 OCR text ${basename(path)} (${total} pages) → ${basename(target)}`);
+        window.alert(`✓ Đã OCR xong, lưu text\n→ ${target}`);
+      }
       onClose();
     } catch (e) {
       setErr(String(e));
     } finally {
       setBusy(false);
+      setProgress(null);
     }
   }
 
+  function handleCancel(): void {
+    cancelRef.cancel = true;
+    setBusy(false);
+  }
+
+  const progressPct = progress ? Math.round((progress.done / progress.total) * 100) : 0;
+
   return (
-    <ToolModal title="🔍 OCR PDF scanned" onClose={onClose} busy={busy}>
+    <ToolModal title="🔍 OCR PDF scanned (Native)" onClose={onClose} busy={busy}>
       {tessStatus && !tessStatus.available && (
         <div className="pdf-tool-warn">
           ⚠ <strong>Cần Tesseract OCR:</strong>
@@ -1441,8 +1553,8 @@ function ToolOcr({
       )}
 
       <p className="muted small">
-        Tạo searchable PDF từ PDF scan (ảnh) — text layer phủ lên ảnh gốc, có thể copy + tìm kiếm.
-        Cần language data (vd <code>vie.traineddata</code>) trong tessdata.
+        OCR PDF scan dùng Tesseract native (--psm 1 + --oem 1 LSTM). Render PDF→PNG{' '}
+        {dpi} DPI ở browser, OCR per-page ở backend.
       </p>
 
       <div style={{ display: 'flex', gap: 8, marginBottom: 12, alignItems: 'center' }}>
@@ -1453,9 +1565,39 @@ function ToolOcr({
         >
           📁 Chọn PDF
         </button>
-        <span className="muted small" style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+        <span
+          className="muted small"
+          style={{
+            flex: 1,
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+            whiteSpace: 'nowrap',
+          }}
+        >
           {path || '(chưa chọn)'}
         </span>
+      </div>
+
+      <label className="muted small" style={{ display: 'block', marginBottom: 4 }}>
+        Output
+      </label>
+      <div style={{ display: 'flex', gap: 6, marginBottom: 12 }}>
+        <button
+          type="button"
+          className={`btn btn-sm ${outputMode === 'searchable_pdf' ? 'btn-primary' : 'btn-ghost'}`}
+          onClick={() => setOutputMode('searchable_pdf')}
+          disabled={busy}
+        >
+          📄 Searchable PDF
+        </button>
+        <button
+          type="button"
+          className={`btn btn-sm ${outputMode === 'text' ? 'btn-primary' : 'btn-ghost'}`}
+          onClick={() => setOutputMode('text')}
+          disabled={busy}
+        >
+          📝 Text (.txt)
+        </button>
       </div>
 
       <label className="muted small" style={{ display: 'block', marginBottom: 4 }}>
@@ -1468,25 +1610,79 @@ function ToolOcr({
         placeholder="vie+eng"
         className="pdf-pwd-input"
         style={{ fontFamily: 'var(--mono, monospace)', marginBottom: 6 }}
-        disabled={busy || !path}
+        disabled={busy}
       />
       <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 12 }}>
         {['vie+eng', 'vie', 'eng', 'eng+jpn', 'eng+chi_sim'].map((s) => (
-          <button key={s} type="button" className="btn btn-ghost btn-sm" onClick={() => setLang(s)}>
+          <button
+            key={s}
+            type="button"
+            className="btn btn-ghost btn-sm"
+            onClick={() => setLang(s)}
+            disabled={busy}
+          >
             {s}
           </button>
         ))}
       </div>
 
+      <label className="muted small" style={{ display: 'block', marginBottom: 4 }}>
+        DPI render (cao = chính xác hơn nhưng chậm hơn)
+      </label>
+      <div style={{ display: 'flex', gap: 6, marginBottom: 12 }}>
+        {([200, 300, 400, 600] as const).map((d) => (
+          <button
+            key={d}
+            type="button"
+            className={`btn btn-sm ${dpi === d ? 'btn-primary' : 'btn-ghost'}`}
+            onClick={() => setDpi(d)}
+            disabled={busy}
+          >
+            {d} DPI
+          </button>
+        ))}
+      </div>
+
+      {progress && (
+        <div style={{ marginTop: 12, marginBottom: 8 }}>
+          <div style={{ fontSize: 12, marginBottom: 4 }}>
+            ⏳ Đang OCR trang <strong>{progress.done}</strong> / {progress.total} ({progressPct}%)
+          </div>
+          <div
+            style={{
+              height: 8,
+              background: 'rgba(0,0,0,0.1)',
+              borderRadius: 4,
+              overflow: 'hidden',
+            }}
+          >
+            <div
+              style={{
+                width: `${progressPct}%`,
+                height: '100%',
+                background: '#10B981',
+                transition: 'width 0.3s',
+              }}
+            />
+          </div>
+        </div>
+      )}
+
       <p className="muted small" style={{ fontSize: 11 }}>
-        ⏱ OCR có thể mất từ vài giây đến vài phút tùy số trang.
+        ⏱ Tốc độ ≈ 2-4s/trang ở 300 DPI. PDF 50 trang ≈ 2-3 phút.
       </p>
 
       {err && <p style={{ color: 'var(--danger, #c43)' }}>⚠ {err}</p>}
       <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 12 }}>
-        <button className="btn btn-ghost" onClick={onClose} disabled={busy}>
-          Đóng
-        </button>
+        {busy ? (
+          <button className="btn btn-ghost btn-danger" onClick={handleCancel}>
+            🛑 Hủy
+          </button>
+        ) : (
+          <button className="btn btn-ghost" onClick={onClose}>
+            Đóng
+          </button>
+        )}
         <button
           className="btn btn-primary"
           onClick={() => void run()}

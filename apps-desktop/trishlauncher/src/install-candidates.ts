@@ -302,4 +302,145 @@ export const INSTALL_CANDIDATES: Record<string, InstallCandidates> = {
       '/usr/bin/trishdesign',
     ],
   },
+  // Phase 39.4 — 5 app mới
+  trishshortcut: {
+    windows_x64: [
+      '%EXE_DIR%\\trishshortcut.exe',
+      '%LOCALAPPDATA%\\Programs\\TrishShortcut\\TrishShortcut.exe',
+      '%PROGRAMFILES%\\TrishShortcut\\TrishShortcut.exe',
+    ],
+    windows_arm64: [
+      '%EXE_DIR%\\trishshortcut.exe',
+      '%LOCALAPPDATA%\\Programs\\TrishShortcut\\TrishShortcut.exe',
+      '%PROGRAMFILES%\\TrishShortcut\\TrishShortcut.exe',
+    ],
+    macos_x64: [
+      '%EXE_DIR%/trishshortcut',
+      '/Applications/TrishShortcut.app',
+      '~/Applications/TrishShortcut.app',
+    ],
+    macos_arm64: [
+      '%EXE_DIR%/trishshortcut',
+      '/Applications/TrishShortcut.app',
+      '~/Applications/TrishShortcut.app',
+    ],
+    linux_x64: [
+      '%EXE_DIR%/trishshortcut',
+      '~/.local/share/applications/vn.trishteam.trishshortcut.desktop',
+      '/usr/share/applications/vn.trishteam.trishshortcut.desktop',
+      '/usr/bin/trishshortcut',
+    ],
+  },
+  trishdrive: {
+    windows_x64: [
+      '%EXE_DIR%\\trishdrive.exe',
+      '%LOCALAPPDATA%\\Programs\\TrishDrive\\TrishDrive.exe',
+      '%PROGRAMFILES%\\TrishDrive\\TrishDrive.exe',
+    ],
+    windows_arm64: [
+      '%EXE_DIR%\\trishdrive.exe',
+      '%LOCALAPPDATA%\\Programs\\TrishDrive\\TrishDrive.exe',
+      '%PROGRAMFILES%\\TrishDrive\\TrishDrive.exe',
+    ],
+    macos_x64: [
+      '%EXE_DIR%/trishdrive',
+      '/Applications/TrishDrive.app',
+      '~/Applications/TrishDrive.app',
+    ],
+    macos_arm64: [
+      '%EXE_DIR%/trishdrive',
+      '/Applications/TrishDrive.app',
+      '~/Applications/TrishDrive.app',
+    ],
+    linux_x64: [
+      '%EXE_DIR%/trishdrive',
+      '~/.local/share/applications/vn.trishteam.trishdrive.desktop',
+      '/usr/share/applications/vn.trishteam.trishdrive.desktop',
+      '/usr/bin/trishdrive',
+    ],
+  },
+  trishfinance: {
+    windows_x64: [
+      '%EXE_DIR%\\trishfinance.exe',
+      '%LOCALAPPDATA%\\Programs\\TrishFinance\\TrishFinance.exe',
+      '%PROGRAMFILES%\\TrishFinance\\TrishFinance.exe',
+    ],
+    windows_arm64: [
+      '%EXE_DIR%\\trishfinance.exe',
+      '%LOCALAPPDATA%\\Programs\\TrishFinance\\TrishFinance.exe',
+      '%PROGRAMFILES%\\TrishFinance\\TrishFinance.exe',
+    ],
+    macos_x64: [
+      '%EXE_DIR%/trishfinance',
+      '/Applications/TrishFinance.app',
+      '~/Applications/TrishFinance.app',
+    ],
+    macos_arm64: [
+      '%EXE_DIR%/trishfinance',
+      '/Applications/TrishFinance.app',
+      '~/Applications/TrishFinance.app',
+    ],
+    linux_x64: [
+      '%EXE_DIR%/trishfinance',
+      '~/.local/share/applications/vn.trishteam.trishfinance.desktop',
+      '/usr/share/applications/vn.trishteam.trishfinance.desktop',
+      '/usr/bin/trishfinance',
+    ],
+  },
+  trishiso: {
+    windows_x64: [
+      '%EXE_DIR%\\trishiso.exe',
+      '%LOCALAPPDATA%\\Programs\\TrishISO\\TrishISO.exe',
+      '%PROGRAMFILES%\\TrishISO\\TrishISO.exe',
+    ],
+    windows_arm64: [
+      '%EXE_DIR%\\trishiso.exe',
+      '%LOCALAPPDATA%\\Programs\\TrishISO\\TrishISO.exe',
+      '%PROGRAMFILES%\\TrishISO\\TrishISO.exe',
+    ],
+    macos_x64: [
+      '%EXE_DIR%/trishiso',
+      '/Applications/TrishISO.app',
+      '~/Applications/TrishISO.app',
+    ],
+    macos_arm64: [
+      '%EXE_DIR%/trishiso',
+      '/Applications/TrishISO.app',
+      '~/Applications/TrishISO.app',
+    ],
+    linux_x64: [
+      '%EXE_DIR%/trishiso',
+      '~/.local/share/applications/vn.trishteam.trishiso.desktop',
+      '/usr/share/applications/vn.trishteam.trishiso.desktop',
+      '/usr/bin/trishiso',
+    ],
+  },
+  trishoffice: {
+    windows_x64: [
+      '%EXE_DIR%\\trishoffice.exe',
+      '%LOCALAPPDATA%\\Programs\\TrishOffice\\TrishOffice.exe',
+      '%PROGRAMFILES%\\TrishOffice\\TrishOffice.exe',
+    ],
+    windows_arm64: [
+      '%EXE_DIR%\\trishoffice.exe',
+      '%LOCALAPPDATA%\\Programs\\TrishOffice\\TrishOffice.exe',
+      '%PROGRAMFILES%\\TrishOffice\\TrishOffice.exe',
+    ],
+    macos_x64: [
+      '%EXE_DIR%/trishoffice',
+      '/Applications/TrishOffice.app',
+      '~/Applications/TrishOffice.app',
+    ],
+    macos_arm64: [
+      '%EXE_DIR%/trishoffice',
+      '/Applications/TrishOffice.app',
+      '~/Applications/TrishOffice.app',
+    ],
+    linux_x64: [
+      '%EXE_DIR%/trishoffice',
+      '~/.local/share/applications/vn.trishteam.trishoffice.desktop',
+      '/usr/share/applications/vn.trishteam.trishoffice.desktop',
+      '/usr/bin/trishoffice',
+    ],
+  },
 };

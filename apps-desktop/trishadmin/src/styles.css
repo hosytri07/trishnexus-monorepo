@@ -474,6 +474,8 @@ code {
  * Inputs
  * ============================================================ */
 .input,
+.td-input,
+.td-select,
 input[type="text"],
 input[type="email"],
 input[type="password"],
@@ -484,18 +486,30 @@ textarea {
   background: var(--bg-soft);
   color: var(--fg);
   border: 1px solid var(--border);
-  border-radius: 6px;
-  padding: 8px 10px;
+  border-radius: 8px;
+  padding: 9px 12px;
   font-size: 13px;
   font-family: inherit;
-  transition: border-color 0.15s;
+  transition: border-color 0.15s, box-shadow 0.15s;
+  width: 100%;
+  box-sizing: border-box;
 }
 .input:focus,
+.td-input:focus,
+.td-select:focus,
 input:focus,
 select:focus,
 textarea:focus {
   outline: none;
   border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.15);
+}
+.input:hover,
+.td-input:hover,
+.td-select:hover,
+input:hover,
+select:hover {
+  border-color: var(--border-strong, var(--accent));
 }
 textarea {
   min-height: 80px;

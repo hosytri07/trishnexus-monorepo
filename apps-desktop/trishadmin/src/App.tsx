@@ -17,6 +17,8 @@ import { DashboardPanel } from './components/DashboardPanel.js';
 import { UsersPanel } from './components/UsersPanel.js';
 import { KeysPanel } from './components/KeysPanel.js';
 import { ActiveSessionsPanel } from './components/ActiveSessionsPanel.js';
+import { SessionHistoryPanel } from './components/SessionHistoryPanel.js';
+import { AlertsPanel } from './components/AlertsPanel.js';
 import { BroadcastsPanel } from './components/BroadcastsPanel.js';
 import { RegistryPanel } from './components/RegistryPanel.js';
 import { SettingsPanel } from './components/SettingsPanel.js';
@@ -41,6 +43,8 @@ type Panel =
   | 'users'
   | 'keys'
   | 'sessions'
+  | 'session_history'
+  | 'alerts'
   | 'library_curator'
   | 'posts'
   | 'broadcasts'
@@ -74,6 +78,8 @@ const NAV_GROUPS: NavGroup[] = [
       { id: 'users', label: 'Users' },
       { id: 'keys', label: 'Keys' },
       { id: 'sessions', label: 'Active Sessions' },
+      { id: 'session_history', label: '📜 Session History' },
+      { id: 'alerts', label: '🚨 Security Alerts' },
     ],
   },
   {
@@ -238,6 +244,12 @@ export function App(): JSX.Element {
         )}
         {active === 'sessions' && (
           <ActiveSessionsPanel adminUid={firebaseUser?.uid ?? ''} />
+        )}
+        {active === 'session_history' && (
+          <SessionHistoryPanel adminUid={firebaseUser?.uid ?? ''} />
+        )}
+        {active === 'alerts' && (
+          <AlertsPanel adminUid={firebaseUser?.uid ?? ''} />
         )}
         {active === 'library_curator' && <LibraryCuratorPanel />}
         {active === 'posts' && <PostsPanel />}

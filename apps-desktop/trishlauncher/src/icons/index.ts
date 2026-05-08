@@ -23,6 +23,12 @@ import trishnote from './trishnote.png';
 import trishlibrary from './trishlibrary.png';
 import trishsearch from './trishsearch.png';
 import trishdesign from './trishdesign.png';
+// Phase 39.4 — 5 app mới có icon riêng
+import trishshortcut from './trishshortcut.png';
+import trishdrive from './trishdrive.png';
+import trishfinance from './trishfinance.png';
+import trishiso from './trishiso.png';
+import trishoffice from './trishoffice.png';
 
 export const APP_ICONS: Record<string, string> = {
   trishlauncher,
@@ -35,6 +41,11 @@ export const APP_ICONS: Record<string, string> = {
   trishlibrary,
   trishsearch,
   trishdesign,
+  trishshortcut,
+  trishdrive,
+  trishfinance,
+  trishiso,
+  trishoffice,
 };
 
 /**

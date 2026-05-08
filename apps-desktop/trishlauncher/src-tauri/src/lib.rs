@@ -459,6 +459,281 @@ fn spawn_open(path: &str) -> std::io::Result<std::process::Child> {
     }
 }
 
+// ============================================================
+// Phase 39.5 — Auto-download installer + Auto-spawn (Phase A)
+// ============================================================
+
+#[derive(Debug, Clone, serde::Serialize)]
+struct DownloadProgress {
+    app_id: String,
+    /// 'start' | 'downloading' | 'done' | 'error'
+    phase: String,
+    downloaded: u64,
+    total: u64,
+    /// Path tới file đã download (chỉ có ở phase 'done')
+    path: Option<String>,
+    /// Error message (chỉ có ở phase 'error')
+    error: Option<String>,
+}
+
+/// Download .exe installer từ URL về %TEMP%, emit progress qua Tauri event
+/// `download:progress`. Trả về absolute path file đã save.
+///
+/// Frontend listen event để hiển thị progress bar realtime.
+/// Sau download xong, frontend gọi `run_installer(path)` để tự spawn.
+#[tauri::command]
+async fn download_installer(
+    app_handle: tauri::AppHandle,
+    url: String,
+    app_id: String,
+) -> Result<String, String> {
+    use futures_util::StreamExt;
+    use std::io::Write;
+    use tauri::Emitter;
+
+    let temp_dir = std::env::temp_dir();
+    let filename = format!("trishteam_{}_setup.exe", app_id);
+    let dest_path = temp_dir.join(&filename);
+    let dest_str = dest_path.to_string_lossy().to_string();
+
+    // Emit start
+    let _ = app_handle.emit(
+        "download:progress",
+        DownloadProgress {
+            app_id: app_id.clone(),
+            phase: "start".into(),
+            downloaded: 0,
+            total: 0,
+            path: None,
+            error: None,
+        },
+    );
+
+    let client = reqwest::Client::new();
+    let response = match client.get(&url).send().await {
+        Ok(r) => r,
+        Err(e) => {
+            let _ = app_handle.emit(
+                "download:progress",
+                DownloadProgress {
+                    app_id: app_id.clone(),
+                    phase: "error".into(),
+                    downloaded: 0,
+                    total: 0,
+                    path: None,
+                    error: Some(format!("HTTP error: {e}")),
+                },
+            );
+            return Err(format!("HTTP error: {e}"));
+        }
+    };
+
+    // Phase 39.5.1 — Validate HTTP status (404 → installer chưa publish)
+    let status = response.status();
+    if !status.is_success() {
+        let msg = format!(
+            "GitHub Release chưa publish (HTTP {}). Liên hệ admin để upload installer.",
+            status.as_u16()
+        );
+        let _ = app_handle.emit(
+            "download:progress",
+            DownloadProgress {
+                app_id: app_id.clone(),
+                phase: "error".into(),
+                downloaded: 0,
+                total: 0,
+                path: None,
+                error: Some(msg.clone()),
+            },
+        );
+        return Err(msg);
+    }
+
+    // Phase 39.5.1 — Validate Content-Type (text/html = 404 HTML page bị server trả nhầm)
+    if let Some(ct) = response.headers().get(reqwest::header::CONTENT_TYPE) {
+        if let Ok(ct_str) = ct.to_str() {
+            if ct_str.to_lowercase().contains("text/html") {
+                let msg = format!(
+                    "Server trả về HTML thay vì installer (.exe). URL có thể sai hoặc release chưa upload .exe."
+                );
+                let _ = app_handle.emit(
+                    "download:progress",
+                    DownloadProgress {
+                        app_id: app_id.clone(),
+                        phase: "error".into(),
+                        downloaded: 0,
+                        total: 0,
+                        path: None,
+                        error: Some(msg.clone()),
+                    },
+                );
+                return Err(msg);
+            }
+        }
+    }
+
+    let total = response.content_length().unwrap_or(0);
+
+    let mut file = match std::fs::File::create(&dest_path) {
+        Ok(f) => f,
+        Err(e) => {
+            let _ = app_handle.emit(
+                "download:progress",
+                DownloadProgress {
+                    app_id: app_id.clone(),
+                    phase: "error".into(),
+                    downloaded: 0,
+                    total,
+                    path: None,
+                    error: Some(format!("File create error: {e}")),
+                },
+            );
+            return Err(format!("File create error: {e}"));
+        }
+    };
+
+    let mut stream = response.bytes_stream();
+    let mut downloaded: u64 = 0;
+    let mut last_emit = std::time::Instant::now();
+
+    while let Some(chunk_result) = stream.next().await {
+        let chunk = match chunk_result {
+            Ok(c) => c,
+            Err(e) => {
+                let _ = app_handle.emit(
+                    "download:progress",
+                    DownloadProgress {
+                        app_id: app_id.clone(),
+                        phase: "error".into(),
+                        downloaded,
+                        total,
+                        path: None,
+                        error: Some(format!("Stream error: {e}")),
+                    },
+                );
+                return Err(format!("Stream error: {e}"));
+            }
+        };
+        if let Err(e) = file.write_all(&chunk) {
+            let _ = app_handle.emit(
+                "download:progress",
+                DownloadProgress {
+                    app_id: app_id.clone(),
+                    phase: "error".into(),
+                    downloaded,
+                    total,
+                    path: None,
+                    error: Some(format!("Write error: {e}")),
+                },
+            );
+            return Err(format!("Write error: {e}"));
+        }
+        downloaded += chunk.len() as u64;
+
+        // Throttle emit: max 4 lần/giây để tránh spam frontend
+        if last_emit.elapsed().as_millis() > 250 {
+            let _ = app_handle.emit(
+                "download:progress",
+                DownloadProgress {
+                    app_id: app_id.clone(),
+                    phase: "downloading".into(),
+                    downloaded,
+                    total,
+                    path: None,
+                    error: None,
+                },
+            );
+            last_emit = std::time::Instant::now();
+        }
+    }
+
+    // Phase 39.5.1 — Validate PE magic bytes (Windows .exe bắt đầu với "MZ")
+    // Nếu file không phải Windows binary → reject + xóa file để tránh chạy nhầm
+    drop(file); // close handle trước khi reopen đọc
+    let validation = (|| -> Result<(), String> {
+        let mut f = std::fs::File::open(&dest_path)
+            .map_err(|e| format!("Reopen failed: {e}"))?;
+        use std::io::Read;
+        let mut magic = [0u8; 2];
+        f.read_exact(&mut magic).map_err(|e| format!("Read magic failed: {e}"))?;
+        if magic != [0x4D, 0x5A] {
+            return Err(format!(
+                "File tải về không phải Windows installer (.exe). Có thể URL sai hoặc release chưa upload đúng file."
+            ));
+        }
+        Ok(())
+    })();
+
+    if let Err(msg) = validation {
+        // Xóa file invalid để user không nhầm lẫn
+        let _ = std::fs::remove_file(&dest_path);
+        let _ = app_handle.emit(
+            "download:progress",
+            DownloadProgress {
+                app_id: app_id.clone(),
+                phase: "error".into(),
+                downloaded,
+                total,
+                path: None,
+                error: Some(msg.clone()),
+            },
+        );
+        return Err(msg);
+    }
+
+    // Final emit
+    let _ = app_handle.emit(
+        "download:progress",
+        DownloadProgress {
+            app_id: app_id.clone(),
+            phase: "done".into(),
+            downloaded,
+            total,
+            path: Some(dest_str.clone()),
+            error: None,
+        },
+    );
+
+    Ok(dest_str)
+}
+
+/// Spawn installer .exe đã download. Phase A: KHÔNG silent —
+/// user sẽ thấy NSIS UI Next-Next-Install. Sau khi cài xong,
+/// frontend re-detect → CTA chuyển 'Mở'.
+///
+/// Phase B (future): thêm arg `silent: bool` + nếu true thì append `/S` flag.
+#[tauri::command]
+fn run_installer(path: String) -> Result<(), String> {
+    use std::process::Command;
+
+    let p = std::path::Path::new(&path);
+    if !p.exists() {
+        return Err(format!("Installer file not found: {}", path));
+    }
+
+    #[cfg(target_os = "windows")]
+    {
+        Command::new(&path)
+            .spawn()
+            .map_err(|e| format!("Spawn installer failed: {e}"))?;
+    }
+    #[cfg(target_os = "macos")]
+    {
+        Command::new("open")
+            .arg(&path)
+            .spawn()
+            .map_err(|e| format!("Spawn installer failed: {e}"))?;
+    }
+    #[cfg(target_os = "linux")]
+    {
+        Command::new("xdg-open")
+            .arg(&path)
+            .spawn()
+            .map_err(|e| format!("Spawn installer failed: {e}"))?;
+    }
+    Ok(())
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -472,7 +747,10 @@ pub fn run() {
             launch_path,
             update_tray_quick_launch,
             fetch_registry_text,
-            set_close_to_tray
+            set_close_to_tray,
+            // Phase 39.5 — Auto-install
+            download_installer,
+            run_installer
         ])
         .setup(|app| {
             // Build menu rỗng trước → sau detect_install frontend sẽ push

@@ -175,8 +175,45 @@ service cloud.firestore {
       match /sessions/{sessionId} {
         allow read: if isAdmin()
           || (signedIn() && get(/databases/$(database)/documents/keys/$(keyId)).data.bound_uid == request.auth.uid);
+        // Phase 24.3 — Allow admin trực tiếp xóa session (force kick)
+        // và ghi (heartbeat update) khi user đã bound.
+        allow delete: if isAdmin();
         allow write: if false; // Cloud Function only (Admin SDK bypass)
       }
+    }
+
+    // --- Phase 24.3 — collectionGroup('sessions') query ---
+    // Required cho ActiveSessionsPanel listActiveSessions() — query mọi sessions
+    // qua collectionGroup. Rule trên path-specific (/keys/{keyId}/sessions) KHÔNG
+    // cover collectionGroup; phải có rule riêng dùng path wildcard.
+    match /{path=**}/sessions/{sessionId} {
+      allow read: if isAdmin();
+    }
+
+    // --- Phase 24.3 — /session_history/{id} ---
+    // Audit trail các session đã kết thúc (kick/expire/logout/replaced).
+    // Admin đọc all + write (khi force kick + sweep). Append-only.
+    match /session_history/{id} {
+      allow read: if isAdmin();
+      allow create: if isAdmin();
+      allow update, delete: if isAdmin(); // admin có thể purge cũ
+    }
+
+    // --- Phase 24.3 — /alerts/{id} (security alerts) ---
+    // Suspicious activity detector tạo alert (multi-IP, blacklist, proxy).
+    // Admin đọc + ack/delete. Detector chạy trong TrishAdmin nên client write.
+    match /alerts/{id} {
+      allow read: if isAdmin();
+      allow create, update, delete: if isAdmin();
+    }
+
+    // --- Phase 24.3 — /ip_geo/{ip} (IP → country/city/ISP/proxy cache) ---
+    // Cache result của ip-api.com để giảm rate-limit. Admin write-back khi miss.
+    // Public read (cũng có thể dùng client-side ở app khác).
+    match /ip_geo/{ip} {
+      allow read: if signedIn();
+      allow create, update: if isAdmin();
+      allow delete: if isAdmin();
     }
 
     // --- Phase 36.1 — /device_activations/{compositeId} ---
@@ -334,6 +371,19 @@ service cloud.firestore {
     match /lisp_library/{lispId} {
       allow read: if isPaidUser();
       allow create, update, delete: if isAdmin();
+    }
+
+    // --- Phase 38.18 — /trishoffice_companies/{ownerUid}/... (TrishOffice cloud sync) ---
+    // Mỗi công ty có 1 root doc /trishoffice_companies/{ownerUid}/.
+    // ownerUid = Firebase uid của admin cty đó. Tất cả collections business
+    // (employees, attendance, assets, workflows, documents, payroll, contracts,
+    // expenses, departments) lưu dưới đó.
+    //
+    // Owner cty: full CRUD cho data của mình.
+    // Admin TrishTEAM (Trí): full access cross-cty (debug + support).
+    // User khác: deny.
+    match /trishoffice_companies/{ownerUid}/{collection}/{docId} {
+      allow read, write: if signedIn() && (request.auth.uid == ownerUid || isAdmin());
     }
 
     // --- Default deny ---

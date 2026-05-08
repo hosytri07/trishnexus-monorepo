@@ -23,13 +23,20 @@ import {
   launchPath,
   updateTrayQuickLaunch,
   setMinimizeToTrayEnabled,
+  // Phase 39.5 — Auto-install
+  downloadInstaller,
+  runInstaller,
+  listenDownloadProgress,
   type SysInfo,
   type QuickLaunchItem,
+  type DownloadProgressEvent,
   FALLBACK_SYS_INFO,
 } from './tauri-bridge.js';
 import { LAUNCHER_ICON, iconFor } from './icons/index.js';
 import { AppDetailModal } from './components/AppDetailModal.js';
 import { SettingsModal } from './components/SettingsModal.js';
+import { QuickSearch } from './components/QuickSearch.js';
+import { trackOpen, compareByUsage, getAllStats } from './app-stats.js';
 import {
   loadSettings,
   saveSettings,
@@ -85,6 +92,14 @@ export function App(): JSX.Element {
   const [refreshing, setRefreshing] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
 
+  // Phase 39.1 — Quick search Spotlight (Ctrl+K)
+  const [quickSearchOpen, setQuickSearchOpen] = useState(false);
+
+  // Phase 39.5 — Auto-download state per app
+  const [downloadStates, setDownloadStates] = useState<
+    Map<string, { phase: string; percent: number }>
+  >(() => new Map());
+
   // Phase 14.5.5.e — Settings state (theme/language/registry/autoUpdate).
   // Lazy-init từ localStorage để tránh flash theme sai ở render đầu.
   const [settings, setSettings] = useState<Settings>(() => loadSettings());
@@ -107,6 +122,61 @@ export function App(): JSX.Element {
   useEffect(() => {
     applyTheme(settings.theme);
   }, [settings.theme]);
+
+  // Phase 39.1 — Hotkey Ctrl+K / Cmd+K → mở Quick search Spotlight
+  useEffect(() => {
+    function onKey(e: KeyboardEvent): void {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
+        e.preventDefault();
+        setQuickSearchOpen((v) => !v);
+      }
+    }
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
+
+  // Phase 39.5 — Subscribe download progress events
+  useEffect(() => {
+    let unlisten: (() => void) | null = null;
+    void listenDownloadProgress((evt: DownloadProgressEvent) => {
+      const percent =
+        evt.total > 0 ? Math.round((evt.downloaded / evt.total) * 100) : 0;
+      setDownloadStates((prev) => {
+        const next = new Map(prev);
+        if (evt.phase === 'done' || evt.phase === 'error') {
+          // Show 100% rồi xóa sau 2s
+          next.set(evt.app_id, { phase: evt.phase, percent: 100 });
+          setTimeout(() => {
+            setDownloadStates((p) => {
+              const m = new Map(p);
+              m.delete(evt.app_id);
+              return m;
+            });
+          }, 2000);
+        } else {
+          next.set(evt.app_id, { phase: evt.phase, percent });
+        }
+        return next;
+      });
+      // Toast updates
+      if (evt.phase === 'start') {
+        setToast(`📥 Bắt đầu tải ${evt.app_id}...`);
+      } else if (evt.phase === 'downloading' && percent > 0) {
+        setToast(`📥 Đang tải ${evt.app_id}: ${percent}%`);
+      } else if (evt.phase === 'done') {
+        setToast(`✅ Tải xong ${evt.app_id} — đang mở installer...`);
+        setTimeout(() => setToast(null), 3000);
+      } else if (evt.phase === 'error') {
+        setToast(`❌ Lỗi tải ${evt.app_id}: ${evt.error}`);
+        setTimeout(() => setToast(null), 5000);
+      }
+    }).then((fn) => {
+      unlisten = fn;
+    });
+    return () => {
+      if (unlisten) unlisten();
+    };
+  }, []);
 
   // Load registry khi mount + mỗi khi registryUrl thay đổi (user Save
   // Settings với URL mới → fetch lại ngay). Phase 14.6.b — ghi
@@ -172,13 +242,15 @@ export function App(): JSX.Element {
   //   - status='deprecated': các app đã gộp vào TrishLibrary (TrishNote/Image/
   //     Search/Type) → user không cần thấy entry riêng. Registry vẫn giữ entry
   //     deprecated cho web /downloads và backward compat, launcher ẩn đi.
-  const compatApps = useMemo(
-    () =>
-      filterByPlatform(apps, platform).filter(
-        (a) => a.id !== 'trishlauncher' && a.status !== 'deprecated',
-      ),
-    [apps, platform],
-  );
+  const compatApps = useMemo(() => {
+    const filtered = filterByPlatform(apps, platform).filter(
+      (a) => a.id !== 'trishlauncher' && a.status !== 'deprecated',
+    );
+    // Phase 39.3 — Sort theo most-used: app dùng nhiều xuất hiện đầu, app
+    // chưa từng mở giữ thứ tự gốc theo registry.
+    const stats = getAllStats();
+    return [...filtered].sort((a, b) => compareByUsage(a, b, stats));
+  }, [apps, platform]);
 
   // Phase 14.7.h — Footer hiển thị tiến độ "x/y phần mềm đã phát hành".
   // Phase 20.2 — Đếm app "user có thể tải" = released hoặc scheduled đã
@@ -258,17 +330,54 @@ export function App(): JSX.Element {
   const handleInstall = (app: AppForUi): void => {
     const detect = installMap.get(app.id);
     if (detect && detect.state === 'installed' && detect.path) {
+      // Phase 39.3 — Track app open stats trước khi launch
+      trackOpen(app.id);
       void launchPath(detect.path).catch((err) => {
-        console.warn('[trishlauncher] launch failed, fallback download:', err);
-        const target = app.download[platform];
-        if (target?.url) void openExternal(target.url);
+        console.warn('[trishlauncher] launch failed:', err);
+        setToast(`Không mở được ${app.name}: ${err}`);
+        setTimeout(() => setToast(null), 4000);
       });
       return;
     }
     const target = app.download[platform];
-    if (target?.url) {
-      void openExternal(target.url);
+    if (!target?.url) return;
+
+    // Phase 39.5 — Auto-download + auto-spawn installer
+    // Đang tải rồi thì bỏ qua click thứ 2
+    if (downloadStates.has(app.id)) {
+      setToast(`${app.name} đang được tải, vui lòng đợi...`);
+      setTimeout(() => setToast(null), 3000);
+      return;
     }
+
+    void (async () => {
+      try {
+        const path = await downloadInstaller(target.url, app.id);
+        // Sau khi download xong → spawn installer (Phase A: NSIS UI sẽ hiện)
+        await runInstaller(path);
+        // Re-detect sau 30s để installer kịp ghi file
+        setTimeout(() => {
+          void (async () => {
+            const platformApps = filterByPlatform(apps, platform);
+            const probes = buildProbes(platformApps, platform);
+            const fresh = await detectInstall(probes);
+            const map = new Map<string, InstallDetection>();
+            for (const d of fresh) map.set(d.id, d);
+            setInstallMap(map);
+            setToast(`✅ ${app.name} đã sẵn sàng — bấm Mở để chạy`);
+            setTimeout(() => setToast(null), 5000);
+          })();
+        }, 30_000);
+      } catch (err) {
+        console.error('[trishlauncher] install flow failed:', err);
+        setToast(
+          `Lỗi cài ${app.name}: ${err instanceof Error ? err.message : err}. Mở trình duyệt fallback...`,
+        );
+        // Fallback: mở browser nếu Tauri command fail
+        void openExternal(target.url);
+        setTimeout(() => setToast(null), 5000);
+      }
+    })();
   };
 
   /**
@@ -446,6 +555,16 @@ export function App(): JSX.Element {
         />
       )}
 
+      {/* Phase 39.1 — Quick search Spotlight (Ctrl+K) */}
+      <QuickSearch
+        apps={compatApps}
+        installMap={installMap}
+        open={quickSearchOpen}
+        onClose={() => setQuickSearchOpen(false)}
+        onLaunch={(app) => handleInstall(app)}
+        onSelectApp={(appId) => setSelectedAppId(appId)}
+      />
+
       {settingsOpen && (
         <SettingsModal
           initial={settings}
@@ -514,6 +633,10 @@ function AppCard({
                 {statusLabel(app.status)}
               </span>
               {(() => {
+                // Phase 39.4 — Nếu app yêu cầu key → KHÔNG hiển thị badge "Miễn phí"
+                // (vì user phải xin key admin, không phải hoàn toàn free).
+                // keyTypeBadge bên dưới sẽ hiển thị badge key thay thế.
+                if (app.requires_key) return null;
                 const b = loginRequiredBadge(app.login_required);
                 return (
                   <span

@@ -20,11 +20,11 @@
  */
 import type { AppRegistry } from '@trishteam/core/apps';
 
-const RELEASE_AT_DEFAULT = '2026-05-04T09:00:00+07:00';
+const RELEASE_AT_DEFAULT = '2026-05-07T09:00:00+07:00';
 
 export const SEED_REGISTRY: AppRegistry = {
-  schema_version: 3,
-  updated_at: '2026-04-29T00:00+07:00',
+  schema_version: 5,
+  updated_at: '2026-05-06T20:00+07:00',
   ecosystem: {
     name: 'TrishTEAM',
     tagline: 'Hệ sinh thái năng suất cá nhân',
@@ -37,7 +37,7 @@ export const SEED_REGISTRY: AppRegistry = {
       id: 'trishlauncher',
       name: 'TrishLauncher',
       tagline:
-        'Hub trung tâm — cài đặt + cập nhật + chạy 9 app TrishTEAM trong 1 nơi',
+        'Hub trung tâm — cài đặt + cập nhật + chạy 11 app TrishTEAM trong 1 nơi',
       logo_url: 'https://trishteam.io.vn/logos/trishlauncher.png',
       version: '1.0.0',
       size_bytes: 0,

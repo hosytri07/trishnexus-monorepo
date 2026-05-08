@@ -14,10 +14,108 @@ body {
   color: var(--color-text-primary, #1f2937);
 }
 
+.app-root {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+}
+
+.app-topbar {
+  height: 56px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 18px;
+  background: var(--color-surface-card, #ffffff);
+  border-bottom: 1px solid var(--color-border-subtle, #e5e7eb);
+  flex-shrink: 0;
+}
+
+.app-topbar-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-weight: 800;
+  font-size: 15px;
+  color: var(--color-text-primary, #111827);
+}
+
+.app-topbar-logo {
+  width: 28px;
+  height: 28px;
+  border-radius: 7px;
+  object-fit: contain;
+}
+
+.app-topbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.app-topbar-icon-btn {
+  background: transparent;
+  border: 1px solid var(--color-border-subtle, #e5e7eb);
+  border-radius: 8px;
+  padding: 6px 8px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--color-text-secondary, #4b5563);
+  transition: all 150ms ease-out;
+}
+.app-topbar-icon-btn:hover {
+  background: var(--color-surface-row, #f3f4f6);
+  color: var(--color-accent-primary, #10b981);
+  border-color: var(--color-accent-primary, #10b981);
+}
+
+.app-topbar-user {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 10px 4px 4px;
+  background: var(--color-surface-row, #f9fafb);
+  border-radius: 10px;
+  border: 1px solid var(--color-border-subtle, #e5e7eb);
+}
+
+.app-topbar-avatar {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: var(--color-accent-primary, #10b981);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.app-topbar-user-info {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.2;
+}
+
+.app-topbar-user-name {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--color-text-primary, #111827);
+}
+
+.app-topbar-user-role {
+  font-size: 10px;
+  color: var(--color-text-muted, #9ca3af);
+}
+
 .app-shell {
   display: grid;
   grid-template-columns: 240px 1fr;
-  min-height: 100vh;
+  flex: 1;
+  min-height: 0;
 }
 
 .app-sidebar {

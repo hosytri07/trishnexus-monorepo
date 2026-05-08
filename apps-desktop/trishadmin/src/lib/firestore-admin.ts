@@ -27,6 +27,8 @@ import { getFirebaseAuth, getFirebaseDb } from '@trishteam/auth';
 import {
   paths,
   type ActivationKey,
+  type SecurityAlert,
+  type SessionHistoryEntry,
   type TrishUser,
   type UserRole,
 } from '@trishteam/data';
@@ -36,16 +38,6 @@ import { generateActivationKey, generateBroadcastId, generateKeyId } from './key
 // Users
 // ============================================================
 
-/**
- * Phase 19.24 — Web API endpoint base URL.
- * Trỏ về website đã deploy (Vercel) để fetch user list từ Firebase Auth + Firestore
- * (qua Admin SDK). Override bằng env `VITE_TRISH_API_BASE` nếu cần test localhost.
- *
- * LƯU Ý: phải dùng `www.trishteam.io.vn` (canonical), KHÔNG dùng apex
- * `trishteam.io.vn` vì Vercel redirect 307 apex → www. CORS preflight
- * (OPTIONS) không follow redirect → fail "Redirect is not allowed for a
- * preflight request".
- */
 const TRISH_API_BASE =
   (import.meta as { env?: Record<string, string | undefined> }).env
     ?.VITE_TRISH_API_BASE ?? 'https://www.trishteam.io.vn';
@@ -79,24 +71,13 @@ interface ApiListUsersResponse {
   truncated: boolean;
 }
 
-/**
- * Phase 19.24 — listUsers giờ fetch từ web API `/api/admin/list-users`
- * (Admin SDK listUsers) thay vì query Firestore trực tiếp.
- *
- * LÝ DO: User tạo qua Firebase Console hoặc signUp ở app khác có thể CHƯA có
- * Firestore doc → query Firestore-only sẽ miss. Web API merge Auth list +
- * Firestore docs nên đầy đủ.
- *
- * Header: Authorization: Bearer <ID token của admin hiện tại>
- * Endpoint phải trả corsJson (CORS *) — đã add ở web Phase 19.24.
- */
 export async function listUsers(limit = 500): Promise<TrishUser[]> {
   const auth = getFirebaseAuth();
   const current = auth.currentUser;
   if (!current) {
     throw new Error('Chưa đăng nhập — không lấy được ID token');
   }
-  const token = await current.getIdToken(/* forceRefresh */ false);
+  const token = await current.getIdToken(false);
   const url = `${TRISH_API_BASE}/api/admin/list-users?max=${Math.min(Math.max(1, limit), 1000)}`;
   const res = await fetch(url, {
     method: 'GET',
@@ -119,7 +100,6 @@ export async function listUsers(limit = 500): Promise<TrishUser[]> {
   }
   const data = (await res.json()) as ApiListUsersResponse;
 
-  // Convert ApiUser → TrishUser shape (giữ tương thích UI hiện tại)
   return data.users.map((u) => {
     const fs = u.firestore ?? {};
     const role: UserRole =
@@ -159,7 +139,6 @@ export interface ActorContext {
   email?: string;
 }
 
-/** Helper: lấy ID token của admin hiện tại để gửi web API. */
 async function getCurrentIdToken(): Promise<string> {
   const auth = getFirebaseAuth();
   const user = auth.currentUser;
@@ -167,13 +146,6 @@ async function getCurrentIdToken(): Promise<string> {
   return user.getIdToken(false);
 }
 
-/**
- * Phase 19.24 — setUserRole giờ gọi web API `/api/admin/set-role` thay vì
- * update Firestore trực tiếp. Lý do:
- *   1. Set custom claim `admin: true` ở Firebase Auth (Firestore Rules dùng claim).
- *   2. setDoc merge → handle user chưa có Firestore doc (tạo qua Console).
- *   3. Audit log ghi server-side đồng nhất với web admin panel.
- */
 export async function setUserRole(
   uid: string,
   role: UserRole,
@@ -201,8 +173,6 @@ export async function setUserRole(
       `set-role API ${res.status}${detail ? ` — ${detail}` : ''}`,
     );
   }
-  // Audit phía client (best-effort) — server đã ghi /audit rồi nhưng giữ để
-  // local TrishAdmin audit panel cũng thấy ngay.
   if (actor) {
     await writeAudit({
       action: 'user.set_role',
@@ -216,9 +186,6 @@ export async function setUserRole(
   }
 }
 
-// Phase 22.6.G — Toggle quyền chỉnh sửa TrishISO cho user.
-// Field `iso_admin: boolean` lưu trong /users/{uid}, TrishISO app gate check
-// field này để cho phép user thường (không phải admin global) chỉnh sửa.
 export async function setUserIsoAdmin(
   uid: string,
   value: boolean,
@@ -249,10 +216,6 @@ export async function setUserIsoAdmin(
   }
 }
 
-// Phase 23.10 — Toggle quyền sử dụng TrishFinance cho user.
-// App TrishFinance không thuộc hệ sinh thái public, chỉ admin grant cho user
-// được dùng. Field `finance_user: boolean` lưu trong /users/{uid}, TrishFinance
-// AppGate check field này. Default false → block.
 export async function setUserFinanceUser(
   uid: string,
   value: boolean,
@@ -290,8 +253,6 @@ export async function resetUserToTrial(
 ): Promise<void> {
   const db = getFirebaseDb();
   const ref = doc(db, paths.user(uid));
-  // Phase 19.24 — dùng setDoc merge để hoạt động cả khi user chưa có Firestore doc
-  // (tạo từ Firebase Console). Sau đó gọi set-role API để clear admin claim.
   await setDoc(
     ref,
     {
@@ -303,7 +264,6 @@ export async function resetUserToTrial(
     },
     { merge: true },
   );
-  // Đồng bộ admin custom claim → false (best-effort, ko fatal nếu lỗi)
   try {
     const token = await getCurrentIdToken();
     await fetch(`${TRISH_API_BASE}/api/admin/set-role`, {
@@ -329,15 +289,6 @@ export async function resetUserToTrial(
   }
 }
 
-/**
- * Phase 19.24 — XÓA HẲN user (Auth + Firestore + Storage avatar nếu có).
- *
- * Gọi web API `/api/admin/delete-user` (Admin SDK) thay vì chỉ xóa Firestore doc.
- * Trước Phase 19.24 chỉ xóa Firestore → user login lại tự tạo doc trial.
- * Giờ xóa hẳn Auth user → user phải đăng ký lại từ đầu.
- *
- * Tên hàm giữ `deleteUserDoc` cho backward compat với UI hiện tại.
- */
 export async function deleteUserDoc(
   uid: string,
   actor?: ActorContext,
@@ -417,18 +368,12 @@ export interface CreateKeyInput {
   note?: string;
   expiresAt?: number;
   createdByUid: string;
-  // Phase 36.1 — extended key fields
-  /** 'account' (apps có login) | 'standalone' (apps no-login). Default 'account'. */
   type?: 'account' | 'standalone';
-  /** App ID hoặc 'all' (bundle). Default 'all'. */
   appId?: string;
-  /** Số session đồng thời tối đa (1-99). Default 1. */
   maxConcurrent?: number;
-  /** Tên người nhận key (audit) */
   recipient?: string;
 }
 
-/** Strip mọi field undefined trước khi gửi setDoc — Firestore không cho phép. */
 function stripUndefined<T extends Record<string, unknown>>(obj: T): T {
   const out = {} as T;
   for (const k of Object.keys(obj) as Array<keyof T>) {
@@ -453,9 +398,8 @@ export async function createKeys(
       status: 'active',
       ...(input.note ? { note: input.note } : {}),
       ...(input.recipient ? { recipient: input.recipient } : {}),
-      // Phase 36.1 — extended fields
       type: input.type ?? 'account',
-      // @ts-expect-error AppId union: caller pass string, runtime cast OK
+      // @ts-expect-error AppId union
       app_id: input.appId ?? 'all',
       max_concurrent: input.maxConcurrent ?? 1,
       expires_at: input.expiresAt ?? 0,
@@ -486,9 +430,6 @@ export async function createKeys(
   return out;
 }
 
-/**
- * Phase 37.5 — Extend expiry của 1 key (admin có thể gia hạn).
- */
 export async function extendKeyExpiry(
   keyId: string,
   newExpiresAt: number,
@@ -512,10 +453,6 @@ export async function extendKeyExpiry(
   }
 }
 
-/**
- * Phase 37.6 — List active sessions (collectionGroup query qua Firestore).
- * Trả các session có expires_at > now (vẫn active).
- */
 export interface ActiveSessionRow {
   session_id: string;
   key_id: string;
@@ -528,20 +465,17 @@ export interface ActiveSessionRow {
   started_at: number;
   last_heartbeat: number;
   expires_at: number;
-  /** Document path để delete (kicks) — "keys/{keyId}/sessions/{sessionId}" */
   doc_path: string;
 }
 
 export async function listActiveSessions(maxRows = 200): Promise<ActiveSessionRow[]> {
   const db = getFirebaseDb();
   const now = Date.now();
-  const q = query(
-    collectionGroup(db, 'sessions'),
-    where('expires_at', '>', now),
-    fbLimit(maxRows),
-  );
+  // Phase 24.3 — Bỏ where() để tránh require composite index trên collectionGroup.
+  // Filter client-side (số sessions ít < 500). Tăng limit lên đề bù.
+  const q = query(collectionGroup(db, 'sessions'), fbLimit(maxRows * 2));
   const snap = await getDocs(q);
-  return snap.docs.map((d) => {
+  const all = snap.docs.map((d) => {
     const data = d.data() as Record<string, unknown>;
     return {
       session_id: d.id,
@@ -558,12 +492,10 @@ export async function listActiveSessions(maxRows = 200): Promise<ActiveSessionRo
       doc_path: d.ref.path,
     };
   });
+  // Filter active client-side: expires_at > now
+  return all.filter((s) => s.expires_at > now).slice(0, maxRows);
 }
 
-/**
- * Phase 37.6 — Force kick 1 session (admin trực tiếp xóa session doc).
- * Client của session đó sẽ detect mất doc qua onSnapshot listener → auto logout.
- */
 export async function kickSession(
   keyId: string,
   sessionId: string,
@@ -573,7 +505,31 @@ export async function kickSession(
   const sessionRef = doc(db, 'keys', keyId, 'sessions', sessionId);
   const snap = await getDoc(sessionRef);
   if (!snap.exists()) return;
-  const data = snap.data();
+  const data = snap.data() as Record<string, unknown>;
+
+  try {
+    const startedAt = (data.started_at as number) ?? Date.now();
+    const historyEntry = stripUndefined({
+      session_id: sessionId,
+      key_id: keyId,
+      app_id: data.app_id,
+      uid: data.uid,
+      machine_id: data.machine_id ?? '',
+      ip_address: data.ip_address ?? '',
+      ip_country: data.ip_country,
+      hostname: data.hostname,
+      os: data.os,
+      started_at: startedAt,
+      ended_at: Date.now(),
+      duration_ms: Date.now() - startedAt,
+      end_reason: 'kick' as SessionHistoryEntry['end_reason'],
+      kicked_by_uid: actor?.uid,
+    } as Record<string, unknown>);
+    await addDoc(collection(db, paths.sessionHistory()), historyEntry);
+  } catch (err) {
+    console.warn('[trishadmin] sessionHistory write fail (non-fatal):', err);
+  }
+
   await deleteDoc(sessionRef);
   if (actor) {
     await writeAudit({
@@ -593,11 +549,328 @@ export async function kickSession(
   }
 }
 
-/**
- * Phase 37.5 — Reset binding (clear bound_uid + bound_machine_id).
- * Dùng khi user mất key / format máy / cần cấp lại cho user khác.
- * Sau khi reset, key về status='active' để cấp lại.
- */
+// ============================================================
+// Phase 24.3 — Session history
+// ============================================================
+
+export async function listSessionHistory(
+  limit = 500,
+  filters?: {
+    key_id?: string;
+    uid?: string;
+    app_id?: string;
+    sinceMs?: number;
+  },
+): Promise<SessionHistoryEntry[]> {
+  const db = getFirebaseDb();
+  // Phase 24.3 — Đơn giản: orderBy ended_at + filter client-side để tránh
+  // composite index khi có where(...) + orderBy(...). Số entries ít.
+  const q = query(
+    collection(db, paths.sessionHistory()),
+    orderBy('ended_at', 'desc'),
+    fbLimit(limit * 2),
+  );
+  try {
+    const snap = await getDocs(q);
+    let result = snap.docs.map((d) => {
+      const data = d.data() as Partial<SessionHistoryEntry>;
+      return { ...data, id: data.id ?? d.id } as SessionHistoryEntry;
+    });
+    if (filters?.key_id) result = result.filter((e) => e.key_id === filters.key_id);
+    if (filters?.uid) result = result.filter((e) => e.uid === filters.uid);
+    if (filters?.app_id) result = result.filter((e) => e.app_id === filters.app_id);
+    if (filters?.sinceMs) result = result.filter((e) => e.ended_at >= (filters.sinceMs ?? 0));
+    return result.slice(0, limit);
+  } catch (err) {
+    console.warn('[trishadmin] listSessionHistory fail:', err);
+    return [];
+  }
+}
+
+export async function sweepExpiredSessions(actor?: ActorContext): Promise<{
+  swept: number;
+  failed: number;
+}> {
+  const db = getFirebaseDb();
+  const now = Date.now();
+  const STALE_HEARTBEAT_MS = 15 * 60 * 1000;
+  const q = query(collectionGroup(db, 'sessions'), fbLimit(500));
+  const snap = await getDocs(q);
+  let swept = 0;
+  let failed = 0;
+  for (const d of snap.docs) {
+    const data = d.data() as Record<string, unknown>;
+    const expiresAt = (data.expires_at as number) ?? 0;
+    const lastHb = (data.last_heartbeat as number) ?? 0;
+    const isExpired = expiresAt > 0 && expiresAt < now;
+    const isStale = lastHb > 0 && now - lastHb > STALE_HEARTBEAT_MS;
+    if (!isExpired && !isStale) continue;
+    try {
+      const startedAt = (data.started_at as number) ?? now;
+      const historyEntry = stripUndefined({
+        session_id: d.id,
+        key_id: (data.key_id as string) ?? d.ref.parent.parent?.id ?? '',
+        app_id: data.app_id,
+        uid: data.uid,
+        machine_id: data.machine_id ?? '',
+        ip_address: data.ip_address ?? '',
+        hostname: data.hostname,
+        os: data.os,
+        started_at: startedAt,
+        ended_at: now,
+        duration_ms: now - startedAt,
+        end_reason: 'expire' as SessionHistoryEntry['end_reason'],
+      } as Record<string, unknown>);
+      await addDoc(collection(db, paths.sessionHistory()), historyEntry);
+      await deleteDoc(d.ref);
+      swept++;
+    } catch (err) {
+      console.warn(`[sweep] fail for ${d.id}:`, err);
+      failed++;
+    }
+  }
+  if (actor && swept > 0) {
+    await writeAudit({
+      action: 'session.sweep_expired',
+      actor_uid: actor.uid,
+      actor_email: actor.email,
+      target_type: 'session',
+      details: { swept, failed },
+    });
+  }
+  return { swept, failed };
+}
+
+// ============================================================
+// Phase 24.3 — Security alerts
+// ============================================================
+
+export async function listAlerts(limit = 200, includeAck = false): Promise<SecurityAlert[]> {
+  const db = getFirebaseDb();
+  const q = query(
+    collection(db, paths.alerts()),
+    orderBy('created_at', 'desc'),
+    fbLimit(limit),
+  );
+  const snap = await getDocs(q);
+  let result = snap.docs.map((d) => {
+    const data = d.data() as Partial<SecurityAlert>;
+    return { ...data, id: data.id ?? d.id } as SecurityAlert;
+  });
+  if (!includeAck) result = result.filter((a) => !a.acknowledged);
+  return result;
+}
+
+export async function acknowledgeAlert(
+  alertId: string,
+  actor: ActorContext,
+): Promise<void> {
+  const db = getFirebaseDb();
+  await updateDoc(doc(db, paths.alert(alertId)), {
+    acknowledged: true,
+    acknowledged_by_uid: actor.uid,
+    acknowledged_at: Date.now(),
+  });
+  await writeAudit({
+    action: 'alert.acknowledge',
+    actor_uid: actor.uid,
+    actor_email: actor.email,
+    target_type: 'alert',
+    target_id: alertId,
+  });
+}
+
+export async function deleteAlert(alertId: string, actor: ActorContext): Promise<void> {
+  const db = getFirebaseDb();
+  await deleteDoc(doc(db, paths.alert(alertId)));
+  await writeAudit({
+    action: 'alert.delete',
+    actor_uid: actor.uid,
+    actor_email: actor.email,
+    target_type: 'alert',
+    target_id: alertId,
+  });
+}
+
+export async function detectSuspiciousActivity(
+  geoMap: Map<string, { is_proxy?: boolean; country_code?: string } | null>,
+): Promise<number> {
+  const db = getFirebaseDb();
+  const sessions = await listActiveSessions(500);
+  const allKeys = await listKeys(1000);
+  const keyMap = new Map(allKeys.map((k) => [k.id, k]));
+
+  const byKey = new Map<string, typeof sessions>();
+  for (const s of sessions) {
+    const arr = byKey.get(s.key_id) ?? [];
+    arr.push(s);
+    byKey.set(s.key_id, arr);
+  }
+
+  const newAlerts: Omit<SecurityAlert, 'id'>[] = [];
+  const FIVE_MIN = 5 * 60 * 1000;
+
+  for (const [keyId, list] of byKey.entries()) {
+    const key = keyMap.get(keyId);
+    if (!key) continue;
+
+    const recentlyStarted = list.filter((s) => Date.now() - s.started_at < FIVE_MIN);
+    const uniqueIps = new Set(recentlyStarted.map((s) => s.ip_address));
+    if (uniqueIps.size >= 3) {
+      newAlerts.push({
+        type: 'multi_ip_concurrent',
+        severity: 'critical',
+        message: `Key ${key.code} active từ ${uniqueIps.size} IP khác nhau trong 5 phút`,
+        key_id: keyId,
+        key_code: key.code,
+        details: {
+          ip_count: uniqueIps.size,
+          ips: Array.from(uniqueIps),
+          session_count: recentlyStarted.length,
+        },
+        acknowledged: false,
+        created_at: Date.now(),
+      });
+    }
+
+    for (const s of list) {
+      if (key.ip_blacklist && key.ip_blacklist.length > 0) {
+        if (key.ip_blacklist.includes(s.ip_address)) {
+          newAlerts.push({
+            type: 'ip_in_blacklist',
+            severity: 'warning',
+            message: `Session từ IP ${s.ip_address} (key ${key.code}) khớp blacklist`,
+            key_id: keyId,
+            key_code: key.code,
+            uid: s.uid,
+            details: { ip: s.ip_address, machine_id: s.machine_id },
+            acknowledged: false,
+            created_at: Date.now(),
+          });
+        }
+      }
+      if (key.ip_whitelist && key.ip_whitelist.length > 0) {
+        const matched = key.ip_whitelist.some((r) => r === s.ip_address || r === '*');
+        if (!matched) {
+          newAlerts.push({
+            type: 'ip_outside_whitelist',
+            severity: 'warning',
+            message: `Session từ IP ${s.ip_address} (key ${key.code}) ngoài whitelist`,
+            key_id: keyId,
+            key_code: key.code,
+            uid: s.uid,
+            details: { ip: s.ip_address, machine_id: s.machine_id },
+            acknowledged: false,
+            created_at: Date.now(),
+          });
+        }
+      }
+      if (key.block_proxy && geoMap) {
+        const geo = geoMap.get(s.ip_address);
+        if (geo?.is_proxy) {
+          newAlerts.push({
+            type: 'proxy_detected',
+            severity: 'warning',
+            message: `Session từ VPN/proxy IP ${s.ip_address} (key ${key.code})`,
+            key_id: keyId,
+            key_code: key.code,
+            uid: s.uid,
+            details: { ip: s.ip_address, country: geo.country_code },
+            acknowledged: false,
+            created_at: Date.now(),
+          });
+        }
+      }
+    }
+  }
+
+  const existing = await listAlerts(200, false);
+  const HOUR = 60 * 60 * 1000;
+  const recent = existing.filter((a) => Date.now() - a.created_at < HOUR);
+
+  let created = 0;
+  for (const alert of newAlerts) {
+    const dup = recent.find(
+      (a) => a.type === alert.type && a.key_id === alert.key_id && !a.acknowledged,
+    );
+    if (dup) continue;
+    try {
+      await addDoc(collection(db, paths.alerts()), stripUndefined(alert as unknown as Record<string, unknown>));
+      created++;
+    } catch (err) {
+      console.warn('[detect] alert write fail:', err);
+    }
+  }
+  return created;
+}
+
+// ============================================================
+// Phase 24.3 — Key security patch + bulk
+// ============================================================
+
+export interface KeySecurityPatch {
+  ip_whitelist?: string[];
+  ip_blacklist?: string[];
+  concurrent_policy?: 'reject' | 'kick_oldest';
+  block_proxy?: boolean;
+  tags?: string[];
+  max_concurrent?: number;
+}
+
+export async function updateKeySecurity(
+  keyId: string,
+  patch: KeySecurityPatch,
+  actor?: ActorContext,
+  code?: string,
+): Promise<void> {
+  const db = getFirebaseDb();
+  const cleaned = stripUndefined(patch as unknown as Record<string, unknown>);
+  if (Object.keys(cleaned).length === 0) return;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  await updateDoc(doc(db, paths.key(keyId)), cleaned as any);
+  if (actor) {
+    await writeAudit({
+      action: 'key.update_security',
+      actor_uid: actor.uid,
+      actor_email: actor.email,
+      target_type: 'key',
+      target_id: keyId,
+      target_label: code,
+      details: cleaned,
+    });
+  }
+}
+
+export async function bulkRevokeKeys(
+  keyIds: string[],
+  actor?: ActorContext,
+): Promise<{ success: number; failed: number }> {
+  const db = getFirebaseDb();
+  let success = 0;
+  let failed = 0;
+  for (const id of keyIds) {
+    try {
+      await updateDoc(doc(db, paths.key(id)), {
+        status: 'revoked' as ActivationKey['status'],
+      });
+      success++;
+    } catch (err) {
+      console.warn(`bulk revoke fail for ${id}:`, err);
+      failed++;
+    }
+  }
+  if (actor) {
+    await writeAudit({
+      action: 'key.bulk_revoke',
+      actor_uid: actor.uid,
+      actor_email: actor.email,
+      target_type: 'key',
+      details: { count: keyIds.length, success, failed, ids: keyIds },
+    });
+  }
+  return { success, failed };
+}
+
 export async function resetKeyBinding(
   keyId: string,
   actor?: ActorContext,
@@ -665,7 +938,7 @@ export async function deleteKey(
 }
 
 // ============================================================
-// Broadcasts (announcements)
+// Broadcasts
 // ============================================================
 
 export type BroadcastSeverity = 'info' | 'warning' | 'critical';
@@ -678,10 +951,13 @@ export interface Broadcast {
   severity: BroadcastSeverity;
   audience: BroadcastAudience;
   created_at: number;
-  /** Timestamp ms hết hạn — 0 = không bao giờ */
   expires_at: number;
   created_by_uid: string;
   active: boolean;
+  delivery_count?: number;
+  read_count?: number;
+  read_uids?: string[];
+  published_at?: number;
 }
 
 export async function listBroadcasts(limit = 100): Promise<Broadcast[]> {
@@ -789,7 +1065,7 @@ export async function deleteBroadcast(
 }
 
 // ============================================================
-// Stats helpers
+// Stats
 // ============================================================
 
 export interface AdminStats {
@@ -836,17 +1112,14 @@ export async function fetchStats(): Promise<AdminStats> {
 }
 
 // ============================================================
-// Phase 18.8.a — TrishTEAM Library curator
-// Collection /trishteam_library/{folderId}
-//   subcollection /links/{linkId}
-// Admin write, all signed-in user read.
+// TrishTEAM Library curator
 // ============================================================
 
 export interface TrishteamLibraryFolder {
   id: string;
   name: string;
   description?: string;
-  icon?: string; // emoji
+  icon?: string;
   sort_order: number;
   link_count?: number;
   created_at: number;
@@ -859,7 +1132,7 @@ export interface TrishteamLibraryLink {
   title: string;
   url: string;
   description?: string;
-  icon?: string; // emoji
+  icon?: string;
   link_type?: 'web' | 'pdf' | 'docs' | 'video' | 'other';
   sort_order: number;
   created_at: number;
@@ -926,7 +1199,6 @@ export async function updateLibraryFolder(
 
 export async function deleteLibraryFolder(id: string): Promise<void> {
   const db = getFirebaseDb();
-  // Note: Firestore không cascade delete subcollection. Phải xóa links trước.
   const links = await listLibraryLinks(id);
   for (const l of links) {
     await deleteDoc(doc(db, paths.trishteamLibraryLink(id, l.id)));
@@ -980,7 +1252,6 @@ export async function createLibraryLink(
     doc(db, paths.trishteamLibraryLink(input.folderId, id)),
     stripUndefined(l as unknown as Record<string, unknown>),
   );
-  // Touch folder updated_at để client biết folder có thay đổi
   await updateDoc(doc(db, paths.trishteamLibraryFolder(input.folderId)), {
     updated_at: Date.now(),
   });
@@ -1008,9 +1279,7 @@ export async function deleteLibraryLink(folderId: string, linkId: string): Promi
 }
 
 // ============================================================
-// Phase 18.8.a — Feedback inbox
-// Collection /feedback/{id}
-// User create với uid = mình. Admin read all + update + delete.
+// Feedback
 // ============================================================
 
 export interface Feedback {
@@ -1018,11 +1287,10 @@ export interface Feedback {
   uid: string;
   email?: string;
   display_name?: string;
-  app: string; // 'trishlibrary' | 'trishadmin' | 'trishlauncher' | etc
+  app: string;
   app_version?: string;
   category: 'bug' | 'feature' | 'question' | 'praise' | 'other';
   message: string;
-  /** Trạng thái xử lý */
   status: 'new' | 'read' | 'in_progress' | 'resolved' | 'wontfix';
   admin_note?: string;
   created_at: number;
@@ -1066,10 +1334,7 @@ export async function deleteFeedback(id: string): Promise<void> {
 }
 
 // ============================================================
-// Phase 18.8.a — Audit log
-// Collection /audit/{id} — append-only. Admin read.
-// Mỗi action admin (createKey, revokeKey, setUserRole, deleteUser, ...)
-// ghi 1 entry.
+// Audit log
 // ============================================================
 
 export interface AuditEntry {
@@ -1077,10 +1342,10 @@ export interface AuditEntry {
   action: string;
   actor_uid: string;
   actor_email?: string;
-  target_type?: string; // 'user' | 'key' | 'broadcast' | 'library_folder' | ...
+  target_type?: string;
   target_id?: string;
-  target_label?: string; // human-readable (vd email, key code)
-  details?: Record<string, unknown>; // tự do, JSON
+  target_label?: string;
+  details?: Record<string, unknown>;
   created_at: number;
 }
 
@@ -1092,10 +1357,8 @@ export async function writeAudit(input: Omit<AuditEntry, 'id' | 'created_at'>): 
     _server_created_at: serverTimestamp(),
   };
   try {
-    // Dùng addDoc → Firestore tự sinh ID (không cần custom ID cho audit)
     await addDoc(collection(db, 'audit'), entry);
   } catch (err) {
-    // Audit fail không nên block action chính → log warn rồi swallow
     console.warn('[trishadmin] writeAudit fail:', err);
   }
 }
@@ -1111,21 +1374,18 @@ export async function listAudit(limit = 300): Promise<AuditEntry[]> {
 }
 
 // ============================================================
-// Phase 18.8.a — Posts (blog/changelog public)
-// Collection /posts/{id}
-// Status: draft | published. Public read khi published. Admin CRUD.
+// Posts
 // ============================================================
 
 export interface Post {
   id: string;
   title: string;
   slug: string;
-  body_md: string; // markdown source
+  body_md: string;
   excerpt?: string;
   hero_url?: string;
   tags?: string[];
   status: 'draft' | 'published';
-  /** Timestamp ms khi publish (= created_at nếu publish luôn) */
   publish_at?: number;
   created_at: number;
   updated_at: number;
@@ -1136,7 +1396,7 @@ function slugify(s: string): string {
   return s
     .toLowerCase()
     .normalize('NFD')
-    .replace(/[̀-ͯ]/g, '') // strip accents
+    .replace(/[̀-ͯ]/g, '')
     .replace(/đ/g, 'd')
     .replace(/[^a-z0-9]+/g, '-')
     .replace(/(^-|-$)/g, '');
@@ -1198,7 +1458,6 @@ export async function updatePost(
     ...patch,
     updated_at: Date.now(),
   };
-  // Nếu status đổi sang published lần đầu thì set publish_at
   if (patch.status === 'published' && !patch.publish_at) {
     next.publish_at = Date.now();
   }
