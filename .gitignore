@@ -52,3 +52,6 @@ Cargo.lock.bk
 # Phase 22 — internal-tools/ ĐÃ MOVE sang apps-desktop/trishiso, trishfinance, trishdrive
 # Folder rỗng, sẽ xóa qua scripts/CLEANUP-INTERNAL-TOOLS.bat
 internal-tools/
+
+# Phase 38.2.0 — Tessdata best (~70MB) tải lúc build qua scripts/fetch-tessdata.ps1
+apps-desktop/trishlibrary/src-tauri/resources/tessdata_best/*.traineddata

@@ -1,0 +1,3 @@
+# Folder giữ file vie.traineddata + eng.traineddata bundle vào installer.
+# File traineddata KHÔNG commit (xem .gitignore root).
+# Tải tự động qua: pwsh scripts/fetch-tessdata.ps1

@@ -11,6 +11,7 @@ use serde::Serialize;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::time::UNIX_EPOCH;
+use tauri::Manager;
 use walkdir::{DirEntry, WalkDir};
 
 const MAX_STORE_BYTES: u64 = 20 * 1024 * 1024; // 20 MiB
@@ -902,7 +903,8 @@ fn pdf_info(path: String) -> Result<PdfInfo, String> {
         return Err(format!("Không phải file: {path}"));
     }
     let file_size = fs::metadata(&p).map(|m| m.len()).unwrap_or(0);
-    let doc = lopdf::Document::load(&p).map_err(|e| format!("load pdf: {e}"))?;
+    // Phase 38.2.2 — Use auto-repair helper (handles damaged xref via qpdf fallback)
+    let (doc, repair_temp) = load_pdf_with_repair(&path)?;
     let page_count = doc.get_pages().len() as u32;
 
     // Try to read /Info dictionary fields
@@ -923,6 +925,11 @@ fn pdf_info(path: String) -> Result<PdfInfo, String> {
                 }
             }
         }
+    }
+
+    // Cleanup temp file from qpdf repair (nếu có)
+    if let Some(t) = repair_temp {
+        let _ = fs::remove_file(&t);
     }
 
     Ok(PdfInfo {
@@ -1438,6 +1445,474 @@ fn pdf_add_watermark(
     Ok(total)
 }
 
+/// Phase 38.2.2 — Resolve qpdf binary path. qpdf cài qua winget thường KHÔNG
+/// add vào PATH; folder có version trong tên (vd `C:\Program Files\qpdf 12.3.2\`).
+fn resolve_qpdf_path() -> Option<String> {
+    // Try PATH first
+    if hidden_command("qpdf").arg("--version").output().is_ok() {
+        return Some("qpdf".to_string());
+    }
+    #[cfg(target_os = "windows")]
+    {
+        // Scan Program Files for "qpdf*" folders
+        for pf in &[r"C:\Program Files", r"C:\Program Files (x86)"] {
+            if let Ok(entries) = fs::read_dir(pf) {
+                for e in entries.flatten() {
+                    let name = e.file_name().to_string_lossy().to_lowercase();
+                    if name.starts_with("qpdf") {
+                        let bin = e.path().join("bin").join("qpdf.exe");
+                        if bin.exists() {
+                            return Some(bin.to_string_lossy().to_string());
+                        }
+                    }
+                }
+            }
+        }
+        // winget package path
+        if let Ok(local_app) = std::env::var("LOCALAPPDATA") {
+            let winget_root = std::path::PathBuf::from(&local_app)
+                .join("Microsoft").join("WinGet").join("Packages");
+            if let Ok(entries) = fs::read_dir(&winget_root) {
+                for e in entries.flatten() {
+                    let name = e.file_name().to_string_lossy().to_string();
+                    if name.starts_with("qpdf.qpdf") {
+                        if let Ok(walker) = fs::read_dir(e.path()) {
+                            for sub in walker.flatten() {
+                                let bin = sub.path().join("bin").join("qpdf.exe");
+                                if bin.exists() {
+                                    return Some(bin.to_string_lossy().to_string());
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+    None
+}
+
+/// Phase 38.2.2 — Helper load PDF với fallback qpdf repair khi lopdf fail.
+///
+/// Lopdf 0.34 đôi khi không parse được PDF có XRef streams (vd iTextSharp output)
+/// hoặc PDF damaged (mising startxref). qpdf có thể auto-reconstruct cross-ref table.
+/// Returns: (Document, optional temp_path để cleanup sau).
+fn load_pdf_with_repair(path: &str) -> Result<(lopdf::Document, Option<PathBuf>), String> {
+    match lopdf::Document::load(path) {
+        Ok(doc) => Ok((doc, None)),
+        Err(e) => {
+            let msg = e.to_string().to_lowercase();
+            // Detect xref-related errors
+            if msg.contains("cross-reference")
+                || msg.contains("xref")
+                || msg.contains("startxref")
+                || msg.contains("invalid")
+            {
+                // Try qpdf to rebuild xref table
+                let temp_dir = std::env::temp_dir().join("trishlibrary_pdf_repair");
+                fs::create_dir_all(&temp_dir).map_err(|e| format!("temp_dir: {e}"))?;
+                let pid = std::process::id();
+                let nano = std::time::SystemTime::now()
+                    .duration_since(std::time::UNIX_EPOCH)
+                    .map(|d| d.subsec_nanos())
+                    .unwrap_or(0);
+                let temp = temp_dir.join(format!("repair_{pid}_{nano}.pdf"));
+                let temp_str = temp.to_string_lossy().to_string();
+                let qpdf_bin = resolve_qpdf_path().ok_or_else(|| {
+                    format!(
+                        "load PDF: {e}\n\
+                        Không tìm thấy qpdf để repair file. Cài qpdf qua Settings → \
+                        Công cụ ngoài → Mở wizard cài đặt."
+                    )
+                })?;
+                let qpdf_out = hidden_command(&qpdf_bin)
+                    .arg(path)
+                    .arg(&temp_str)
+                    .output();
+                match qpdf_out {
+                    Ok(out) => {
+                        // qpdf returns 3 = warnings (file repaired), 0 = success, 2 = fatal
+                        if out.status.code().map(|c| c == 0 || c == 3).unwrap_or(false) {
+                            match lopdf::Document::load(&temp_str) {
+                                Ok(doc) => Ok((doc, Some(temp))),
+                                Err(e2) => {
+                                    let _ = fs::remove_file(&temp);
+                                    Err(format!(
+                                        "load PDF (sau khi qpdf repair): {e2}\n\
+                                        File có thể quá hỏng để xử lý."
+                                    ))
+                                }
+                            }
+                        } else {
+                            let stderr = String::from_utf8_lossy(&out.stderr);
+                            Err(format!(
+                                "load PDF: {e}\n\
+                                qpdf repair fail: {stderr}\n\
+                                File PDF bị hỏng nặng. Mở bằng Acrobat/Chrome để re-save trước."
+                            ))
+                        }
+                    }
+                    Err(qe) => Err(format!(
+                        "load PDF: {e}\n\
+                        Không gọi được qpdf để repair: {qe}\n\
+                        Cài qpdf qua Settings → Công cụ ngoài."
+                    )),
+                }
+            } else {
+                Err(format!("load PDF: {e}"))
+            }
+        }
+    }
+}
+
+/// Phase 38.2.2 — Embed image stamp (con dấu / chữ ký / QR) lên 1 hoặc nhiều
+/// trang PDF tại vị trí + size cụ thể (mm).
+///
+/// `page_indices`: 1-based; empty = all pages.
+/// `x_mm` / `y_mm`: vị trí GÓC DƯỚI TRÁI của stamp (PDF coords: origin bottom-left).
+/// `width_mm`: chiều rộng stamp; chiều cao tự tính theo aspect ratio gốc của image.
+///
+/// Image PNG/JPG đều OK. Transparency PNG sẽ composite onto white (MVP — giữ con dấu
+/// đỏ trên nền trắng OK; chữ ký scan nên có nền trắng sẵn).
+#[tauri::command]
+fn pdf_add_image_stamp(
+    input_path: String,
+    output_path: String,
+    image_bytes: Vec<u8>,
+    x_mm: f32,
+    y_mm: f32,
+    width_mm: f32,
+    page_indices: Vec<u32>,
+) -> Result<u32, String> {
+    use lopdf::{Dictionary, Object, Stream};
+
+    // 1. Decode image (PNG/JPG/etc.) → RGB8 (composite alpha onto white)
+    let img = image::load_from_memory(&image_bytes)
+        .map_err(|e| format!("decode image: {e}"))?;
+    // to_rgb8 converts: RGBA → composite white BG, others → RGB
+    let rgb = img.to_rgb8();
+    let (w, h) = (rgb.width(), rgb.height());
+    if w == 0 || h == 0 {
+        return Err("Image rỗng".to_string());
+    }
+
+    // 2. Re-encode as JPEG quality 90 (smaller PDF, supported via DCTDecode)
+    let mut jpeg_bytes: Vec<u8> = Vec::new();
+    {
+        let writer = std::io::Cursor::new(&mut jpeg_bytes);
+        let encoder = image::codecs::jpeg::JpegEncoder::new_with_quality(writer, 90);
+        image::DynamicImage::ImageRgb8(rgb)
+            .write_with_encoder(encoder)
+            .map_err(|e| format!("encode jpeg: {e}"))?;
+    }
+
+    // 3. Load PDF (with auto qpdf repair nếu file bị damaged xref)
+    let (mut doc, repair_temp) = load_pdf_with_repair(&input_path)?;
+
+    // 4. Create Image XObject stream
+    let mut img_dict = Dictionary::new();
+    img_dict.set("Type", "XObject");
+    img_dict.set("Subtype", "Image");
+    img_dict.set("Width", w as i32);
+    img_dict.set("Height", h as i32);
+    img_dict.set("ColorSpace", "DeviceRGB");
+    img_dict.set("BitsPerComponent", 8);
+    img_dict.set("Filter", "DCTDecode");
+    let img_stream = Stream::new(img_dict, jpeg_bytes);
+    let img_id = doc.add_object(Object::Stream(img_stream));
+
+    // 5. mm → PDF points (1 inch = 72 pt = 25.4 mm)
+    let mm_to_pt = 72.0 / 25.4;
+    let aspect = h as f32 / w as f32;
+    let w_pt = width_mm * mm_to_pt;
+    let h_pt = width_mm * aspect * mm_to_pt;
+    let x_pt = x_mm * mm_to_pt;
+    let y_pt = y_mm * mm_to_pt;
+
+    // 6. Determine target pages
+    let pages = doc.get_pages();
+    let target_pages: Vec<lopdf::ObjectId> = if page_indices.is_empty() {
+        pages.values().copied().collect()
+    } else {
+        page_indices
+            .iter()
+            .filter_map(|i| pages.get(i).copied())
+            .collect()
+    };
+    if target_pages.is_empty() {
+        return Err("Không có trang nào để stamp (kiểm tra page_indices)".to_string());
+    }
+    let count = target_pages.len() as u32;
+
+    // 7. For each page: patch resources + append content stream
+    for page_id in target_pages {
+        // Content stream: q [w 0 0 h x y] cm /StampImg Do Q
+        // (CTM scales unit square to image bbox + translates to (x,y))
+        let content = format!(
+            "q\n{w_pt:.2} 0 0 {h_pt:.2} {x_pt:.2} {y_pt:.2} cm\n/StampImg Do\nQ\n"
+        );
+
+        // Phase 1: read existing Resources
+        let resolved_res_dict: Dictionary = {
+            let existing_res = doc
+                .get_object(page_id)
+                .ok()
+                .and_then(|o| o.as_dict().ok())
+                .and_then(|d| d.get(b"Resources").ok().cloned());
+            match existing_res {
+                Some(Object::Dictionary(d)) => d,
+                Some(Object::Reference(rid)) => doc
+                    .get_object(rid)
+                    .ok()
+                    .and_then(|o| o.as_dict().ok())
+                    .map(|d| d.clone())
+                    .unwrap_or_default(),
+                _ => Dictionary::new(),
+            }
+        };
+
+        // Phase 2: mutate page_dict to add /XObject /StampImg = img_id
+        if let Ok(page_dict) = doc.get_object_mut(page_id).and_then(|o| o.as_dict_mut()) {
+            let mut res_dict = resolved_res_dict;
+            let mut xobjs = match res_dict.get(b"XObject").ok() {
+                Some(Object::Dictionary(d)) => d.clone(),
+                _ => Dictionary::new(),
+            };
+            xobjs.set("StampImg", img_id);
+            res_dict.set("XObject", Object::Dictionary(xobjs));
+            page_dict.set("Resources", Object::Dictionary(res_dict));
+        }
+
+        // Append content stream
+        let stream = Stream::new(Dictionary::new(), content.into_bytes());
+        let stream_id = doc.add_object(Object::Stream(stream));
+
+        if let Ok(page_dict) = doc.get_object_mut(page_id).and_then(|o| o.as_dict_mut()) {
+            let existing = page_dict.get(b"Contents").ok().cloned();
+            let new_contents: Object = match existing {
+                Some(Object::Array(mut arr)) => {
+                    arr.push(Object::Reference(stream_id));
+                    Object::Array(arr)
+                }
+                Some(other) => Object::Array(vec![other, Object::Reference(stream_id)]),
+                None => Object::Reference(stream_id),
+            };
+            page_dict.set("Contents", new_contents);
+        }
+    }
+
+    doc.compress();
+    if let Some(parent) = PathBuf::from(&output_path).parent() {
+        fs::create_dir_all(parent).map_err(|e| format!("create_dir: {e}"))?;
+    }
+    doc.save(&output_path).map_err(|e| format!("save: {e}"))?;
+
+    // Cleanup temp file từ qpdf repair (nếu có)
+    if let Some(t) = repair_temp {
+        let _ = fs::remove_file(&t);
+    }
+
+    Ok(count)
+}
+
+/// Phase 38.2.4 — PDF Revision Compare (text diff mode).
+/// Extract text từ 2 PDF qua pdf-extract → word-level diff với similar →
+/// build HTML report inline với <ins> (added, xanh) và <del> (removed, đỏ).
+///
+/// Input PDF cần có text layer (digital PDF, không phải scan thuần).
+/// Cho scan: user OCR trước qua tool "🔍 OCR PDF scan".
+/// Phase 38.2.4 — Helper extract text với fallback qpdf repair khi pdf-extract fail.
+fn extract_pdf_text_with_repair(path: &str) -> Result<String, String> {
+    match pdf_extract::extract_text(path) {
+        Ok(t) => Ok(t),
+        Err(e) => {
+            let msg = e.to_string().to_lowercase();
+            if msg.contains("cross-reference")
+                || msg.contains("xref")
+                || msg.contains("startxref")
+                || msg.contains("invalid")
+            {
+                // Try qpdf repair
+                let qpdf_bin = resolve_qpdf_path().ok_or_else(|| {
+                    format!(
+                        "extract text: {e}\n\
+                        Không tìm thấy qpdf để repair file. Cài qpdf qua \
+                        Settings → Công cụ ngoài."
+                    )
+                })?;
+                let temp_dir = std::env::temp_dir().join("trishlibrary_pdf_repair");
+                fs::create_dir_all(&temp_dir).map_err(|e| format!("temp_dir: {e}"))?;
+                let pid = std::process::id();
+                let nano = std::time::SystemTime::now()
+                    .duration_since(std::time::UNIX_EPOCH)
+                    .map(|d| d.subsec_nanos())
+                    .unwrap_or(0);
+                let temp = temp_dir.join(format!("repair_extract_{pid}_{nano}.pdf"));
+                let temp_str = temp.to_string_lossy().to_string();
+                let qpdf_out = hidden_command(&qpdf_bin)
+                    .arg(path)
+                    .arg(&temp_str)
+                    .output()
+                    .map_err(|e2| format!("spawn qpdf: {e2}"))?;
+                if !qpdf_out.status.code().map(|c| c == 0 || c == 3).unwrap_or(false) {
+                    let _ = fs::remove_file(&temp);
+                    return Err(format!(
+                        "extract text: {e}\nqpdf repair fail."
+                    ));
+                }
+                let result = pdf_extract::extract_text(&temp_str)
+                    .map_err(|e2| format!("extract text (sau qpdf repair): {e2}"));
+                let _ = fs::remove_file(&temp);
+                result
+            } else {
+                Err(format!("extract text: {e}"))
+            }
+        }
+    }
+}
+
+/// Phase 38.2.4 — Build HTML diff report từ 2 text strings.
+/// Frontend chịu trách nhiệm extract text per file type (PDF qua pdfjs,
+/// DOCX qua mammoth, TXT/MD đọc thẳng) → gọi command này với raw text.
+#[tauri::command]
+fn text_diff_html(
+    text1: String,
+    text2: String,
+    name1: String,
+    name2: String,
+) -> Result<String, String> {
+    use similar::{ChangeTag, TextDiff};
+
+    if text1.trim().is_empty() {
+        return Err(format!("File 1 '{name1}' không có text content."));
+    }
+    if text2.trim().is_empty() {
+        return Err(format!("File 2 '{name2}' không có text content."));
+    }
+
+    // Word-level diff
+    let diff = TextDiff::from_words(&text1, &text2);
+
+    // Stats
+    let mut added = 0u32;
+    let mut removed = 0u32;
+    let mut unchanged = 0u32;
+    for change in diff.iter_all_changes() {
+        match change.tag() {
+            ChangeTag::Insert => added += 1,
+            ChangeTag::Delete => removed += 1,
+            ChangeTag::Equal => unchanged += 1,
+        }
+    }
+
+    fn html_escape(s: &str) -> String {
+        s.replace('&', "&amp;")
+            .replace('<', "&lt;")
+            .replace('>', "&gt;")
+    }
+
+    let name1 = html_escape(&name1);
+    let name2 = html_escape(&name2);
+
+    let mut body = String::new();
+    for change in diff.iter_all_changes() {
+        let escaped = html_escape(change.value());
+        match change.tag() {
+            ChangeTag::Insert => {
+                body.push_str(&format!("<ins>{escaped}</ins>"));
+            }
+            ChangeTag::Delete => {
+                body.push_str(&format!("<del>{escaped}</del>"));
+            }
+            ChangeTag::Equal => {
+                body.push_str(&escaped);
+            }
+        }
+    }
+
+    let html = format!(
+        r#"<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<title>So sánh: {name1} ↔ {name2}</title>
+<style>
+  body {{
+    font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+    max-width: 900px;
+    margin: 20px auto;
+    padding: 20px;
+    line-height: 1.7;
+    color: #1a1a1a;
+    background: #fafafa;
+  }}
+  header {{
+    background: #fff;
+    padding: 16px 20px;
+    border-radius: 8px;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+    margin-bottom: 20px;
+  }}
+  h1 {{ font-size: 20px; margin: 0 0 6px; color: #059669; }}
+  .meta {{ color: #6B7280; font-size: 13px; }}
+  .stats {{ display: flex; gap: 12px; margin-top: 10px; font-size: 13px; }}
+  .stat {{ padding: 4px 10px; border-radius: 4px; font-weight: 600; }}
+  .stat.added {{ background: #D1FAE5; color: #065F46; }}
+  .stat.removed {{ background: #FEE2E2; color: #991B1B; }}
+  .stat.unchanged {{ background: #F3F4F6; color: #374151; }}
+  main {{
+    background: #fff;
+    padding: 24px;
+    border-radius: 8px;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+    white-space: pre-wrap;
+    word-wrap: break-word;
+    font-size: 14px;
+  }}
+  ins {{
+    background: #BBF7D0;
+    color: #14532D;
+    text-decoration: none;
+    padding: 1px 2px;
+    border-radius: 2px;
+  }}
+  del {{
+    background: #FECACA;
+    color: #7F1D1D;
+    text-decoration: line-through;
+    padding: 1px 2px;
+    border-radius: 2px;
+  }}
+  footer {{
+    margin-top: 16px;
+    color: #9CA3AF;
+    font-size: 12px;
+    text-align: center;
+  }}
+</style>
+</head>
+<body>
+<header>
+  <h1>📑 So sánh PDF (text diff)</h1>
+  <div class="meta">
+    <strong>File cũ (xóa):</strong> <span style="color:#7F1D1D">{name1}</span><br>
+    <strong>File mới (thêm):</strong> <span style="color:#14532D">{name2}</span>
+  </div>
+  <div class="stats">
+    <span class="stat added">+ {added} thêm</span>
+    <span class="stat removed">− {removed} xóa</span>
+    <span class="stat unchanged">{unchanged} giữ nguyên</span>
+  </div>
+</header>
+<main>{body}</main>
+<footer>Generated by TrishLibrary PDF Revision Compare · Phase 38.2.4</footer>
+</body>
+</html>"#
+    );
+
+    Ok(html)
+}
+
 /// Add page numbers footer ("Trang X / Y") to every page.
 #[tauri::command]
 fn pdf_add_page_numbers(
@@ -1784,6 +2259,102 @@ async fn download_tessdata_best(lang_code: String) -> Result<String, String> {
 #[tauri::command]
 fn get_tessdata_best_dir() -> Result<String, String> {
     Ok(tessdata_best_dir()?.to_string_lossy().to_string())
+}
+
+/// Phase 38.2.0 — First-run copy tessdata bundled (vie + eng) từ resource_dir
+/// sang `%APPDATA%\TrishLibrary\tessdata_best\` nếu chưa có.
+/// Gọi từ frontend lần đầu app khởi động (App.tsx useEffect).
+/// Returns: list lang đã copy (có thể rỗng nếu đã có sẵn).
+#[tauri::command]
+fn ensure_tessdata_first_run(app: tauri::AppHandle) -> Result<Vec<String>, String> {
+    let dest_dir = tessdata_best_dir()?;
+    let resource_root = app
+        .path()
+        .resource_dir()
+        .map_err(|e| format!("resource_dir: {e}"))?;
+    let src_dir = resource_root.join("resources").join("tessdata_best");
+
+    if !src_dir.exists() {
+        // Bundle không có (build dev hoặc resource bị strip) → bỏ qua, dùng download_tessdata_best fallback
+        return Ok(vec![]);
+    }
+
+    let mut copied = Vec::new();
+    for lang in &["vie", "eng"] {
+        let src = src_dir.join(format!("{lang}.traineddata"));
+        let dst = dest_dir.join(format!("{lang}.traineddata"));
+        if !src.exists() {
+            continue;
+        }
+        // Skip nếu đích đã có và size > 1MB (đã có tessdata hợp lệ)
+        if dst.exists() && fs::metadata(&dst).map(|m| m.len() > 1_000_000).unwrap_or(false) {
+            continue;
+        }
+        fs::copy(&src, &dst).map_err(|e| format!("copy {lang}: {e}"))?;
+        copied.push(lang.to_string());
+    }
+    Ok(copied)
+}
+
+/// Phase 38.2.0 — Mở wizard cài Tesseract/qpdf/LibreOffice.
+/// File `INSTALL-TOOLS.bat` được bundle vào installer qua tauri.conf.json
+/// → resource_dir/resources/INSTALL-TOOLS.bat
+#[tauri::command]
+fn open_install_tools_wizard(app: tauri::AppHandle) -> Result<(), String> {
+    let resource_root = app
+        .path()
+        .resource_dir()
+        .map_err(|e| format!("resource_dir: {e}"))?;
+    let bat = resource_root.join("resources").join("INSTALL-TOOLS.bat");
+    if !bat.exists() {
+        return Err(format!(
+            "Không tìm thấy INSTALL-TOOLS.bat tại {}",
+            bat.display()
+        ));
+    }
+    #[cfg(target_os = "windows")]
+    {
+        use std::os::windows::process::CommandExt;
+        std::process::Command::new("cmd")
+            .args(["/c", "start", "", &bat.to_string_lossy()])
+            .creation_flags(0x08000000) // CREATE_NO_WINDOW cho cmd, .bat tự mở console riêng
+            .spawn()
+            .map_err(|e| format!("spawn bat: {e}"))?;
+    }
+    #[cfg(not(target_os = "windows"))]
+    {
+        return Err("INSTALL-TOOLS.bat chỉ chạy trên Windows".to_string());
+    }
+    Ok(())
+}
+
+/// Phase 38.2.0 — Check trạng thái 3 tool ngoài cho UI Settings → Công cụ ngoài.
+/// Trả tuple (tesseract, qpdf, libreoffice, vie_data, eng_data) — true nếu đã cài.
+#[tauri::command]
+fn check_external_tools() -> Result<serde_json::Value, String> {
+    let tess_bin = resolve_tesseract_path();
+    let tess = hidden_command(&tess_bin)
+        .arg("--version")
+        .output()
+        .map(|o| o.status.success())
+        .unwrap_or(false);
+
+    // qpdf: dùng helper resolve_qpdf_path (reusable, scan Program Files / winget paths)
+    let qpdf_ok = resolve_qpdf_path().is_some();
+
+    let lo_ok = resolve_libreoffice_path().is_some();
+
+    let td_dir = tessdata_best_dir().unwrap_or_default();
+    let vie_ok = td_dir.join("vie.traineddata").exists();
+    let eng_ok = td_dir.join("eng.traineddata").exists();
+
+    Ok(serde_json::json!({
+        "tesseract": tess,
+        "qpdf": qpdf_ok,
+        "libreoffice": lo_ok,
+        "vie_traineddata": vie_ok,
+        "eng_traineddata": eng_ok,
+    }))
 }
 
 /// Phase 39.fix10 — Check MS Word installed (Windows only).
@@ -2359,6 +2930,73 @@ async fn ocr_image_bytes(
     .map_err(|e| format!("ocr join: {e}"))?
 }
 
+/// Phase 38.2.0 — OCR image bytes → HOCR XML/HTML (có bounding box từng word).
+/// Dùng cho pipeline "Option C": parse HOCR → detect table → build DOCX.
+///
+/// HOCR format: HTML có class `ocr_page`, `ocr_carea`, `ocr_par`, `ocr_line`,
+/// `ocrx_word` với attribute `title="bbox x0 y0 x1 y1; ..."`.
+#[tauri::command]
+async fn ocr_image_to_hocr(
+    image_bytes: Vec<u8>,
+    lang: String,
+) -> Result<String, String> {
+    use std::io::Write;
+    let lang = if lang.trim().is_empty() { "eng".to_string() } else { lang };
+    tokio::task::spawn_blocking(move || -> Result<String, String> {
+        let temp_dir = std::env::temp_dir().join("trishlibrary_ocr");
+        fs::create_dir_all(&temp_dir).map_err(|e| format!("temp_dir: {e}"))?;
+        let pid = std::process::id();
+        let nano = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.subsec_nanos())
+            .unwrap_or(0);
+        let stem = temp_dir.join(format!("ocr_hocr_{pid}_{nano}"));
+        let temp_in = temp_dir.join(format!("ocr_hocr_{pid}_{nano}.png"));
+        {
+            let mut f = fs::File::create(&temp_in)
+                .map_err(|e| format!("create temp: {e}"))?;
+            f.write_all(&image_bytes).map_err(|e| format!("write temp: {e}"))?;
+        }
+        let stem_str = stem.to_string_lossy().to_string();
+        let tesseract_bin = resolve_tesseract_path();
+        // Set TESSDATA_PREFIX cho tessdata_best
+        let tessdata_best = tessdata_best_dir().ok();
+        let mut cmd = hidden_command(&tesseract_bin);
+        if let Some(td) = &tessdata_best {
+            if let Ok(entries) = fs::read_dir(td) {
+                if entries.flatten().any(|e| {
+                    e.file_name().to_string_lossy().ends_with(".traineddata")
+                }) {
+                    cmd.env("TESSDATA_PREFIX", td);
+                }
+            }
+        }
+        cmd.arg(&temp_in)
+            .arg(&stem_str)
+            .arg("-l").arg(&lang)
+            .arg("--psm").arg("3")
+            .arg("--oem").arg("1")
+            .arg("-c").arg("preserve_interword_spaces=1")
+            .arg("hocr");
+        let output = cmd.output().map_err(|e| {
+            let _ = fs::remove_file(&temp_in);
+            format!("Không gọi được tesseract: {e}")
+        })?;
+        let _ = fs::remove_file(&temp_in);
+        if !output.status.success() {
+            let stderr = String::from_utf8_lossy(&output.stderr).to_string();
+            return Err(format!("tesseract HOCR lỗi: {stderr}"));
+        }
+        let hocr_path = format!("{stem_str}.hocr");
+        let hocr_str = fs::read_to_string(&hocr_path)
+            .map_err(|e| format!("read hocr: {e}"))?;
+        let _ = fs::remove_file(&hocr_path);
+        Ok(hocr_str)
+    })
+    .await
+    .map_err(|e| format!("ocr hocr join: {e}"))?
+}
+
 /// Phase 39 — OCR an image bytes → searchable PDF (single page) bytes.
 /// Tesseract tạo PDF với invisible text layer trên top of original image.
 ///
@@ -2391,12 +3029,32 @@ async fn ocr_image_to_pdf_page(
         }
         let stem_str = stem.to_string_lossy().to_string();
         let tesseract_bin = resolve_tesseract_path();
+
+        // Phase 38.2.0 fix — Set TESSDATA_PREFIX để Tesseract dùng tessdata_best
+        // (vie.traineddata best ~50MB) thay vì tessdata regular default (~10MB).
+        // Accuracy text Việt +10-15% (giữ dấu á/ả/ạ/ắ/ằ/â/...).
+        // BUG cũ: function này thiếu TESSDATA_PREFIX → output mất dấu hoàn toàn.
+        let tessdata_best = tessdata_best_dir().ok();
+
         let mut cmd = hidden_command(&tesseract_bin);
+        if let Some(td) = &tessdata_best {
+            if let Ok(entries) = fs::read_dir(td) {
+                if entries.flatten().any(|e| {
+                    e.file_name().to_string_lossy().ends_with(".traineddata")
+                }) {
+                    cmd.env("TESSDATA_PREFIX", td);
+                }
+            }
+        }
         cmd.arg(&temp_in)
             .arg(&stem_str)
             .arg("-l").arg(&lang)
-            .arg("--psm").arg("1")
-            .arg("--oem").arg("1");
+            // Phase 38.2.0 fix — PSM 3 (default auto, no OSD) thay PSM 1 (auto + OSD)
+            // PSM 1 OSD detect orientation đôi khi nhầm → cột phải/text bị xoay 90°.
+            // PSM 3 cân bằng cho document Việt với layout mixed.
+            .arg("--psm").arg("3")
+            .arg("--oem").arg("1")
+            .arg("-c").arg("preserve_interword_spaces=1");
         // Phase 39.fix5 — Text-only PDF (no image embed) cho convert→DOCX pipeline
         if text_only_flag {
             cmd.arg("-c").arg("textonly_pdf=1");
@@ -3013,12 +3671,141 @@ fn pdf_binder(
 // Main entry
 // ============================================================
 
+/// Helper: toggle sticky window visibility (dùng từ tray menu + global shortcut)
+fn toggle_sticky_window<R: tauri::Runtime>(app: &tauri::AppHandle<R>) {
+    if let Some(win) = app.get_webview_window("sticky") {
+        let visible = win.is_visible().unwrap_or(false);
+        if visible {
+            let _ = win.hide();
+        } else {
+            let _ = win.show();
+            let _ = win.set_focus();
+        }
+    }
+}
+
+/// Helper: toggle main window visibility (từ tray click)
+fn toggle_main_window<R: tauri::Runtime>(app: &tauri::AppHandle<R>) {
+    if let Some(win) = app.get_webview_window("main") {
+        let visible = win.is_visible().unwrap_or(false);
+        if visible {
+            let _ = win.hide();
+        } else {
+            let _ = win.show();
+            let _ = win.set_focus();
+        }
+    }
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    use tauri_plugin_global_shortcut::{Code, Modifiers, Shortcut, ShortcutState};
+
+    // Global hotkey Ctrl+Alt+N → toggle sticky note window
+    let sticky_shortcut = Shortcut::new(
+        Some(Modifiers::CONTROL | Modifiers::ALT),
+        Code::KeyN,
+    );
+
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_process::init())
+        .plugin(
+            tauri_plugin_global_shortcut::Builder::new()
+                .with_handler(move |app, shortcut, event| {
+                    if event.state() == ShortcutState::Pressed && shortcut == &sticky_shortcut {
+                        toggle_sticky_window(app);
+                    }
+                })
+                .build(),
+        )
+        .setup(move |app| {
+            // Phase 38.2.0 — First-run copy bundled tessdata vào AppData (silent fail)
+            let handle = app.handle().clone();
+            std::thread::spawn(move || {
+                if let Err(e) = ensure_tessdata_first_run(handle) {
+                    eprintln!("[tessdata first-run] {e}");
+                }
+            });
+
+            // ========================================================
+            // System tray icon — app stays alive khi user close main window
+            // ========================================================
+            use tauri::menu::{Menu, MenuItem, PredefinedMenuItem};
+            use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
+
+            let show_main_item = MenuItem::with_id(
+                app, "show_main", "Hiện app TrishLibrary", true, None::<&str>,
+            )?;
+            let toggle_sticky_item = MenuItem::with_id(
+                app, "toggle_sticky", "Hiện / Ẩn Ghi nhanh (Ctrl+Alt+N)", true, None::<&str>,
+            )?;
+            let quit_item = MenuItem::with_id(
+                app, "quit_app", "Thoát hoàn toàn", true, None::<&str>,
+            )?;
+            let tray_menu = Menu::with_items(
+                app,
+                &[
+                    &show_main_item,
+                    &toggle_sticky_item,
+                    &PredefinedMenuItem::separator(app)?,
+                    &quit_item,
+                ],
+            )?;
+
+            let _tray = TrayIconBuilder::with_id("main-tray")
+                .icon(app.default_window_icon().unwrap().clone())
+                .tooltip("TrishLibrary — chạy nền (click để mở)")
+                .menu(&tray_menu)
+                .show_menu_on_left_click(false)
+                .on_menu_event(|app, event| match event.id.as_ref() {
+                    "show_main" => {
+                        if let Some(win) = app.get_webview_window("main") {
+                            let _ = win.show();
+                            let _ = win.set_focus();
+                        }
+                    }
+                    "toggle_sticky" => toggle_sticky_window(app),
+                    "quit_app" => {
+                        app.exit(0);
+                    }
+                    _ => {}
+                })
+                .on_tray_icon_event(|tray, event| {
+                    if let TrayIconEvent::Click {
+                        button: MouseButton::Left,
+                        button_state: MouseButtonState::Up,
+                        ..
+                    } = event
+                    {
+                        toggle_main_window(tray.app_handle());
+                    }
+                })
+                .build(app)?;
+
+            // Override main window close → hide vào tray thay vì quit
+            // (sticky note tiếp tục sống, app vẫn hoạt động ngầm)
+            if let Some(main_win) = app.get_webview_window("main") {
+                let app_handle = app.handle().clone();
+                main_win.on_window_event(move |event| {
+                    if let tauri::WindowEvent::CloseRequested { api, .. } = event {
+                        api.prevent_close();
+                        if let Some(win) = app_handle.get_webview_window("main") {
+                            let _ = win.hide();
+                        }
+                    }
+                });
+            }
+
+            // Register global shortcut
+            use tauri_plugin_global_shortcut::GlobalShortcutExt;
+            if let Err(e) = app.global_shortcut().register(sticky_shortcut) {
+                eprintln!("[global-shortcut] register fail: {e}");
+            }
+
+            Ok(())
+        })
         .invoke_handler(tauri::generate_handler![
             default_store_location,
             load_library,
@@ -3066,6 +3853,7 @@ pub fn run() {
             // Phase 39 — OCR native pipeline (render PDF→image ở React, OCR + merge ở Rust)
             ocr_image_bytes,
             ocr_image_to_pdf_page,
+            ocr_image_to_hocr,
             merge_pdf_pages_bytes,
             // Phase 39 — LibreOffice headless converter (PDF↔DOCX preserve format)
             check_libreoffice,
@@ -3079,6 +3867,10 @@ pub fn run() {
             check_tessdata_best,
             download_tessdata_best,
             get_tessdata_best_dir,
+            // Phase 38.2.0 — First-run copy bundled tessdata + Wizard cài tool ngoài
+            ensure_tessdata_first_run,
+            open_install_tools_wizard,
+            check_external_tools,
             // Phase 18.3.b.5 — Extract embedded images
             pdf_extract_images,
             // Phase 18.1.b — Library Tantivy full-text search
@@ -3090,6 +3882,10 @@ pub fn run() {
             get_device_id,
             // Phase 38.2.1 — PDF Binder với bookmarks
             pdf_binder,
+            // Phase 38.2.2 — PDF Stamp Pro (image / QR / chữ ký)
+            pdf_add_image_stamp,
+            // Phase 38.2.4 — Document Revision Compare (text diff PDF/DOCX/MD/TXT)
+            text_diff_html,
         ])
         .run(tauri::generate_context!())
         .expect("error while running TrishLibrary");

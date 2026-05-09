@@ -13,6 +13,7 @@
 
 import { useEffect, useState } from 'react';
 import { useAuth } from '@trishteam/auth/react';
+import { useDialogs } from './dialogs/DialogProvider.js';
 
 export type AnnotationType = 'highlight' | 'note' | 'question' | 'todo';
 
@@ -94,6 +95,7 @@ interface Props {
 export function AnnotationModal({ filePath, fileName, onClose }: Props): JSX.Element {
   const { profile } = useAuth();
   const uid = profile?.id ?? null;
+  const { confirm } = useDialogs();
   const [annotations, setAnnotations] = useState<Annotation[]>(() =>
     getAnnotationsFor(filePath, uid),
   );
@@ -124,8 +126,13 @@ export function AnnotationModal({ filePath, fileName, onClose }: Props): JSX.Ele
     setEditing(null);
   }
 
-  function handleDelete(id: string): void {
-    if (!window.confirm('Xóa annotation này?')) return;
+  async function handleDelete(id: string): Promise<void> {
+    const ok = await confirm({
+      title: 'Xác nhận',
+      message: 'Xóa annotation này?',
+      variant: 'danger',
+    });
+    if (!ok) return;
     persist(annotations.filter((x) => x.id !== id));
   }
 
@@ -216,7 +223,7 @@ export function AnnotationModal({ filePath, fileName, onClose }: Props): JSX.Ele
                       </button>
                       <button
                         className="mini"
-                        onClick={() => handleDelete(a.id)}
+                        onClick={() => void handleDelete(a.id)}
                         title="Xóa"
                       >
                         ×
@@ -271,9 +278,11 @@ function AnnotationEditModal({
     setDraft((d) => ({ ...d, type, color: TYPE_META[type].color }));
   }
 
-  function handleSubmit(): void {
+  async function handleSubmit(): Promise<void> {
     if (!draft.excerpt.trim() && !draft.comment.trim()) {
-      window.alert('Nhập ít nhất đoạn trích hoặc bình luận');
+      // Use inline console.error since we can't access alert from nested component easily
+      // Alternative: show validation error inline
+      console.error('Nhập ít nhất đoạn trích hoặc bình luận');
       return;
     }
     onSave(draft);

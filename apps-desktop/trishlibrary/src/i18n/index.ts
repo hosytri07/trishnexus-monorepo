@@ -257,7 +257,7 @@ const VI: Dict = {
   'app_settings.update.download': 'Tải bản',
   'app_settings.update.up_to_date': 'Đang dùng bản mới nhất',
   'app_settings.update.has_new': 'Có bản mới',
-  'app_settings.about.intro': 'TrishLibrary 3.0 — All-in-one app văn bản. Gộp Thư viện · Ghi chú · Tài liệu · Ảnh thành 1 app duy nhất với cross-module workflows. 100% offline với Firebase Auth + Firestore sync.',
+  'app_settings.about.intro': 'TrishLibrary — All-in-one app văn bản. Gộp Thư viện · Ghi chú · Tài liệu · Ảnh thành 1 app duy nhất với cross-module workflows. 100% offline với Firebase Auth + Firestore sync.',
   'app_settings.about.copyright': '© 2026 TrishTEAM',
   'app_settings.unsaved': 'chưa lưu',
   'app_settings.has_changes': '● Có thay đổi chưa lưu',
@@ -377,7 +377,7 @@ const VI: Dict = {
 
   // Image module
   'image.title': 'Module Ảnh',
-  'image.intro': 'Module này gộp từ TrishImage, đang được migrate vào TrishLibrary 3.0.',
+  'image.intro': 'Module Ảnh — quản lý ảnh + EXIF metadata, tích hợp trong TrishLibrary.',
   'image.coming_soon': 'sắp có',
   // Phase 18.6.a — Module Ảnh full
   'image.folders': 'Thư mục',
@@ -645,7 +645,7 @@ const EN: Dict = {
   'app_settings.update.download': 'Download',
   'app_settings.update.up_to_date': 'You are on the latest version',
   'app_settings.update.has_new': 'New version available',
-  'app_settings.about.intro': 'TrishLibrary 3.0 — All-in-one document app. Library · Notes · Documents · Images merged with cross-module workflows. 100% offline with Firebase Auth + Firestore sync.',
+  'app_settings.about.intro': 'TrishLibrary — All-in-one document app. Library · Notes · Documents · Images merged with cross-module workflows. 100% offline with Firebase Auth + Firestore sync.',
   'app_settings.about.copyright': '© 2026 TrishTEAM',
   'app_settings.unsaved': 'unsaved',
   'app_settings.has_changes': '● Unsaved changes',
@@ -760,7 +760,7 @@ const EN: Dict = {
   'doc.editor.placeholder': 'Start writing your document…',
 
   'image.title': 'Images Module',
-  'image.intro': 'This module merges TrishImage into TrishLibrary 3.0.',
+  'image.intro': 'Image module — manage images + EXIF metadata, integrated in TrishLibrary.',
   'image.coming_soon': 'coming soon',
   // Phase 18.6.a — Module Ảnh full
   'image.folders': 'Folders',

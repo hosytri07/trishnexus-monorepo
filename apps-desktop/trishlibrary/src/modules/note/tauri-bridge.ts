@@ -120,7 +120,8 @@ export async function removeAttachedFile(path: string): Promise<void> {
 
 export async function openLocalPath(path: string): Promise<void> {
   if (!isInTauri()) {
-    window.alert(`(dev) Open: ${path}`);
+    console.log(`(dev) Open: ${path}`);
+    // TODO: replace with toast/dialog when this util gets a callback param
     return;
   }
   await invoke<void>('open_local_path', { path });

@@ -10,6 +10,7 @@
  */
 
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { useDialogs } from '../../components/dialogs/DialogProvider.js';
 import type {
   ImageFolder,
   ImageFile,
@@ -52,6 +53,7 @@ interface Props {
 export function ImageModule({ tr }: Props): JSX.Element {
   const { profile } = useAuth();
   const uid = profile?.id ?? null;
+  const { confirm, alert, prompt } = useDialogs();
   const [store, setStoreState] = useState<ImageStore>(() => loadImageStore(uid));
 
   // Phase 18.5.b — Re-load store khi user đổi (login/logout/switch)
@@ -367,8 +369,8 @@ export function ImageModule({ tr }: Props): JSX.Element {
     }));
   }
 
-  function handleRemoveFolder(id: string): void {
-    if (!window.confirm(tr('image.confirm_remove_folder'))) return;
+  async function handleRemoveFolder(id: string): Promise<void> {
+    if (!(await confirm({ title: 'Xác nhận', message: tr('image.confirm_remove_folder'), variant: 'danger' }))) return;
     setStore((s) => ({
       ...s,
       folders: s.folders.filter((f) => f.id !== id),
@@ -485,24 +487,25 @@ export function ImageModule({ tr }: Props): JSX.Element {
       if (!result) return;
       const noteMsg = result.noteWritten ? ' + ghi chú' : '';
       setErrorMsg(null);
-      window.alert(`✓ Đã xuất: ${result.path}${noteMsg}`);
+      await alert({ title: 'Thành công', message: `✓ Đã xuất: ${result.path}${noteMsg}`, variant: 'success' });
     } catch (err) {
-      window.alert(`⚠ Xuất thất bại: ${String(err)}`);
+      await alert({ title: 'Lỗi', message: `⚠ Xuất thất bại: ${String(err)}`, variant: 'danger' });
     }
   }
 
   /** Phase 18.6.e — Thêm folder qua nhập path text (LAN/UNC) */
   async function handleAddFolderFromPath(): Promise<void> {
-    const input = window.prompt(
-      'Nhập đường dẫn thư mục (hỗ trợ UNC mạng LAN, ví dụ: \\\\\\\\server\\\\share\\\\photos):',
-      '\\\\\\\\',
-    );
+    const input = await prompt({
+      title: 'Thêm folder từ đường dẫn',
+      label: 'Đường dẫn thư mục (UNC, ví dụ: \\\\\\\\server\\\\share\\\\photos):',
+      defaultValue: '\\\\\\\\',
+    });
     if (!input) return;
     const trimmed = input.trim();
     if (!trimmed) return;
     const exists = await checkFolderExists(trimmed);
     if (!exists) {
-      window.alert('⚠ Không truy cập được thư mục: ' + trimmed);
+      await alert({ title: 'Lỗi', message: '⚠ Không truy cập được thư mục: ' + trimmed, variant: 'danger' });
       return;
     }
     if (store.folders.some((f) => f.path === trimmed)) {

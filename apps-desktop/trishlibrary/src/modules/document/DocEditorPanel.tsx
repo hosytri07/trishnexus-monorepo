@@ -7,6 +7,7 @@
 
 import { useEffect, useState } from 'react';
 import { EditorContent, useEditor, type Editor } from '@tiptap/react';
+import { useDialogs } from '../../components/dialogs/DialogProvider.js';
 import StarterKit from '@tiptap/starter-kit';
 import Underline from '@tiptap/extension-underline';
 import Link from '@tiptap/extension-link';
@@ -395,6 +396,7 @@ function DocFormatToolbar({
   systemFonts: string[];
 }): JSX.Element {
   const [, force] = useState(0);
+  const { prompt, alert } = useDialogs();
   useEffect(() => {
     const handler = () => force((x) => x + 1);
     editor.on('selectionUpdate', handler);
@@ -409,29 +411,37 @@ function DocFormatToolbar({
     editor.isActive(name, attrs);
 
   function setColor(): void {
-    const c = window.prompt('Màu chữ (hex):', '#22d3ee');
-    if (c?.trim()) editor.chain().focus().setColor(c.trim()).run();
+    void (async () => {
+      const c = await prompt({ title: 'Màu chữ', label: 'Hex:', defaultValue: '#22d3ee' });
+      if (c?.trim()) editor.chain().focus().setColor(c.trim()).run();
+    })();
   }
 
   function setHighlight(): void {
-    const c = window.prompt('Màu highlight (hex):', '#fef08a');
-    if (c?.trim()) editor.chain().focus().toggleHighlight({ color: c.trim() }).run();
+    void (async () => {
+      const c = await prompt({ title: 'Màu highlight', label: 'Hex:', defaultValue: '#fef08a' });
+      if (c?.trim()) editor.chain().focus().toggleHighlight({ color: c.trim() }).run();
+    })();
   }
 
   function setLink(): void {
-    const prev = editor.getAttributes('link').href as string | undefined;
-    const url = window.prompt('URL:', prev ?? 'https://');
-    if (url === null) return;
-    if (url === '') {
-      editor.chain().focus().unsetLink().run();
-      return;
-    }
-    editor.chain().focus().setLink({ href: url }).run();
+    void (async () => {
+      const prev = editor.getAttributes('link').href as string | undefined;
+      const url = await prompt({ title: 'URL', label: 'URL:', defaultValue: prev ?? 'https://' });
+      if (url === null) return;
+      if (url === '') {
+        editor.chain().focus().unsetLink().run();
+        return;
+      }
+      editor.chain().focus().setLink({ href: url }).run();
+    })();
   }
 
   function setImage(): void {
-    const url = window.prompt('Image URL:', 'https://');
-    if (url?.trim()) editor.chain().focus().setImage({ src: url.trim() }).run();
+    void (async () => {
+      const url = await prompt({ title: 'Image URL', label: 'URL:', defaultValue: 'https://' });
+      if (url?.trim()) editor.chain().focus().setImage({ src: url.trim() }).run();
+    })();
   }
 
   function insertTable(): void {
@@ -627,14 +637,18 @@ function DocFormatToolbar({
       <div className="tb-group">
         <button
           className="tb-btn"
-          onClick={() => insertTableOfContents(editor)}
+          onClick={() => {
+            insertTableOfContents(editor);
+          }}
           title="Chèn mục lục tự động từ headings"
         >
           📑
         </button>
         <button
           className="tb-btn"
-          onClick={() => copyOutlineAsMarkdown(editor)}
+          onClick={() => {
+            void copyOutlineAsMarkdown(editor, alert);
+          }}
           title="Copy outline (markdown) vào clipboard"
         >
           📋
@@ -705,7 +719,6 @@ function collectHeadings(editor: Editor): OutlineHeading[] {
 function insertTableOfContents(editor: Editor): void {
   const headings = collectHeadings(editor);
   if (headings.length === 0) {
-    window.alert('Chưa có heading nào (H1/H2/H3) để tạo mục lục.');
     return;
   }
   // Build HTML — nested <ul> based on heading level
@@ -732,10 +745,10 @@ function insertTableOfContents(editor: Editor): void {
 }
 
 /** Copy outline as markdown list to clipboard. */
-async function copyOutlineAsMarkdown(editor: Editor): Promise<void> {
+async function copyOutlineAsMarkdown(editor: Editor, alert: ReturnType<typeof useDialogs>['alert']): Promise<void> {
   const headings = collectHeadings(editor);
   if (headings.length === 0) {
-    window.alert('Chưa có heading nào để copy.');
+    await alert({ title: 'Thông báo', message: 'Chưa có heading nào để copy.' });
     return;
   }
   const minLevel = Math.min(...headings.map((h) => h.level));
@@ -746,9 +759,9 @@ async function copyOutlineAsMarkdown(editor: Editor): Promise<void> {
   const md = lines.join('\n');
   try {
     await navigator.clipboard.writeText(md);
-    window.alert(`✓ Đã copy ${headings.length} heading dưới dạng markdown vào clipboard.`);
+    await alert({ title: 'Thành công', message: `✓ Đã copy ${headings.length} heading dưới dạng markdown vào clipboard.`, variant: 'success' });
   } catch (err) {
-    window.alert(`Không copy được: ${String(err)}\n\n${md}`);
+    await alert({ title: 'Lỗi', message: `Không copy được: ${String(err)}\n\n${md}`, variant: 'danger' });
   }
 }
 

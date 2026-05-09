@@ -14,6 +14,7 @@
  */
 
 import { useEffect, useRef, useState } from 'react';
+import { useDialogs } from './dialogs/DialogProvider.js';
 import { requestCreateNoteAbout } from '../lib/module-bus.js';
 
 interface Props {
@@ -60,6 +61,7 @@ function loadDraft(): string {
 }
 
 export function StickyNotePanel({ onClose }: Props): JSX.Element {
+  const { confirm } = useDialogs();
   const [pos, setPos] = useState<Position>(() => loadPosition());
   const [text, setText] = useState<string>(() => loadDraft());
   const [pinned, setPinned] = useState(true);
@@ -166,9 +168,14 @@ export function StickyNotePanel({ onClose }: Props): JSX.Element {
     setTimeout(() => setSavedFlash(false), 1500);
   }
 
-  function handleClearDraft(): void {
+  async function handleClearDraft(): Promise<void> {
     if (!text.trim()) return;
-    if (!window.confirm('Xóa toàn bộ nháp hiện tại?')) return;
+    const ok = await confirm({
+      title: 'Xác nhận',
+      message: 'Xóa toàn bộ nháp hiện tại?',
+      variant: 'danger',
+    });
+    if (!ok) return;
     setText('');
     try {
       window.localStorage.removeItem(DRAFT_KEY);
@@ -219,7 +226,7 @@ export function StickyNotePanel({ onClose }: Props): JSX.Element {
         <span style={{ flex: 1 }} />
         <button
           className="btn btn-ghost btn-sm"
-          onClick={handleClearDraft}
+          onClick={() => void handleClearDraft()}
           disabled={!text.trim()}
           title="Xóa toàn bộ nháp"
         >

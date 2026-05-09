@@ -9,6 +9,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { convertFileSrc } from '@tauri-apps/api/core';
+import { useDialogs } from './dialogs/DialogProvider.js';
 import {
   type DownloadLink,
   type LibraryFile,
@@ -36,7 +37,7 @@ function escapeHtml(s: string): string {
 /**
  * Phase 18.5.b — Export file bundle JSON: metadata + annotations + related notes.
  */
-async function exportFileBundle(file: LibraryFile, uid: string | null): Promise<void> {
+async function exportFileBundle(file: LibraryFile, uid: string | null, alertFn: any): Promise<void> {
   try {
     const annotations = getAnnotationsFor(file.path, uid);
     // Find related notes — search note store for path or filename references
@@ -98,13 +99,17 @@ async function exportFileBundle(file: LibraryFile, uid: string | null): Promise<
       path: target,
       content: JSON.stringify(bundle, null, 2),
     });
-    window.alert(
-      `✓ Đã export bundle\n` +
-        `  ${annotations.length} annotation\n` +
-        `  ${relatedNotes.length} note liên quan\n→ ${target}`,
-    );
+    await alertFn({
+      title: 'Thành công',
+      message: `✓ Đã export bundle\n  ${annotations.length} annotation\n  ${relatedNotes.length} note liên quan\n→ ${target}`,
+      variant: 'success',
+    });
   } catch (e) {
-    window.alert(`⚠ Export thất bại: ${String(e)}`);
+    await alertFn({
+      title: 'Lỗi',
+      message: `⚠ Export thất bại: ${String(e)}`,
+      variant: 'danger',
+    });
   }
 }
 
@@ -164,6 +169,7 @@ function DetailPanelInner({
 }): JSX.Element {
   const { profile } = useAuth();
   const uid = profile?.id ?? null;
+  const { alert, confirm } = useDialogs();
   const [draft, setDraft] = useState<LibraryFile>(() => ({
     ...file,
     links: [...file.links],
@@ -252,10 +258,12 @@ function DetailPanelInner({
     setDirty(false);
   }
 
-  function handleDelete(): void {
-    const ok = confirm(
-      trKey('form.confirm_delete', { name: file.doc_title || file.file_name }),
-    );
+  async function handleDelete(): Promise<void> {
+    const ok = await confirm({
+      title: 'Xác nhận',
+      message: trKey('form.confirm_delete', { name: file.doc_title || file.file_name }),
+      variant: 'danger',
+    });
     if (ok) onDelete(file);
   }
 
@@ -312,7 +320,7 @@ function DetailPanelInner({
         <button
           type="button"
           className="btn btn-ghost btn-small"
-          onClick={() => void exportFileBundle(file, uid)}
+          onClick={() => void exportFileBundle(file, uid, alert)}
           title="Export bundle JSON: file metadata + annotations + notes liên quan"
         >
           📦 Export bundle
@@ -458,7 +466,7 @@ function DetailPanelInner({
         <button
           type="button"
           className="btn btn-ghost btn-danger btn-small"
-          onClick={handleDelete}
+          onClick={() => void handleDelete()}
           title="Xóa khỏi DB của app (file thật trên ổ vẫn còn)"
         >
           🗑 {trKey('form.action.delete')}

@@ -2,7 +2,7 @@
   "name": "@trishteam/trishlibrary",
   "version": "1.0.0",
   "private": true,
-  "description": "TrishLibrary 3.0 — All-in-one Thư viện + Ghi chú + Tài liệu (soạn thảo + chuyển đổi đa định dạng + PDF tools 2 chiều). Tauri 2 + React + TipTap + Tantivy + Tesseract OCR + Firebase.",
+  "description": "TrishLibrary — All-in-one Thư viện + Ghi chú + Tài liệu (soạn thảo + chuyển đổi đa định dạng + PDF tools 2 chiều). Tauri 2 + React + TipTap + Tantivy + Tesseract OCR + Firebase.",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -11,10 +11,11 @@
     "typecheck": "tsc --noEmit",
     "tauri": "tauri",
     "tauri:dev": "tauri dev",
-    "tauri:build": "tauri build"
+    "fetch:tessdata": "powershell -NoProfile -ExecutionPolicy Bypass -File ../../scripts/fetch-tessdata.ps1",
+    "tauri:build": "pnpm run fetch:tessdata && tauri build"
   },
   "dependencies": {
-    "@tauri-apps/api": "^2.0.0",
+    "@tauri-apps/api": "^2.11.0",
     "@tauri-apps/plugin-dialog": "^2.0.0",
     "@tauri-apps/plugin-opener": "^2.0.0",
     "@tauri-apps/plugin-process": "^2.0.0",
@@ -60,7 +61,7 @@
     "turndown-plugin-gfm": "^1.0.2"
   },
   "devDependencies": {
-    "@tauri-apps/cli": "^2.0.0",
+    "@tauri-apps/cli": "^2.11.0",
     "@types/katex": "^0.16.7",
     "@types/qrcode": "^1.5.5",
     "@types/react": "18.3.3",

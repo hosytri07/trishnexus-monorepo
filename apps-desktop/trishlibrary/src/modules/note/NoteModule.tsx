@@ -25,6 +25,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useAuth } from '@trishteam/auth/react';
 import { EditorContent, useEditor } from '@tiptap/react';
+import { useDialogs } from '../../components/dialogs/DialogProvider.js';
 import StarterKit from '@tiptap/starter-kit';
 import Underline from '@tiptap/extension-underline';
 import Link from '@tiptap/extension-link';
@@ -95,6 +96,7 @@ interface ModuleProps {
 export function NoteModule({ tr }: ModuleProps): JSX.Element {
   const { profile } = useAuth();
   const uid = profile?.id ?? null;
+  const { alert, confirm, prompt } = useDialogs();
 
   const [store, setStore] = useState<NoteStore>(() => emptyStore());
   const [loading, setLoading] = useState(true);
@@ -417,14 +419,14 @@ export function NoteModule({ tr }: ModuleProps): JSX.Element {
     patchNote(id, { trashed: false, trashed_at: null });
   }
 
-  function permanentDelete(id: string): void {
-    if (!window.confirm('Xoá vĩnh viễn note này? Không thể undo.')) return;
+  async function permanentDelete(id: string): Promise<void> {
+    if (!(await confirm({ title: 'Xác nhận', message: 'Xoá vĩnh viễn note này? Không thể undo.', variant: 'danger' }))) return;
     setStore((s) => ({ ...s, notes: s.notes.filter((n) => n.id !== id) }));
     if (activeNoteId === id) setActiveNoteId(null);
   }
 
-  function emptyTrash(): void {
-    if (!window.confirm(`Xoá vĩnh viễn ${trashCount} note trong thùng rác?`))
+  async function emptyTrash(): Promise<void> {
+    if (!(await confirm({ title: 'Xác nhận', message: `Xoá vĩnh viễn ${trashCount} note trong thùng rác?`, variant: 'danger' })))
       return;
     setStore((s) => ({ ...s, notes: s.notes.filter((n) => !n.trashed) }));
     if (activeNote?.trashed) setActiveNoteId(null);
@@ -437,8 +439,8 @@ export function NoteModule({ tr }: ModuleProps): JSX.Element {
 
   // ===== Folders =====
 
-  function createFolder(): void {
-    const name = window.prompt('Tên folder mới:');
+  async function createFolder(): Promise<void> {
+    const name = await prompt({ title: 'Tên folder mới', label: 'Tên:' });
     if (!name?.trim()) return;
     const newFolder: Folder = {
       id: genId('f'),
@@ -450,10 +452,10 @@ export function NoteModule({ tr }: ModuleProps): JSX.Element {
     setStore((s) => ({ ...s, folders: [...s.folders, newFolder] }));
   }
 
-  function renameFolder(folderId: string): void {
+  async function renameFolder(folderId: string): Promise<void> {
     const f = store.folders.find((x) => x.id === folderId);
     if (!f) return;
-    const name = window.prompt('Đổi tên folder:', f.name);
+    const name = await prompt({ title: 'Đổi tên folder', label: 'Tên mới:', defaultValue: f.name });
     if (!name?.trim() || name === f.name) return;
     setStore((s) => ({
       ...s,
@@ -463,11 +465,11 @@ export function NoteModule({ tr }: ModuleProps): JSX.Element {
     }));
   }
 
-  function deleteFolder(folderId: string): void {
+  async function deleteFolder(folderId: string): Promise<void> {
     const f = store.folders.find((x) => x.id === folderId);
     if (!f) return;
     if (folderId === 'default-personal' || folderId === 'default-project') {
-      window.alert('Không thể xoá folder mặc định.');
+      await alert({ title: 'Thông báo', message: 'Không thể xoá folder mặc định.' });
       return;
     }
     const noteCount = store.notes.filter(
@@ -475,7 +477,7 @@ export function NoteModule({ tr }: ModuleProps): JSX.Element {
     ).length;
     if (
       noteCount > 0 &&
-      !window.confirm(`Folder "${f.name}" có ${noteCount} note. Xoá folder + chuyển note sang Cá nhân?`)
+      !(await confirm({ title: 'Xác nhận', message: `Folder "${f.name}" có ${noteCount} note. Xoá folder + chuyển note sang Cá nhân?`, variant: 'danger' }))
     )
       return;
     setStore((s) => ({
@@ -519,7 +521,7 @@ export function NoteModule({ tr }: ModuleProps): JSX.Element {
         attachments: [...activeNote.attachments, newAtt],
       });
     } catch (err) {
-      window.alert(`Lỗi đính kèm: ${err instanceof Error ? err.message : err}`);
+      await alert({ title: 'Lỗi', message: `Lỗi đính kèm: ${err instanceof Error ? err.message : err}`, variant: 'danger' });
     }
   }
 
@@ -567,7 +569,7 @@ export function NoteModule({ tr }: ModuleProps): JSX.Element {
       setSavedFlash(true);
       setTimeout(() => setSavedFlash(false), 1500);
     } catch (err) {
-      window.alert(`Lỗi lưu: ${err instanceof Error ? err.message : err}`);
+      await alert({ title: 'Lỗi', message: `Lỗi lưu: ${err instanceof Error ? err.message : err}`, variant: 'danger' });
     }
   }
 
@@ -593,9 +595,11 @@ export function NoteModule({ tr }: ModuleProps): JSX.Element {
         openOrCreateDailyNote();
       } else if (e.key === 'Delete' && activeNote && !inField) {
         e.preventDefault();
-        if (window.confirm(`Xoá note "${activeNote.title || '(không tên)'}"?`)) {
-          softDeleteNote(activeNote.id);
-        }
+        void (async () => {
+          if (await confirm({ title: 'Xác nhận', message: `Xoá note "${activeNote.title || '(không tên)'}"?`, variant: 'danger' })) {
+            softDeleteNote(activeNote.id);
+          }
+        })();
       }
     }
     window.addEventListener('keydown', onKey);
@@ -723,20 +727,21 @@ export function NoteModule({ tr }: ModuleProps): JSX.Element {
           <button
             className="btn-action"
             onClick={() => {
-              if (!activeNote) {
-                window.alert('Chọn một note trước khi export');
-                return;
-              }
-              void exportNoteToHtml({
-                title: activeNote.title,
-                content_html: activeNote.content_html,
-                category: activeNote.category,
-                tags: activeNote.tags,
-                created_at: activeNote.created_at,
-                updated_at: activeNote.updated_at,
-              }).then((path) => {
-                if (path) window.alert(`✓ Đã export HTML\n→ ${path}`);
-              });
+              void (async () => {
+                if (!activeNote) {
+                  await alert({ title: 'Thông báo', message: 'Chọn một note trước khi export' });
+                  return;
+                }
+                const path = await exportNoteToHtml({
+                  title: activeNote.title,
+                  content_html: activeNote.content_html,
+                  category: activeNote.category,
+                  tags: activeNote.tags,
+                  created_at: activeNote.created_at,
+                  updated_at: activeNote.updated_at,
+                });
+                if (path) await alert({ title: 'Thành công', message: `✓ Đã export HTML\n→ ${path}`, variant: 'success' });
+              })();
             }}
             title="Export note ra file HTML standalone"
           >
@@ -836,11 +841,13 @@ export function NoteModule({ tr }: ModuleProps): JSX.Element {
                 onClick={() => setSelection({ kind: 'folder', folderId: f.id })}
                 onContextMenu={(e) => {
                   e.preventDefault();
-                  if (window.confirm(`"${f.name}":\nOK = đổi tên · Cancel = xoá`)) {
-                    renameFolder(f.id);
-                  } else {
-                    deleteFolder(f.id);
-                  }
+                  void (async () => {
+                    if (await confirm({ title: 'Tuỳ chọn folder', message: `"${f.name}":\nOK = đổi tên · Cancel = xoá` })) {
+                      await renameFolder(f.id);
+                    } else {
+                      await deleteFolder(f.id);
+                    }
+                  })();
                 }}
               >
                 <span>
@@ -1560,6 +1567,7 @@ function NoteFormatToolbar({
   systemFonts: string[];
 }): JSX.Element | null {
   const [, force] = useState(0);
+  const { prompt } = useDialogs();
   useEffect(() => {
     if (!editor) return;
     const handler = () => force((x) => x + 1);
@@ -1578,26 +1586,32 @@ function NoteFormatToolbar({
 
   function setColor(): void {
     if (!editor) return;
-    const c = window.prompt('Màu chữ (hex):', '#ec4899');
-    if (c?.trim()) editor.chain().focus().setColor(c.trim()).run();
+    void (async () => {
+      const c = await prompt({ title: 'Màu chữ', label: 'Hex:', defaultValue: '#ec4899' });
+      if (c?.trim()) editor.chain().focus().setColor(c.trim()).run();
+    })();
   }
 
   function setHighlight(): void {
     if (!editor) return;
-    const c = window.prompt('Màu highlight (hex):', '#fef08a');
-    if (c?.trim()) editor.chain().focus().toggleHighlight({ color: c.trim() }).run();
+    void (async () => {
+      const c = await prompt({ title: 'Màu highlight', label: 'Hex:', defaultValue: '#fef08a' });
+      if (c?.trim()) editor.chain().focus().toggleHighlight({ color: c.trim() }).run();
+    })();
   }
 
   function setLink(): void {
     if (!editor) return;
-    const prev = editor.getAttributes('link').href as string | undefined;
-    const url = window.prompt('URL:', prev ?? 'https://');
-    if (url === null) return;
-    if (url === '') {
-      editor.chain().focus().unsetLink().run();
-      return;
-    }
-    editor.chain().focus().setLink({ href: url }).run();
+    void (async () => {
+      const prev = editor.getAttributes('link').href as string | undefined;
+      const url = await prompt({ title: 'URL', label: 'URL:', defaultValue: prev ?? 'https://' });
+      if (url === null) return;
+      if (url === '') {
+        editor.chain().focus().unsetLink().run();
+        return;
+      }
+      editor.chain().focus().setLink({ href: url }).run();
+    })();
   }
 
   function setFont(name: string): void {

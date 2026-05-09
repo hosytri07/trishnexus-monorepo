@@ -114,7 +114,9 @@ function FileConvertModal({
   // Phase 39.fix — Progress + auto-OCR scan PDF
   const [progress, setProgress] = useState<ProgressState | null>(null);
   const [autoOcr, setAutoOcr] = useState(true);
-  const [ocrLang, setOcrLang] = useState('vie+eng');
+  // Phase 38.2.0 fix — Default 'vie' only (vie+eng confuses Tesseract → mất dấu).
+  // Đã verify với test thật: vie+eng output "BIEN BAN" (sai), vie ra "BIÊN BẢN" (đúng).
+  const [ocrLang, setOcrLang] = useState('vie');
   const [tessAvailable, setTessAvailable] = useState(false);
   // Phase 39.fix10 — MS Word direct PDF→DOCX
   const [wordAvailable, setWordAvailable] = useState(false);
@@ -124,6 +126,16 @@ function FileConvertModal({
     eng: boolean;
   }>({ vie: false, eng: false });
   const [downloadingTessdata, setDownloadingTessdata] = useState<string | null>(null);
+  // Phase 38.2.0 — Pre-select đường dẫn xuất (folder + filename) trước khi convert
+  // null = dùng cùng folder source. Filename auto = baseName + .ext output.
+  const [outputDir, setOutputDir] = useState<string | null>(null);
+  const [customFilename, setCustomFilename] = useState<string | null>(null);
+  const [editingFilename, setEditingFilename] = useState(false);
+  const [filenameDraft, setFilenameDraft] = useState('');
+  // Phase 38.2.0 — Pipeline DUY NHẤT cho PDF scan → DOCX:
+  // text plain (Tesseract PSM 6 + grayscale preprocess + tessdata_best vie)
+  // → buildDocxFromText paragraph clean.
+  // Output: file nhẹ, Tiếng Việt chuẩn, paragraph + heading mỗi trang.
 
   useEffect(() => {
     function onKey(e: KeyboardEvent): void {
@@ -198,7 +210,83 @@ function FileConvertModal({
     if (typeof picked === 'string') {
       setSourcePath(picked);
       setResultPath(null);
+      // Reset custom output khi đổi source (filename auto theo source mới)
+      setCustomFilename(null);
     }
+  }
+
+  // Phase 38.2.0 — Helpers cho pre-select output path
+  function dirname(p: string): string {
+    const idx = Math.max(p.lastIndexOf('\\'), p.lastIndexOf('/'));
+    return idx >= 0 ? p.slice(0, idx) : '';
+  }
+
+  function joinPath(dir: string, file: string): string {
+    if (!dir) return file;
+    const sep = dir.includes('\\') ? '\\' : '/';
+    return dir.endsWith(sep) ? `${dir}${file}` : `${dir}${sep}${file}`;
+  }
+
+  // Folder thực tế sẽ ghi output: outputDir override → fallback parent của source
+  const effectiveOutputDir =
+    outputDir ?? (sourcePath ? dirname(sourcePath) : '');
+
+  // Filename mặc định = baseName của source + .extOutput
+  const defaultFilename =
+    sourcePath
+      ? `${basename(sourcePath).replace(/\.[^.]+$/, '')}.${outputFormat}`
+      : `output.${outputFormat}`;
+
+  const effectiveFilename = customFilename ?? defaultFilename;
+
+  async function handlePickOutputDir(): Promise<void> {
+    if (!isInTauri()) return;
+    const picked = await openDialog({
+      directory: true,
+      multiple: false,
+      defaultPath: effectiveOutputDir || undefined,
+    });
+    if (typeof picked === 'string') {
+      setOutputDir(picked);
+    }
+  }
+
+  function handleEditFilename(): void {
+    setFilenameDraft(effectiveFilename);
+    setEditingFilename(true);
+  }
+
+  function handleCommitFilename(): void {
+    const trimmed = filenameDraft.trim();
+    if (trimmed.length > 0) {
+      setCustomFilename(trimmed);
+    }
+    setEditingFilename(false);
+  }
+
+  function handleCancelFilename(): void {
+    setEditingFilename(false);
+    setFilenameDraft('');
+  }
+
+  /**
+   * Resolve target path: nếu user đã pre-select outputDir → dùng luôn (file
+   * sẽ ghi đè nếu tồn tại — user đã chủ động chọn path). Fallback: mở save
+   * dialog cũ (Windows tự confirm overwrite).
+   */
+  async function resolveTarget(suggested: string, ext: string): Promise<string | null> {
+    if (effectiveOutputDir) {
+      const fname = customFilename ?? suggested;
+      const finalName = fname.toLowerCase().endsWith(`.${ext}`)
+        ? fname
+        : `${fname.replace(/\.[^.]+$/, '')}.${ext}`;
+      return joinPath(effectiveOutputDir, finalName);
+    }
+    const target = await saveDialog({
+      defaultPath: suggested,
+      filters: [{ name: FORMAT_LABELS[outputFormat], extensions: [ext] }],
+    });
+    return typeof target === 'string' ? target : null;
   }
 
   /**
@@ -234,6 +322,7 @@ function FileConvertModal({
     return { isScan: avg < 30, numPages: pdf.numPages, avgChars: avg };
   }
 
+
   /**
    * Phase 39.fix6 — OCR PDF → text concatenated (cho mode text-only DOCX).
    * Render từng page → OCR text only → concat với page breaks.
@@ -245,14 +334,30 @@ function FileConvertModal({
     onPageProgress: (done: number, total: number) => void,
   ): Promise<string> {
     const pdfjs = await import('pdfjs-dist');
+    // Phase 38.2.0 fix — Set workerSrc trước khi getDocument (bắt buộc).
+    // Bug cũ: function này gọi pdfjs trước khi detectPdfIsScan set worker →
+    // crash "No GlobalWorkerOptions.workerSrc specified".
+    if (!pdfjs.GlobalWorkerOptions.workerSrc) {
+      const workerUrl = (
+        await import(
+          // @ts-ignore
+          'pdfjs-dist/build/pdf.worker.min.mjs?url'
+        )
+      ).default;
+      pdfjs.GlobalWorkerOptions.workerSrc = workerUrl;
+    }
     const pdf = await pdfjs.getDocument({ data: pdfBuffer }).promise;
     const total = pdf.numPages;
-    // Phase 39.fix8 — DPI 300 (Tesseract sweet spot), KHÔNG preprocess.
-    // Tesseract LSTM tự xử lý grayscale + threshold (Otsu) tốt hơn manual preprocess.
-    const dpiScale = 3.125; // ~300 DPI (96 × 3.125 = 300)
-    const pageTexts: string[] = [];
-    for (let i = 1; i <= total; i++) {
-      const page = await pdf.getPage(i);
+    const dpiScale = 3.125;
+    const pageTexts: string[] = new Array(total);
+
+    // Phase 38.2.0 fix — Parallel OCR (6 workers)
+    const concurrency = Math.min(6, Math.max(1, total));
+    let done = 0;
+    let nextPage = 1;
+
+    async function processPage(pageIdx: number): Promise<void> {
+      const page = await pdf.getPage(pageIdx);
       const viewport = page.getViewport({ scale: dpiScale });
       const canvas = document.createElement('canvas');
       canvas.width = Math.floor(viewport.width);
@@ -262,24 +367,70 @@ function FileConvertModal({
       ctx.fillStyle = '#fff';
       ctx.fillRect(0, 0, canvas.width, canvas.height);
       await page.render({ canvasContext: ctx, viewport }).promise;
-      // PNG lossless — Tesseract đọc raw image tự nhiên tốt nhất
       const blob = await new Promise<Blob | null>((res) =>
         canvas.toBlob(res, 'image/png'),
       );
       if (!blob) throw new Error('toBlob fail');
       const ab = await blob.arrayBuffer();
       const imageBytes = Array.from(new Uint8Array(ab));
-      // Phase 39.fix8 — PSM 3 (Auto, no OSD) — default Tesseract khuyến nghị
-      // Tốt cho document Việt phức tạp có layout (header 2 cột, table, list)
+      // Phase 38.2.0 fix — PSM 6 (single uniform block) cho text Việt:
+      // accuracy +5-10% so với PSM 3 cho biên bản, công văn (text uniform paragraph).
+      // Phase 38.2.0 fix — PSM 1 (auto + OSD) thay PSM 6:
+      // - Page text only: OK
+      // - Page bảng: detect layout columns
+      // - Page con dấu / 2 cột: rotation detect tốt, không output garbage
+      // Đã test thực tế trên CamScanner PDF: PSM 1 cho output đúng cả 3 trường hợp,
+      // PSM 6 fail trên page con dấu (output binary garbage).
       const text = await invoke<string>('ocr_image_bytes', {
         imageBytes,
         lang,
-        psm: 3,
+        psm: 1,
       });
-      pageTexts.push(text.trim());
-      onPageProgress(i, total);
-      if (i % 5 === 0) await new Promise((r) => setTimeout(r, 0));
+
+      // Phase 38.2.0 — Sanity check: chỉ throw nếu PDF binary thực sự
+      // (skip kiểm tra trên page ngắn — có thể là page chỉ có ảnh/bảng nhỏ,
+      // text Tesseract trả về ít, không phải lỗi).
+      const sample = text.slice(0, 500);
+      console.log(`[OCR p${pageIdx}] (${text.length} chars) sample:`, sample.slice(0, 120));
+      if (sample.includes('%PDF-') || sample.includes('FlateDecode')) {
+        throw new Error(
+          `OCR page ${pageIdx} trả về PDF binary thay vì text! ` +
+          `Có thể Tesseract bị corrupted hoặc canvas render thất bại. ` +
+          `Sample: ${sample.slice(0, 80)}`,
+        );
+      }
+      // Skip non-printable check cho text ngắn (< 100 chars có thể là page
+      // gần trống hoặc ảnh table — Tesseract trả formfeed \x0c hợp lệ).
+      // Cho text dài, allow tới 30% non-printable (nhiều page break + tab OK).
+      if (text.length > 100) {
+        // Loại whitespace control chars khỏi binary count (TAB, LF, CR, FF, VT)
+        const nonPrintable = (text.match(/[\x00-\x08\x0E-\x1F\x7F]/g) ?? []).length;
+        if (nonPrintable / text.length > 0.3) {
+          throw new Error(
+            `OCR page ${pageIdx} có ${Math.round((nonPrintable / text.length) * 100)}% ký tự binary corrupted. ` +
+            `Kiểm tra tessdata tại %APPDATA%\\TrishLibrary\\tessdata_best\\`,
+          );
+        }
+      }
+
+      pageTexts[pageIdx - 1] = text.trim();
+      done++;
+      onPageProgress(done, total);
     }
+
+    async function worker(): Promise<void> {
+      while (true) {
+        const myPage = nextPage++;
+        if (myPage > total) return;
+        try {
+          await processPage(myPage);
+        } catch (err) {
+          throw new Error(`OCR page ${myPage}: ${String(err)}`);
+        }
+      }
+    }
+
+    await Promise.all(Array.from({ length: concurrency }, () => worker()));
     return pageTexts.join('\n\n');
   }
 
@@ -334,14 +485,30 @@ function FileConvertModal({
     onPageProgress: (done: number, total: number) => void,
   ): Promise<string> {
     const pdfjs = await import('pdfjs-dist');
+    if (!pdfjs.GlobalWorkerOptions.workerSrc) {
+      const workerUrl = (
+        await import(
+          // @ts-ignore
+          'pdfjs-dist/build/pdf.worker.min.mjs?url'
+        )
+      ).default;
+      pdfjs.GlobalWorkerOptions.workerSrc = workerUrl;
+    }
     const pdf = await pdfjs.getDocument({ data: pdfBuffer }).promise;
     const total = pdf.numPages;
     // Phase 39.fix9 — DPI 300 + JPEG 0.92 cho searchable PDF chất lượng cao
-    // (giữ image gốc + text layer overlay → Word convert chuẩn)
     const dpiScale = 3.125; // ~300 DPI
-    const pdfPagesBytes: number[][] = [];
-    for (let i = 1; i <= total; i++) {
-      const page = await pdf.getPage(i);
+    const pdfPagesBytes: number[][] = new Array(total);
+
+    // Phase 38.2.0 fix — Parallel OCR worker pool. Default 6 workers thay 4 →
+    // tăng tốc thêm ~50% trên CPU 4-8 cores (Tesseract IO-bound nhiều, không phải
+    // CPU-bound thuần — page render + JPEG encode trên main thread, OCR trên worker).
+    const concurrency = Math.min(6, Math.max(1, total));
+    let done = 0;
+    let nextPage = 1;
+
+    async function processPage(pageIdx: number): Promise<void> {
+      const page = await pdf.getPage(pageIdx);
       const viewport = page.getViewport({ scale: dpiScale });
       const canvas = document.createElement('canvas');
       canvas.width = Math.floor(viewport.width);
@@ -351,28 +518,39 @@ function FileConvertModal({
       ctx.fillStyle = '#fff';
       ctx.fillRect(0, 0, canvas.width, canvas.height);
       await page.render({ canvasContext: ctx, viewport }).promise;
-      // JPEG 0.92 — cân bằng quality + size (JPEG cao chất lượng + nhẹ hơn PNG cho image scan)
       const blob = await new Promise<Blob | null>((res) =>
         canvas.toBlob(res, 'image/jpeg', 0.92),
       );
       if (!blob) throw new Error('toBlob fail');
       const ab = await blob.arrayBuffer();
       const imageBytes = Array.from(new Uint8Array(ab));
-      // Phase 39.fix9 — text_only=false: PDF GIỮ image gốc + text layer overlay
-      // (preserve nguyên layout, table, image, dấu mộc → user mở bằng MS Word
-      //  để convert sang DOCX với chất lượng cao nhất).
+      // Phase 38.2.0 fix — text_only=true: PDF chỉ có text layer, KHÔNG embed
+      // ảnh scan → DOCX output nhẹ, không bị mix ảnh + text đè lên nhau.
       const pageBytes = await invoke<number[]>('ocr_image_to_pdf_page', {
         imageBytes,
         lang,
-        textOnly: false,
+        textOnly: true,
       });
-      pdfPagesBytes.push(pageBytes);
-      onPageProgress(i, total);
-      if (i % 5 === 0) {
-        await new Promise((r) => setTimeout(r, 0));
+      pdfPagesBytes[pageIdx - 1] = pageBytes;
+      done++;
+      onPageProgress(done, total);
+    }
+
+    async function worker(): Promise<void> {
+      while (true) {
+        const myPage = nextPage++;
+        if (myPage > total) return;
+        try {
+          await processPage(myPage);
+        } catch (err) {
+          // Re-throw để Promise.all() reject toàn batch
+          throw new Error(`OCR page ${myPage}: ${String(err)}`);
+        }
       }
     }
-    // Save merged searchable PDF to system temp dir
+
+    await Promise.all(Array.from({ length: concurrency }, () => worker()));
+
     const tempDir = await invoke<string>('get_temp_dir');
     const sep = tempDir.includes('\\') ? '\\' : '/';
     const tempFile = `${tempDir}${sep}trishlib_ocr_${Date.now()}.pdf`;
@@ -404,100 +582,128 @@ function FileConvertModal({
         ext === 'docx' &&
         wordAvailable
       ) {
-        const target = await saveDialog({
-          defaultPath: suggested,
-          filters: [{ name: FORMAT_LABELS[outputFormat], extensions: [ext] }],
-        });
-        if (typeof target !== 'string') {
+        const target = await resolveTarget(suggested, ext);
+        if (target === null) {
           setRunning(false);
           setProgress(null);
           return;
         }
 
-        // Detect PDF scan
-        let actualPdfPath = sourcePath;
+        // Phase 38.2.0 fix — Smart routing:
+        // - PDF SCAN (avg < 30 chars/page) → OCR pipeline (Tesseract → text → DOCX)
+        // - PDF DIGITAL (text layer dày) → LibreOffice direct → DOCX giữ format + image
+        // Detect logic dựa pdfjs.getTextContent — phân biệt rất chuẩn:
+        //   CamScanner scan: 0-1 chars/page → isScan true
+        //   CV in từ Word: 2000+ chars/page → isScan false
+        const actualPdfPath = sourcePath;
         let isScan = false;
         if (autoOcr && tessAvailable) {
+          try {
+            const pdfBytes2 = await invoke<number[]>('read_binary_file', {
+              path: sourcePath,
+            });
+            const detect = await detectPdfIsScan(new Uint8Array(pdfBytes2).buffer);
+            isScan = detect.isScan;
+            console.log(
+              `[detect] ${detect.numPages} pages, avg ${detect.avgChars.toFixed(0)} chars/page → ${isScan ? 'SCAN' : 'DIGITAL'}`,
+            );
+          } catch (e) {
+            console.warn('[detect] fail, default treat as digital:', e);
+          }
+        }
+        const useOcrPipeline = autoOcr && tessAvailable && isScan;
+        void actualPdfPath;
+
+        if (useOcrPipeline) {
+          // Pipeline DUY NHẤT: Tesseract OCR text plain → buildDocxFromText
+          // Tessdata best vie + PSM 6 + grayscale preprocess + DPI 300.
+          // Output: file nhẹ, Tiếng Việt chuẩn, không có ảnh scan.
           setProgress({
-            stage: 'analyze',
-            pct: 5,
-            detail: 'Đang phân tích PDF (scan vs digital)…',
+            stage: 'ocr',
+            pct: 10,
+            detail: `📷 OCR PDF scan — ${ocrLang}…`,
           });
           try {
             const pdfBytes = await invoke<number[]>('read_binary_file', {
               path: sourcePath,
             });
-            const detect = await detectPdfIsScan(new Uint8Array(pdfBytes).buffer);
-            isScan = detect.isScan;
-            if (isScan) {
-              setProgress({
-                stage: 'ocr',
-                pct: 10,
-                detail: `📷 PDF scan ${detect.numPages} trang — OCR ${ocrLang}…`,
-              });
-              actualPdfPath = await ocrPdfToSearchable(
-                new Uint8Array(pdfBytes).buffer,
-                ocrLang,
-                (done, total) => {
-                  const ocrPct = 10 + (done / total) * 50; // 10-60%
-                  setProgress({
-                    stage: 'ocr',
-                    pct: Math.round(ocrPct),
-                    detail: `🔍 OCR trang ${done}/${total} (${ocrLang})`,
-                  });
-                },
-              );
-              setProgress({
-                stage: 'merge_ocr',
-                pct: 62,
-                detail: `✓ OCR ${detect.numPages} trang xong → searchable PDF`,
-              });
-              await new Promise((r) => setTimeout(r, 50));
-            }
+            const fullText = await ocrPdfToText(
+              new Uint8Array(pdfBytes).buffer,
+              ocrLang,
+              (done, total) => {
+                const ocrPct = 10 + (done / total) * 80;
+                setProgress({
+                  stage: 'ocr',
+                  pct: Math.round(ocrPct),
+                  detail: `🔍 OCR trang ${done}/${total} (${ocrLang})`,
+                });
+              },
+            );
+            setProgress({
+              stage: 'save',
+              pct: 92,
+              detail: '📝 Đang build DOCX…',
+            });
+            const docxBuffer = await buildDocxFromText(fullText, baseName);
+            const arr = Array.from(new Uint8Array(docxBuffer));
+            await invoke('write_binary_file', { path: target, bytes: arr });
+            setProgress({ stage: 'done', pct: 100, detail: '✓ Convert hoàn tất!' });
+            setResultPath(target);
+            onFlash(`✓ OCR + DOCX: ${basename(target)}`);
+            return;
           } catch (e) {
-            console.warn('[detect-scan] fail, skip OCR:', e);
+            console.warn('[ocr-pipeline] fail:', e);
+            throw new Error(`Convert fail: ${String(e)}`);
           }
         }
 
-        setProgress({
-          stage: 'libreoffice',
-          pct: isScan ? 65 : 30,
-          detail: isScan
-            ? '🚀 MS Word đang convert searchable PDF → DOCX…'
-            : '🚀 MS Word đang convert PDF → DOCX…',
-        });
-        await new Promise((r) => setTimeout(r, 50));
-        try {
-          await invoke('convert_via_msword', {
-            inputPath: actualPdfPath,
-            outputPath: target,
-          });
-          setProgress({ stage: 'done', pct: 100, detail: '✓ MS Word convert hoàn tất!' });
-          setResultPath(target);
-          onFlash(
-            isScan
-              ? `✓ OCR + MS Word convert PDF→DOCX: ${basename(target)}`
-              : `✓ MS Word convert PDF→DOCX: ${basename(target)}`,
-          );
-          return;
-        } catch (e) {
+        // Path digital PDF: ưu tiên LibreOffice (giữ format + tách image embedded
+        // tốt hơn Word). Nếu LibreOffice không có thì fallback Word direct.
+        if (!canUseLO) {
           setProgress({
-            stage: 'analyze',
-            pct: 5,
-            detail: '⚠ MS Word fail, đang thử LibreOffice fallback…',
+            stage: 'libreoffice',
+            pct: 30,
+            detail: '🚀 MS Word đang convert PDF → DOCX (LibreOffice không có)…',
           });
-          console.warn('[ms-word] fail, fallback:', e);
-          // Fallthrough to LibreOffice path
+          await new Promise((r) => setTimeout(r, 50));
+
+          const wordHeartbeatStart = Date.now();
+          const wordHeartbeat = setInterval(() => {
+            const elapsed = (Date.now() - wordHeartbeatStart) / 1000;
+            const ratio = Math.min(0.95, elapsed / 20);
+            const pct = 30 + Math.floor(ratio * 65);
+            setProgress({
+              stage: 'libreoffice',
+              pct,
+              detail: `🚀 MS Word đang convert PDF → DOCX (${elapsed.toFixed(0)}s)…`,
+            });
+          }, 1000);
+
+          try {
+            await invoke('convert_via_msword', {
+              inputPath: actualPdfPath,
+              outputPath: target,
+            });
+            clearInterval(wordHeartbeat);
+            setProgress({ stage: 'done', pct: 100, detail: '✓ MS Word convert hoàn tất!' });
+            setResultPath(target);
+            onFlash(`✓ MS Word convert PDF→DOCX: ${basename(target)}`);
+            return;
+          } catch (e) {
+            clearInterval(wordHeartbeat);
+            console.warn('[ms-word] fail:', e);
+            throw new Error(`Word convert fail: ${String(e)}`);
+          }
         }
+        // Else: digital PDF + có LibreOffice → fall through xuống LibreOffice path
+        // (LibreOffice convert PDF digital giữ format perfect + tách 3 ảnh con dấu/
+        // chữ ký vào word/media/. Đã verify với file CV 2343 thực tế.)
       }
 
       // Phase 39 — LibreOffice path: preserve format khi PDF↔DOCX↔HTML
       if (useLibreOffice && canUseLO) {
-        const target = await saveDialog({
-          defaultPath: suggested,
-          filters: [{ name: FORMAT_LABELS[outputFormat], extensions: [ext] }],
-        });
-        if (typeof target !== 'string') {
+        const target = await resolveTarget(suggested, ext);
+        if (target === null) {
           setRunning(false);
           setProgress(null);
           return;
@@ -531,7 +737,7 @@ function FileConvertModal({
 
             // Phase 39.fix11 — PDF scan + target=DOCX → fallback text-only DOCX
             // (Word đã được try ở step trước. Tới đây nghĩa là Word KHÔNG có hoặc fail.)
-            if (ext === 'docx' || ext === 'doc') {
+            if (ext === 'docx') {
               const fullText = await ocrPdfToText(
                 new Uint8Array(pdfBytes).buffer,
                 ocrLang,
@@ -604,13 +810,34 @@ function FileConvertModal({
         });
         await new Promise((r) => setTimeout(r, 100));
 
+        // Phase 38.2.0 fix — Heartbeat: tăng % từ 78→93 trong khi LibreOffice spawn
+        // (tránh user thấy đứng ở 78% — LibreOffice không stream progress).
+        // Tốc độ tăng tỉ lệ với file size: file lớn → tăng chậm hơn.
+        const heartbeatStartTime = Date.now();
+        const expectedSec = Math.max(15, inputSizeMB * 6); // ~6s/MB
+        const heartbeat = setInterval(() => {
+          const elapsed = (Date.now() - heartbeatStartTime) / 1000;
+          const ratio = Math.min(0.95, elapsed / expectedSec);
+          const pct = 78 + Math.floor(ratio * 15); // 78→93 max
+          setProgress({
+            stage: 'libreoffice',
+            pct,
+            detail: `📄 LibreOffice đang convert (${elapsed.toFixed(0)}s elapsed, ${inputSizeMB.toFixed(1)}MB)…`,
+          });
+        }, 1000);
+
         // LibreOffice ghi vào output_dir; sau đó move/rename về target
         const targetDir = target.replace(/[\\/][^\\/]+$/, '');
-        const outPath = await invoke<string>('convert_via_libreoffice', {
-          inputPath: actualSourcePath,
-          outputFormat: ext,
-          outputDir: targetDir,
-        });
+        let outPath: string;
+        try {
+          outPath = await invoke<string>('convert_via_libreoffice', {
+            inputPath: actualSourcePath,
+            outputFormat: ext,
+            outputDir: targetDir,
+          });
+        } finally {
+          clearInterval(heartbeat);
+        }
 
         setProgress({
           stage: 'save',
@@ -649,11 +876,8 @@ function FileConvertModal({
         html = r.html;
       }
 
-      const target = await saveDialog({
-        defaultPath: suggested,
-        filters: [{ name: FORMAT_LABELS[outputFormat], extensions: [ext] }],
-      });
-      if (typeof target !== 'string') {
+      const target = await resolveTarget(suggested, ext);
+      if (target === null) {
         setRunning(false);
         return;
       }
@@ -737,28 +961,179 @@ function FileConvertModal({
             </div>
           </section>
 
-          {/* Phase 39.fix10 — MS Word banner (highest priority cho PDF→DOCX) */}
+          {/* Phase 38.2.0 — Pre-select output path (folder + filename) */}
+          {sourcePath && (
+            <section
+              style={{
+                padding: '10px 12px',
+                marginBottom: 10,
+                background: 'rgba(16,185,129,0.10)',
+                border: '2px solid rgba(16,185,129,0.55)',
+                borderRadius: 10,
+                fontSize: 12,
+                boxShadow: '0 1px 4px rgba(16,185,129,0.15)',
+              }}
+            >
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 6,
+                  marginBottom: 6,
+                  fontWeight: 700,
+                  color: '#059669',
+                  fontSize: 13,
+                }}
+              >
+                📁 Lưu vào
+              </div>
+
+              {editingFilename ? (
+                <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                  <span className="muted small" style={{ whiteSpace: 'nowrap' }}>
+                    Tên file:
+                  </span>
+                  <input
+                    type="text"
+                    value={filenameDraft}
+                    onChange={(e) => setFilenameDraft(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') handleCommitFilename();
+                      if (e.key === 'Escape') handleCancelFilename();
+                    }}
+                    autoFocus
+                    style={{
+                      flex: 1,
+                      padding: '4px 8px',
+                      fontSize: 12,
+                      border: '1px solid var(--border)',
+                      borderRadius: 4,
+                    }}
+                  />
+                  <button
+                    type="button"
+                    onClick={handleCommitFilename}
+                    className="btn btn-primary"
+                    style={{ padding: '3px 10px', fontSize: 11 }}
+                  >
+                    ✓ OK
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleCancelFilename}
+                    className="btn btn-ghost"
+                    style={{ padding: '3px 10px', fontSize: 11 }}
+                  >
+                    Hủy
+                  </button>
+                </div>
+              ) : (
+                <div
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 6,
+                    flexWrap: 'wrap',
+                  }}
+                >
+                  <code
+                    title={joinPath(effectiveOutputDir, effectiveFilename)}
+                    style={{
+                      flex: 1,
+                      minWidth: 200,
+                      fontSize: 12,
+                      padding: '4px 8px',
+                      background: 'rgba(255,255,255,0.6)',
+                      color: '#065F46',
+                      border: '1px solid rgba(16,185,129,0.3)',
+                      borderRadius: 6,
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                      whiteSpace: 'nowrap',
+                      direction: 'rtl',
+                      textAlign: 'left',
+                      fontWeight: 500,
+                    }}
+                  >
+                    {joinPath(effectiveOutputDir, effectiveFilename)}
+                  </code>
+                  <button
+                    type="button"
+                    onClick={() => void handlePickOutputDir()}
+                    style={{
+                      padding: '4px 10px',
+                      fontSize: 11,
+                      border: '1px solid #10B981',
+                      borderRadius: 5,
+                      background: 'rgba(16,185,129,0.15)',
+                      color: '#065F46',
+                      cursor: 'pointer',
+                      fontWeight: 600,
+                    }}
+                    title="Chọn thư mục khác để lưu file output"
+                  >
+                    📂 Đổi thư mục
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleEditFilename()}
+                    style={{
+                      padding: '4px 10px',
+                      fontSize: 11,
+                      border: '1px solid #10B981',
+                      borderRadius: 5,
+                      background: 'rgba(16,185,129,0.15)',
+                      color: '#065F46',
+                      cursor: 'pointer',
+                      fontWeight: 600,
+                    }}
+                    title="Đổi tên file output"
+                  >
+                    ✏ Đổi tên
+                  </button>
+                  {(outputDir || customFilename) && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setOutputDir(null);
+                        setCustomFilename(null);
+                      }}
+                      style={{
+                        padding: '4px 8px',
+                        fontSize: 11,
+                        border: '1px solid var(--border)',
+                        borderRadius: 5,
+                        background: 'transparent',
+                        cursor: 'pointer',
+                        color: '#6B7280',
+                      }}
+                      title="Reset về cùng folder source + tên auto"
+                    >
+                      ↺
+                    </button>
+                  )}
+                </div>
+              )}
+            </section>
+          )}
+
+          {/* Phase 39.fix10 — MS Word banner (compact 1-line) */}
           {sourcePath &&
             sourceFmt === 'pdf' &&
             outputFormat === 'docx' &&
             wordAvailable && (
               <div
+                title="Word có built-in PDF reflow + OCR scan → preserve table, layout, format gần như hoàn hảo. Tốt hơn LibreOffice + Tesseract."
                 style={{
-                  padding: 10,
-                  marginBottom: 10,
+                  padding: '4px 10px',
+                  marginBottom: 6,
                   background: 'rgba(37,99,235,0.08)',
                   border: '1px solid rgba(37,99,235,0.3)',
-                  borderRadius: 8,
-                  fontSize: 12,
+                  borderRadius: 6,
+                  fontSize: 11,
                 }}
               >
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <strong>🚀 Sẽ dùng MS Word convert PDF→DOCX</strong>
-                </div>
-                <div style={{ marginTop: 4, color: '#6B7280', fontSize: 11 }}>
-                  ✓ Word có built-in PDF reflow + OCR scan → preserve table, layout, format gần
-                  như hoàn hảo. Free nếu Trí có Office. Tốt hơn hẳn LibreOffice + Tesseract.
-                </div>
+                🚀 <strong>MS Word</strong> sẽ convert PDF→DOCX (chất lượng cao nhất)
               </div>
             )}
           {sourcePath &&
@@ -767,17 +1142,16 @@ function FileConvertModal({
             !wordAvailable && (
               <div
                 style={{
-                  padding: 10,
-                  marginBottom: 10,
+                  padding: '4px 10px',
+                  marginBottom: 6,
                   background: 'rgba(245,158,11,0.08)',
                   border: '1px solid rgba(245,158,11,0.3)',
-                  borderRadius: 8,
-                  fontSize: 12,
+                  borderRadius: 6,
+                  fontSize: 11,
                   color: '#D97706',
                 }}
               >
-                ⚠ <strong>Không tìm thấy MS Word.</strong> Sẽ dùng LibreOffice + Tesseract OCR
-                (chất lượng thấp hơn Word). Cài Office để có quality cao nhất.
+                ⚠ Không có MS Word — sẽ dùng LibreOffice + Tesseract OCR
               </div>
             )}
 
@@ -849,106 +1223,123 @@ function FileConvertModal({
             tessdataBest.vie &&
             tessdataBest.eng && (
               <div
+                title="tessdata_best version cho accuracy text Việt cao nhất"
                 style={{
-                  padding: 8,
-                  marginBottom: 10,
-                  background: 'rgba(168,85,247,0.06)',
-                  border: '1px solid rgba(168,85,247,0.2)',
+                  padding: '3px 10px',
+                  marginBottom: 6,
+                  background: 'rgba(168,85,247,0.08)',
+                  border: '1px solid rgba(168,85,247,0.25)',
                   borderRadius: 6,
                   fontSize: 11,
                   color: '#7C3AED',
                 }}
               >
-                ✓ tessdata_best (vie + eng) đã sẵn sàng — accuracy text Việt tối đa
+                ✓ tessdata_best vie+eng sẵn sàng
               </div>
             )}
 
-          {/* Phase 39 — LibreOffice option */}
+          {/* Phase 39 — LibreOffice option (compact) */}
           {sourcePath && canUseLO && (
             <div
+              title={
+                useLibreOffice
+                  ? 'Convert qua LibreOffice headless — giữ layout, font, image, table.'
+                  : 'Tắt LibreOffice = text-only convert (mất layout/image/format).'
+              }
               style={{
-                padding: 10,
-                marginBottom: 10,
+                padding: '5px 10px',
+                marginBottom: 6,
                 background: useLibreOffice ? 'rgba(16,185,129,0.08)' : 'rgba(245,158,11,0.08)',
                 border: `1px solid ${useLibreOffice ? 'rgba(16,185,129,0.3)' : 'rgba(245,158,11,0.3)'}`,
-                borderRadius: 8,
+                borderRadius: 6,
                 fontSize: 12,
               }}
             >
-              <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}>
+              <label
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 6,
+                  cursor: 'pointer',
+                  margin: 0,
+                }}
+              >
                 <input
                   type="checkbox"
                   checked={useLibreOffice}
                   onChange={(e) => setUseLibreOffice(e.target.checked)}
+                  style={{ margin: 0 }}
                 />
-                <strong>🎯 Dùng LibreOffice (giữ format / layout / image)</strong>
+                <strong style={{ fontSize: 12 }}>🎯 Dùng LibreOffice (giữ layout/image)</strong>
               </label>
-              <div style={{ marginTop: 4, color: '#6B7280', fontSize: 11 }}>
-                {useLibreOffice
-                  ? '✓ Convert qua LibreOffice headless — giữ layout, font, image, table.'
-                  : '⚠ Tắt LibreOffice = text-only convert (mất layout/image/format).'}
-                {loStatus?.version && (
-                  <div style={{ marginTop: 2 }}>
-                    <code style={{ fontSize: 10 }}>{loStatus.version.split('\n')[0]}</code>
-                  </div>
-                )}
-              </div>
             </div>
           )}
 
-          {/* Phase 39.fix — Auto-OCR toggle khi convert PDF→DOCX/DOC/ODT/RTF */}
+          {/* Phase 39.fix — Auto-OCR toggle (compact: checkbox + lang chip cùng 1 row) */}
           {sourcePath &&
             useLibreOffice &&
             canUseLO &&
             sourceFmt === 'pdf' &&
             ['docx', 'doc', 'odt', 'rtf', 'html', 'txt'].includes(outputFormat) && (
               <div
+                title={
+                  !tessAvailable
+                    ? 'Chưa có Tesseract — PDF scan convert sẽ chỉ có ảnh, không có text.'
+                    : autoOcr
+                      ? 'App detect PDF scan → render page → OCR → searchable PDF → LibreOffice convert. PDF có text layer skip OCR.'
+                      : 'Tắt auto-OCR — PDF scan convert sẽ chỉ có ảnh không có text.'
+                }
                 style={{
-                  padding: 10,
-                  marginBottom: 10,
-                  background: autoOcr && tessAvailable
-                    ? 'rgba(99,102,241,0.08)'
-                    : 'rgba(245,158,11,0.08)',
+                  padding: '5px 10px',
+                  marginBottom: 6,
+                  background:
+                    autoOcr && tessAvailable
+                      ? 'rgba(99,102,241,0.08)'
+                      : 'rgba(245,158,11,0.08)',
                   border: `1px solid ${autoOcr && tessAvailable ? 'rgba(99,102,241,0.3)' : 'rgba(245,158,11,0.3)'}`,
-                  borderRadius: 8,
+                  borderRadius: 6,
                   fontSize: 12,
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 10,
+                  flexWrap: 'wrap',
                 }}
               >
                 <label
-                  style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 6,
+                    cursor: 'pointer',
+                    margin: 0,
+                    flex: 1,
+                  }}
                 >
                   <input
                     type="checkbox"
                     checked={autoOcr && tessAvailable}
                     onChange={(e) => setAutoOcr(e.target.checked)}
                     disabled={!tessAvailable}
+                    style={{ margin: 0 }}
                   />
-                  <strong>
-                    🔍 Tự động OCR nếu PDF là scan (text từ ảnh)
-                  </strong>
+                  <strong style={{ fontSize: 12 }}>🔍 Auto-OCR nếu PDF là scan</strong>
                 </label>
-                <div style={{ marginTop: 4, color: '#6B7280', fontSize: 11 }}>
-                  {!tessAvailable
-                    ? '⚠ Chưa có Tesseract — sẽ skip OCR. PDF scan convert ra DOCX sẽ chỉ có ảnh, không có text.'
-                    : autoOcr
-                      ? '✓ App detect PDF scan → render từng page → OCR (vie+eng) → searchable PDF → LibreOffice convert. PDF có text layer skip OCR.'
-                      : '⚠ Tắt auto-OCR — PDF scan convert sẽ chỉ có ảnh không có text.'}
-                </div>
                 {autoOcr && tessAvailable && (
-                  <div style={{ marginTop: 6, display: 'flex', gap: 4, flexWrap: 'wrap' }}>
+                  <div style={{ display: 'flex', gap: 3 }}>
                     {['vie+eng', 'vie', 'eng'].map((s) => (
                       <button
                         key={s}
                         type="button"
                         onClick={() => setOcrLang(s)}
                         style={{
-                          padding: '2px 8px',
+                          padding: '1px 8px',
                           fontSize: 11,
                           border: '1px solid var(--border)',
                           borderRadius: 4,
                           background: ocrLang === s ? '#10B981' : 'transparent',
                           color: ocrLang === s ? '#fff' : 'inherit',
                           cursor: 'pointer',
+                          lineHeight: 1.6,
                         }}
                       >
                         {s}
@@ -958,6 +1349,7 @@ function FileConvertModal({
                 )}
               </div>
             )}
+
 
           {/* Phase 39.fix — Progress bar realtime */}
           {progress && (

@@ -23,9 +23,8 @@ import { GlobalSearchModal } from './components/GlobalSearchModal.js';
 import { ShortcutsHelpModal } from './components/ShortcutsHelpModal.js';
 import { BackupModal } from './components/BackupModal.js';
 import { runAutoBackupIfDue } from './lib/backup.js';
-import { StickyNotePanel } from './components/StickyNotePanel.js';
 import { useAuth } from '@trishteam/auth/react';
-import { loadSettings, applyTheme, type Settings } from './settings.js';
+import { loadSettings, applyTheme, saveSettings, type Settings } from './settings.js';
 import { makeT } from './i18n/index.js';
 import logoUrl from './assets/logo.png';
 
@@ -72,25 +71,91 @@ export function AppShell(): JSX.Element {
   const [showGlobalSearch, setShowGlobalSearch] = useState(false);
   const [showShortcuts, setShowShortcuts] = useState(false);
   const [showBackup, setShowBackup] = useState(false);
-  const [showSticky, setShowSticky] = useState(() => {
-    try {
-      return window.localStorage.getItem('trishlibrary.sticky.open') === '1';
-    } catch {
-      return false;
-    }
-  });
-
-  // Persist sticky open state
-  useEffect(() => {
-    try {
-      window.localStorage.setItem('trishlibrary.sticky.open', showSticky ? '1' : '0');
-    } catch {
-      /* ignore */
-    }
-  }, [showSticky]);
   const [appVersion, setAppVersion] = useState('dev');
   const [settings, setSettings] = useState<Settings>(() => loadSettings());
   const tr = useMemo(() => makeT(settings.language), [settings.language]);
+
+  // Toggle theme nhanh từ topbar (light ↔ dark, skip system)
+  function getEffectiveTheme(): 'light' | 'dark' {
+    if (settings.theme === 'light' || settings.theme === 'dark') return settings.theme;
+    // system → detect via matchMedia
+    if (typeof window !== 'undefined' && window.matchMedia) {
+      return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+    }
+    return 'light';
+  }
+
+  function toggleTheme(): void {
+    const effective = getEffectiveTheme();
+    const next = effective === 'dark' ? 'light' : 'dark';
+    const updated: Settings = { ...settings, theme: next };
+    saveSettings(updated);
+    applyTheme(next);
+    setSettings(updated);
+  }
+
+  // Sticky note: cửa sổ riêng (label='sticky') alwaysOnTop, skipTaskbar
+  // → ẩn app chính vẫn nổi trên desktop, giống Windows Sticky Notes.
+  async function toggleStickyWindow(): Promise<void> {
+    try {
+      const { Window } = await import('@tauri-apps/api/window');
+      const win = await Window.getByLabel('sticky');
+      if (!win) {
+        console.warn('[sticky] window not found');
+        return;
+      }
+      const visible = await win.isVisible();
+      if (visible) {
+        await win.hide();
+      } else {
+        await win.show();
+        await win.setFocus();
+      }
+    } catch (err) {
+      console.warn('[sticky] toggle fail:', err);
+    }
+  }
+
+  // Listen sticky → save thành note thật trong module Ghi chú
+  useEffect(() => {
+    let unlisten: (() => void) | undefined;
+    void (async () => {
+      try {
+        const { listen } = await import('@tauri-apps/api/event');
+        unlisten = await listen<{ text: string }>(
+          'sticky:save-to-note',
+          async (event) => {
+            const { requestCreateNoteAbout } = await import('./lib/module-bus.js');
+            const text = event.payload?.text?.trim();
+            if (!text) return;
+            // First line làm title (max 60 chars), còn lại làm body
+            const firstLine = text.split(/\r?\n/)[0] ?? '';
+            const title =
+              firstLine.length > 0
+                ? firstLine.slice(0, 60)
+                : `Ghi nhanh ${new Date().toLocaleString('vi-VN')}`;
+            const body = text;
+            const escaped = body
+              .replace(/&/g, '&amp;')
+              .replace(/</g, '&lt;')
+              .replace(/>/g, '&gt;')
+              .replace(/\n/g, '<br>');
+            requestCreateNoteAbout({
+              title,
+              content_html: `<p>${escaped}</p>`,
+              category: 'personal',
+              tags: ['ghi-nhanh'],
+            });
+          },
+        );
+      } catch (err) {
+        console.warn('[sticky-listener] init fail:', err);
+      }
+    })();
+    return () => {
+      if (unlisten) unlisten();
+    };
+  }, []);
 
   useEffect(() => {
     saveActiveModule(active);
@@ -162,7 +227,7 @@ export function AppShell(): JSX.Element {
       // Ctrl+Shift+N — sticky note quick capture (always available)
       if ((e.key === 'N' || e.key === 'n') && e.shiftKey) {
         e.preventDefault();
-        setShowSticky((v) => !v);
+        void toggleStickyWindow();
         return;
       }
 
@@ -199,7 +264,7 @@ export function AppShell(): JSX.Element {
         <div className="module-nav-brand">
           <img src={logoUrl} alt="TrishLibrary" className="module-nav-logo" />
           <strong>TrishLibrary</strong>
-          <span className="module-nav-version">v3.0</span>
+          <span className="module-nav-version">v1.0</span>
         </div>
         <div className="module-nav-tabs">
           {MODULE_DEFS.map((m) => (
@@ -230,9 +295,9 @@ export function AppShell(): JSX.Element {
           <UserPanel trKey={tr} />
           <button
             type="button"
-            className={`module-nav-icon ${showSticky ? 'active' : ''}`}
-            onClick={() => setShowSticky((v) => !v)}
-            title="Ghi nhanh — sticky note (Ctrl+Shift+N)"
+            className="module-nav-icon"
+            onClick={() => void toggleStickyWindow()}
+            title="Ghi nhanh — cửa sổ riêng nổi trên desktop (Ctrl+Shift+N)"
           >
             🗒
           </button>
@@ -251,6 +316,18 @@ export function AppShell(): JSX.Element {
             title="Phím tắt (Ctrl+/)"
           >
             ⌨
+          </button>
+          <button
+            type="button"
+            className="module-nav-icon"
+            onClick={toggleTheme}
+            title={
+              getEffectiveTheme() === 'dark'
+                ? 'Chuyển sang giao diện sáng'
+                : 'Chuyển sang giao diện tối'
+            }
+          >
+            {getEffectiveTheme() === 'dark' ? '☀' : '🌙'}
           </button>
           <button
             type="button"
@@ -300,7 +377,7 @@ export function AppShell(): JSX.Element {
         />
       )}
 
-      {showSticky && <StickyNotePanel onClose={() => setShowSticky(false)} />}
+      {/* Sticky note: cửa sổ Tauri riêng (label='sticky'), không render in main */}
     </div>
   );
 }

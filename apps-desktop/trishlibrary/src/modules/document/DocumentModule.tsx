@@ -12,6 +12,7 @@ import { useEffect, useRef, useState } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { open as openDialog, save as saveDialog } from '@tauri-apps/plugin-dialog';
 import { useAuth } from '@trishteam/auth/react';
+import { useDialogs } from '../../components/dialogs/DialogProvider.js';
 import { DocEditorPanel } from './DocEditorPanel.js';
 import { DocConvertPanel } from './DocConvertPanel.js';
 import {
@@ -50,6 +51,7 @@ function isInTauri(): boolean {
 export function DocumentModule({ tr }: ModuleProps): JSX.Element {
   const { profile } = useAuth();
   const uid = profile?.id ?? null;
+  const { alert, confirm } = useDialogs();
   const [subTab, setSubTab] = useState<SubTab>('editor');
   const [tabs, setTabs] = useState<DocTab[]>([]);
   const [activeId, setActiveId] = useState<string | null>(null);
@@ -171,13 +173,15 @@ export function DocumentModule({ tr }: ModuleProps): JSX.Element {
     setTabs((prev) => prev.map((t) => (t.id === id ? { ...t, html } : t)));
   }
 
-  function closeTab(id: string): void {
+  async function closeTab(id: string): Promise<void> {
     const t = tabs.find((x) => x.id === id);
     if (!t) return;
     if (t.html !== t.savedHtml) {
-      const ok = window.confirm(
-        `"${t.name}" chưa lưu. Đóng và bỏ thay đổi?`,
-      );
+      const ok = await confirm({
+        title: 'Xác nhận',
+        message: `"${t.name}" chưa lưu. Đóng và bỏ thay đổi?`,
+        variant: 'warning',
+      });
       if (!ok) return;
     }
     setTabs((prev) => {
@@ -193,7 +197,11 @@ export function DocumentModule({ tr }: ModuleProps): JSX.Element {
 
   async function openFileDialog(): Promise<void> {
     if (!isInTauri()) {
-      window.alert('Mở file chỉ trong desktop.');
+      await alert({
+        title: 'Thông báo',
+        message: 'Mở file chỉ trong desktop.',
+        variant: 'info',
+      });
       return;
     }
     const picked = await openDialog({
@@ -438,7 +446,7 @@ export function DocumentModule({ tr }: ModuleProps): JSX.Element {
           focusMode={focusMode}
           onToggleFocusMode={() => setFocusMode((v) => !v)}
           onActivate={setActiveId}
-          onClose={closeTab}
+          onClose={(id) => void closeTab(id)}
           onUpdate={updateTabHtml}
           onNewTab={() => setShowTemplates(true)}
         />

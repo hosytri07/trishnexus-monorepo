@@ -8,6 +8,7 @@
 
 import { useEffect, useState } from 'react';
 import { openUrl } from '@tauri-apps/plugin-opener';
+import { invoke } from '@tauri-apps/api/core';
 import {
   type Settings,
   type ThemeMode,
@@ -17,6 +18,15 @@ import {
 } from './settings.js';
 import { makeT } from './i18n/index.js';
 import { checkForUpdate, type UpdateInfo } from './tauri-bridge.js';
+import { useDialogs } from './components/dialogs/DialogProvider.js';
+
+interface ExternalToolsStatus {
+  tesseract: boolean;
+  qpdf: boolean;
+  libreoffice: boolean;
+  vie_traineddata: boolean;
+  eng_traineddata: boolean;
+}
 
 interface Props {
   appVersion: string;
@@ -31,6 +41,7 @@ export function AppSettingsModal({
   onClose,
   onSettingsChange,
 }: Props): JSX.Element {
+  const { confirm } = useDialogs();
   const [draft, setDraft] = useState<Settings>(initial);
   const [savedFlash, setSavedFlash] = useState(false);
   const tr = makeT(draft.language);
@@ -38,15 +49,50 @@ export function AppSettingsModal({
   const [updateInfo, setUpdateInfo] = useState<UpdateInfo | null>(null);
   const [checkingUpdate, setCheckingUpdate] = useState(false);
 
+  // Phase 38.2.0 — External tools status
+  const [toolsStatus, setToolsStatus] = useState<ExternalToolsStatus | null>(null);
+  const [refreshingTools, setRefreshingTools] = useState(false);
+  const [toolsError, setToolsError] = useState<string | null>(null);
+
+  async function refreshToolsStatus(): Promise<void> {
+    setRefreshingTools(true);
+    try {
+      const s = await invoke<ExternalToolsStatus>('check_external_tools');
+      setToolsStatus(s);
+    } catch (err) {
+      console.warn('check_external_tools fail:', err);
+    } finally {
+      setRefreshingTools(false);
+    }
+  }
+
+  async function openInstallToolsWizard(): Promise<void> {
+    setToolsError(null);
+    try {
+      await invoke('open_install_tools_wizard');
+    } catch (err) {
+      setToolsError(`Không mở được wizard: ${String(err)}`);
+    }
+  }
+
+  useEffect(() => {
+    void refreshToolsStatus();
+  }, []);
+
   useEffect(() => {
     setDraft(initial);
   }, [initial]);
 
   useEffect(() => {
-    const handler = (e: KeyboardEvent): void => {
+    const handler = async (e: KeyboardEvent): Promise<void> => {
       if (e.key === 'Escape') {
         if (dirty) {
-          if (window.confirm('Cài đặt đã thay đổi nhưng chưa lưu. Đóng và bỏ thay đổi?')) {
+          const ok = await confirm({
+            title: 'Xác nhận',
+            message: 'Cài đặt đã thay đổi nhưng chưa lưu. Đóng và bỏ thay đổi?',
+            variant: 'warning',
+          });
+          if (ok) {
             onClose();
           }
         } else {
@@ -54,10 +100,10 @@ export function AppSettingsModal({
         }
       }
     };
-    window.addEventListener('keydown', handler);
-    return () => window.removeEventListener('keydown', handler);
+    window.addEventListener('keydown', handler as unknown as EventListener);
+    return () => window.removeEventListener('keydown', handler as unknown as EventListener);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [draft, initial, onClose]);
+  }, [draft, initial, onClose, confirm]);
 
   const dirty = JSON.stringify(draft) !== JSON.stringify(initial);
 
@@ -79,9 +125,11 @@ export function AppSettingsModal({
 
   async function handleClose(): Promise<void> {
     if (dirty) {
-      const ok = window.confirm(
-        'Cài đặt đã thay đổi nhưng chưa lưu.\n\nĐóng và bỏ thay đổi?',
-      );
+      const ok = await confirm({
+        title: 'Xác nhận',
+        message: 'Cài đặt đã thay đổi nhưng chưa lưu. Đóng và bỏ thay đổi?',
+        variant: 'warning',
+      });
       if (!ok) return;
     }
     onClose();
@@ -266,6 +314,71 @@ export function AppSettingsModal({
             )}
           </section>
 
+          {/* Phase 38.2.0 — Công cụ ngoài (Tesseract / qpdf / LibreOffice) */}
+          <section className="settings-section">
+            <h3>🛠 Công cụ ngoài</h3>
+            <p className="muted small" style={{ marginBottom: 8 }}>
+              Cần cho OCR PDF tiếng Việt + đặt mật khẩu PDF + convert PDF↔Word.
+            </p>
+            <div style={{ display: 'grid', gap: 6, marginBottom: 10 }}>
+              <ToolRow
+                label="Tesseract OCR"
+                hint="OCR tiếng Việt"
+                ok={toolsStatus?.tesseract === true}
+              />
+              <ToolRow
+                label="qpdf"
+                hint="Mật khẩu PDF"
+                ok={toolsStatus?.qpdf === true}
+              />
+              <ToolRow
+                label="LibreOffice"
+                hint="Convert PDF↔Word"
+                ok={toolsStatus?.libreoffice === true}
+              />
+              <ToolRow
+                label="vie.traineddata"
+                hint="Tessdata Việt (best)"
+                ok={toolsStatus?.vie_traineddata === true}
+              />
+              <ToolRow
+                label="eng.traineddata"
+                hint="Tessdata Anh (best)"
+                ok={toolsStatus?.eng_traineddata === true}
+              />
+            </div>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button
+                className="btn btn-primary"
+                onClick={() => void openInstallToolsWizard()}
+              >
+                ⬇ Mở wizard cài đặt
+              </button>
+              <button
+                className="btn btn-ghost"
+                onClick={() => void refreshToolsStatus()}
+                disabled={refreshingTools}
+              >
+                {refreshingTools ? '⏳ Đang kiểm tra...' : '🔄 Kiểm tra lại'}
+              </button>
+            </div>
+            {toolsError && (
+              <div
+                style={{
+                  marginTop: 8,
+                  padding: '6px 10px',
+                  background: 'rgba(239,68,68,0.1)',
+                  border: '1px solid rgba(239,68,68,0.4)',
+                  borderRadius: 6,
+                  color: '#DC2626',
+                  fontSize: 12,
+                }}
+              >
+                ⚠ {toolsError}
+              </div>
+            )}
+          </section>
+
           {/* About */}
           <section className="settings-section">
             <h3>ℹ {tr('app_settings.section.about')}</h3>
@@ -309,6 +422,43 @@ export function AppSettingsModal({
           </div>
         </footer>
       </div>
+    </div>
+  );
+}
+
+// Phase 38.2.0 — Row hiển thị 1 tool ngoài với badge OK/CHƯA CÀI
+function ToolRow({
+  label,
+  hint,
+  ok,
+}: {
+  label: string;
+  hint: string;
+  ok: boolean;
+}): JSX.Element {
+  return (
+    <div
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        gap: 8,
+        padding: '4px 10px',
+        background: 'var(--bg-soft, rgba(0,0,0,0.04))',
+        borderRadius: 8,
+        fontSize: 13,
+      }}
+    >
+      <span style={{ flex: 1 }}>
+        <strong>{label}</strong>{' '}
+        <span className="muted small" style={{ marginLeft: 4 }}>
+          — {hint}
+        </span>
+      </span>
+      {ok ? (
+        <span style={{ color: 'var(--success, #10b981)', fontWeight: 600 }}>✓ Đã cài</span>
+      ) : (
+        <span style={{ color: 'var(--danger, #ef4444)', fontWeight: 600 }}>✗ Chưa cài</span>
+      )}
     </div>
   );
 }

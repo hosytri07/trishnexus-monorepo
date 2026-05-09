@@ -97,7 +97,7 @@ function buildHtml(note: NoteToExport): string {
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta name="generator" content="TrishLibrary 3.0">
+  <meta name="generator" content="TrishLibrary">
   <title>${escapeHtml(title)}</title>
   <style>${STYLES}</style>
 </head>
@@ -114,7 +114,7 @@ function buildHtml(note: NoteToExport): string {
   ${note.content_html || '<p><em>(Empty)</em></p>'}
   <hr>
   <footer style="text-align: center; color: #aaa; font-size: 11px; margin-top: 40px;">
-    Exported by TrishLibrary 3.0 · ${new Date().toISOString().slice(0, 10)}
+    Exported by TrishLibrary · ${new Date().toISOString().slice(0, 10)}
   </footer>
 </body>
 </html>

@@ -7,6 +7,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { invoke } from '@tauri-apps/api/core';
+import { useDialogs } from './dialogs/DialogProvider.js';
 
 interface SearchHit {
   path: string;
@@ -38,6 +39,7 @@ export function LibrarySearchModal({
   tr,
 }: Props): JSX.Element {
   void tr;
+  const { confirm } = useDialogs();
   const [query, setQuery] = useState('');
   const [hits, setHits] = useState<SearchHit[]>([]);
   const [searching, setSearching] = useState(false);
@@ -125,7 +127,12 @@ export function LibrarySearchModal({
   }
 
   async function clearIndex(): Promise<void> {
-    if (!window.confirm('Xóa toàn bộ index? Cần build lại để search được.')) return;
+    const ok = await confirm({
+      title: 'Xác nhận',
+      message: 'Xóa toàn bộ index? Cần build lại để search được.',
+      variant: 'danger',
+    });
+    if (!ok) return;
     try {
       await invoke('library_index_clear');
       setIndexed(false);

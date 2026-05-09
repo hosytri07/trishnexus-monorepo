@@ -95,7 +95,7 @@ export async function importToHtml(
       }
       if (totalChars < 50) {
         warnings.push(
-          'PDF có ít text — có thể là PDF scan ảnh. OCR PDF scan sẽ có ở Phase 18.3.b.',
+          'PDF có ít text — có thể là PDF scan ảnh. Dùng tool "🔍 OCR PDF scan" để thêm text layer.',
         );
       }
       const html = pages

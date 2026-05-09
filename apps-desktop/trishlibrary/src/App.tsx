@@ -10,6 +10,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { invoke } from '@tauri-apps/api/core';
+import { useDialogs } from './components/dialogs/DialogProvider.js';
 import {
   type FileType,
   type LibraryFile,
@@ -60,13 +61,13 @@ import {
   saveTrishteamLibraryToFirestore,
   subscribeTrishteamLibrary,
 } from './lib/firestore-sync.js';
-import logoUrl from './assets/logo.png';
 
 type ViewMode = 'local' | 'online' | 'trishteam';
 
 export function App(): JSX.Element {
   const { profile, isAdmin, isPaid } = useAuth();
   const uid = profile?.id ?? null;
+  const { alert, confirm, prompt } = useDialogs();
 
   const [settings, setSettings] = useState<Settings>(() => loadSettings());
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -401,17 +402,22 @@ export function App(): JSX.Element {
 
   /** Phase 18.6.e — Mở thư mục từ đường dẫn LAN/UNC nhập tay */
   async function handlePickRootFromPath(): Promise<void> {
-    const input = window.prompt(
-      'Nhập đường dẫn thư mục thư viện (hỗ trợ UNC mạng LAN, ví dụ: \\\\\\\\server\\\\share\\\\library):',
-      '\\\\\\\\',
-    );
+    const input = await prompt({
+      title: 'Nhập đường dẫn',
+      label: 'Nhập đường dẫn thư mục thư viện (hỗ trợ UNC mạng LAN, ví dụ: \\\\server\\share\\library):',
+      defaultValue: '\\\\',
+    });
     if (!input) return;
     const trimmed = input.trim();
     if (!trimmed) return;
     try {
       const exists = await invoke<boolean>('check_folder_exists', { path: trimmed });
       if (!exists) {
-        window.alert('⚠ Không truy cập được thư mục: ' + trimmed);
+        await alert({
+          title: 'Cảnh báo',
+          message: 'Không truy cập được thư mục: ' + trimmed,
+          variant: 'warning',
+        });
         return;
       }
     } catch {
@@ -455,10 +461,12 @@ export function App(): JSX.Element {
     saveSettings(newSettings);
   }
 
-  function handleResetLibrary(): void {
-    const ok = confirm(
-      tr('sidebar.library_reset_confirm', { name: settings.library_name }),
-    );
+  async function handleResetLibrary(): Promise<void> {
+    const ok = await confirm({
+      title: 'Xác nhận',
+      message: tr('sidebar.library_reset_confirm', { name: settings.library_name }),
+      variant: 'danger',
+    });
     if (!ok) return;
     const newSettings = { ...settings, library_root: '' };
     setSettings(newSettings);
@@ -482,10 +490,12 @@ export function App(): JSX.Element {
     setSelectedFile(null);
   }
 
-  function handleQuickDelete(file: LibraryFile): void {
-    const ok = confirm(
-      tr('form.confirm_delete', { name: file.doc_title || file.file_name }),
-    );
+  async function handleQuickDelete(file: LibraryFile): Promise<void> {
+    const ok = await confirm({
+      title: 'Xác nhận',
+      message: tr('form.confirm_delete', { name: file.doc_title || file.file_name }),
+      variant: 'danger',
+    });
     if (ok) handleDeleteFile(file);
   }
 
@@ -642,10 +652,12 @@ export function App(): JSX.Element {
     setEditingLink(null);
   }
 
-  function handleQuickDeleteLink(link: OnlineLink): void {
-    const ok = confirm(
-      tr('online.link.delete_confirm', { title: link.title || link.url }),
-    );
+  async function handleQuickDeleteLink(link: OnlineLink): Promise<void> {
+    const ok = await confirm({
+      title: 'Xác nhận',
+      message: tr('online.link.delete_confirm', { title: link.title || link.url }),
+      variant: 'danger',
+    });
     if (ok) handleDeleteLink(link);
   }
 
@@ -654,23 +666,6 @@ export function App(): JSX.Element {
   return (
     <div className="app">
       <header className="topbar">
-        <div className="brand">
-          <img
-            className="brand-logo"
-            src={logoUrl}
-            alt=""
-            aria-hidden
-            width={40}
-            height={40}
-          />
-          <div>
-            <div className="brand-title">TrishLibrary</div>
-            <div className="brand-sub">{tr('topbar.tagline')}</div>
-          </div>
-        </div>
-
-        <div className="spacer" />
-
         {hasRoot ? (
           <>
             <button
@@ -723,19 +718,6 @@ export function App(): JSX.Element {
         >
           {tr('topbar.save_lib')}
         </button>
-        <button
-          className="btn btn-ghost"
-          onClick={() => setFullTextSearchOpen(true)}
-          title="Tìm trong nội dung file (PDF/TXT/MD) qua Tantivy"
-          disabled={files.length === 0}
-        >
-          🔎 Tìm nội dung
-        </button>
-        <button className="btn btn-ghost" onClick={() => setSettingsOpen(true)}>
-          {tr('topbar.settings')}
-        </button>
-
-        <span className="muted small version-badge">v{version}</span>
       </header>
 
       {hasRoot && (
