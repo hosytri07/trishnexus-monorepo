@@ -20,8 +20,8 @@
 import { ErrorPayload, VitalPayload } from './index.js';
 import { reportError, reportVital, installErrorHandlers, setEndpointBase, InstallOptions } from './browser.js';
 
-/** Endpoint cho desktop app — luôn trỏ production. */
-export const TRISHTEAM_TELEMETRY_ENDPOINT = 'https://trishteam.io.vn';
+/** Endpoint cho desktop app — luôn trỏ production www (canonical Vercel). */
+export const TRISHTEAM_TELEMETRY_ENDPOINT = 'https://www.trishteam.io.vn';
 
 export interface TauriInstallOptions extends Omit<InstallOptions, 'platform'> {
   /** Override endpoint cho dev/test, mặc định production. */

@@ -77,12 +77,28 @@ function randomChunk(len: number): string {
  * Stored: XXXX-XXXX-XXXX-XXXX (16 alphanumeric, alphabet 32 chars bỏ I/O/0/1).
  * Bỏ TRISH prefix theo yêu cầu user.
  */
+/**
+ * Generate canonical key: 16 chars liền, KHÔNG dashes.
+ * Server query DB sau khi normalize input → strip dashes → 16 chars.
+ * Để match, DB phải lưu 16 chars no dash (canonical).
+ */
 function generateRandomKey(): string {
-  return `${randomChunk(4)}-${randomChunk(4)}-${randomChunk(4)}-${randomChunk(4)}`;
+  return `${randomChunk(4)}${randomChunk(4)}${randomChunk(4)}${randomChunk(4)}`;
 }
 
+/** Validation: accept 16 chars (any) hoặc legacy TRISH+12. */
+function isValidKeyFormat(code: string): boolean {
+  const clean = code.toUpperCase().replace(/[^A-Z0-9]/g, '');
+  if (clean.length === 16 && /^[A-Z2-9]{16}$/.test(clean)) return true;
+  if (clean.length === 17 && /^TRISH[A-Z2-9]{12}$/.test(clean)) return true;
+  return false;
+}
+
+/** Format display: 16 chars → "XXXX-XXXX-XXXX-XXXX" cho UI dễ đọc. */
 function formatKeyForDisplay(code: string): string {
-  return code ?? '';
+  if (!code) return '';
+  const clean = code.replace(/-/g, '');
+  return clean.match(/.{1,4}/g)?.join('-') ?? clean;
 }
 
 export default function AdminKeysPage() {

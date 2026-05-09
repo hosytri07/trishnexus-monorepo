@@ -800,6 +800,100 @@ async fn fetch_text(url: String) -> Result<String, String> {
         .map_err(|e| format!("read body failed: {e}"))
 }
 
+/// Software cài đặt scan từ Windows Registry HKLM/HKCU Uninstall.
+#[derive(serde::Serialize, Clone)]
+struct InstalledSoftware {
+    name: String,
+    version: String,
+    publisher: String,
+    install_date: String,
+    estimated_size_kb: u64,
+}
+
+/// License Price Check — scan Windows Registry HKLM + HKCU + WOW6432Node
+/// để list tất cả software đã cài đặt. Field từ Uninstall keys:
+/// DisplayName, DisplayVersion, Publisher, InstallDate, EstimatedSize.
+#[tauri::command]
+fn scan_installed_software() -> Result<Vec<InstalledSoftware>, String> {
+    #[cfg(target_os = "windows")]
+    {
+        use std::collections::HashMap;
+        use winreg::enums::*;
+        use winreg::RegKey;
+
+        let uninstall_paths: &[(_, &str)] = &[
+            (
+                HKEY_LOCAL_MACHINE,
+                r"SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall",
+            ),
+            (
+                HKEY_LOCAL_MACHINE,
+                r"SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall",
+            ),
+            (
+                HKEY_CURRENT_USER,
+                r"SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall",
+            ),
+        ];
+
+        let mut results: HashMap<String, InstalledSoftware> = HashMap::new();
+        for (root, path) in uninstall_paths {
+            let hkey = RegKey::predef(*root);
+            let key = match hkey.open_subkey(path) {
+                Ok(k) => k,
+                Err(_) => continue,
+            };
+            for sub_name in key.enum_keys().flatten() {
+                let sub = match key.open_subkey(&sub_name) {
+                    Ok(s) => s,
+                    Err(_) => continue,
+                };
+                let name: String = sub.get_value("DisplayName").unwrap_or_default();
+                if name.trim().is_empty() {
+                    continue;
+                }
+                // Skip Windows Updates / Hotfix / Security patches
+                if name.starts_with("KB")
+                    || name.contains("Update for")
+                    || name.contains("Hotfix")
+                    || name.contains("Security Update")
+                {
+                    continue;
+                }
+                let version: String = sub.get_value("DisplayVersion").unwrap_or_default();
+                let publisher: String = sub.get_value("Publisher").unwrap_or_default();
+                let install_date: String =
+                    sub.get_value("InstallDate").unwrap_or_default();
+                let estimated_size: u32 = sub.get_value("EstimatedSize").unwrap_or(0);
+
+                let item = InstalledSoftware {
+                    name: name.clone(),
+                    version,
+                    publisher,
+                    install_date,
+                    estimated_size_kb: estimated_size as u64,
+                };
+                results
+                    .entry(name)
+                    .and_modify(|existing| {
+                        if existing.version.len() < item.version.len() {
+                            *existing = item.clone();
+                        }
+                    })
+                    .or_insert(item);
+            }
+        }
+
+        let mut list: Vec<InstalledSoftware> = results.into_values().collect();
+        list.sort_by(|a, b| a.name.to_lowercase().cmp(&b.name.to_lowercase()));
+        Ok(list)
+    }
+    #[cfg(not(target_os = "windows"))]
+    {
+        Err("scan_installed_software chỉ support Windows".to_string())
+    }
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -815,6 +909,8 @@ pub fn run() {
             fetch_text,
             // Phase 36.5 — Machine ID cho key concurrent control
             get_device_id,
+            // License Price Check — scan installed software
+            scan_installed_software,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

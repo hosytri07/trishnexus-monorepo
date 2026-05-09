@@ -43,10 +43,14 @@ import { SESSION_HEARTBEAT_INTERVAL_MS } from '@trishteam/data';
 // ============================================================
 // Phase 24.3 — Use globalThis to avoid Node 'process' type dependency.
 // Browser sees undefined, Next.js SSR sees process.
+//
+// IMPORTANT: phải dùng `www.` vì Vercel canonical là www.trishteam.io.vn.
+// Non-www sẽ bị 308 redirect → CORS preflight không follow redirect → fail
+// "Response to preflight request doesn't pass access control check: Redirect is not allowed".
 const API_BASE =
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   ((globalThis as any).process?.env?.NEXT_PUBLIC_API_BASE as string | undefined) ||
-  'https://trishteam.io.vn';
+  'https://www.trishteam.io.vn';
 const IPIFY_URL = 'https://api.ipify.org?format=json';
 const IPIFY_TIMEOUT_MS = 3000;
 

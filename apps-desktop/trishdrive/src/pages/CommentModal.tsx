@@ -11,7 +11,7 @@ import {
   X, Send, Star, AlertCircle, Loader2, MessageSquare, User as UserIcon,
 } from 'lucide-react';
 
-const SHARE_API_BASE = 'https://trishteam.io.vn';
+const SHARE_API_BASE = 'https://www.trishteam.io.vn';
 
 interface Comment {
   id: string;

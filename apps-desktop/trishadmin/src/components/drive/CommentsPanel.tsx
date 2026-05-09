@@ -11,7 +11,7 @@ import {
   FileQuestion, User as UserIcon, Filter,
 } from 'lucide-react';
 
-const SHARE_API_BASE = 'https://trishteam.io.vn';
+const SHARE_API_BASE = 'https://www.trishteam.io.vn';
 
 interface AdminComment {
   id: string;

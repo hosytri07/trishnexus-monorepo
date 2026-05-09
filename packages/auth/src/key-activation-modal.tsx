@@ -68,9 +68,15 @@ export interface KeyActivationModalProps {
   onSignOut?: () => void | Promise<void>;
 }
 
-/** Format raw 16 chars → "XXXX-XXXX-XXXX-XXXX" (chỉ uppercase + alphanumeric) */
+/** Format raw → "XXXX-XXXX-XXXX-XXXX" (chỉ uppercase + alphanumeric).
+ * Strip TRISH prefix nếu có (backward compat với key cũ "TRISH-XXX-XXX-XXX"). */
 function formatKeyDisplay(raw: string): string {
-  const clean = raw.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 16);
+  let clean = raw.toUpperCase().replace(/[^A-Z0-9]/g, '');
+  // Backward-compat: nếu user paste key cũ "TRISH..." → strip prefix
+  if (clean.startsWith('TRISH') && clean.length >= 17) {
+    clean = clean.slice(5);
+  }
+  clean = clean.slice(0, 16);
   return clean.match(/.{1,4}/g)?.join('-') ?? clean;
 }
 
@@ -122,7 +128,11 @@ export const KeyActivationModal: FC<KeyActivationModalProps> = ({
 
   const formatted = useMemo(() => formatKeyDisplay(keyInput), [keyInput]);
   const cleanKey = useMemo(
-    () => keyInput.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 16),
+    () => {
+      let clean = keyInput.toUpperCase().replace(/[^A-Z0-9]/g, '');
+      if (clean.startsWith('TRISH') && clean.length >= 17) clean = clean.slice(5);
+      return clean.slice(0, 16);
+    },
     [keyInput],
   );
   const canSubmit = cleanKey.length === 16 && !submitting;

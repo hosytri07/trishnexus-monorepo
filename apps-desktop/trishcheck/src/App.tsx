@@ -29,6 +29,7 @@ import { SettingsModal } from './components/SettingsModal.js';
 import { ActionsToolbar } from './components/ActionsToolbar.js';
 import { MinSpecTable } from './components/MinSpecTable.js';
 import { HistoryDrawer } from './components/HistoryDrawer.js';
+import { LicenseView } from './components/LicenseView.js';
 import {
   loadSnapshots,
   pushSnapshot,
@@ -59,7 +60,7 @@ import logoUrl from './assets/logo.png';
  * Auto-snapshot: nếu setting bật, mỗi lần benchmark xong tự push vào history.
  */
 
-type Tab = 'system' | 'minspec' | 'history';
+type Tab = 'system' | 'minspec' | 'license' | 'history';
 
 export function App(): JSX.Element {
   // Settings (lazy init từ localStorage)
@@ -276,6 +277,11 @@ export function App(): JSX.Element {
           label={tr('tab.minspec')}
         />
         <TabButton
+          active={tab === 'license'}
+          onClick={() => setTab('license')}
+          label="💰 Bản quyền"
+        />
+        <TabButton
           active={tab === 'history'}
           onClick={() => setTab('history')}
           label={`${tr('tab.history')} (${snapshots.length})`}
@@ -307,6 +313,7 @@ export function App(): JSX.Element {
         {tab === 'minspec' && !machineSpec && (
           <p className="muted">Đang đọc thông tin máy...</p>
         )}
+        {tab === 'license' && <LicenseView language={settings.language} />}
         {tab === 'history' && (
           <HistoryDrawer
             language={settings.language}

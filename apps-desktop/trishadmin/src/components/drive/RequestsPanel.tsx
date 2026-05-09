@@ -31,7 +31,7 @@ interface RequestItem {
   updated_at: number | null;
 }
 
-const SHARE_API_BASE = 'https://trishteam.io.vn';
+const SHARE_API_BASE = 'https://www.trishteam.io.vn';
 type StatusFilter = 'all' | 'pending' | 'approved' | 'rejected' | 'uploaded';
 
 export function RequestsPanel(): JSX.Element {

@@ -20,6 +20,7 @@ import {
 } from '../lib/firestore-admin.js';
 import type { ActivationKey } from '@trishteam/data';
 import { applyMask, maskKey, maskUid } from '../lib/mask.js';
+import { formatKeyForDisplay } from '../lib/key-gen.js';
 import { useReveal } from '../lib/use-reveal.js';
 import { RevealToggle } from './RevealToggle.js';
 import { KeySecurityModal } from './KeySecurityModal.js';
@@ -216,7 +217,7 @@ export function KeysPanel({ adminUid }: Props): JSX.Element {
         <div>
           <h1>🔑 Activation Keys</h1>
           <p className="muted small">
-            {keys.length} key trong Firestore. Format: <code>TRISH-XXXX-XXXX-XXXX</code>.
+            {keys.length} key trong Firestore. Format: <code>XXXX-XXXX-XXXX-XXXX</code>.
           </p>
         </div>
         <div style={{ display: 'flex', gap: 8 }}>
@@ -369,7 +370,9 @@ export function KeysPanel({ adminUid }: Props): JSX.Element {
                     </td>
                     <td>
                       <code className="key-code">
-                        {applyMask(k.code ?? '(no code)', rowRevealed, maskKey)}
+                        {rowRevealed
+                          ? formatKeyForDisplay(k.code ?? '')
+                          : maskKey(k.code ?? '(no code)')}
                       </code>
                       {k.note && (
                         <div className="muted small" style={{ marginTop: 2 }}>

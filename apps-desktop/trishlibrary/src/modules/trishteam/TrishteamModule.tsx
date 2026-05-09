@@ -12,7 +12,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { openUrl } from '@tauri-apps/plugin-opener';
 import { getFirebaseAuth } from '@trishteam/auth';
 
-const SHARE_API_BASE = 'https://trishteam.io.vn';
+const SHARE_API_BASE = 'https://www.trishteam.io.vn';
 
 interface LibraryItem {
   token: string;

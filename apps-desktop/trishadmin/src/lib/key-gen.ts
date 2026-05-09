@@ -1,8 +1,9 @@
 /**
- * Phase 18.7.a — Activation key generator.
+ * Activation key generator.
  *
- * Format: TRISH-XXXX-XXXX-XXXX (TRISH prefix + 12 hex chars chia thành 3 nhóm 4)
- * Generate qua Web Crypto getRandomValues (cryptographically secure).
+ * Format: XXXX-XXXX-XXXX-XXXX (16 alphanumeric + 3 dashes, NO prefix)
+ * Alphabet 32 chars bỏ I, O, 0, 1 cho dễ đọc.
+ * Đồng bộ với /admin/keys web (xem website/app/admin/keys/page.tsx).
  */
 
 const ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // bỏ I, O, 0, 1 cho dễ đọc
@@ -17,12 +18,34 @@ function randomChunk(len: number): string {
   return out;
 }
 
+/**
+ * Generate canonical key: 16 chars liền, KHÔNG dashes.
+ * Lý do: server `normalizeKeyCode` strip dashes trước khi query DB →
+ * nếu lưu có dashes sẽ mismatch với input đã normalize.
+ * UI hiển thị thêm dashes qua `formatKeyForDisplay`.
+ */
 export function generateActivationKey(): string {
-  return `TRISH-${randomChunk(4)}-${randomChunk(4)}-${randomChunk(4)}`;
+  return `${randomChunk(4)}${randomChunk(4)}${randomChunk(4)}${randomChunk(4)}`;
 }
 
+/** Format 16 chars → "XXXX-XXXX-XXXX-XXXX" cho display. */
+export function formatKeyForDisplay(code: string): string {
+  const clean = code.replace(/-/g, '');
+  return clean.match(/.{1,4}/g)?.join('-') ?? clean;
+}
+
+/**
+ * Accept multiple formats khi user paste:
+ *   - 16 chars no dash (canonical)
+ *   - XXXX-XXXX-XXXX-XXXX (4 nhóm 4 dashes)
+ *   - TRISH-XXXX-XXXX-XXXX (legacy, deprecated)
+ */
 export function isValidKeyFormat(code: string): boolean {
-  return /^TRISH-[A-Z2-9]{4}-[A-Z2-9]{4}-[A-Z2-9]{4}$/.test(code);
+  const clean = code.toUpperCase().replace(/[^A-Z0-9]/g, '');
+  // After strip non-alphanumeric: 16 chars (canonical) hoặc 17 chars (TRISH + 12)
+  if (clean.length === 16 && /^[A-Z2-9]{16}$/.test(clean)) return true;
+  if (clean.length === 17 && /^TRISH[A-Z2-9]{12}$/.test(clean)) return true;
+  return false;
 }
 
 export function generateKeyId(): string {

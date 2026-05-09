@@ -31,5 +31,9 @@ tokio = { version = "1", features = ["rt-multi-thread", "macros"] }
 # Phase 36.5 — Machine ID cho key concurrent control
 trishteam-machine-id = { path = "../../../packages/machine-id" }
 
+# License Price Check — đọc Windows Registry list installed software
+[target.'cfg(target_os = "windows")'.dependencies]
+winreg = "0.52"
+
 [features]
 custom-protocol = ["tauri/custom-protocol"]
