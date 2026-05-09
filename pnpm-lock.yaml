@@ -92,17 +92,26 @@ importers:
   apps-desktop/trishcheck:
     dependencies:
       '@tauri-apps/api':
-        specifier: ^2.0.0
-        version: 2.10.1
+        specifier: ^2.11.0
+        version: 2.11.0
+      '@trishteam/auth':
+        specifier: workspace:*
+        version: link:../../packages/auth
       '@trishteam/core':
         specifier: workspace:*
         version: link:../../packages/core
+      '@trishteam/data':
+        specifier: workspace:*
+        version: link:../../packages/data
       '@trishteam/design-system':
         specifier: workspace:*
         version: link:../../packages/design-system
       '@trishteam/telemetry':
         specifier: workspace:*
         version: link:../../packages/telemetry
+      firebase:
+        specifier: ^10.14.1
+        version: 10.14.1
       react:
         specifier: 18.3.1
         version: 18.3.1
@@ -111,8 +120,8 @@ importers:
         version: 18.3.1(react@18.3.1)
     devDependencies:
       '@tauri-apps/cli':
-        specifier: ^2.0.0
-        version: 2.10.1
+        specifier: ^2.11.0
+        version: 2.11.1
       '@types/react':
         specifier: 18.3.3
         version: 18.3.3
@@ -132,20 +141,29 @@ importers:
   apps-desktop/trishclean:
     dependencies:
       '@tauri-apps/api':
-        specifier: ^2.0.0
-        version: 2.10.1
+        specifier: ^2.11.0
+        version: 2.11.0
       '@tauri-apps/plugin-dialog':
         specifier: ^2.0.0
         version: 2.7.0
+      '@trishteam/auth':
+        specifier: workspace:*
+        version: link:../../packages/auth
       '@trishteam/core':
         specifier: workspace:*
         version: link:../../packages/core
+      '@trishteam/data':
+        specifier: workspace:*
+        version: link:../../packages/data
       '@trishteam/design-system':
         specifier: workspace:*
         version: link:../../packages/design-system
       '@trishteam/telemetry':
         specifier: workspace:*
         version: link:../../packages/telemetry
+      firebase:
+        specifier: ^10.14.1
+        version: 10.14.1
       react:
         specifier: 18.3.1
         version: 18.3.1
@@ -154,8 +172,8 @@ importers:
         version: 18.3.1(react@18.3.1)
     devDependencies:
       '@tauri-apps/cli':
-        specifier: ^2.0.0
-        version: 2.10.1
+        specifier: ^2.11.0
+        version: 2.11.1
       '@types/react':
         specifier: 18.3.3
         version: 18.3.3
@@ -373,8 +391,8 @@ importers:
   apps-desktop/trishfont:
     dependencies:
       '@tauri-apps/api':
-        specifier: ^2.0.0
-        version: 2.10.1
+        specifier: ^2.11.0
+        version: 2.11.0
       '@tauri-apps/plugin-dialog':
         specifier: ^2.0.0
         version: 2.7.0
@@ -387,15 +405,24 @@ importers:
       '@tauri-apps/plugin-updater':
         specifier: ^2.0.0
         version: 2.10.1
+      '@trishteam/auth':
+        specifier: workspace:*
+        version: link:../../packages/auth
       '@trishteam/core':
         specifier: workspace:*
         version: link:../../packages/core
+      '@trishteam/data':
+        specifier: workspace:*
+        version: link:../../packages/data
       '@trishteam/design-system':
         specifier: workspace:*
         version: link:../../packages/design-system
       '@trishteam/telemetry':
         specifier: workspace:*
         version: link:../../packages/telemetry
+      firebase:
+        specifier: ^10.14.1
+        version: 10.14.1
       react:
         specifier: 18.3.1
         version: 18.3.1
@@ -404,8 +431,8 @@ importers:
         version: 18.3.1(react@18.3.1)
     devDependencies:
       '@tauri-apps/cli':
-        specifier: ^2.0.0
-        version: 2.10.1
+        specifier: ^2.11.0
+        version: 2.11.1
       '@types/react':
         specifier: 18.3.3
         version: 18.3.3
