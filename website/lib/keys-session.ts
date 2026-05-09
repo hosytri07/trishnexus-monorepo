@@ -186,13 +186,23 @@ export async function registerKeySession(
 
   await db.runTransaction(async (tx) => {
     const keyRef = keyDoc.ref;
+    const sessionsRef = keyRef.collection('sessions');
+
+    // ============================================================
+    // Phase 1: ALL READS first (Firestore transaction yêu cầu)
+    // ============================================================
     const keyTx = await tx.get(keyRef);
     if (!keyTx.exists) {
       throw new SessionRegisterError('key/not-found');
     }
     const keyData = keyTx.data()!;
 
-    // Bind key on first activate
+    const activeSnap = await tx.get(sessionsRef.where('expires_at', '>', now));
+    const activeSessions = activeSnap.docs;
+
+    // ============================================================
+    // Phase 2: Compute decisions từ data đã read
+    // ============================================================
     const updates: Record<string, string | number | undefined> = {};
     if (keyData.status === 'active') {
       updates.status = 'used';
@@ -207,19 +217,18 @@ export async function registerKeySession(
       updates.bound_machine_id = input.machineId;
       updates.used_at = now;
     }
-    if (Object.keys(updates).length > 0) {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      tx.update(keyRef, updates as any);
-    }
-
-    // Count active sessions (đã lazy cleanup ở trên)
-    const sessionsRef = keyRef.collection('sessions');
-    const activeSnap = await tx.get(sessionsRef.where('expires_at', '>', now));
-    const activeSessions = activeSnap.docs;
 
     const sameMachine = activeSessions.find(
       (d) => d.data().machine_id === input.machineId,
     );
+
+    // ============================================================
+    // Phase 3: ALL WRITES sau khi reads xong
+    // ============================================================
+    if (Object.keys(updates).length > 0) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      tx.update(keyRef, updates as any);
+    }
 
     if (sameMachine) {
       tx.update(sameMachine.ref, {
