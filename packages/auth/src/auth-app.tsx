@@ -13,10 +13,35 @@
  *   </AuthApp>
  */
 
-import { type ReactNode } from 'react';
+import { useEffect, type ReactNode } from 'react';
 import { AuthProvider, useAuth } from './react.js';
 import { LoginScreen } from './login-screen.js';
 import { TierGate } from './tier-gate.js';
+
+/**
+ * Apply saved theme từ localStorage `trishteam:theme` (light/dark/system) → set
+ * `data-theme` attribute trên :root. Đảm bảo LoginScreen + TierGate respect
+ * theme dark/light đồng bộ với app sau khi login.
+ */
+function applyThemeFromStorage(): void {
+  if (typeof window === 'undefined') return;
+  let theme: 'light' | 'dark' | 'system' = 'system';
+  try {
+    const saved = localStorage.getItem('trishteam:theme');
+    if (saved === 'light' || saved === 'dark' || saved === 'system') {
+      theme = saved;
+    }
+  } catch {
+    /* ignore */
+  }
+  const effective: 'light' | 'dark' =
+    theme === 'system'
+      ? window.matchMedia('(prefers-color-scheme: dark)').matches
+        ? 'dark'
+        : 'light'
+      : theme;
+  document.documentElement.setAttribute('data-theme', effective);
+}
 
 export interface AuthAppProps {
   appName: string;
@@ -56,6 +81,12 @@ function AuthAppInner({
   children,
 }: AuthAppProps): JSX.Element {
   const { firebaseUser, loading } = useAuth();
+
+  // Apply theme dark/light đồng bộ với saved settings (đảm bảo LoginScreen
+  // + block screen respect theme system của app, không bị flash white).
+  useEffect(() => {
+    applyThemeFromStorage();
+  }, []);
 
   if (loading) {
     return (

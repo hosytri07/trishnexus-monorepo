@@ -166,15 +166,15 @@ function DefaultBlockScreen({
         justifyContent: 'center',
         padding: 20,
         fontFamily: "'Plus Jakarta Sans', system-ui, sans-serif",
-        background: 'var(--bg, #fafafa)',
+        background: 'var(--color-surface-bg)',
       }}
     >
       <div
         style={{
           maxWidth: 480,
           padding: 32,
-          background: 'var(--bg-elev, #fff)',
-          border: '1px solid var(--border, #e5e7eb)',
+          background: 'var(--color-surface-card)',
+          border: '1px solid var(--color-border-default)',
           borderRadius: 12,
           boxShadow: '0 4px 12px rgba(0,0,0,0.08)',
           textAlign: 'center',
@@ -204,10 +204,10 @@ function DefaultBlockScreen({
           style={{
             marginTop: 20,
             padding: '8px 20px',
-            border: '1px solid var(--border, #e5e7eb)',
+            border: '1px solid var(--color-border-default)',
             borderRadius: 6,
             background: 'transparent',
-            color: 'var(--fg, #1a1a1a)',
+            color: 'var(--color-text-primary)',
             cursor: 'pointer',
             fontWeight: 600,
             fontSize: 13,

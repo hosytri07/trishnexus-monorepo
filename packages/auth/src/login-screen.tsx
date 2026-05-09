@@ -115,7 +115,7 @@ export function LoginScreen({
         justifyContent: 'center',
         padding: 20,
         fontFamily: "'Plus Jakarta Sans', system-ui, sans-serif",
-        background: 'var(--bg, #fafafa)',
+        background: 'var(--color-surface-bg)',
       }}
     >
       <div
@@ -123,8 +123,8 @@ export function LoginScreen({
           width: '100%',
           maxWidth: 420,
           padding: 32,
-          background: 'var(--bg-elev, #fff)',
-          border: '1px solid var(--border, #e5e7eb)',
+          background: 'var(--color-surface-card)',
+          border: '1px solid var(--color-border-default)',
           borderRadius: 14,
           boxShadow: '0 8px 24px rgba(0,0,0,0.08)',
         }}
@@ -147,7 +147,7 @@ export function LoginScreen({
               fontSize: 24,
               fontWeight: 700,
               margin: 0,
-              color: 'var(--fg, #1a1a1a)',
+              color: 'var(--color-text-primary)',
             }}
           >
             {appName}
@@ -156,7 +156,7 @@ export function LoginScreen({
             <p
               style={{
                 fontSize: 13,
-                color: 'var(--fg-muted, #6B7280)',
+                color: 'var(--color-text-muted)',
                 marginTop: 6,
               }}
             >
@@ -165,7 +165,7 @@ export function LoginScreen({
           )}
         </div>
 
-        <h2 style={{ fontSize: 16, marginTop: 0, marginBottom: 16, color: 'var(--fg, #1a1a1a)' }}>
+        <h2 style={{ fontSize: 16, marginTop: 0, marginBottom: 16, color: 'var(--color-text-primary)' }}>
           {mode === 'signin'
             ? '🔑 Đăng nhập'
             : mode === 'signup'
@@ -222,7 +222,7 @@ export function LoginScreen({
                 gap: 6,
                 marginBottom: 12,
                 fontSize: 12,
-                color: 'var(--fg-muted, #6B7280)',
+                color: 'var(--color-text-muted)',
                 cursor: 'pointer',
               }}
             >
@@ -298,7 +298,7 @@ export function LoginScreen({
             display: 'flex',
             justifyContent: 'space-between',
             fontSize: 12,
-            color: 'var(--fg-muted, #6B7280)',
+            color: 'var(--color-text-muted)',
           }}
         >
           {mode === 'signin' && (
@@ -348,17 +348,17 @@ const labelStyle: React.CSSProperties = {
   fontSize: 12,
   fontWeight: 600,
   marginBottom: 4,
-  color: 'var(--fg, #1a1a1a)',
+  color: 'var(--color-text-primary)',
 };
 
 const inputStyle: React.CSSProperties = {
   width: '100%',
   padding: '10px 12px',
   fontSize: 14,
-  border: '1px solid var(--border, #e5e7eb)',
+  border: '1px solid var(--color-border-default)',
   borderRadius: 8,
-  background: 'var(--bg, #fff)',
-  color: 'var(--fg, #1a1a1a)',
+  background: 'var(--color-surface-bg)',
+  color: 'var(--color-text-primary)',
   fontFamily: 'inherit',
   boxSizing: 'border-box',
 };
@@ -384,8 +384,8 @@ function googleBtnStyle(busy: boolean): React.CSSProperties {
     width: '100%',
     padding: '10px 16px',
     background: 'transparent',
-    color: 'var(--fg, #1a1a1a)',
-    border: '1px solid var(--border, #e5e7eb)',
+    color: 'var(--color-text-primary)',
+    border: '1px solid var(--color-border-default)',
     borderRadius: 8,
     fontWeight: 600,
     fontSize: 13,
@@ -401,7 +401,7 @@ function googleBtnStyle(busy: boolean): React.CSSProperties {
 const linkBtnStyle: React.CSSProperties = {
   background: 'transparent',
   border: 'none',
-  color: 'var(--accent, #10B981)',
+  color: 'var(--color-accent-primary)',
   fontSize: 12,
   fontWeight: 600,
   cursor: 'pointer',
