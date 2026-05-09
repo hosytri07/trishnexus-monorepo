@@ -118,12 +118,24 @@ export async function registerKeySession(
     throw new SessionRegisterError('invalid-input', 'machine_id too short');
   }
 
-  // 1. Find key by code
-  const keysSnap = await db
+  // 1. Find key by code — try canonical no-dash trước, fallback dashed format
+  // (backward-compat với keys legacy lưu "XXXX-XXXX-XXXX-XXXX" có dashes)
+  let keysSnap = await db
     .collection('keys')
     .where('code', '==', keyCode)
     .limit(1)
     .get();
+  if (keysSnap.empty) {
+    // Try with dashes inserted every 4 chars
+    const dashed = keyCode.match(/.{1,4}/g)?.join('-') ?? keyCode;
+    if (dashed !== keyCode) {
+      keysSnap = await db
+        .collection('keys')
+        .where('code', '==', dashed)
+        .limit(1)
+        .get();
+    }
+  }
   if (keysSnap.empty) {
     throw new SessionRegisterError('key/not-found');
   }

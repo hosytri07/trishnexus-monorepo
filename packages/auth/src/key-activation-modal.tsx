@@ -94,7 +94,7 @@ function errorMessage(code?: string): string {
     case 'key/wrong-binding':
       return 'Key đã được kích hoạt bởi user/máy khác.';
     case 'key/unauthenticated':
-      return 'Vui lòng đăng nhập trước khi kích hoạt key.';
+      return 'Key này thuộc loại "Account" — chỉ dùng được cho app có đăng nhập (Library, Finance, ISO...). App này không có login, hãy yêu cầu admin cấp key loại "Standalone" (bind máy).';
     case 'invalid-input':
       return 'Key phải có đúng 16 ký tự (chữ hoặc số).';
     case 'unauthenticated':
