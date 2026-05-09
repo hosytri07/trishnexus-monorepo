@@ -95,17 +95,43 @@ export type Env = 'prod' | 'dev' | 'preview';
  * - trial: chưa kích hoạt key, default khi register
  * - guest: chưa login (không có doc Firestore)
  */
-export type UserRole = 'admin' | 'user' | 'trial';
+export type UserRole = 'admin' | 'user' | 'demo' | 'trial';
 
 export const ROLE_HIERARCHY: Record<UserRole, number> = {
-  trial: 1,
-  user: 2,
-  admin: 3,
+  trial: 0,    // BLOCK — không cho dùng app, phải xin admin upgrade
+  demo: 1,     // Có hạn — dùng full app trong demo_expires_at
+  user: 2,     // Full access các app non-admin
+  admin: 3,    // Full + admin tools
 };
 
 /** TRUE nếu role A >= role B. */
 export function hasRoleAtLeast(have: UserRole, need: UserRole): boolean {
   return ROLE_HIERARCHY[have] >= ROLE_HIERARCHY[need];
+}
+
+/**
+ * Check user có quyền dùng app non-admin không (Library/Font/Check/...).
+ * - admin / user: luôn pass
+ * - demo: pass nếu chưa hết demo_expires_at
+ * - trial: BLOCK (không dùng thử, phải xin admin)
+ *
+ * @param now timestamp ms (Date.now() default)
+ */
+export function canAccessApp(
+  user: { role: UserRole; demo_expires_at?: number } | null | undefined,
+  now: number = Date.now(),
+): { allowed: boolean; reason?: 'trial-blocked' | 'demo-expired' | 'no-user' } {
+  if (!user) return { allowed: false, reason: 'no-user' };
+  if (user.role === 'admin' || user.role === 'user') {
+    return { allowed: true };
+  }
+  if (user.role === 'demo') {
+    const exp = user.demo_expires_at ?? 0;
+    if (exp > 0 && exp > now) return { allowed: true };
+    return { allowed: false, reason: 'demo-expired' };
+  }
+  // trial
+  return { allowed: false, reason: 'trial-blocked' };
 }
 
 /**
@@ -152,6 +178,16 @@ export interface TrishUser {
   created_at: number;
   /** Last login timestamp ms */
   last_login_at?: number;
+
+  /**
+   * Demo expiry timestamp ms — admin set khi promote trial → demo.
+   * 0 hoặc undefined = không phải demo. > now = demo còn hạn.
+   * Khi role='demo', field này quyết định access. Hết hạn → block.
+   */
+  demo_expires_at?: number;
+  /** Audit: ai set demo + khi nào */
+  demo_set_by_uid?: string;
+  demo_set_at?: number;
 
   /**
    * 🆕 Phase 36.1 — Per-app key activation map.

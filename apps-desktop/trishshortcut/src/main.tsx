@@ -1,7 +1,7 @@
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
+import { AuthApp } from '@trishteam/auth/react';
 import { App } from './App';
-import { KeyGate } from './KeyGate';
 import '@trishteam/design-system';
 import './styles.css';
 import './theme-bridge.css';
@@ -12,9 +12,9 @@ if (!container) throw new Error('Missing #root');
 createRoot(container).render(
   <StrictMode>
     <div className="ts-app" style={{ minHeight: '100vh' }}>
-      <KeyGate>
+      <AuthApp appName="TrishShortcut" tagline="Quản lý shortcut Windows full features">
         <App />
-      </KeyGate>
+      </AuthApp>
     </div>
   </StrictMode>,
 );

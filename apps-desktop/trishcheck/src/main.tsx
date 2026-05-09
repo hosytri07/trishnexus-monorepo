@@ -1,15 +1,13 @@
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
+import { AuthApp } from '@trishteam/auth/react';
 import { installTauriTelemetry } from '@trishteam/telemetry/tauri';
 import { App } from './App.js';
-import { KeyGate } from './KeyGate.js';
 import packageJson from '../package.json' with { type: 'json' };
-// Phase 30.3 — design-system: Plus Jakarta Sans + emerald + utility CSS.
 import '@trishteam/design-system';
 import './styles.css';
 import './theme-bridge.css';
 
-// Phase 21 prep — telemetry: window.onerror + unhandledrejection + Rust panic
 installTauriTelemetry({
   app: 'trishcheck',
   version: packageJson.version,
@@ -21,9 +19,9 @@ if (!container) throw new Error('Missing #root');
 createRoot(container).render(
   <StrictMode>
     <div className="ts-app" style={{ minHeight: '100vh' }}>
-      <KeyGate>
+      <AuthApp appName="TrishCheck" tagline="Kiểm tra hệ thống + benchmark">
         <App />
-      </KeyGate>
+      </AuthApp>
     </div>
   </StrictMode>,
 );

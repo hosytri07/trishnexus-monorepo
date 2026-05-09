@@ -1,8 +1,7 @@
 import { createRoot } from 'react-dom/client';
-import { AuthProvider } from '@trishteam/auth/react';
+import { AuthProvider, TierGate } from '@trishteam/auth/react';
 import { installTauriTelemetry } from '@trishteam/telemetry/tauri';
 import { Root } from './Root.js';
-import { KeyGate } from './KeyGate.js';
 // Phase 38.2.0 — Dialog provider thay window.alert/confirm/prompt
 import { DialogProvider } from './components/dialogs/DialogProvider.js';
 // Sticky note như Windows Sticky Notes — cửa sổ riêng nổi trên desktop.
@@ -42,9 +41,9 @@ if (isStickyWindow) {
     <div className="ts-app" style={{ minHeight: '100vh' }}>
       <AuthProvider>
         <DialogProvider>
-          <KeyGate>
+          <TierGate appName="TrishLibrary">
             <Root />
-          </KeyGate>
+          </TierGate>
         </DialogProvider>
       </AuthProvider>
     </div>,

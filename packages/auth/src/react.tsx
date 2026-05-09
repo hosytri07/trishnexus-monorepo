@@ -45,8 +45,18 @@ export {
   type UseKeySessionOptions,
 } from './use-key-session.js';
 
-// Phase 37.3 — KeyGate generic shared
+// Phase 37.3 — KeyGate (legacy, deprecated — dùng TierGate)
 export { KeyGate, type KeyGateProps } from './key-gate.js';
+
+// TierGate — replace KeyGate. Check role thay vì activate key.
+export { TierGate, type TierGateProps } from './tier-gate.js';
+
+// LoginScreen — shared login UI cho mọi desktop app.
+export { LoginScreen } from './login-screen.js';
+
+// AuthApp — wrapper one-shot: AuthProvider + LoginScreen + TierGate.
+// App chỉ cần wrap <AuthApp appName="..."><App /></AuthApp>
+export { AuthApp, type AuthAppProps } from './auth-app.js';
 
 export interface AuthContextValue extends AuthState {
   /** Quick role check */
