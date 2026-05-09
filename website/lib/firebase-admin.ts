@@ -96,8 +96,21 @@ export function adminAuth(): Auth {
   return getAuth(app);
 }
 
+// Cache Firestore instance — `settings()` chỉ cho phép gọi 1 lần.
+let cachedDb: Firestore | null = null;
+
 export function adminDb(): Firestore {
+  if (cachedDb) return cachedDb;
   const app = initAdmin();
   if (!app) throw new Error('Firebase Admin SDK chưa cấu hình');
-  return getFirestore(app);
+  const db = getFirestore(app);
+  // Cho phép field undefined → tự động skip (thay vì throw).
+  // Tránh bug: Firestore từ chối undefined cho field optional.
+  try {
+    db.settings({ ignoreUndefinedProperties: true });
+  } catch {
+    // settings() throw nếu đã được call. Bỏ qua.
+  }
+  cachedDb = db;
+  return db;
 }
