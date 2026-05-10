@@ -338,4 +338,6 @@ export const APP_GUIDES: AppGuide[] = [
   },
 ];
 
-export funct
+export function findGuideBySlug(slug: string): AppGuide | null {
+  return APP_GUIDES.find((g) => g.slug === slug) ?? null;
+}
