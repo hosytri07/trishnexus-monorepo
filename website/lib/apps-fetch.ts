@@ -54,9 +54,21 @@ export async function fetchAppsClient(): Promise<AppForWebsite[]> {
         cache = { data, fetchedAt: Date.now() };
         return data;
       }
-      const items = snap.docs.map(
-        (d) => ({ ...(d.data() as object), id: d.id }) as AppForWebsite,
-      );
+      // Phase 38 — Merge Firestore data với APP_META (website-side metadata
+      // gồm logo_path, accent, icon_fallback, features). Firestore chỉ chứa
+      // AppRegistryEntry fields → nếu không merge sẽ fallback Box icon vì
+      // logo_path = undefined.
+      const items = snap.docs.map((d) => {
+        const data = d.data() as Record<string, unknown>;
+        const meta = APP_META[d.id] ?? {
+          release_date: null,
+          features: [],
+          accent: '#667EEA',
+          icon_fallback: 'Box',
+          logo_path: '',
+        };
+        return { ...meta, ...data, id: d.id } as AppForWebsite;
+      });
       cache = { data: items, fetchedAt: Date.now() };
       return items;
     } catch (e) {
@@ -88,7 +100,15 @@ export async function fetchAppByIdClient(id: string): Promise<AppForWebsite | nu
     const ref = doc(db, 'apps_meta', id);
     const snap = await getDoc(ref);
     if (snap.exists()) {
-      return { ...(snap.data() as object), id } as AppForWebsite;
+      // Phase 38 — Merge với APP_META cho logo_path/accent/icon_fallback
+      const meta = APP_META[id] ?? {
+        release_date: null,
+        features: [],
+        accent: '#667EEA',
+        icon_fallback: 'Box',
+        logo_path: '',
+      };
+      return { ...meta, ...(snap.data() as object), id } as AppForWebsite;
     }
   } catch (e) {
     console.warn(`[apps-fetch] ${id} fail:`, e);
