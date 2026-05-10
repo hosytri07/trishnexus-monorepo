@@ -25,10 +25,19 @@ export default function HuongDanIndexPage(): JSX.Element {
   return (
     <div className="max-w-6xl mx-auto p-6">
       <div className="mb-8">
-        <h1 className="text-3xl font-bold mb-2">📖 Hướng dẫn sử dụng</h1>
-        <p className="text-slate-600 max-w-3xl">
-          Bộ tài liệu hướng dẫn cho 11 app TrishTEAM — từ cài đặt, kích hoạt key,
-          đến các tính năng nâng cao. Click vào card để xem chi tiết từng app.
+        <h1
+          className="text-3xl font-bold mb-2"
+          style={{ color: 'var(--color-text-primary)' }}
+        >
+          📖 Hướng dẫn sử dụng
+        </h1>
+        <p
+          className="max-w-3xl"
+          style={{ color: 'var(--color-text-secondary)' }}
+        >
+          Bộ tài liệu hướng dẫn cho 11 app TrishTEAM — từ cài đặt, đăng ký tài
+          khoản, đến các tính năng nâng cao. Click vào card để xem chi tiết từng
+          app.
         </p>
       </div>
 
@@ -39,12 +48,19 @@ export default function HuongDanIndexPage(): JSX.Element {
             <Link
               key={guide.slug}
               href={`/huong-dan/${guide.slug}`}
-              className="group rounded-lg border border-slate-200 bg-white hover:border-emerald-400 hover:shadow-md transition p-5"
+              className="group rounded-lg border hover:shadow-md transition p-5"
+              style={{
+                borderColor: 'var(--color-border-default)',
+                background: 'var(--color-surface-card)',
+              }}
             >
               <div className="flex items-start gap-3 mb-3">
                 <div className="text-3xl">{guide.icon}</div>
                 <div className="flex-1 min-w-0">
-                  <h2 className="font-bold text-base group-hover:text-emerald-600 transition">
+                  <h2
+                    className="font-bold text-base transition"
+                    style={{ color: 'var(--color-text-primary)' }}
+                  >
                     {guide.title}
                   </h2>
                   <span
@@ -58,10 +74,16 @@ export default function HuongDanIndexPage(): JSX.Element {
                   </span>
                 </div>
               </div>
-              <p className="text-sm text-slate-600 line-clamp-3">
+              <p
+                className="text-sm line-clamp-3"
+                style={{ color: 'var(--color-text-secondary)' }}
+              >
                 {guide.shortDesc}
               </p>
-              <div className="mt-3 text-xs text-emerald-600 group-hover:text-emerald-700 font-semibold">
+              <div
+                className="mt-3 text-xs font-semibold"
+                style={{ color: 'var(--color-accent-primary)' }}
+              >
                 Xem hướng dẫn →
               </div>
             </Link>
@@ -69,30 +91,36 @@ export default function HuongDanIndexPage(): JSX.Element {
         })}
       </div>
 
-      <div className="mt-10 p-5 rounded-lg bg-emerald-50 border border-emerald-200">
-        <h2 className="font-bold text-emerald-900 mb-2">
-          🔑 Về cơ chế Key & Activation
+      <div
+        className="mt-10 p-5 rounded-lg border"
+        style={{
+          background: 'var(--color-accent-soft)',
+          borderColor: 'var(--color-accent-primary)',
+        }}
+      >
+        <h2
+          className="font-bold mb-2"
+          style={{ color: 'var(--color-text-primary)' }}
+        >
+          🔑 Về cơ chế tài khoản
         </h2>
-        <ul className="text-sm text-emerald-800 space-y-1.5 list-disc pl-5">
+        <ul
+          className="text-sm space-y-1.5 list-disc pl-5"
+          style={{ color: 'var(--color-text-secondary)' }}
+        >
           <li>
-            <strong>🆓 Miễn phí:</strong> App dùng được ngay, không cần key (chỉ
-            TrishLauncher).
+            <strong>🆓 Miễn phí:</strong> Chỉ TrishLauncher — tải về dùng ngay,
+            không cần đăng nhập.
           </li>
           <li>
-            <strong>🔒 Key máy (Standalone):</strong> Cần nhập key 16 ký tự để
-            kích hoạt — bind vào máy hiện tại, KHÔNG cần đăng nhập tài khoản.
-            Dùng cho: TrishShortcut, TrishCheck, TrishClean, TrishFont.
+            <strong>👤 Cần đăng nhập:</strong> 10 app còn lại yêu cầu đăng nhập
+            Firebase (email/Google). Tài khoản mới có role &quot;trial&quot; bị
+            chặn — admin cấp role &quot;user&quot; (full quyền) hoặc
+            &quot;demo&quot; (có thời hạn) sau khi liên hệ.
           </li>
           <li>
-            <strong>🗝 Key tài khoản (Account):</strong> Cần đăng nhập Firebase
-            (email/Google) + nhập key — bind vào tài khoản. Login máy khác sẽ
-            kick session cũ tự động sau 5s. Dùng cho: TrishLibrary, TrishDrive,
-            TrishDesign, TrishFinance, TrishISO, TrishOffice.
-          </li>
-          <li>
-            Key do <strong>admin TrishTEAM cấp nội bộ</strong>, không bán. Mỗi
-            key có thể được admin set riêng: thời hạn (mặc định 365 ngày) + số
-            thiết bị đồng thời (mặc định 1).
+            <strong>👑 Admin:</strong> chỉ cấp nội bộ, không bán. Mỗi tài khoản
+            demo có thời hạn riêng do admin set (mặc định 30-365 ngày).
           </li>
         </ul>
       </div>

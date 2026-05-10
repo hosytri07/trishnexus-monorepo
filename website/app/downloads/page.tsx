@@ -1,29 +1,23 @@
 import Link from 'next/link';
 import { ArrowLeft } from 'lucide-react';
-import { fetchAppsServer } from '@/lib/apps-server';
 import { DownloadCards } from './DownloadCards';
+import { getAppById } from '@/lib/apps';
+import type { AppForWebsite } from '@/lib/apps';
 
 /**
- * Phase 19.22 — /downloads page với fetch Firestore /apps_meta server-side.
- *
- * Server component async fetch app metadata 1 lần, pass props xuống
- * client components → tránh duplicate fetch + đảm bảo data nhất quán.
- *
- * Khi admin sửa qua /admin/apps → reload trang là thấy ngay.
+ * Phase 38 — Slim /downloads page chỉ Launcher.
+ * Đọc thẳng static apps-registry.json (build-time bundle) thay vì Firestore
+ * server-side fetch — tránh runtime error khi Firestore admin SDK fail.
  */
 
 export const metadata = {
-  title: 'Tải về — TrishTEAM',
+  title: 'Tải TrishLauncher — TrishTEAM',
   description:
-    'Tải TrishLauncher và các ứng dụng TrishTEAM. Miễn phí, không cần đăng nhập.',
+    'Tải TrishLauncher — cổng vào hệ sinh thái TrishTEAM. Miễn phí, không cần đăng nhập.',
 };
 
-// Disable static generation — luôn fetch fresh data từ Firestore
-export const dynamic = 'force-dynamic';
-
-export default async function DownloadsPage() {
-  const apps = await fetchAppsServer();
-  const launcher = apps.find((a) => a.id === 'trishlauncher') ?? null;
+export default function DownloadsPage() {
+  const launcher: AppForWebsite | null = getAppById('trishlauncher');
 
   return (
     <main className="min-h-screen px-4 sm:px-8 py-12 max-w-6xl mx-auto">

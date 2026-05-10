@@ -187,27 +187,27 @@ export default function DashboardPage(): JSX.Element {
   return (
     <div className="max-w-5xl mx-auto p-6">
       <div className="mb-4">
-        <Link href="/" className="inline-flex items-center gap-1 text-sm text-slate-500 hover:text-slate-700">
+        <Link href="/" className="inline-flex items-center gap-1 text-sm text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 dark:text-slate-200">
           <ArrowLeft size={14} /> Trang chủ
         </Link>
       </div>
 
       <div className="mb-6">
         <h1 className="text-3xl font-bold">Dashboard</h1>
-        <p className="text-sm text-slate-500 mt-1">
+        <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
           {user.name ?? user.email}
-          {role && <span className="ml-2 text-xs uppercase tracking-wider px-2 py-0.5 bg-emerald-100 text-emerald-700 rounded">{role}</span>}
+          {role && <span className="ml-2 text-xs uppercase tracking-wider px-2 py-0.5 bg-emerald-100 dark:bg-emerald-900 text-emerald-700 dark:text-emerald-300 rounded">{role}</span>}
         </p>
       </div>
 
       {actionMsg && (
-        <div className="mb-4 p-3 rounded-md bg-emerald-50 border border-emerald-200 text-sm text-emerald-700">
+        <div className="mb-4 p-3 rounded-md bg-emerald-50 dark:bg-emerald-950 border border-emerald-200 dark:border-emerald-800 text-sm text-emerald-700 dark:text-emerald-300">
           {actionMsg}
         </div>
       )}
 
       {error && (
-        <div className="mb-4 p-3 rounded-md bg-rose-50 border border-rose-200 text-sm text-rose-700">
+        <div className="mb-4 p-3 rounded-md bg-rose-50 dark:bg-rose-950 border border-rose-200 dark:border-rose-800 text-sm text-rose-700 dark:text-rose-300">
           ⚠ {error}
         </div>
       )}
@@ -218,8 +218,8 @@ export default function DashboardPage(): JSX.Element {
           <KeyRound size={18} /> Apps đã kích hoạt ({appKeys.length})
         </h2>
         {appKeys.length === 0 ? (
-          <div className="rounded-md border border-dashed border-slate-300 bg-slate-50 p-6 text-center">
-            <p className="text-sm text-slate-600">
+          <div className="rounded-md border border-dashed border-slate-300 dark:border-slate-600 bg-slate-50 dark:bg-slate-800 p-6 text-center">
+            <p className="text-sm text-slate-600 dark:text-slate-300">
               Bạn chưa kích hoạt key cho app nào. Mở app desktop và nhập key admin
               cấp để bắt đầu sử dụng.
             </p>
@@ -231,23 +231,23 @@ export default function DashboardPage(): JSX.Element {
               return (
                 <div
                   key={ak.appId}
-                  className="rounded-lg border border-slate-200 bg-white p-4"
+                  className="rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-4"
                 >
                   <div className="font-semibold">
                     {APP_LABELS[ak.appId] ?? ak.appId}
                   </div>
-                  <div className="text-xs text-slate-500 mt-1">
+                  <div className="text-xs text-slate-500 dark:text-slate-400 mt-1">
                     Kích hoạt: {formatDate(ak.activatedAt)}
                   </div>
                   <div className="text-xs mt-1">
                     {ak.expiresAt === 0 ? (
                       <span className="text-emerald-600">∞ Vô thời hạn</span>
                     ) : expired ? (
-                      <span className="text-rose-600 inline-flex items-center gap-1">
+                      <span className="text-rose-600 dark:text-rose-400 inline-flex items-center gap-1">
                         <XCircle size={12} /> Hết hạn {formatDate(ak.expiresAt)}
                       </span>
                     ) : (
-                      <span className="text-slate-600 inline-flex items-center gap-1">
+                      <span className="text-slate-600 dark:text-slate-300 inline-flex items-center gap-1">
                         <CheckCircle2 size={12} className="text-emerald-500" />
                         Hết hạn: {formatDate(ak.expiresAt)}
                       </span>
@@ -266,26 +266,26 @@ export default function DashboardPage(): JSX.Element {
           <Laptop size={18} /> Active sessions ({sessions.length})
         </h2>
         {loadingSessions ? (
-          <Loader2 className="animate-spin text-slate-400" />
+          <Loader2 className="animate-spin text-slate-400 dark:text-slate-500 dark:text-slate-400" />
         ) : sessions.length === 0 ? (
-          <div className="rounded-md border border-dashed border-slate-300 bg-slate-50 p-6 text-center">
-            <p className="text-sm text-slate-600">Không có session active.</p>
+          <div className="rounded-md border border-dashed border-slate-300 dark:border-slate-600 bg-slate-50 dark:bg-slate-800 p-6 text-center">
+            <p className="text-sm text-slate-600 dark:text-slate-300">Không có session active.</p>
           </div>
         ) : (
           <div className="space-y-2">
             {sessions.map((s) => (
               <div
                 key={s.session_id}
-                className="rounded-lg border border-slate-200 bg-white p-4 flex items-center justify-between flex-wrap gap-3"
+                className="rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-4 flex items-center justify-between flex-wrap gap-3"
               >
                 <div>
                   <div className="font-semibold flex items-center gap-2">
                     {APP_LABELS[s.app_id] ?? s.app_id}
-                    <span className="text-xs font-normal text-slate-400">
+                    <span className="text-xs font-normal text-slate-400 dark:text-slate-500 dark:text-slate-400">
                       {s.hostname ?? s.machine_id.slice(0, 8)}
                     </span>
                   </div>
-                  <div className="text-xs text-slate-500 mt-1 flex flex-wrap gap-3">
+                  <div className="text-xs text-slate-500 dark:text-slate-400 mt-1 flex flex-wrap gap-3">
                     <span>IP: {s.ip_address}</span>
                     {s.os && <span>{s.os}</span>}
                     <span>Heartbeat: {formatRelative(s.last_heartbeat)}</span>
@@ -305,7 +305,7 @@ export default function DashboardPage(): JSX.Element {
         )}
       </section>
 
-      <div className="mt-8 text-xs text-slate-400">
+      <div className="mt-8 text-xs text-slate-400 dark:text-slate-500 dark:text-slate-400">
         💡 Mỗi key chỉ dùng được trên 1 thiết bị tại 1 thời điểm (do admin set max_concurrent).
         Nếu bạn login máy khác, máy cũ sẽ tự động đăng xuất sau 5 giây.
       </div>
