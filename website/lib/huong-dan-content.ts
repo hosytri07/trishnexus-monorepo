@@ -134,7 +134,7 @@ export const APP_GUIDES: AppGuide[] = [
     slug: 'trishdrive',
     title: 'TrishDrive',
     icon: '☁️',
-    logo_path: '/logos/TrishDrive/icon-256.png',
+    logo_path: '/logos/trishdrive.png',
     shortDesc: 'Cloud storage cá nhân qua Telegram Bot — encrypt AES-256 + share link',
     keyType: 'account',
     intro:
@@ -161,7 +161,7 @@ export const APP_GUIDES: AppGuide[] = [
     slug: 'trishfinance',
     title: 'TrishFinance',
     icon: '💰',
-    logo_path: '/logos/TrishFinance/icon-256.png',
+    logo_path: '/logos/trishfinance.png',
     shortDesc: 'Quản lý tài chính cá nhân + bán hàng + nhà trọ + thu chi tổng hợp',
     keyType: 'account',
     intro:
@@ -187,7 +187,7 @@ export const APP_GUIDES: AppGuide[] = [
     slug: 'trishiso',
     title: 'TrishISO',
     icon: '📋',
-    logo_path: '/logos/TrishISO/icon-256.png',
+    logo_path: '/logos/trishiso.png',
     shortDesc: 'Quản lý hồ sơ ISO + thiết bị nội bộ + Hoan Cong Checklist (Phase 38.4)',
     keyType: 'account',
     intro:
@@ -214,7 +214,7 @@ export const APP_GUIDES: AppGuide[] = [
     slug: 'trishshortcut',
     title: 'TrishShortcut',
     icon: '⌨️',
-    logo_path: '/logos/TrishShortcut/icon-256.png',
+    logo_path: '/logos/TrishShortcut.png',
     shortDesc: 'Quick Launcher Ctrl+Space + workspace + hotkey + tray',
     keyType: 'standalone',
     intro:
@@ -303,7 +303,7 @@ export const APP_GUIDES: AppGuide[] = [
     slug: 'trishoffice',
     title: 'TrishOffice',
     icon: '🏢',
-    logo_path: '/logos/TrishOffice/icon-256.png',
+    logo_path: '/logos/TrishOffice.png',
     shortDesc: 'HRM/ERP-light quản lý công ty (sắp ra mắt — Phase 38.6)',
     keyType: 'account',
     intro:
