@@ -30,6 +30,12 @@ export interface InstallDetection {
   state: InstallState;
   /** Full resolved path nếu installed, null nếu not_installed. */
   path: string | null;
+  /**
+   * Phase 38 — Version FileVersion từ PE header file .exe (Windows).
+   * null nếu không phải Windows hoặc không đọc được.
+   * Frontend so sánh với `app.version` để hiển thị "Cập nhật" button.
+   */
+  installed_version?: string | null;
 }
 
 /** Input probe cho Rust — 1 app × N candidates resolved cho platform hiện tại. */

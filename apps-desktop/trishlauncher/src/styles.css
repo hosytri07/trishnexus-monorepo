@@ -100,11 +100,13 @@ body {
 .brand strong {
   font-size: 16px;
   font-weight: 600;
+  color: var(--text);
 }
 
 .brand .sub {
   font-size: 12px;
-  color: var(--muted);
+  color: var(--text);
+  opacity: 0.7;
 }
 
 .sysbar {
@@ -353,38 +355,43 @@ body {
   overflow-wrap: anywhere;
 }
 
-.btn {
+/* Phase 38 — `.ts-app` prefix để win specificity với design-system
+   `.ts-app button { border:none }`. Không có prefix thì .btn mất viền. */
+.ts-app .btn {
   font-size: 13px;
   padding: 8px 14px;
   border-radius: 8px;
-  border: 1px solid transparent;
+  border: 1.5px solid transparent;
   cursor: pointer;
-  font-weight: 500;
-  transition: background 0.15s ease;
+  font-weight: 600;
+  transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
 }
 
-.btn:disabled {
+.ts-app .btn:disabled {
   opacity: 0.55;
   cursor: not-allowed;
 }
 
-.btn-primary {
+.ts-app .btn-primary {
   background: var(--accent);
   color: #fff;
+  border-color: var(--accent);
 }
 
-.btn-primary:hover:not(:disabled) {
+.ts-app .btn-primary:hover:not(:disabled) {
   background: var(--accent-hover);
+  border-color: var(--accent-hover);
 }
 
-.btn-ghost {
-  background: transparent;
+.ts-app .btn-ghost {
+  background: var(--surface);
   color: var(--text);
-  border-color: var(--border);
+  border-color: var(--accent);
 }
 
-.btn-ghost:hover {
-  background: var(--bg);
+.ts-app .btn-ghost:hover:not(:disabled) {
+  background: var(--accent);
+  color: #fff;
 }
 
 .foot {

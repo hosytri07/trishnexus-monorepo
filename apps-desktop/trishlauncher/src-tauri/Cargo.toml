@@ -36,6 +36,14 @@ reqwest = { version = "0.12", default-features = false, features = ["rustls-tls"
 # Phase 39.5 — Stream chunks cho download progress
 futures-util = "0.3"
 
+# Phase 38 — Read PE FileVersion từ .exe đã cài để so sánh registry
+# version. Win32 API GetFileVersionInfoW + VerQueryValueW từ version.dll.
+[target.'cfg(windows)'.dependencies]
+windows-sys = { version = "0.59", features = [
+    "Win32_Foundation",
+    "Win32_Storage_FileSystem",
+] }
+
 [features]
 # Cho phép dev mode mở devtools.
 custom-protocol = ["tauri/custom-protocol"]

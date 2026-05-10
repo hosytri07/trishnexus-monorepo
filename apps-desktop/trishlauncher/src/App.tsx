@@ -329,7 +329,17 @@ export function App(): JSX.Element {
    */
   const handleInstall = (app: AppForUi): void => {
     const detect = installMap.get(app.id);
-    if (detect && detect.state === 'installed' && detect.path) {
+    // Phase 38 — Check needsUpdate trước launch. Nếu installed_version < app.version
+    // → button hiện "Cập nhật" → bypass launch, chạy download installer mới.
+    const cta = resolveCta(app, platform, detect ?? null);
+    const needsUpdate = cta.needsUpdate === true;
+
+    if (
+      detect &&
+      detect.state === 'installed' &&
+      detect.path &&
+      !needsUpdate
+    ) {
       // Phase 39.3 — Track app open stats trước khi launch
       trackOpen(app.id);
       void launchPath(detect.path).catch((err) => {
@@ -339,6 +349,7 @@ export function App(): JSX.Element {
       });
       return;
     }
+    // needsUpdate hoặc not_installed → đi tiếp xuống download flow
     const target = app.download[platform];
     if (!target?.url) return;
 
@@ -449,6 +460,37 @@ export function App(): JSX.Element {
           </div>
         </div>
         <div className="topbar-actions">
+          <button
+            className="btn btn-ghost"
+            onClick={() => {
+              const cur =
+                settings.theme === 'system'
+                  ? window.matchMedia('(prefers-color-scheme: dark)').matches
+                    ? 'dark'
+                    : 'light'
+                  : settings.theme;
+              const next: 'light' | 'dark' = cur === 'dark' ? 'light' : 'dark';
+              const upd = { ...settings, theme: next };
+              applyTheme(next);
+              setSettings(upd);
+              saveSettings(upd);
+            }}
+            title={
+              settings.theme === 'dark'
+                ? 'Chuyển sang Light'
+                : 'Chuyển sang Dark'
+            }
+            aria-label="Toggle theme"
+            style={{ padding: '8px 12px', fontSize: 16 }}
+          >
+            {(settings.theme === 'system'
+              ? window.matchMedia('(prefers-color-scheme: dark)').matches
+                ? 'dark'
+                : 'light'
+              : settings.theme) === 'dark'
+              ? '☀'
+              : '🌙'}
+          </button>
           <button
             className="btn btn-ghost"
             onClick={() => void handleCheckUpdates()}

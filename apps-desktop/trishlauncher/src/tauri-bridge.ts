@@ -62,17 +62,25 @@ export async function openExternal(url: string): Promise<void> {
     window.open(url, '_blank', 'noopener,noreferrer');
     return;
   }
+  // Phase 38 — Ưu tiên custom Rust command spawn `cmd start <url>` (tin cậy).
+  // Plugin-opener trong Tauri 2 có URL scope check phức tạp dễ fail silent
+  // → tránh phụ thuộc.
+  try {
+    await invoke('open_url_in_browser', { url });
+    return;
+  } catch (err) {
+    console.warn('[trishlauncher] open_url_in_browser fail, fallback openUrl:', err);
+  }
+  // Fallback chain: plugin-opener → window.open → alert.
   try {
     await openUrl(url);
   } catch (err) {
-    // Phase 39.4 — Fallback: nếu plugin-opener fail (vd capability missing),
-    // dùng window.open + log error để dễ debug.
-    console.warn('[trishlauncher] openUrl plugin failed, fallback:', err);
+    console.warn('[trishlauncher] openUrl plugin also failed:', err);
     try {
       window.open(url, '_blank', 'noopener,noreferrer');
     } catch (e) {
-      console.error('[trishlauncher] fallback window.open also failed:', e);
-      alert(`Không mở được URL: ${url}\nLỗi: ${err instanceof Error ? err.message : err}`);
+      console.error('[trishlauncher] all open methods failed:', e);
+      alert(`Không mở được URL: ${url}`);
     }
   }
 }

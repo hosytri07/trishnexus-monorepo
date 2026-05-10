@@ -92,7 +92,7 @@ export function QuickSearch({
 
   function handleSelect(app: AppForUi): void {
     const det = installMap.get(app.id);
-    if (det?.installed) {
+    if (det?.state === 'installed') {
       onLaunch(app);
     } else {
       onSelectApp(app.id);
@@ -193,7 +193,7 @@ export function QuickSearch({
           ) : (
             filtered.map((app, idx) => {
               const det = installMap.get(app.id);
-              const installed = det?.installed ?? false;
+              const installed = det?.state === 'installed';
               const isSelected = idx === selectedIndex;
               return (
                 <ResultRow

@@ -120,6 +120,10 @@ pub struct InstallDetection {
     state: String,
     /// Full resolved path nếu installed, null nếu không.
     path: Option<String>,
+    /// Phase 38 — Version FileVersion từ PE header (Windows) khi installed.
+    /// Frontend so sánh với app.version registry để hiển thị nút "Cập nhật".
+    /// null nếu không đọc được hoặc app dùng nền tảng khác.
+    installed_version: Option<String>,
 }
 
 /// Expand `%VAR%` (Windows style), `$VAR`/`${VAR}` (Unix) và `~/` leading
@@ -230,10 +234,13 @@ fn detect_one(probe: InstallProbe) -> InstallDetection {
         let expanded = expand_path(raw);
         let path = Path::new(&expanded);
         if path.exists() {
+            // Phase 38 — read PE FileVersion để frontend so sánh với registry
+            let version = read_exe_version(&expanded);
             return InstallDetection {
                 id: probe.id,
                 state: "installed".to_string(),
                 path: Some(expanded),
+                installed_version: version,
             };
         }
     }
@@ -241,7 +248,75 @@ fn detect_one(probe: InstallProbe) -> InstallDetection {
         id: probe.id,
         state: "not_installed".to_string(),
         path: None,
+        installed_version: None,
     }
+}
+
+/// Phase 38 — Đọc FileVersion từ PE header file .exe Windows.
+/// Trả Some("1.0.0") khi đọc được, None nếu fail hoặc không phải Windows.
+///
+/// Strategy: dùng `GetFileVersionInfoSizeW` + `GetFileVersionInfoW` +
+/// `VerQueryValueW` từ Win32 version.dll. Lấy fixed FILEVERSION (4 u16
+/// dwFileVersionMS/LS) → format "major.minor.patch.build".
+#[cfg(target_os = "windows")]
+fn read_exe_version(path: &str) -> Option<String> {
+    use std::ffi::OsStr;
+    use std::os::windows::ffi::OsStrExt;
+    use windows_sys::Win32::Storage::FileSystem::{
+        GetFileVersionInfoSizeW, GetFileVersionInfoW, VerQueryValueW, VS_FIXEDFILEINFO,
+    };
+
+    // Convert path → wide UTF-16 null-terminated
+    let wide: Vec<u16> = OsStr::new(path)
+        .encode_wide()
+        .chain(std::iter::once(0))
+        .collect();
+
+    unsafe {
+        let mut handle: u32 = 0;
+        let size = GetFileVersionInfoSizeW(wide.as_ptr(), &mut handle);
+        if size == 0 {
+            return None;
+        }
+        let mut buffer = vec![0u8; size as usize];
+        let ok = GetFileVersionInfoW(wide.as_ptr(), 0, size, buffer.as_mut_ptr() as *mut _);
+        if ok == 0 {
+            return None;
+        }
+        // Query root \  → VS_FIXEDFILEINFO struct
+        let sub_block: Vec<u16> = "\\".encode_utf16().chain(std::iter::once(0)).collect();
+        let mut info_ptr: *mut std::ffi::c_void = std::ptr::null_mut();
+        let mut info_len: u32 = 0;
+        let ok = VerQueryValueW(
+            buffer.as_ptr() as *const _,
+            sub_block.as_ptr(),
+            &mut info_ptr,
+            &mut info_len,
+        );
+        if ok == 0
+            || info_ptr.is_null()
+            || (info_len as usize) < std::mem::size_of::<VS_FIXEDFILEINFO>()
+        {
+            return None;
+        }
+        let info = &*(info_ptr as *const VS_FIXEDFILEINFO);
+        // dwFileVersionMS = (major << 16) | minor; dwFileVersionLS = (build << 16) | revision
+        let major = (info.dwFileVersionMS >> 16) & 0xFFFF;
+        let minor = info.dwFileVersionMS & 0xFFFF;
+        let patch = (info.dwFileVersionLS >> 16) & 0xFFFF;
+        let build = info.dwFileVersionLS & 0xFFFF;
+        // Drop trailing .0 nếu build = 0 → "1.0.0" thay "1.0.0.0"
+        if build == 0 {
+            Some(format!("{major}.{minor}.{patch}"))
+        } else {
+            Some(format!("{major}.{minor}.{patch}.{build}"))
+        }
+    }
+}
+
+#[cfg(not(target_os = "windows"))]
+fn read_exe_version(_path: &str) -> Option<String> {
+    None
 }
 
 #[tauri::command]
@@ -734,6 +809,44 @@ fn run_installer(path: String) -> Result<(), String> {
     Ok(())
 }
 
+/// Phase 38 — Mở URL bằng default browser (Windows/macOS/Linux).
+/// Dùng làm fallback cho plugin-opener `openUrl` khi plugin scope fail.
+#[tauri::command]
+fn open_url_in_browser(url: String) -> Result<(), String> {
+    if !url.starts_with("http://") && !url.starts_with("https://") && !url.starts_with("mailto:") {
+        return Err(format!("URL scheme không được phép: {url}"));
+    }
+    #[cfg(target_os = "windows")]
+    {
+        // `cmd /c start "" "<url>"` mở mặc định browser, "" là window title placeholder
+        std::process::Command::new("cmd")
+            .args(["/c", "start", "", &url])
+            .spawn()
+            .map_err(|e| format!("Spawn cmd start fail: {e}"))?;
+        return Ok(());
+    }
+    #[cfg(target_os = "macos")]
+    {
+        std::process::Command::new("open")
+            .arg(&url)
+            .spawn()
+            .map_err(|e| format!("Spawn open fail: {e}"))?;
+        return Ok(());
+    }
+    #[cfg(target_os = "linux")]
+    {
+        std::process::Command::new("xdg-open")
+            .arg(&url)
+            .spawn()
+            .map_err(|e| format!("Spawn xdg-open fail: {e}"))?;
+        return Ok(());
+    }
+    #[cfg(not(any(target_os = "windows", target_os = "macos", target_os = "linux")))]
+    {
+        Err(format!("Platform không hỗ trợ: {url}"))
+    }
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -750,7 +863,9 @@ pub fn run() {
             set_close_to_tray,
             // Phase 39.5 — Auto-install
             download_installer,
-            run_installer
+            run_installer,
+            // Phase 38 — Mở URL/folder qua OS shell, bypass plugin scope check
+            open_url_in_browser,
         ])
         .setup(|app| {
             // Build menu rỗng trước → sau detect_install frontend sẽ push

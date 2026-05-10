@@ -38,18 +38,22 @@ import { fetchRegistryText } from './tauri-bridge.js';
  *
  * Dùng www.trishteam.io.vn (canonical) — apex redirect 307 → www.
  */
+// Phase 38 — Switch primary từ /api/apps-registry (Firestore) sang static
+// /apps-registry.json để registry update theo git commit + Vercel auto-deploy,
+// không cần admin trigger seed-apps-meta. Static file là source of truth.
 export const DEFAULT_REGISTRY_URL =
-  'https://www.trishteam.io.vn/api/apps-registry';
-export const FALLBACK_REGISTRY_URL =
   'https://www.trishteam.io.vn/apps-registry.json';
+export const FALLBACK_REGISTRY_URL =
+  'https://www.trishteam.io.vn/api/apps-registry';
 
 /**
- * Phase 20.2 — Bumped 2 → 3 sau khi `apps-registry.json` thêm field
- * `release_at_default` + `release_at` per-app + `apps_meta` Firestore mirror.
- * Validator chỉ kiểm tra `>= 2` (forward-compatible) thay vì equality strict
- * — nếu tương lai bump thêm field optional, launcher cũ vẫn parse được.
+ * Phase 38 — Bump 2 → 6 để Launcher v1.0 reject registry cũ (schema v5
+ * còn `requires_key` + `key_type` deprecated, login_required sai). Fallback
+ * sang local seed (đã update) nếu Vercel chưa deploy schema v6.
+ *
+ * Trở về `MIN_SCHEMA_VERSION = N-1` khi schema bump tiếp (forward-compat).
  */
-const MIN_SCHEMA_VERSION = 2;
+const MIN_SCHEMA_VERSION = 6;
 
 export interface RegistryLoadResult {
   registry: AppRegistry;
