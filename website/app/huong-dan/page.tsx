@@ -17,8 +17,8 @@ const KEY_TYPE_LABELS: Record<
   { label: string; emoji: string; color: string }
 > = {
   free: { label: 'Miễn phí', emoji: '🆓', color: '#10B981' },
-  standalone: { label: 'Key máy', emoji: '🔒', color: '#F59E0B' },
-  account: { label: 'Key tài khoản', emoji: '🗝', color: '#DC2626' },
+  standalone: { label: 'Cần đăng nhập', emoji: '👤', color: '#F59E0B' },
+  account: { label: 'Cần đăng nhập', emoji: '👤', color: '#F59E0B' },
 };
 
 export default function HuongDanIndexPage(): JSX.Element {
@@ -55,7 +55,30 @@ export default function HuongDanIndexPage(): JSX.Element {
               }}
             >
               <div className="flex items-start gap-3 mb-3">
-                <div className="text-3xl">{guide.icon}</div>
+                {guide.logo_path ? (
+                  <div
+                    className="shrink-0 flex items-center justify-center"
+                    style={{
+                      width: 48,
+                      height: 48,
+                      background: '#ffffff',
+                      borderRadius: 10,
+                      padding: 4,
+                      boxShadow: '0 1px 3px rgba(0,0,0,0.08)',
+                    }}
+                  >
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={guide.logo_path}
+                      alt={`${guide.title} logo`}
+                      width={40}
+                      height={40}
+                      style={{ objectFit: 'contain' }}
+                    />
+                  </div>
+                ) : (
+                  <div className="text-3xl">{guide.icon}</div>
+                )}
                 <div className="flex-1 min-w-0">
                   <h2
                     className="font-bold text-base transition"
