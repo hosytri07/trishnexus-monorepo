@@ -31,14 +31,9 @@ function AppLogoBig({ app }: { app: AppForWebsite }) {
   const IconCmp = resolveAppIcon(app.icon_fallback);
   const showFallback = broken || !app.logo_path;
 
-  // Phase 38 — Đồng bộ tile bg cho 11 logo. Trước có 2 layer gradient
-  // (white opacity 72-85% + accent) → nhiều logo trông "trắng tinh" che mất
-  // accent. Giờ dùng surface-card đồng nhất với 1 lớp accent tint nhẹ ở
-  // viền — logo nào cũng pop đều bất kể có nền trắng nội tại hay không.
-  const tintBg = `
-    linear-gradient(135deg, ${app.accent}18 0%, ${app.accent}30 100%),
-    var(--color-surface-card)
-  `;
+  // Phase 38 — Tile bg đồng nhất 1 màu cho mọi app. Bỏ accent tint per-app
+  // (Trí feedback: mỗi tile khác màu trông không đồng bộ).
+  const tintBg = 'var(--color-surface-card)';
 
   return (
     <div
@@ -48,7 +43,7 @@ function AppLogoBig({ app }: { app: AppForWebsite }) {
         height: 72,
         background: tintBg,
         borderRadius: 10,
-        border: `1px solid ${app.accent}44`,
+        border: '1px solid var(--color-border-default)',
       }}
     >
       {showFallback ? (
