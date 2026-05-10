@@ -30,11 +30,15 @@ import type { NextRequest } from 'next/server';
  *  - File tĩnh có extension (favicon.ico, .png, .json, manifest, sitemap, robots…)
  */
 
-const DEFAULT_UNLOCK_ISO = '2026-05-11T09:00:00+07:00';
+// Phase 38 — Wave release v1.0 ngày 10/05/2026 đã hoàn tất, bỏ
+// landing/countdown vĩnh viễn. Giữ middleware tồn tại để future maintenance
+// mode có thể bật lại (set env MAINTENANCE_MODE=true + MAINTENANCE_UNLOCK_TS).
+const DEFAULT_UNLOCK_ISO = '2020-01-01T00:00:00+07:00';  // mốc trong quá khứ — auto unlock
 const UNLOCK_TS = new Date(
   process.env.MAINTENANCE_UNLOCK_TS || DEFAULT_UNLOCK_ISO
 ).getTime();
-const MAINTENANCE_ENABLED = process.env.MAINTENANCE_MODE !== 'false';
+// Mặc định OFF — chỉ ON khi env MAINTENANCE_MODE=true
+const MAINTENANCE_ENABLED = process.env.MAINTENANCE_MODE === 'true';
 const PREVIEW_TOKEN = 'trishteam-2026';
 
 export function middleware(request: NextRequest) {

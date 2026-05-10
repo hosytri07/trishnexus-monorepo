@@ -2,8 +2,6 @@ import Link from 'next/link';
 import { ArrowLeft } from 'lucide-react';
 import { fetchAppsServer } from '@/lib/apps-server';
 import { DownloadCards } from './DownloadCards';
-import { OtherAppsSection } from './OtherAppsSection';
-import { DownloadsSidebar } from './DownloadsSidebar';
 
 /**
  * Phase 19.22 — /downloads page với fetch Firestore /apps_meta server-side.
@@ -38,65 +36,88 @@ export default async function DownloadsPage() {
         Quay lại
       </Link>
 
-      <div className="grid grid-cols-1 lg:grid-cols-[200px_1fr] gap-8">
-        {/* Sidebar */}
-        <DownloadsSidebar apps={apps} />
+      <div className="max-w-3xl mx-auto">
+        <h1
+          className="font-extrabold uppercase mb-4 text-center"
+          style={{
+            fontSize: 'clamp(1.75rem, 4vw, 2.75rem)',
+            letterSpacing: '-0.015em',
+            color: 'var(--color-text-primary)',
+          }}
+        >
+          Tải TrishLauncher
+        </h1>
+        <p
+          className="text-lg mb-4 text-center"
+          style={{ color: 'var(--color-text-secondary)' }}
+        >
+          TrishLauncher là cổng vào hệ sinh thái TrishTEAM — cài đặt, cập nhật
+          và khởi chạy toàn bộ ứng dụng desktop trong một giao diện duy nhất.
+        </p>
+        <p
+          className="text-sm mb-10 text-center"
+          style={{ color: 'var(--color-text-muted)' }}
+        >
+          Phiên bản hiện tại còn alpha — chưa code-sign, Windows Defender /
+          SmartScreen có thể cảnh báo. Click <em>More info → Run anyway</em> để
+          tiếp tục cài.
+        </p>
 
-        {/* Main content */}
-        <div className="min-w-0">
-          <h1
-            className="font-extrabold uppercase mb-4"
-            style={{
-              fontSize: 'clamp(1.75rem, 4vw, 2.75rem)',
-              letterSpacing: '-0.015em',
-              color: 'var(--color-text-primary)',
-            }}
-          >
-            Tải về TrishTEAM
-          </h1>
+        {launcher ? (
+          <section id="trishlauncher" className="mb-12">
+            <div className="flex items-baseline justify-between mb-4">
+              <h2
+                className="text-xl font-bold"
+                style={{ color: 'var(--color-text-primary)' }}
+              >
+                🚀 TrishLauncher
+              </h2>
+              <span
+                className="text-xs"
+                style={{ color: 'var(--color-text-muted)' }}
+              >
+                v{launcher.version}
+              </span>
+            </div>
+            <DownloadCards launcher={launcher} />
+          </section>
+        ) : (
           <p
-            className="text-lg mb-4"
+            className="text-center"
+            style={{ color: 'var(--color-text-muted)' }}
+          >
+            Không tải được thông tin Launcher. Thử lại sau.
+          </p>
+        )}
+
+        <section
+          className="mt-12 p-6 rounded-lg"
+          style={{
+            background: 'var(--color-surface-card)',
+            border: '1px solid var(--color-border-default)',
+          }}
+        >
+          <h3
+            className="text-base font-bold mb-3"
+            style={{ color: 'var(--color-text-primary)' }}
+          >
+            📦 Các ứng dụng khác
+          </h3>
+          <p
+            className="text-sm"
             style={{ color: 'var(--color-text-secondary)' }}
           >
-            TrishLauncher là cổng vào hệ sinh thái — cài đặt + cập nhật + khởi
-            chạy 6 ứng dụng desktop trong một giao diện. Dưới là các app đã
-            phát hành riêng. Miễn phí, không cần đăng nhập.
+            TrishCheck · TrishFont · TrishClean · TrishShortcut · TrishLibrary ·
+            TrishDrive · TrishFinance · TrishISO · TrishDesign · TrishOffice
           </p>
-          <p className="text-sm mb-10" style={{ color: 'var(--color-text-muted)' }}>
-            Phiên bản hiện tại còn alpha — chưa code-sign, Windows Defender /
-            SmartScreen có thể cảnh báo. Click <em>More info → Run anyway</em>{' '}
-            để tiếp tục.
+          <p
+            className="text-sm mt-3"
+            style={{ color: 'var(--color-text-muted)' }}
+          >
+            Tất cả ứng dụng được cài đặt + cập nhật qua TrishLauncher. Tải
+            Launcher ở trên → mở app → chọn ứng dụng cần cài.
           </p>
-
-          {/* TrishLauncher section */}
-          {launcher ? (
-            <section id="trishlauncher" className="mb-12 scroll-mt-20">
-              <div className="flex items-baseline justify-between mb-4">
-                <h2
-                  className="text-xl font-bold"
-                  style={{ color: 'var(--color-text-primary)' }}
-                >
-                  🚀 TrishLauncher
-                </h2>
-                <span className="text-xs" style={{ color: 'var(--color-text-muted)' }}>
-                  v{launcher.version} · Khuyên dùng
-                </span>
-              </div>
-              <DownloadCards launcher={launcher} />
-            </section>
-          ) : null}
-
-          {/* Apps đã phát hành section */}
-          <section>
-            <h2
-              className="text-xl font-bold mb-4"
-              style={{ color: 'var(--color-text-primary)' }}
-            >
-              Apps đã phát hành
-            </h2>
-            <OtherAppsSection apps={apps} />
-          </section>
-        </div>
+        </section>
       </div>
     </main>
   );
