@@ -308,6 +308,23 @@ export function AppDetailModal({ app, onClose }: Props) {
             </button>
           )}
 
+          {/* Phase 38 — Nút "Mở web" nếu app có platform 'web' với URL */}
+          {app.download?.web?.url && (
+            <a
+              href={app.download.web.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1.5 px-4 h-10 rounded-md font-semibold text-sm transition-opacity hover:opacity-90"
+              style={{
+                background: 'var(--color-accent-soft)',
+                color: 'var(--color-accent-primary)',
+                border: '1px solid var(--color-accent-primary)',
+              }}
+            >
+              Mở web app
+              <ExternalLink size={12} strokeWidth={2} />
+            </a>
+          )}
           {app.changelog_url && (
             <a
               href={app.changelog_url}

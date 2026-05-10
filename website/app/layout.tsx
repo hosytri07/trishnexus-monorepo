@@ -127,52 +127,96 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       suppressHydrationWarning
     >
       <body className="font-display min-h-screen relative overflow-x-hidden">
-        {/* Ambient gradient decoration — làm dịu 2 vùng trống 2 bên khi
-            viewport rộng hơn max-w-[88rem]. pointer-events-none + z-[-1]
-            để không ảnh hưởng click/scroll. Dùng var(--color-accent-*) để
-            tự đổi màu theo theme (dark/light). */}
+        {/* Phase 38 — Ambient effects mở rộng: 4 orbs + animation pulse nhẹ
+            + emerald accent dominant để giống landing page. */}
+        <style>{`
+          @keyframes ambient-pulse {
+            0%, 100% { opacity: 0.6; transform: scale(1); }
+            50% { opacity: 1.0; transform: scale(1.08); }
+          }
+          @keyframes ambient-drift {
+            0%, 100% { transform: translate(0, 0); }
+            50% { transform: translate(30px, -20px); }
+          }
+        `}</style>
         <div
           aria-hidden
           data-ambient-decor
           className="pointer-events-none fixed inset-0 -z-10 overflow-hidden"
         >
+          {/* Top-left emerald (chính, accent dominant) */}
           <div
             className="absolute"
             style={{
-              top: '12%',
-              left: '-8%',
+              top: '8%',
+              left: '-12%',
+              width: '38rem',
+              height: '38rem',
+              background:
+                'radial-gradient(closest-side, rgba(16,185,129,0.30), transparent 70%)',
+              filter: 'blur(80px)',
+              opacity: 0.85,
+              animation: 'ambient-pulse 8s ease-in-out infinite',
+            }}
+          />
+          {/* Bottom-right emerald (đối xứng) */}
+          <div
+            className="absolute"
+            style={{
+              bottom: '-15%',
+              right: '-12%',
+              width: '40rem',
+              height: '40rem',
+              background:
+                'radial-gradient(closest-side, rgba(16,185,129,0.25), transparent 70%)',
+              filter: 'blur(90px)',
+              opacity: 0.75,
+              animation: 'ambient-pulse 10s ease-in-out infinite reverse',
+            }}
+          />
+          {/* Top-right amber accent nhẹ */}
+          <div
+            className="absolute"
+            style={{
+              top: '40%',
+              right: '-8%',
               width: '32rem',
               height: '32rem',
               background:
-                'radial-gradient(closest-side, var(--color-accent-soft), transparent 70%)',
-              filter: 'blur(60px)',
-              opacity: 0.85,
+                'radial-gradient(closest-side, rgba(245,158,11,0.12), transparent 70%)',
+              filter: 'blur(70px)',
+              opacity: 0.65,
+              animation: 'ambient-drift 15s ease-in-out infinite',
             }}
           />
+          {/* Center cyan đốm */}
           <div
             className="absolute"
             style={{
-              top: '55%',
-              right: '-10%',
-              width: '36rem',
-              height: '36rem',
-              background:
-                'radial-gradient(closest-side, rgba(245,158,11,0.10), transparent 70%)',
-              filter: 'blur(80px)',
-              opacity: 0.7,
-            }}
-          />
-          <div
-            className="absolute"
-            style={{
-              bottom: '-10%',
-              left: '30%',
+              top: '60%',
+              left: '20%',
               width: '28rem',
               height: '28rem',
               background:
-                'radial-gradient(closest-side, rgba(56,189,248,0.08), transparent 70%)',
+                'radial-gradient(closest-side, rgba(56,189,248,0.10), transparent 70%)',
               filter: 'blur(70px)',
-              opacity: 0.6,
+              opacity: 0.55,
+              animation: 'ambient-drift 12s ease-in-out infinite reverse',
+            }}
+          />
+          {/* Center small accent firefly */}
+          <div
+            className="absolute"
+            style={{
+              top: '20%',
+              left: '50%',
+              width: '14rem',
+              height: '14rem',
+              background:
+                'radial-gradient(closest-side, rgba(52,211,153,0.18), transparent 70%)',
+              filter: 'blur(40px)',
+              opacity: 0.7,
+              animation: 'ambient-pulse 6s ease-in-out infinite',
             }}
           />
         </div>

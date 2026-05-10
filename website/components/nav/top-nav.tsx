@@ -30,7 +30,7 @@ export function TopNav() {
           borderBottom: '1px solid var(--color-border-default)',
         }}
       >
-        <div className="mx-auto px-4 lg:px-6 h-16 flex items-center gap-2 lg:gap-3">
+        <div className="mx-auto px-4 lg:px-8 h-20 flex items-center gap-2 lg:gap-4">
           {/* Hamburger — mobile only */}
           <button
             type="button"
@@ -43,14 +43,14 @@ export function TopNav() {
           </button>
 
           {/* Logo */}
-          <Link href="/" className="flex items-center gap-2 shrink-0">
+          <Link href="/" className="flex items-center gap-2.5 shrink-0">
             <Sparkles
-              size={20}
+              size={24}
               strokeWidth={2}
               style={{ color: 'var(--color-accent-primary)' }}
             />
             <span
-              className="text-lg font-bold tracking-tight"
+              className="text-xl font-bold tracking-tight"
               style={{ color: 'var(--color-text-primary)' }}
             >
               Trish<span style={{ color: 'var(--color-accent-primary)' }}>TEAM</span>

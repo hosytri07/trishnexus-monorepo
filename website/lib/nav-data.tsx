@@ -104,6 +104,9 @@ export const STATUS_STYLE: Record<NavStatus, { bg: string; fg: string; label: st
 };
 
 export function NavStatusBadge({ status, compact = false }: { status: NavStatus; compact?: boolean }) {
+  // Phase 38 — `available` là default, không cần badge nữa (giảm noise sidebar).
+  // Chỉ hiển thị 'Sắp' (coming) hoặc 'Đang xây' (wip).
+  if (status === 'available') return null;
   const s = STATUS_STYLE[status];
   if (compact) {
     return (
