@@ -46,10 +46,14 @@ export function saveSettings(settings: AppSettings): void {
 export function applyTheme(theme: Theme): void {
   if (typeof document === 'undefined') return;
   const root = document.documentElement;
+  // Cleanup legacy classes (for migration)
   root.classList.remove('theme-light', 'theme-dark');
   if (theme === 'auto') {
-    // Để CSS prefers-color-scheme tự handle
+    // Auto: respect OS preference qua media query trong design-system
+    root.removeAttribute('data-theme');
     return;
   }
-  root.classList.add(`theme-${theme}`);
+  // Design-system v2 dùng data-theme attribute (selector
+  // :root[data-theme='dark']), KHÔNG phải class .theme-dark.
+  root.setAttribute('data-theme', theme);
 }

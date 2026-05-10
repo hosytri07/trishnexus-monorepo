@@ -18,6 +18,8 @@ import {
 
 const STORAGE_REGISTRY_PATH = 'trishadmin.registry_path';
 const STORAGE_MINSPECS_PATH = 'trishadmin.minspecs_path';
+const STORAGE_TIPS_PATH = 'trishadmin.tips_path';
+const STORAGE_SOFTWARE_PATH = 'trishadmin.software_path';
 
 interface FileSlot {
   storageKey: string;
@@ -38,6 +40,18 @@ const SLOTS: FileSlot[] = [
     label: '🛠 min-specs.json',
     hint: 'website/public/min-specs.json — yêu cầu tối thiểu cho từng app (RAM, CPU, GPU).',
     defaultName: 'min-specs.json',
+  },
+  {
+    storageKey: STORAGE_TIPS_PATH,
+    label: '🛠 check/tips.json (TrishCheck — Tools)',
+    hint: 'website/public/check/tips.json — tips/tricks fix lỗi Windows + phần mềm. Hiển thị tab Tools trong TrishCheck.',
+    defaultName: 'tips.json',
+  },
+  {
+    storageKey: STORAGE_SOFTWARE_PATH,
+    label: '📦 check/software.json (TrishCheck — Phần mềm)',
+    hint: 'website/public/check/software.json — collection phần mềm tổng hợp link tải. Hiển thị tab Phần mềm trong TrishCheck.',
+    defaultName: 'software.json',
   },
 ];
 
@@ -71,8 +85,8 @@ export function RegistryPanel(): JSX.Element {
           Chạy ở terminal Windows trong thư mục repo:
         </p>
         <pre className="code-block">{`cd C:\\Users\\TRI\\Documents\\Claude\\Projects\\TrishTEAM\\trishnexus-monorepo
-git add website/public/apps-registry.json website/public/min-specs.json
-git commit -m "registry: update apps + specs"
+git add website/public/apps-registry.json website/public/min-specs.json website/public/check/tips.json website/public/check/software.json
+git commit -m "registry: update apps + specs + check content"
 git push`}</pre>
         <p className="muted small">
           Vercel sẽ tự deploy <code>trishteam.io.vn/apps-registry.json</code> sau ~1 phút.

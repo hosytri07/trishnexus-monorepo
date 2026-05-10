@@ -367,17 +367,53 @@ pub struct InstallResult {
 }
 
 #[tauri::command]
-async fn install_fonts(paths: Vec<String>) -> Result<Vec<InstallResult>, String> {
-    let mut results = Vec::with_capacity(paths.len());
-    for path in &paths {
-        let result = install_single(path).unwrap_or_else(|e| InstallResult {
-            path: path.clone(),
-            family: String::new(),
-            success: false,
-            message: e,
-        });
-        results.push(result);
-    }
+async fn install_fonts(
+    paths: Vec<String>,
+    app: tauri::AppHandle,
+) -> Result<Vec<InstallResult>, String> {
+    use rayon::prelude::*;
+    use std::sync::atomic::{AtomicUsize, Ordering};
+    use tauri::Emitter;
+
+    let total = paths.len();
+    let counter = AtomicUsize::new(0);
+    let last_emit = std::sync::Mutex::new(std::time::Instant::now());
+
+    // Phase 38 — parallel install. Mỗi font thread riêng:
+    //   - read + parse + ghi C:\Windows\Fonts (file I/O concurrent OK)
+    //   - HKLM registry write (winreg API thread-safe trên Windows)
+    // Skip nếu file dest đã tồn tại với cùng size → tăng tốc 10x cho user
+    // re-install (font cache Windows giữ file lock → tránh "Access denied").
+    let results: Vec<InstallResult> = paths
+        .par_iter()
+        .map(|path| {
+            let result = install_single(path).unwrap_or_else(|e| InstallResult {
+                path: path.clone(),
+                family: String::new(),
+                success: false,
+                message: e,
+            });
+
+            // Throttled progress event: tối đa 5 lần/giây để không spam IPC
+            let done = counter.fetch_add(1, Ordering::SeqCst) + 1;
+            let should_emit = {
+                let mut last = last_emit.lock().unwrap();
+                if last.elapsed() >= std::time::Duration::from_millis(200) || done == total {
+                    *last = std::time::Instant::now();
+                    true
+                } else {
+                    false
+                }
+            };
+            if should_emit {
+                let _ = app.emit(
+                    "font:install-progress",
+                    serde_json::json!({ "done": done, "total": total }),
+                );
+            }
+            result
+        })
+        .collect();
 
     // Broadcast WM_FONTCHANGE 1 lần sau khi cài hết
     #[cfg(target_os = "windows")]
@@ -469,11 +505,9 @@ fn install_windows_system_wide(
         .ok_or_else(|| "Tên file không hợp lệ".to_string())?;
     let dest_path = dest_dir.join(file_name);
 
-    // Phase 15.1.k/m — read once, write với retry (tránh lock từ Windows font cache)
-    let bytes = fs::read(src).map_err(|e| format!("Đọc src fail: {e}"))?;
-    write_with_retry(&dest_path, &bytes, 3, 150)?;
-
-    // Write HKLM registry (system-wide, all users)
+    // Phase 38 — Skip-existing optimization. Nếu dest đã tồn tại với cùng size
+    // (heuristic nhanh, không cần SHA), coi như font đã cài. Tránh lỗi
+    // "Access denied" khi Windows font cache đang lock file đã cài trước đó.
     let suffix = match src
         .extension()
         .and_then(|e| e.to_str())
@@ -486,6 +520,25 @@ fn install_windows_system_wide(
     };
     let reg_value_name = format!("{} {}", display_name, suffix);
 
+    let src_size = fs::metadata(src).map(|m| m.len()).unwrap_or(0);
+    let dest_size = fs::metadata(&dest_path).map(|m| m.len()).ok();
+
+    let already_installed = dest_size.map_or(false, |s| s == src_size && s > 0);
+
+    if !already_installed {
+        // Read src + write dest với retry ngắn (50ms × 1 lần thay 150 × 3).
+        // Lock thực sự sẽ KHÔNG release trong vài ms — retry dài chỉ phí thời gian.
+        let bytes = fs::read(src).map_err(|e| format!("Đọc src fail: {e}"))?;
+        write_with_retry(&dest_path, &bytes, 2, 50).map_err(|e| {
+            format!(
+                "{} (file: {})",
+                e,
+                file_name.to_string_lossy()
+            )
+        })?;
+    }
+
+    // Always upsert HKLM registry — kể cả khi file đã tồn tại, value có thể chưa có
     use winreg::enums::*;
     use winreg::RegKey;
     let hklm = RegKey::predef(HKEY_LOCAL_MACHINE);
@@ -495,11 +548,17 @@ fn install_windows_system_wide(
     key.set_value(&reg_value_name, &dest_path.to_string_lossy().to_string())
         .map_err(|e| format!("Ghi HKLM registry fail: {e}"))?;
 
+    let msg = if already_installed {
+        format!("Đã có sẵn: {}", file_name.to_string_lossy())
+    } else {
+        format!("Đã cài: {}", file_name.to_string_lossy())
+    };
+
     Ok(InstallResult {
         path: dest_path.to_string_lossy().to_string(),
         family: display_name.to_string(),
         success: true,
-        message: format!("Đã cài hệ thống: {}", dest_path.display()),
+        message: msg,
     })
 }
 
@@ -1154,6 +1213,8 @@ pub fn run() {
             app_version,
             // Phase 36.5 — Machine ID cho key concurrent control
             get_device_id,
+            // Phase 38 — Mở folder cho user (Settings panel)
+            open_in_explorer,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
@@ -1163,4 +1224,43 @@ pub fn run() {
 #[tauri::command]
 fn get_device_id() -> String {
     trishteam_machine_id::get_machine_id()
+}
+
+/// Phase 38 — Mở folder bằng OS file manager (Explorer trên Windows).
+/// Dùng thay tauri-plugin-opener `openPath` vì plugin yêu cầu allowlist
+/// scope chi tiết, còn user cần mở path động (folder packs runtime).
+#[tauri::command]
+fn open_in_explorer(path: String) -> Result<(), String> {
+    let p = std::path::Path::new(&path);
+    if !p.exists() {
+        return Err(format!("Path không tồn tại: {path}"));
+    }
+    #[cfg(target_os = "windows")]
+    {
+        std::process::Command::new("explorer")
+            .arg(&path)
+            .spawn()
+            .map_err(|e| format!("Spawn explorer fail: {e}"))?;
+        return Ok(());
+    }
+    #[cfg(target_os = "macos")]
+    {
+        std::process::Command::new("open")
+            .arg(&path)
+            .spawn()
+            .map_err(|e| format!("Spawn open fail: {e}"))?;
+        return Ok(());
+    }
+    #[cfg(target_os = "linux")]
+    {
+        std::process::Command::new("xdg-open")
+            .arg(&path)
+            .spawn()
+            .map_err(|e| format!("Spawn xdg-open fail: {e}"))?;
+        return Ok(());
+    }
+    #[cfg(not(any(target_os = "windows", target_os = "macos", target_os = "linux")))]
+    {
+        Err("Platform không hỗ trợ".to_string())
+    }
 }

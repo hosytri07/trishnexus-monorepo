@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { readFile } from '@tauri-apps/plugin-fs';
+import { UserMenu } from '@trishteam/auth/react';
 import {
   scanFonts,
   scanSystemFonts,
@@ -124,6 +125,12 @@ export function App(): JSX.Element {
   const [installLog, setInstallLog] = useState<
     Array<{ time: string; level: 'ok' | 'fail' | 'info'; message: string }>
   >([]);
+
+  // Phase 38 — Real-time install progress từ Tauri event 'font:install-progress'
+  const [installProgress, setInstallProgress] = useState<{
+    done: number;
+    total: number;
+  } | null>(null);
 
   // Phase 15.1.l — Export selection cho Library + System tab
   const [exportSelection, setExportSelection] = useState<Set<string>>(new Set());
@@ -296,6 +303,31 @@ export function App(): JSX.Element {
     void fetchManifest()
       .then(setManifest)
       .finally(() => setManifestLoading(false));
+  }, []);
+
+  // Phase 38 — Listen install progress event từ Rust để hiển thị X/Y real-time
+  useEffect(() => {
+    let unlisten: (() => void) | undefined;
+    void (async () => {
+      try {
+        const { listen } = await import('@tauri-apps/api/event');
+        unlisten = await listen<{ done: number; total: number }>(
+          'font:install-progress',
+          (event) => {
+            setInstallProgress(event.payload);
+            // Auto-clear khi xong
+            if (event.payload.done >= event.payload.total) {
+              setTimeout(() => setInstallProgress(null), 1500);
+            }
+          },
+        );
+      } catch (err) {
+        console.warn('[font:install-progress] listen fail:', err);
+      }
+    })();
+    return () => {
+      if (unlisten) unlisten();
+    };
   }, []);
 
   async function handleInstallPack(pack: FontPack): Promise<void> {
@@ -638,12 +670,45 @@ export function App(): JSX.Element {
           </span>
           <button
             className="btn btn-ghost"
+            onClick={() => {
+              const cur =
+                settings.theme === 'system'
+                  ? window.matchMedia('(prefers-color-scheme: dark)').matches
+                    ? 'dark'
+                    : 'light'
+                  : settings.theme;
+              const next: 'light' | 'dark' = cur === 'dark' ? 'light' : 'dark';
+              const upd = { ...settings, theme: next };
+              applyTheme(next);
+              setSettings(upd);
+              saveSettings(upd);
+            }}
+            type="button"
+            title={
+              settings.theme === 'dark'
+                ? 'Chuyển sang Light'
+                : 'Chuyển sang Dark'
+            }
+            aria-label="Toggle theme"
+            style={{ padding: '8px 12px', fontSize: 16 }}
+          >
+            {(settings.theme === 'system'
+              ? window.matchMedia('(prefers-color-scheme: dark)').matches
+                ? 'dark'
+                : 'light'
+              : settings.theme) === 'dark'
+              ? '☀'
+              : '🌙'}
+          </button>
+          <button
+            className="btn btn-ghost"
             onClick={() => setSettingsOpen(true)}
             type="button"
           >
             ⚙ {tr('topbar.settings')}
           </button>
           <span className="muted small">v{version}</span>
+          <UserMenu />
         </div>
       </header>
 
@@ -838,6 +903,54 @@ export function App(): JSX.Element {
           </>
         )}
       </main>
+
+      {/* Phase 38 — Install progress bar real-time (chỉ hiện khi đang cài) */}
+      {installProgress && (
+        <div
+          style={{
+            padding: '8px 16px',
+            background: 'var(--surface-raised)',
+            borderTop: '1px solid var(--border)',
+            display: 'flex',
+            alignItems: 'center',
+            gap: 12,
+          }}
+        >
+          <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)' }}>
+            ⚙ Đang cài font…
+          </span>
+          <div
+            style={{
+              flex: 1,
+              height: 8,
+              background: 'var(--border)',
+              borderRadius: 4,
+              overflow: 'hidden',
+            }}
+          >
+            <div
+              style={{
+                width: `${(installProgress.done / installProgress.total) * 100}%`,
+                height: '100%',
+                background: 'var(--accent)',
+                transition: 'width 200ms ease',
+              }}
+            />
+          </div>
+          <span
+            style={{
+              fontSize: 12,
+              color: 'var(--muted)',
+              fontVariantNumeric: 'tabular-nums',
+              minWidth: 90,
+              textAlign: 'right',
+            }}
+          >
+            {installProgress.done} / {installProgress.total} (
+            {Math.round((installProgress.done / installProgress.total) * 100)}%)
+          </span>
+        </div>
+      )}
 
       {/* Phase 15.1.o — InstallLog ALWAYS visible bottom, share giữa mọi tab */}
       <InstallLog entries={installLog} onClear={clearLog} trKey={tr} />

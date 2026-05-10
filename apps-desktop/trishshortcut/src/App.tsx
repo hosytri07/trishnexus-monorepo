@@ -23,6 +23,7 @@
  */
 
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { UserMenu } from '@trishteam/auth/react';
 import { Search, Plus, Settings, Sun, Moon, FolderPlus, Zap, ScanLine, ArrowDownAZ, Star, Upload } from 'lucide-react';
 import { listen } from '@tauri-apps/api/event';
 import logoUrl from './assets/logo.png';
@@ -601,6 +602,7 @@ export function App(): JSX.Element {
           <button className="btn btn-primary" onClick={openAdd} title="Thêm shortcut mới">
             <Plus size={14} /> Thêm
           </button>
+          <UserMenu />
         </div>
       </header>
 

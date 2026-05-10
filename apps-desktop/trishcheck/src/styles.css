@@ -175,7 +175,40 @@ body {
 .topbar-actions {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 10px;
+}
+
+/* Topbar buttons: bự hơn .btn-ghost mặc định để dễ thấy ở header.
+   .ts-app prefix để win specificity với `.ts-app button { border:none }`. */
+.ts-app .btn-topbar {
+  font-size: 14px;
+  padding: 9px 16px;
+  font-weight: 600;
+  border-radius: var(--radius-md);
+  border: 1.5px solid var(--accent);
+  background: var(--surface-raised);
+  color: var(--text);
+  cursor: pointer;
+  transition: background 120ms ease, border-color 120ms ease, color 120ms ease;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+}
+
+.ts-app .btn-topbar:hover:not(:disabled) {
+  background: var(--accent);
+  color: #fff;
+}
+
+.ts-app .btn-topbar:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.ts-app .btn-topbar.btn-icon {
+  padding: 9px 12px;
+  font-size: 16px;
 }
 
 /* ======================================================================
@@ -206,14 +239,16 @@ body {
 }
 
 .btn-ghost {
-  background: transparent;
+  background: var(--surface-raised);
   color: var(--text);
-  border-color: var(--border);
+  border: 1.5px solid var(--accent);
+  font-weight: 600;
 }
 
 .btn-ghost:hover:not(:disabled) {
-  background: var(--surface-raised);
-  border-color: var(--border-strong);
+  background: var(--accent);
+  color: #fff;
+  border-color: var(--accent);
 }
 
 .btn-danger {
@@ -267,31 +302,43 @@ body {
    ====================================================================== */
 .tab-bar {
   display: flex;
-  gap: 0;
-  padding: 0 20px;
+  gap: 8px;
+  padding: 12px 20px;
   border-bottom: 1px solid var(--border);
   background: var(--surface);
+  flex-wrap: wrap;
 }
 
-.tab {
-  padding: 10px 16px;
-  font-size: 13px;
-  font-weight: 500;
-  background: transparent;
-  border: none;
-  border-bottom: 2px solid transparent;
-  color: var(--muted);
-  cursor: pointer;
-  transition: color 120ms ease, border-color 120ms ease;
-}
-
-.tab:hover {
+/* .ts-app prefix: thắng specificity với `.ts-app button { border:none }` ở
+   design-system/theme.css. Không có prefix thì tab sẽ mất viền vì rule kia
+   override. Cùng lý do với .ts-app .btn-topbar bên dưới. */
+.ts-app .tab {
+  padding: 9px 16px;
+  font-size: 14px;
+  font-weight: 600;
+  background: var(--surface-raised);
+  border: 1.5px solid var(--accent);
+  border-radius: var(--radius-md);
   color: var(--text);
+  cursor: pointer;
+  transition: color 120ms ease, border-color 120ms ease, background 120ms ease;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
 }
 
-.tab-active {
+.ts-app .tab:hover {
+  background: var(--accent-soft);
   color: var(--accent);
-  border-bottom-color: var(--accent);
+}
+
+.ts-app .tab-active {
+  background: var(--accent);
+  color: #fff;
+  border-color: var(--accent);
+}
+
+.ts-app .tab-active:hover {
+  background: var(--accent-hover);
+  color: #fff;
 }
 
 /* ======================================================================

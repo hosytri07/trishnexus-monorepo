@@ -3102,9 +3102,13 @@ textarea.input {
    Phase 15.2.r — v2 rebuild: File table + form modal + QR
    ============================================================ */
 
-/* Brand logo image (replace emoji) */
+/* Brand logo image (replace emoji).
+   Logo PNG transparent → cần nền trắng để không trùng background dark theme. */
 .brand-logo {
   border-radius: 8px;
+  background: #ffffff;
+  padding: 4px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
   flex-shrink: 0;
 }
 

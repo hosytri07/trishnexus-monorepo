@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { UserMenu } from '@trishteam/auth/react';
 import {
   getSysReport,
   getAppVersion,
@@ -30,6 +31,8 @@ import { ActionsToolbar } from './components/ActionsToolbar.js';
 import { MinSpecTable } from './components/MinSpecTable.js';
 import { HistoryDrawer } from './components/HistoryDrawer.js';
 import { LicenseView } from './components/LicenseView.js';
+import { ToolsView } from './components/ToolsView.js';
+import { SoftwareCollectionView } from './components/SoftwareCollectionView.js';
 import {
   loadSnapshots,
   pushSnapshot,
@@ -60,7 +63,7 @@ import logoUrl from './assets/logo.png';
  * Auto-snapshot: nếu setting bật, mỗi lần benchmark xong tự push vào history.
  */
 
-type Tab = 'system' | 'minspec' | 'license' | 'history';
+type Tab = 'system' | 'minspec' | 'license' | 'tools' | 'software' | 'history';
 
 export function App(): JSX.Element {
   // Settings (lazy init từ localStorage)
@@ -237,13 +240,45 @@ export function App(): JSX.Element {
         </div>
         <div className="topbar-actions">
           <button
-            className="btn btn-ghost"
+            className="btn-topbar btn-icon"
+            onClick={() => {
+              const cur =
+                settings.theme === 'system'
+                  ? window.matchMedia('(prefers-color-scheme: dark)').matches
+                    ? 'dark'
+                    : 'light'
+                  : settings.theme;
+              const next: 'light' | 'dark' = cur === 'dark' ? 'light' : 'dark';
+              const upd = { ...settings, theme: next };
+              applyTheme(next);
+              setSettings(upd);
+              saveSettings(upd);
+            }}
+            type="button"
+            title={
+              settings.theme === 'dark'
+                ? 'Chuyển sang Light'
+                : 'Chuyển sang Dark'
+            }
+            aria-label="Toggle theme"
+          >
+            {(settings.theme === 'system'
+              ? window.matchMedia('(prefers-color-scheme: dark)').matches
+                ? 'dark'
+                : 'light'
+              : settings.theme) === 'dark'
+              ? '☀'
+              : '🌙'}
+          </button>
+          <button
+            className="btn-topbar"
             onClick={() => setSettingsOpen(true)}
             type="button"
           >
             ⚙ {tr('topbar.settings')}
           </button>
           <span className="muted small">v{version}</span>
+          <UserMenu />
         </div>
       </header>
 
@@ -282,6 +317,16 @@ export function App(): JSX.Element {
           label="💰 Bản quyền"
         />
         <TabButton
+          active={tab === 'tools'}
+          onClick={() => setTab('tools')}
+          label="🛠 Tools"
+        />
+        <TabButton
+          active={tab === 'software'}
+          onClick={() => setTab('software')}
+          label="📦 Phần mềm"
+        />
+        <TabButton
           active={tab === 'history'}
           onClick={() => setTab('history')}
           label={`${tr('tab.history')} (${snapshots.length})`}
@@ -314,6 +359,8 @@ export function App(): JSX.Element {
           <p className="muted">Đang đọc thông tin máy...</p>
         )}
         {tab === 'license' && <LicenseView language={settings.language} />}
+        {tab === 'tools' && <ToolsView />}
+        {tab === 'software' && <SoftwareCollectionView />}
         {tab === 'history' && (
           <HistoryDrawer
             language={settings.language}

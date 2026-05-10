@@ -74,10 +74,16 @@ body {
   font-size: 22px;
 }
 
+/* Logo PNG transparent → cần nền trắng để không trùng background dark theme.
+   Padding nhẹ + radius để logo không touch edge. */
 .brand-logo {
   width: 36px;
   height: 36px;
   object-fit: contain;
+  background: #ffffff;
+  border-radius: 8px;
+  padding: 4px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
   flex-shrink: 0;
 }
 
@@ -91,7 +97,7 @@ body {
   color: var(--muted);
 }
 
-.btn {
+.ts-app .btn {
   font-size: 13px;
   padding: 8px 14px;
   border-radius: 8px;
@@ -100,17 +106,17 @@ body {
   font-weight: 500;
 }
 
-.btn:disabled {
+.ts-app .btn:disabled {
   opacity: 0.55;
   cursor: not-allowed;
 }
 
-.btn-primary {
+.ts-app .btn-primary {
   background: var(--accent);
   color: #fff;
 }
 
-.btn-primary:hover:not(:disabled) {
+.ts-app .btn-primary:hover:not(:disabled) {
   background: var(--accent-hover);
 }
 
@@ -414,7 +420,7 @@ body {
   font-family: 'SF Mono', 'Menlo', 'Consolas', monospace;
 }
 
-.btn-update {
+.ts-app .btn-update {
   font-size: 11px;
   padding: 4px 10px;
   background: rgba(8, 145, 178, 0.12);
@@ -422,32 +428,32 @@ body {
   border: 1px solid var(--accent);
 }
 
-.btn-update:hover {
+.ts-app .btn-update:hover {
   background: var(--accent);
   color: #fff;
 }
 
-.btn-ghost {
+.ts-app .btn-ghost {
   background: transparent;
   border: 1px solid var(--border);
   color: var(--text);
 }
 
-.btn-ghost:hover:not(:disabled) {
+.ts-app .btn-ghost:hover:not(:disabled) {
   border-color: var(--accent);
   color: var(--accent);
 }
 
-.btn-danger {
+.ts-app .btn-danger {
   background: var(--error);
   color: #fff;
 }
 
-.btn-danger:hover:not(:disabled) {
+.ts-app .btn-danger:hover:not(:disabled) {
   background: #b91c1c;
 }
 
-.btn-small {
+.ts-app .btn-small {
   font-size: 11px;
   padding: 5px 10px;
 }
@@ -461,7 +467,7 @@ body {
   border-bottom: 1px solid var(--border);
 }
 
-.tab {
+.ts-app .tab {
   background: transparent;
   border: none;
   padding: 12px 18px;
@@ -474,7 +480,7 @@ body {
   transition: color 0.12s, border-color 0.12s;
 }
 
-.tab:hover {
+.ts-app .tab:hover {
   color: var(--text);
 }
 
@@ -810,7 +816,7 @@ body {
   color: var(--accent);
 }
 
-.btn-icon {
+.ts-app .btn-icon {
   font-size: 16px;
   padding: 6px 10px;
   width: 36px;
@@ -1057,7 +1063,7 @@ body {
 }
 
 /* Pill button (theme selector) */
-.pill-btn {
+.ts-app .pill-btn {
   background: var(--bg);
   border: 1px solid var(--border);
   border-radius: 999px;
@@ -1070,7 +1076,7 @@ body {
   transition: all 0.12s;
 }
 
-.pill-btn:hover {
+.ts-app .pill-btn:hover {
   color: var(--text);
 }
 

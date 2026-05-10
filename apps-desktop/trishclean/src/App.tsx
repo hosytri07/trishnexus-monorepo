@@ -16,6 +16,7 @@
  */
 
 import { useEffect, useMemo, useState } from 'react';
+import { UserMenu } from '@trishteam/auth/react';
 import {
   classifyPath,
   summarizeScan,
@@ -41,7 +42,7 @@ import {
   type DiskInfo,
 } from './tauri-bridge.js';
 import { SettingsModal } from './SettingsModal.js';
-import { loadSettings, applyTheme, type AppSettings } from './settings.js';
+import { loadSettings, saveSettings, applyTheme, type AppSettings } from './settings.js';
 import logoUrl from './assets/logo.png';
 
 type Tab = 'quick' | 'scan' | 'history';
@@ -258,12 +259,44 @@ export function App(): JSX.Element {
           <button
             type="button"
             className="btn btn-ghost btn-icon"
+            onClick={() => {
+              const cur =
+                settings.theme === 'auto'
+                  ? window.matchMedia('(prefers-color-scheme: dark)').matches
+                    ? 'dark'
+                    : 'light'
+                  : settings.theme;
+              const next: 'light' | 'dark' = cur === 'dark' ? 'light' : 'dark';
+              const upd = { ...settings, theme: next };
+              applyTheme(next);
+              setSettings(upd);
+              saveSettings(upd);
+            }}
+            title={
+              settings.theme === 'dark'
+                ? 'Chuyển sang Light'
+                : 'Chuyển sang Dark'
+            }
+            aria-label="Toggle theme"
+          >
+            {(settings.theme === 'auto'
+              ? window.matchMedia('(prefers-color-scheme: dark)').matches
+                ? 'dark'
+                : 'light'
+              : settings.theme) === 'dark'
+              ? '☀'
+              : '🌙'}
+          </button>
+          <button
+            type="button"
+            className="btn btn-ghost btn-icon"
             onClick={() => setShowSettings(true)}
             title="Cài đặt"
           >
             ⚙
           </button>
           <span className="version-tag">v{appVersion}</span>
+          <UserMenu />
         </div>
       </header>
 

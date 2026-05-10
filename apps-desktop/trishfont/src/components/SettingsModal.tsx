@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { openUrl } from '@tauri-apps/plugin-opener';
+import { invoke } from '@tauri-apps/api/core';
 import {
   type Settings,
   type ThemeMode,
@@ -76,7 +77,9 @@ export function SettingsModal({
   async function handleOpenPacksFolder(): Promise<void> {
     if (!packsInfo) return;
     try {
-      await openUrl(packsInfo.path);
+      // Dùng custom Rust command — tauri-plugin-opener cần allowlist scope
+      // chi tiết cho từng path, còn folder packs là dynamic.
+      await invoke('open_in_explorer', { path: packsInfo.path });
     } catch (err) {
       console.warn('[trishfont] open folder fail:', err);
     }

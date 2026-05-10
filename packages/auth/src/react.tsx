@@ -58,6 +58,9 @@ export { LoginScreen } from './login-screen.js';
 // App chỉ cần wrap <AuthApp appName="..."><App /></AuthApp>
 export { AuthApp, type AuthAppProps } from './auth-app.js';
 
+// UserMenu — avatar + dropdown (email, role, signout). Đặt ở topbar app.
+export { UserMenu } from './user-menu.js';
+
 export interface AuthContextValue extends AuthState {
   /** Quick role check */
   role: UserRole | 'guest';

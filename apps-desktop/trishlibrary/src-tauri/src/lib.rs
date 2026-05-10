@@ -577,12 +577,46 @@ fn remove_attached_file(path: String) -> Result<(), String> {
     Ok(())
 }
 
+/// Phase 38 — Open path via OS file manager / default app.
+///
+/// Trước dùng `tauri_plugin_opener::OpenerExt::open_path` nhưng plugin
+/// validate path scope chặt chẽ, dynamic paths fail "Not allowed".
+/// Spawn `explorer.exe` (Windows) / `open` (macOS) / `xdg-open` (Linux)
+/// trực tiếp — tin cậy hơn.
 #[tauri::command]
-async fn open_local_path(app: tauri::AppHandle, path: String) -> Result<(), String> {
-    use tauri_plugin_opener::OpenerExt;
-    app.opener()
-        .open_path(&path, None::<&str>)
-        .map_err(|e| format!("open: {e}"))
+fn open_local_path(path: String) -> Result<(), String> {
+    let p = std::path::Path::new(&path);
+    if !p.exists() {
+        return Err(format!("Path không tồn tại: {path}"));
+    }
+    #[cfg(target_os = "windows")]
+    {
+        std::process::Command::new("explorer")
+            .arg(&path)
+            .spawn()
+            .map_err(|e| format!("Spawn explorer fail: {e}"))?;
+        return Ok(());
+    }
+    #[cfg(target_os = "macos")]
+    {
+        std::process::Command::new("open")
+            .arg(&path)
+            .spawn()
+            .map_err(|e| format!("Spawn open fail: {e}"))?;
+        return Ok(());
+    }
+    #[cfg(target_os = "linux")]
+    {
+        std::process::Command::new("xdg-open")
+            .arg(&path)
+            .spawn()
+            .map_err(|e| format!("Spawn xdg-open fail: {e}"))?;
+        return Ok(());
+    }
+    #[cfg(not(any(target_os = "windows", target_os = "macos", target_os = "linux")))]
+    {
+        Err(format!("Platform không hỗ trợ: {path}"))
+    }
 }
 
 // ============================================================

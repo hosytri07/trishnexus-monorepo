@@ -1,6 +1,6 @@
 {
-  "schema_version": 5,
-  "updated_at": "2026-05-04T20:00+07:00",
+  "schema_version": 6,
+  "updated_at": "2026-05-10T20:30+07:00",
   "ecosystem": {
     "name": "TrishTEAM",
     "tagline": "Hệ sinh thái phần mềm + tri thức + công cụ cho kỹ sư xây dựng / giao thông Việt Nam",
@@ -8,7 +8,7 @@
     "website": "https://trishteam.io.vn"
   },
   "release_at_default": "2026-05-07T09:00:00+07:00",
-  "_note": "Phase 36.1 — Schema v5: thêm requires_key + key_type metadata. 11 apps active. Keys do admin cấp nội bộ, KHÔNG bán.",
+  "_note": "Phase 38 — Schema v6: bỏ key system. Role-based access: trial (block) / demo (timed) / user / admin. login_required='none' = Launcher only, 'user' = TierGate yêu cầu role>=user hoặc demo còn hạn. Trial bị chặn.",
   "apps": [
     {
       "id": "trishlauncher",
@@ -20,8 +20,9 @@
       "status": "released",
       "release_at": "2026-05-07T09:00:00+07:00",
       "login_required": "none",
-      "requires_key": false,
-      "platforms": ["windows_x64"],
+      "platforms": [
+        "windows_x64"
+      ],
       "screenshots": [],
       "changelog_url": "https://github.com/hosytri07/trishnexus-monorepo/releases/tag/trishlauncher-v1.0.0",
       "download": {
@@ -38,19 +39,19 @@
       "tagline": "Quản lý shortcut Windows: apps · games · folders · URLs với icon + workspace + hotkey toàn cục + Quick Launcher (Ctrl+Space)",
       "logo_url": "https://trishteam.io.vn/logos/trishshortcut.png",
       "version": "1.0.0",
-      "size_bytes": 0,
+      "size_bytes": 3499754,
       "status": "released",
       "release_at": "2026-05-07T09:00:00+07:00",
-      "login_required": "none",
-      "requires_key": true,
-      "key_type": "standalone",
-      "platforms": ["windows_x64"],
+      "login_required": "user",
+      "platforms": [
+        "windows_x64"
+      ],
       "screenshots": [],
       "changelog_url": "https://github.com/hosytri07/trishnexus-monorepo/releases/tag/trishshortcut-v1.0.0",
       "download": {
         "windows_x64": {
           "url": "https://github.com/hosytri07/trishnexus-monorepo/releases/download/trishshortcut-v1.0.0/TrishShortcut_1.0.0_x64-setup.exe",
-          "sha256": "",
+          "sha256": "58862ee94ef223a65f82021aa72cd85147b21e77278aaa16d3b7afb897ef41e9",
           "installer_args": []
         }
       }
@@ -61,19 +62,19 @@
       "tagline": "Kiểm tra hệ thống + benchmark CPU/RAM/disk + so sánh với 25 app phổ biến",
       "logo_url": "https://trishteam.io.vn/logos/trishcheck.png",
       "version": "1.0.0",
-      "size_bytes": 0,
+      "size_bytes": 3437833,
       "status": "released",
       "release_at": "2026-05-07T09:00:00+07:00",
-      "login_required": "none",
-      "requires_key": true,
-      "key_type": "standalone",
-      "platforms": ["windows_x64"],
+      "login_required": "user",
+      "platforms": [
+        "windows_x64"
+      ],
       "screenshots": [],
       "changelog_url": "https://github.com/hosytri07/trishnexus-monorepo/releases/tag/trishcheck-v1.0.0",
       "download": {
         "windows_x64": {
           "url": "https://github.com/hosytri07/trishnexus-monorepo/releases/download/trishcheck-v1.0.0/TrishCheck_1.0.0_x64-setup.exe",
-          "sha256": "",
+          "sha256": "b79dff8de932c03f9fd51a6fa2e6cc9cdf66500eafd645ea6c047afae9023838",
           "installer_args": []
         }
       }
@@ -84,19 +85,19 @@
       "tagline": "Dọn file/cache an toàn — staged delete + undo 7 ngày",
       "logo_url": "https://trishteam.io.vn/logos/trishclean.png",
       "version": "1.0.0",
-      "size_bytes": 0,
+      "size_bytes": 3524444,
       "status": "released",
       "release_at": "2026-05-07T09:00:00+07:00",
-      "login_required": "none",
-      "requires_key": true,
-      "key_type": "standalone",
-      "platforms": ["windows_x64"],
+      "login_required": "user",
+      "platforms": [
+        "windows_x64"
+      ],
       "screenshots": [],
       "changelog_url": "https://github.com/hosytri07/trishnexus-monorepo/releases/tag/trishclean-v1.0.0",
       "download": {
         "windows_x64": {
           "url": "https://github.com/hosytri07/trishnexus-monorepo/releases/download/trishclean-v1.0.0/TrishClean_1.0.0_x64-setup.exe",
-          "sha256": "",
+          "sha256": "f13fd8a4d8707d574012a3076b19f4923a020783f083d57cbc91116246482f62",
           "installer_args": []
         }
       }
@@ -107,19 +108,19 @@
       "tagline": "Quản lý font tiếng Việt + AutoCAD .shx + Pair AI gợi ý font đôi",
       "logo_url": "https://trishteam.io.vn/logos/trishfont.png",
       "version": "1.0.0",
-      "size_bytes": 0,
+      "size_bytes": 3839623,
       "status": "released",
       "release_at": "2026-05-07T09:00:00+07:00",
-      "login_required": "none",
-      "requires_key": true,
-      "key_type": "standalone",
-      "platforms": ["windows_x64"],
+      "login_required": "user",
+      "platforms": [
+        "windows_x64"
+      ],
       "screenshots": [],
       "changelog_url": "https://github.com/hosytri07/trishnexus-monorepo/releases/tag/trishfont-v1.0.0",
       "download": {
         "windows_x64": {
           "url": "https://github.com/hosytri07/trishnexus-monorepo/releases/download/trishfont-v1.0.0/TrishFont_1.0.0_x64-setup.exe",
-          "sha256": "",
+          "sha256": "ee1ac9e5222b62f8d0ab7c26f3edd5ed60ddcbe50433af151909f667a7d8eb7d",
           "installer_args": []
         }
       }
@@ -130,19 +131,19 @@
       "tagline": "All-in-one: Thư viện · Ghi chú · Tài liệu · Ảnh — PDF Tools + chuyển đổi đa định dạng + database tra cứu (cầu/đường VN, biển báo, định mức)",
       "logo_url": "https://trishteam.io.vn/logos/trishlibrary.png",
       "version": "1.0.0",
-      "size_bytes": 0,
+      "size_bytes": 31715528,
       "status": "released",
       "release_at": "2026-05-07T09:00:00+07:00",
-      "login_required": "trial",
-      "requires_key": true,
-      "key_type": "account",
-      "platforms": ["windows_x64"],
+      "login_required": "user",
+      "platforms": [
+        "windows_x64"
+      ],
       "screenshots": [],
       "changelog_url": "https://github.com/hosytri07/trishnexus-monorepo/releases/tag/trishlibrary-v1.0.0",
       "download": {
         "windows_x64": {
           "url": "https://github.com/hosytri07/trishnexus-monorepo/releases/download/trishlibrary-v1.0.0/TrishLibrary_1.0.0_x64-setup.exe",
-          "sha256": "",
+          "sha256": "a7446cf5826cd2ad7faed36019eb0b814a5198a4f8cbe911f689d3f27ad62d45",
           "installer_args": []
         }
       }
@@ -156,10 +157,10 @@
       "size_bytes": 0,
       "status": "released",
       "release_at": "2026-05-07T09:00:00+07:00",
-      "login_required": "trial",
-      "requires_key": true,
-      "key_type": "account",
-      "platforms": ["windows_x64"],
+      "login_required": "user",
+      "platforms": [
+        "windows_x64"
+      ],
       "screenshots": [],
       "changelog_url": "https://github.com/hosytri07/trishnexus-monorepo/releases/tag/trishdrive-v1.0.0",
       "download": {
@@ -180,9 +181,10 @@
       "status": "released",
       "release_at": "2026-05-07T09:00:00+07:00",
       "login_required": "user",
-      "requires_key": true,
-      "key_type": "account",
-      "platforms": ["windows_x64", "web"],
+      "platforms": [
+        "windows_x64",
+        "web"
+      ],
       "screenshots": [],
       "changelog_url": "https://github.com/hosytri07/trishnexus-monorepo/releases/tag/trishfinance-v1.0.0",
       "download": {
@@ -208,9 +210,9 @@
       "status": "released",
       "release_at": "2026-05-07T09:00:00+07:00",
       "login_required": "user",
-      "requires_key": true,
-      "key_type": "account",
-      "platforms": ["windows_x64"],
+      "platforms": [
+        "windows_x64"
+      ],
       "screenshots": [],
       "changelog_url": "https://github.com/hosytri07/trishnexus-monorepo/releases/tag/trishiso-v1.0.0",
       "download": {
@@ -231,9 +233,9 @@
       "status": "scheduled",
       "release_at": "2026-05-07T09:00:00+07:00",
       "login_required": "user",
-      "requires_key": true,
-      "key_type": "account",
-      "platforms": ["windows_x64"],
+      "platforms": [
+        "windows_x64"
+      ],
       "screenshots": [],
       "changelog_url": "",
       "download": {
@@ -253,9 +255,9 @@
       "size_bytes": 0,
       "status": "coming_soon",
       "login_required": "user",
-      "requires_key": true,
-      "key_type": "account",
-      "platforms": ["windows_x64"],
+      "platforms": [
+        "windows_x64"
+      ],
       "screenshots": [],
       "changelog_url": "",
       "download": {

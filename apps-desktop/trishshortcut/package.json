@@ -14,17 +14,20 @@
     "tauri:build": "tauri build"
   },
   "dependencies": {
-    "@tauri-apps/api": "^2.0.0",
+    "@tauri-apps/api": "^2.11.0",
     "@tauri-apps/plugin-dialog": "^2.0.0",
     "@tauri-apps/plugin-opener": "^2.0.0",
     "@tauri-apps/plugin-global-shortcut": "^2.0.0",
+    "@trishteam/auth": "workspace:*",
+    "@trishteam/data": "workspace:*",
     "@trishteam/design-system": "workspace:*",
+    "firebase": "^10.14.1",
     "lucide-react": "^0.428.0",
     "react": "18.3.1",
     "react-dom": "18.3.1"
   },
   "devDependencies": {
-    "@tauri-apps/cli": "^2.0.0",
+    "@tauri-apps/cli": "^2.11.0",
     "@types/react": "18.3.3",
     "@types/react-dom": "18.3.0",
     "@vitejs/plugin-react": "^4.3.1",

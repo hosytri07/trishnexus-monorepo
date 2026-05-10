@@ -44,6 +44,64 @@ function fuzzyMatch(installedName: string, matchTerms: string[]): boolean {
   return matchTerms.some((term) => lower.includes(term.toLowerCase()));
 }
 
+/**
+ * Canonicalize tên software để dedupe các bản update / sub-component / version
+ * khác nhau nhưng cùng 1 app:
+ *   - "AutoCAD 2023" / "AutoCAD 2024 - English" / "AutoCAD - DWG..." → "autocad"
+ *   - "Microsoft 365 Apps" / "Microsoft Office Pro" → "microsoft 365 / office"
+ *
+ * Strategy:
+ *   1. Nếu match được 1 PriceEntry → dùng `match[0]` làm key (canonical group)
+ *   2. Nếu không → strip version/year/architecture/edition khỏi tên
+ */
+function canonicalKey(name: string, prices: PriceEntry[]): string {
+  const matched = prices.find((p) => fuzzyMatch(name, p.match));
+  if (matched) return `db:${matched.match[0].toLowerCase()}`;
+  // Fallback: strip version numbers, years, architectures, common suffixes
+  let key = name.toLowerCase().trim();
+  key = key.replace(/\s*\d{4}([\s-].*)?$/, ''); // "AutoCAD 2024 - English" → "autocad"
+  key = key.replace(/\s*\d+(\.\d+)+.*$/, ''); // "Foo 1.2.3" → "foo"
+  key = key.replace(
+    /\s*[-–—]\s*(english|vietnamese|japanese|x64|x86|64-bit|32-bit|trial|preview|beta|free|pro|enterprise|standard|home|ultimate)\b.*$/i,
+    '',
+  );
+  key = key.replace(/\s+/g, ' ').trim();
+  return `name:${key}`;
+}
+
+/**
+ * Group installed software by canonical key. Giữ entry có install_date mới
+ * nhất (hoặc version cao nhất nếu không có ngày).
+ */
+function dedupeInstalled(
+  list: InstalledSoftware[],
+  prices: PriceEntry[],
+): InstalledSoftware[] {
+  const groups = new Map<string, InstalledSoftware>();
+  for (const sw of list) {
+    const key = canonicalKey(sw.name, prices);
+    const existing = groups.get(key);
+    if (!existing) {
+      groups.set(key, sw);
+      continue;
+    }
+    // Prefer entry với install_date mới hơn
+    const a = sw.install_date || '';
+    const b = existing.install_date || '';
+    if (a > b) {
+      groups.set(key, sw);
+      continue;
+    }
+    // Tie-break by version string (so sánh lexical đủ tốt cho semver-ish)
+    if (a === b && sw.version > existing.version) {
+      groups.set(key, sw);
+    }
+  }
+  return [...groups.values()].sort((a, b) =>
+    a.name.localeCompare(b.name, 'vi'),
+  );
+}
+
 function formatVnd(vnd: number): string {
   if (vnd === 0) return 'Miễn phí';
   if (vnd >= 1_000_000) return `${(vnd / 1_000_000).toFixed(1)}M ₫/năm`;
@@ -76,7 +134,9 @@ export function LicenseView({ language = 'vi' }: LicenseViewProps): JSX.Element 
     setLoading(true);
     setErr(null);
     try {
-      const list = await invoke<InstalledSoftware[]>('scan_installed_software');
+      const raw = await invoke<InstalledSoftware[]>('scan_installed_software');
+      // Dedupe: nhiều entry registry trùng tên (AutoCAD x12) → group lại 1 app
+      const list = dedupeInstalled(raw, PRICES);
       setInstalled(list);
       // Match từng installed với DB
       const matchedList: MatchedItem[] = list.map((sw) => {

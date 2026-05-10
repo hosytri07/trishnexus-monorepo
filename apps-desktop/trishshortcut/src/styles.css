@@ -303,7 +303,7 @@ input, select, textarea {
 
 /* ===== Buttons ===== */
 
-.btn {
+.ts-app .btn {
   display: inline-flex;
   align-items: center;
   gap: 6px;
@@ -315,26 +315,26 @@ input, select, textarea {
   border: 1px solid transparent;
 }
 
-.btn-primary {
+.ts-app .btn-primary {
   background: var(--color-accent-primary);
   color: #fff;
 }
 
-.btn-primary:hover:not(:disabled) {
+.ts-app .btn-primary:hover:not(:disabled) {
   background: var(--color-accent-secondary);
 }
 
-.btn-secondary {
+.ts-app .btn-secondary {
   background: var(--color-surface-card);
   color: var(--color-text-primary);
   border-color: var(--color-border-default);
 }
 
-.btn-secondary:hover:not(:disabled) {
+.ts-app .btn-secondary:hover:not(:disabled) {
   background: var(--color-surface-hover);
 }
 
-.btn-icon {
+.ts-app .btn-icon {
   padding: 8px;
   width: 36px;
   height: 36px;

@@ -270,9 +270,20 @@ export function SettingsModal({ settings, onSave, onRestore, onClose, version }:
                   className="btn btn-secondary"
                   style={{ marginTop: 8 }}
                   onClick={() => {
-                    void import('@tauri-apps/plugin-opener').then((m) =>
-                      m.openPath(`${(globalThis as any).process?.env?.LOCALAPPDATA ?? ''}\\vn.trishteam.shortcut`),
-                    ).catch(() => {});
+                    // openPath plugin yêu cầu allowlist scope động - dùng
+                    // custom Rust command spawn explorer.exe trực tiếp.
+                    void (async () => {
+                      const { invoke } = await import('@tauri-apps/api/core');
+                      const localAppData =
+                        (globalThis as { process?: { env?: { LOCALAPPDATA?: string } } })
+                          .process?.env?.LOCALAPPDATA ?? '';
+                      const path = `${localAppData}\\vn.trishteam.shortcut`;
+                      try {
+                        await invoke('open_in_explorer', { path });
+                      } catch (err) {
+                        console.warn('[shortcut] open folder fail:', err);
+                      }
+                    })();
                   }}
                 >
                   <FolderOpen size={14} /> Mở folder dữ liệu

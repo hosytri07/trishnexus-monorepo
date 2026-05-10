@@ -131,16 +131,32 @@ export function LoginScreen({
       >
         <div style={{ textAlign: 'center', marginBottom: 24 }}>
           {logoUrl && (
-            <img
-              src={logoUrl}
-              alt={appName}
+            <div
               style={{
-                width: 56,
-                height: 56,
-                borderRadius: 12,
+                display: 'inline-flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                width: 64,
+                height: 64,
+                background: '#ffffff',
+                borderRadius: 14,
+                padding: 6,
                 marginBottom: 12,
+                boxShadow: '0 2px 8px rgba(0,0,0,0.12)',
+                border: '1px solid rgba(0,0,0,0.06)',
               }}
-            />
+            >
+              <img
+                src={logoUrl}
+                alt={appName}
+                style={{
+                  width: '100%',
+                  height: '100%',
+                  objectFit: 'contain',
+                  borderRadius: 8,
+                }}
+              />
+            </div>
           )}
           <h1
             style={{

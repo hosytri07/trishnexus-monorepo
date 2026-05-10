@@ -1,6 +1,6 @@
 {
   "name": "@trishteam/trishlibrary",
-  "version": "1.0.1",
+  "version": "1.0.0",
   "private": true,
   "description": "TrishLibrary — All-in-one Thư viện + Ghi chú + Tài liệu (soạn thảo + chuyển đổi đa định dạng + PDF tools 2 chiều). Tauri 2 + React + TipTap + Tantivy + Tesseract OCR + Firebase.",
   "type": "module",
