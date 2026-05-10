@@ -1089,7 +1089,7 @@ export async function fetchStats(): Promise<AdminStats> {
     listKeys(1000),
     listBroadcasts(200),
   ]);
-  const byRole: Record<UserRole, number> = { trial: 0, demo: 0, user: 0, admin: 0 };
+  const byRole: Record<UserRole, number> = { trial: 0, user: 0, admin: 0 };
   let signups7d = 0;
   const sevenDaysAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
   for (const u of users) {
@@ -1500,12 +1500,6 @@ export function formatRelative(ms: number | undefined | null): string {
   const sec = Math.floor(diff / 1000);
   if (sec < 60) return 'vừa xong';
   const min = Math.floor(sec / 60);
-  if (min < 60) return min + ' phut truoc';
+  if (min < 60) return `${min} phút trước`;
   const hour = Math.floor(min / 60);
   if (hour < 24) return hour + 'h truoc';
-  const day = Math.floor(hour / 24);
-  if (day < 30) return day + " ngay truoc";
-  const month = Math.floor(day / 30);
-  if (month < 12) return month + " thang truoc";
-  return Math.floor(month / 12) + " nam truoc";
-}

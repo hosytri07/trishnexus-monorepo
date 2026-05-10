@@ -1,22 +1,14 @@
 /**
- * POST /api/admin/set-role — Phase 11.8.5.
+ * POST /api/admin/set-role - Phase 11.8.5 + Phase 38.7 (demo support).
  *
- * Body JSON: { uid: string, role: 'user' | 'admin' }
- * Header:    Authorization: Bearer <Firebase ID token>
+ * Body JSON: { uid, role, demoDays? }
+ * Header: Authorization: Bearer <Firebase ID token>
  *
  * Flow:
- *   1. Verify ID token (firebase-admin). Caller phải là admin
- *      (custom claim `admin:true` hoặc doc /users/{caller}.role === 'admin').
- *   2. Set custom claim:
- *        auth.setCustomUserClaims(uid, { admin: role === 'admin' })
- *      → ID token của target sẽ có claim mới ở lần refresh tiếp theo.
- *   3. Update Firestore /users/{uid} để UI đọc được ngay.
- *
- * Nếu Admin SDK chưa config → 501 (UI tự fallback chỉ update Firestore).
- *
- * Lưu ý bảo mật:
- *   - Không cho admin tự gỡ quyền của chính mình (422).
- *   - Luôn log vào /audit/{autoId} để giữ chain of custody.
+ *  1. Verify ID token. Caller must be admin (custom claim or Firestore role).
+ *  2. Set custom claim auth.setCustomUserClaims(uid, { admin: role === 'admin' }).
+ *  3. Update Firestore /users/{uid} (role + plan + demo metadata).
+ *  4. Audit log to /audit.
  */
 import { type NextRequest } from 'next/server';
 import { FieldValue } from 'firebase-admin/firestore';
@@ -31,7 +23,11 @@ export const OPTIONS = corsOptions;
 interface Body {
   uid?: string;
   role?: string;
+  demoDays?: number;
 }
+
+const DEMO_DAYS_DEFAULT = 30;
+const DEMO_DAYS_MAX = 365;
 
 async function verifyCaller(req: NextRequest) {
   const authz = req.headers.get('authorization') ?? '';
@@ -39,7 +35,6 @@ async function verifyCaller(req: NextRequest) {
   if (!token) return { error: 'missing_token', status: 401 } as const;
   try {
     const decoded = await adminAuth().verifyIdToken(token);
-    // Admin = custom claim OR role trong Firestore.
     if (decoded.admin === true) {
       return { decoded } as const;
     }
@@ -57,10 +52,7 @@ async function verifyCaller(req: NextRequest) {
 export async function POST(req: NextRequest) {
   if (!adminReady()) {
     return corsJson(
-      {
-        error:
-          'Admin SDK chưa cấu hình. Set FIREBASE_SERVICE_ACCOUNT env hoặc dùng seed-admin.ts CLI.',
-      },
+      { error: 'Admin SDK not configured' },
       { status: 501 },
     );
   }
@@ -82,9 +74,11 @@ export async function POST(req: NextRequest) {
       ? 'admin'
       : body.role === 'user'
         ? 'user'
-        : body.role === 'trial'
-          ? 'trial'
-          : null;
+        : body.role === 'demo'
+          ? 'demo'
+          : body.role === 'trial'
+            ? 'trial'
+            : null;
   if (!uid || !role) {
     return corsJson({ error: 'missing_fields' }, { status: 400 });
   }
@@ -95,11 +89,20 @@ export async function POST(req: NextRequest) {
     );
   }
 
+  let demoExpiresAt: number | null = null;
+  if (role === 'demo') {
+    const reqDays = Number(body.demoDays);
+    const days =
+      Number.isFinite(reqDays) && reqDays > 0
+        ? Math.min(Math.floor(reqDays), DEMO_DAYS_MAX)
+        : DEMO_DAYS_DEFAULT;
+    demoExpiresAt = Date.now() + days * 86_400_000;
+  }
+
   try {
     const auth = adminAuth();
     const db = adminDb();
 
-    // 1. Set custom claim
     const existing = await auth.getUser(uid).catch(() => null);
     if (!existing) {
       return corsJson({ error: 'user_not_found' }, { status: 404 });
@@ -107,22 +110,28 @@ export async function POST(req: NextRequest) {
     const claims = { ...(existing.customClaims ?? {}), admin: role === 'admin' };
     await auth.setCustomUserClaims(uid, claims);
 
-    // 2. Update Firestore doc
     const planMap: Record<string, string> = {
       admin: 'Admin',
       user: 'Pro',
+      demo: 'Demo',
       trial: 'Trial',
     };
-    await db.collection('users').doc(uid).set(
-      {
-        role,
-        plan: planMap[role] ?? 'Free',
-        updatedAt: FieldValue.serverTimestamp(),
-      },
-      { merge: true },
-    );
+    const update: Record<string, unknown> = {
+      role,
+      plan: planMap[role] ?? 'Free',
+      updatedAt: FieldValue.serverTimestamp(),
+    };
+    if (role === 'demo' && demoExpiresAt !== null) {
+      update.demo_expires_at = demoExpiresAt;
+      update.demo_set_by_uid = caller.decoded.uid;
+      update.demo_set_at = Date.now();
+    } else {
+      update.demo_expires_at = FieldValue.delete();
+      update.demo_set_by_uid = FieldValue.delete();
+      update.demo_set_at = FieldValue.delete();
+    }
+    await db.collection('users').doc(uid).set(update, { merge: true });
 
-    // 3. Audit log
     await db.collection('audit').add({
       action: 'set_role',
       actor: caller.decoded.uid,
@@ -130,6 +139,7 @@ export async function POST(req: NextRequest) {
       target: uid,
       targetEmail: existing.email ?? null,
       newRole: role,
+      demoExpiresAt: demoExpiresAt,
       createdAt: FieldValue.serverTimestamp(),
     });
 
@@ -137,7 +147,8 @@ export async function POST(req: NextRequest) {
       ok: true,
       uid,
       role,
-      note: 'Target user cần logout-login để ID token refresh claim.',
+      demo_expires_at: demoExpiresAt,
+      note: 'Target user must logout-login to refresh ID token claim.',
     });
   } catch (e) {
     console.error('[set-role] fail:', e);
