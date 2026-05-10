@@ -31,9 +31,9 @@ function AppLogoBig({ app }: { app: AppForWebsite }) {
   const IconCmp = resolveAppIcon(app.icon_fallback);
   const showFallback = broken || !app.logo_path;
 
-  // Phase 38 — Tile bg đồng nhất 1 màu cho mọi app. Bỏ accent tint per-app
-  // (Trí feedback: mỗi tile khác màu trông không đồng bộ).
-  const tintBg = 'var(--color-surface-card)';
+  // Phase 38 — Tile bg đồng nhất MÀU TRẮNG (không theo theme) cho mọi app.
+  // Logo PNG có content tối → contrast tốt trên nền trắng cả light + dark mode.
+  const tintBg = '#ffffff';
 
   return (
     <div
@@ -43,7 +43,7 @@ function AppLogoBig({ app }: { app: AppForWebsite }) {
         height: 72,
         background: tintBg,
         borderRadius: 10,
-        border: '1px solid var(--color-border-default)',
+        border: '1px solid rgba(0, 0, 0, 0.08)',
       }}
     >
       {showFallback ? (
