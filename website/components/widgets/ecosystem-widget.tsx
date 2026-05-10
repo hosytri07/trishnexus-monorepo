@@ -31,14 +31,13 @@ function AppLogoBig({ app }: { app: AppForWebsite }) {
   const IconCmp = resolveAppIcon(app.icon_fallback);
   const showFallback = broken || !app.logo_path;
 
-  // Nền tint sáng (white-ish gradient over accent) để logo transparent
-  // vẫn nổi bật trong cả 2 theme.
+  // Phase 38 — Đồng bộ tile bg cho 11 logo. Trước có 2 layer gradient
+  // (white opacity 72-85% + accent) → nhiều logo trông "trắng tinh" che mất
+  // accent. Giờ dùng surface-card đồng nhất với 1 lớp accent tint nhẹ ở
+  // viền — logo nào cũng pop đều bất kể có nền trắng nội tại hay không.
   const tintBg = `
-    linear-gradient(135deg,
-      rgba(255,255,255,0.85) 0%,
-      rgba(255,255,255,0.72) 100%
-    ),
-    linear-gradient(135deg, ${app.accent}22 0%, ${app.accent}44 100%)
+    linear-gradient(135deg, ${app.accent}18 0%, ${app.accent}30 100%),
+    var(--color-surface-card)
   `;
 
   return (
