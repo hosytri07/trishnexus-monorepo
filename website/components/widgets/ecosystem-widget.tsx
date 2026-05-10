@@ -59,10 +59,16 @@ function AppLogoBig({ app }: { app: AppForWebsite }) {
         <img
           src={app.logo_path}
           alt={`${app.name} logo`}
-          width={60}
-          height={60}
           onError={() => setBroken(true)}
-          style={{ objectFit: 'contain', width: 60, height: 60 }}
+          style={{
+            // Phase 38 — Fill 90% of tile để logo có padding nhẹ ngoài cùng
+            // mà vẫn dominate. Trước: 60×60 fixed → các PNG có sẵn padding nội
+            // tại trông rất nhỏ. Giờ width 90% tile, contain giữ aspect ratio.
+            width: '90%',
+            height: '90%',
+            objectFit: 'contain',
+            display: 'block',
+          }}
         />
       )}
     </div>
