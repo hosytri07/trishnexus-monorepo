@@ -27,6 +27,7 @@ import { getFirebaseAuth, getFirebaseDb } from '@trishteam/auth';
 import {
   paths,
   type ActivationKey,
+  type PromoCode,
   type SecurityAlert,
   type SessionHistoryEntry,
   type TrishUser,
@@ -1490,6 +1491,134 @@ export function formatTimestamp(ts: number | Timestamp | undefined | null): stri
     day: '2-digit',
     hour: '2-digit',
     minute: '2-digit',
+  });
+}
+
+// ============================================================
+// Phase 38.8 — Promo Codes
+// ============================================================
+
+export async function listPromoCodes(limit = 200): Promise<PromoCode[]> {
+  const db = getFirebaseDb();
+  const q = query(
+    collection(db, paths.promoCodes()),
+    orderBy('created_at', 'desc'),
+    fbLimit(limit),
+  );
+  const snap = await getDocs(q);
+  return snap.docs.map((d) => {
+    const data = d.data() as Partial<PromoCode>;
+    return {
+      ...data,
+      id: data.id ?? d.id,
+      code: data.code ?? d.id,
+      active: data.active !== false,
+      action: 'demo',
+      duration_days: data.duration_days ?? 0,
+      activation_count: data.activation_count ?? 0,
+    } as PromoCode;
+  });
+}
+
+export interface CreatePromoCodeInput {
+  code: string;
+  duration_days: number;
+  max_activations?: number;
+  expires_at?: number;
+  note?: string;
+}
+
+export async function createPromoCode(
+  input: CreatePromoCodeInput,
+  actor: ActorContext,
+): Promise<PromoCode> {
+  const db = getFirebaseDb();
+  const code = input.code.trim().toUpperCase().replace(/[\s-]/g, '');
+  if (!/^[A-Z0-9]{4,32}$/.test(code)) {
+    throw new Error('Code phải 4-32 ký tự, chỉ chữ và số');
+  }
+  if (input.duration_days < 1 || input.duration_days > 365) {
+    throw new Error('Số ngày demo phải từ 1 đến 365');
+  }
+
+  const ref = doc(db, paths.promoCode(code));
+  const existing = await getDoc(ref);
+  if (existing.exists()) {
+    throw new Error(`Code "${code}" đã tồn tại`);
+  }
+
+  const data: PromoCode = {
+    id: code,
+    code,
+    active: true,
+    action: 'demo',
+    duration_days: input.duration_days,
+    activation_count: 0,
+    created_at: Date.now(),
+    created_by_uid: actor.uid,
+    ...(input.max_activations !== undefined && input.max_activations > 0
+      ? { max_activations: input.max_activations }
+      : {}),
+    ...(input.expires_at !== undefined && input.expires_at > 0
+      ? { expires_at: input.expires_at }
+      : {}),
+    ...(input.note ? { note: input.note } : {}),
+  };
+
+  await setDoc(ref, data);
+  await writeAudit({
+    action: 'promo_code.create',
+    actor_uid: actor.uid,
+    actor_email: actor.email,
+    target_type: 'promo_code',
+    target_id: code,
+    target_label: code,
+    details: {
+      duration_days: input.duration_days,
+      max_activations: input.max_activations ?? null,
+      expires_at: input.expires_at ?? null,
+    },
+  });
+  return data;
+}
+
+export async function togglePromoCodeActive(
+  code: string,
+  active: boolean,
+  actor: ActorContext,
+): Promise<void> {
+  const db = getFirebaseDb();
+  const ref = doc(db, paths.promoCode(code));
+  await updateDoc(ref, {
+    active,
+    updated_at: Date.now(),
+  });
+  await writeAudit({
+    action: active ? 'promo_code.activate' : 'promo_code.deactivate',
+    actor_uid: actor.uid,
+    actor_email: actor.email,
+    target_type: 'promo_code',
+    target_id: code,
+    target_label: code,
+    details: { active },
+  });
+}
+
+export async function deletePromoCode(
+  code: string,
+  actor: ActorContext,
+): Promise<void> {
+  const db = getFirebaseDb();
+  const ref = doc(db, paths.promoCode(code));
+  await deleteDoc(ref);
+  await writeAudit({
+    action: 'promo_code.delete',
+    actor_uid: actor.uid,
+    actor_email: actor.email,
+    target_type: 'promo_code',
+    target_id: code,
+    target_label: code,
+    details: {},
   });
 }
 

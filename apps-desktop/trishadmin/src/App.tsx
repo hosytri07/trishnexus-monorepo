@@ -16,6 +16,7 @@ import { signOut } from '@trishteam/auth';
 import { DashboardPanel } from './components/DashboardPanel.js';
 import { UsersPanel } from './components/UsersPanel.js';
 import { KeysPanel } from './components/KeysPanel.js';
+import { PromoCodesPanel } from './components/PromoCodesPanel.js';
 import { ActiveSessionsPanel } from './components/ActiveSessionsPanel.js';
 import { SessionHistoryPanel } from './components/SessionHistoryPanel.js';
 import { AlertsPanel } from './components/AlertsPanel.js';
@@ -42,6 +43,7 @@ type Panel =
   | 'dashboard'
   | 'users'
   | 'keys'
+  | 'promo_codes'
   | 'sessions'
   | 'session_history'
   | 'alerts'
@@ -77,6 +79,7 @@ const NAV_GROUPS: NavGroup[] = [
     items: [
       { id: 'users', label: 'Users' },
       { id: 'keys', label: 'Keys' },
+      { id: 'promo_codes', label: '🎟 Promo Codes' },
       { id: 'sessions', label: 'Active Sessions' },
       { id: 'session_history', label: '📜 Session History' },
       { id: 'alerts', label: '🚨 Security Alerts' },
@@ -242,6 +245,7 @@ export function App(): JSX.Element {
         {active === 'keys' && (
           <KeysPanel adminUid={firebaseUser?.uid ?? ''} />
         )}
+        {active === 'promo_codes' && <PromoCodesPanel />}
         {active === 'sessions' && (
           <ActiveSessionsPanel adminUid={firebaseUser?.uid ?? ''} />
         )}
