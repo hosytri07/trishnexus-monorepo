@@ -38,9 +38,8 @@
       "tagline": "Quản lý shortcut Windows: apps · games · folders · URLs với icon + workspace + hotkey toàn cục + Quick Launcher (Ctrl+Space)",
       "logo_url": "https://trishteam.io.vn/logos/trishshortcut.png",
       "version": "1.0.0",
-      "size_bytes": 3499754,
+      "size_bytes": 3507280,
       "status": "released",
-      "release_at": "2026-05-07T09:00:00+07:00",
       "login_required": "user",
       "platforms": [
         "windows_x64"
@@ -50,7 +49,7 @@
       "download": {
         "windows_x64": {
           "url": "https://github.com/hosytri07/trishnexus-monorepo/releases/download/trishshortcut-v1.0.0/TrishShortcut_1.0.0_x64-setup.exe",
-          "sha256": "58862ee94ef223a65f82021aa72cd85147b21e77278aaa16d3b7afb897ef41e9",
+          "sha256": "328466219b23faf22f9dbdc2f6538d6616615c5639e9347dff1d301e22efd8e0",
           "installer_args": []
         }
       }
