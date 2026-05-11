@@ -533,9 +533,15 @@ importers:
       '@trishteam/adapters':
         specifier: workspace:*
         version: link:../../packages/adapters
+      '@trishteam/auth':
+        specifier: workspace:*
+        version: link:../../packages/auth
       '@trishteam/core':
         specifier: workspace:*
         version: link:../../packages/core
+      '@trishteam/data':
+        specifier: workspace:*
+        version: link:../../packages/data
       '@trishteam/design-system':
         specifier: workspace:*
         version: link:../../packages/design-system
@@ -545,6 +551,9 @@ importers:
       '@trishteam/ui':
         specifier: workspace:*
         version: link:../../packages/ui
+      firebase:
+        specifier: ^10.14.1
+        version: 10.14.1
       react:
         specifier: 18.3.1
         version: 18.3.1
