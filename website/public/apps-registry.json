@@ -105,9 +105,8 @@
       "tagline": "Quản lý font tiếng Việt + AutoCAD .shx + Pair AI gợi ý font đôi",
       "logo_url": "https://trishteam.io.vn/logos/trishfont.png",
       "version": "1.0.0",
-      "size_bytes": 3839623,
+      "size_bytes": 3845673,
       "status": "released",
-      "release_at": "2026-05-07T09:00:00+07:00",
       "login_required": "user",
       "platforms": [
         "windows_x64"
@@ -117,7 +116,7 @@
       "download": {
         "windows_x64": {
           "url": "https://github.com/hosytri07/trishnexus-monorepo/releases/download/trishfont-v1.0.0/TrishFont_1.0.0_x64-setup.exe",
-          "sha256": "ee1ac9e5222b62f8d0ab7c26f3edd5ed60ddcbe50433af151909f667a7d8eb7d",
+          "sha256": "8b2807e24f9d55ffb4d8812a119606bff908cf294fc963136f9d51847fe2f82f",
           "installer_args": []
         }
       }
