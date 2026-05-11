@@ -182,7 +182,7 @@ export default function AdminPromoCodesPage() {
         ...(maxAct !== undefined ? { max_activations: maxAct } : {}),
         ...(expiresAt !== undefined ? { expires_at: expiresAt } : {}),
         created_at: Date.now(),
-        created_by_uid: user.uid,
+        created_by_uid: user.id,
         updated_at: serverTimestamp(),
       });
       setToast({ msg: `✓ Đã tạo code ${code}`, kind: 'ok' });
