@@ -83,9 +83,8 @@
       "tagline": "Dọn file/cache an toàn — staged delete + undo 7 ngày",
       "logo_url": "https://trishteam.io.vn/logos/trishclean.png",
       "version": "1.0.0",
-      "size_bytes": 3524444,
+      "size_bytes": 3530747,
       "status": "released",
-      "release_at": "2026-05-07T09:00:00+07:00",
       "login_required": "user",
       "platforms": [
         "windows_x64"
@@ -95,7 +94,7 @@
       "download": {
         "windows_x64": {
           "url": "https://github.com/hosytri07/trishnexus-monorepo/releases/download/trishclean-v1.0.0/TrishClean_1.0.0_x64-setup.exe",
-          "sha256": "f13fd8a4d8707d574012a3076b19f4923a020783f083d57cbc91116246482f62",
+          "sha256": "e2ca33ec359f6b0c74f213a992516c5a9f29ef2d9d7f08ef21687041ef868c45",
           "installer_args": []
         }
       }
