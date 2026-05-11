@@ -1,6 +1,6 @@
 {
   "schema_version": 6,
-  "updated_at": "2026-05-10T17:11+07:00",
+  "updated_at": "2026-05-11T22:14+07:00",
   "ecosystem": {
     "name": "TrishTEAM",
     "tagline": "Hệ sinh thái phần mềm + tri thức + công cụ cho kỹ sư xây dựng / giao thông Việt Nam",
@@ -16,7 +16,7 @@
       "tagline": "Hub trung tâm — cài đặt + cập nhật + chạy 11 app TrishTEAM trong 1 nơi",
       "logo_url": "https://trishteam.io.vn/logos/trishlauncher.png",
       "version": "1.0.0",
-      "size_bytes": 4933453,
+      "size_bytes": 5037124,
       "status": "released",
       "login_required": "none",
       "platforms": [
@@ -27,7 +27,7 @@
       "download": {
         "windows_x64": {
           "url": "https://github.com/hosytri07/trishnexus-monorepo/releases/download/trishlauncher-v1.0.0/TrishLauncher_1.0.0_x64-setup.exe",
-          "sha256": "5f878ebf32e6aba0a13e254c72f558f0d9c0471c94be28a526ba2c05b76c2b80",
+          "sha256": "fdaa84cb471fd6d90e3b273b4305b6f29c916c9a577a543f2d12ad131f83794b",
           "installer_args": []
         }
       }
