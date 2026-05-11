@@ -199,6 +199,14 @@ service cloud.firestore {
       allow update, delete: if isAdmin(); // admin có thể purge cũ
     }
 
+    // --- Phase 38.8 — /promo_codes/{code} (readable promo codes) ---
+    // Doc ID = code chữ hoa (vd "TRIAL2026"). Admin tạo/sửa/disable.
+    // User KHÔNG đọc/ghi trực tiếp — activate qua POST /api/promo/activate (Admin SDK bypass).
+    match /promo_codes/{code} {
+      allow read: if isAdmin();
+      allow create, update, delete: if isAdmin();
+    }
+
     // --- Phase 24.3 — /alerts/{id} (security alerts) ---
     // Suspicious activity detector tạo alert (multi-IP, blacklist, proxy).
     // Admin đọc + ack/delete. Detector chạy trong TrishAdmin nên client write.

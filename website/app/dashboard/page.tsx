@@ -32,6 +32,7 @@ import {
 } from 'firebase/firestore';
 import { db, firebaseReady } from '@/lib/firebase';
 import { useAuth } from '@/lib/auth-context';
+import { PromoCodeCard } from '@/components/PromoCodeCard';
 
 interface AppKeyEntry {
   appId: string;
@@ -259,6 +260,9 @@ export default function DashboardPage(): JSX.Element {
           </div>
         )}
       </section>
+
+      {/* Phase 38.8 — Promo code activation */}
+      <PromoCodeCard />
 
       {/* Active sessions */}
       <section>

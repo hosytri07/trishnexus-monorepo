@@ -36,6 +36,7 @@ import {
   ClipboardList,
   Wallet,
   Cloud,
+  Ticket,
 } from 'lucide-react';
 import { useAuth } from '@/lib/auth-context';
 
@@ -49,6 +50,7 @@ const NAV: NavItem[] = [
   { href: '/admin', label: 'Dashboard', icon: LayoutDashboard },
   { href: '/admin/users', label: 'Người dùng', icon: Users },
   { href: '/admin/keys', label: 'Activation Keys', icon: KeyRound },
+  { href: '/admin/promo-codes', label: 'Mã khuyến mãi', icon: Ticket },
   { href: '/admin/announcements', label: 'Thông báo', icon: Megaphone },
   { href: '/admin/reindex', label: 'Semantic', icon: Sparkles },
   { href: '/admin/vitals', label: 'Vitals', icon: Gauge },

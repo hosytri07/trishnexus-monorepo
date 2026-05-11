@@ -41,6 +41,13 @@ export {
   type AuthState,
 } from './auth-state.js';
 
+// Phase 38.8 — Promo code activation client
+export {
+  activatePromoCode,
+  type PromoActivateResult,
+  type PromoActivateError,
+} from './promo-client.js';
+
 // Phase 36.6 — Key session client
 export {
   registerSession,

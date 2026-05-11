@@ -1500,12 +1500,12 @@ export function formatRelative(ms: number | undefined | null): string {
   const sec = Math.floor(diff / 1000);
   if (sec < 60) return 'vừa xong';
   const min = Math.floor(sec / 60);
-  if (min < 60) return min + ' phut truoc';
+  if (min < 60) return min + ' phút trước';
   const hour = Math.floor(min / 60);
-  if (hour < 24) return hour + 'h truoc';
+  if (hour < 24) return hour + 'h trước';
   const day = Math.floor(hour / 24);
-  if (day < 30) return day + " ngay truoc";
+  if (day < 30) return day + ' ngày trước';
   const month = Math.floor(day / 30);
-  if (month < 12) return month + " thang truoc";
-  return Math.floor(month / 12) + " nam truoc";
+  if (month < 12) return month + ' tháng trước';
+  return Math.floor(month / 12) + ' năm trước';
 }

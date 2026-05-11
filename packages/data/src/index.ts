@@ -49,6 +49,10 @@ export const paths = {
   key: (keyId: string) => `keys/${keyId}`,
   keys: () => 'keys',
 
+  // 🆕 Phase 38.8 — Promo codes (readable, shared)
+  promoCode: (code: string) => `promo_codes/${code.toUpperCase()}`,
+  promoCodes: () => 'promo_codes',
+
   // Phase 24.3 — Session history (audit trail các session đã kết thúc)
   sessionHistory: () => 'session_history',
   sessionHistoryEntry: (id: string) => `session_history/${id}`,
@@ -203,6 +207,64 @@ export interface TrishUser {
   /** @deprecated Phase 36 — dùng app_keys.trishfinance thay thế. Giữ cho migration. */
   finance_user?: boolean;
   finance_user_updated_at?: number;
+
+  /**
+   * 🆕 Phase 38.8 — Promo codes user đã dùng (1 user / 1 code, chống nhập lại).
+   * Mỗi item lưu code uppercase (vd "TRIAL2026"). Check khi user thử activate
+   * lại: nếu code đã có trong array → reject với reason "already_used".
+   */
+  activated_codes?: string[];
+}
+
+/**
+ * 🆕 Phase 38.8 — Promo code (readable, shared).
+ *
+ * Khác ActivationKey 16-char (single-use, bind 1 user) — promo code:
+ * - ID = code chữ hoa readable (vd "TRIAL2026", "MEMBER2026")
+ * - Mọi user nhập được, mỗi user 1 lần (tracked qua TrishUser.activated_codes[])
+ * - Action: trigger upgrade role (trial → demo) với duration cấu hình
+ *
+ * Collection: /promo_codes/{code}
+ */
+export interface PromoCode {
+  /** Doc ID = code chữ hoa (vd "TRIAL2026"). Unique, immutable. */
+  id: string;
+  /** Code readable user gõ vào — uppercase, alphanumeric, 4-32 chars. Phải = id. */
+  code: string;
+  /** Bật/tắt code. False = không nhận activate dù chưa hết hạn. */
+  active: boolean;
+  /**
+   * Hành động khi user kích hoạt thành công.
+   * - 'demo': set role='demo' + demo_expires_at = now + duration_days*86400000
+   * Có thể mở rộng sau ('user' / 'app_key' / ...)
+   */
+  action: 'demo';
+  /** Số ngày demo cấp cho user (1-365). Bắt buộc khi action='demo'. */
+  duration_days: number;
+  /** Note admin nội bộ (vd "Khuyến mãi ra mắt 2026") */
+  note?: string;
+
+  /**
+   * Tổng số lần đã activate thành công (counter, tăng atomically).
+   * Stats only — không dùng để limit (limit qua max_activations).
+   */
+  activation_count: number;
+  /**
+   * Giới hạn tổng số activate (0 / undefined = unlimited).
+   * Nếu activation_count >= max_activations → reject với reason "quota_reached".
+   */
+  max_activations?: number;
+
+  /**
+   * Ngày hết hạn code (timestamp ms). 0 / undefined = không hết hạn.
+   * Sau timestamp này → reject dù active=true.
+   */
+  expires_at?: number;
+
+  created_at: number;
+  created_by_uid: string;
+  /** Cập nhật mỗi lần admin sửa (active/duration/note) */
+  updated_at?: number;
 }
 
 /**
