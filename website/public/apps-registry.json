@@ -126,9 +126,8 @@
       "tagline": "All-in-one: Thư viện · Ghi chú · Tài liệu · Ảnh — PDF Tools + chuyển đổi đa định dạng + database tra cứu (cầu/đường VN, biển báo, định mức)",
       "logo_url": "https://trishteam.io.vn/logos/trishlibrary.png",
       "version": "1.0.0",
-      "size_bytes": 31715528,
+      "size_bytes": 31750151,
       "status": "released",
-      "release_at": "2026-05-07T09:00:00+07:00",
       "login_required": "user",
       "platforms": [
         "windows_x64"
@@ -138,7 +137,7 @@
       "download": {
         "windows_x64": {
           "url": "https://github.com/hosytri07/trishnexus-monorepo/releases/download/trishlibrary-v1.0.0/TrishLibrary_1.0.0_x64-setup.exe",
-          "sha256": "a7446cf5826cd2ad7faed36019eb0b814a5198a4f8cbe911f689d3f27ad62d45",
+          "sha256": "cae39a83a9ffd19b3eeef8e29941b108238057dbf395c15c2c076a214a727143",
           "installer_args": []
         }
       }
