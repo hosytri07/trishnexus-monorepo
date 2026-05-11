@@ -638,7 +638,7 @@ export default function AdminPromoCodesPage() {
         )}
       </section>
 
-      {ConfirmDialog}
+      <ConfirmDialog />
     </div>
   );
 }
