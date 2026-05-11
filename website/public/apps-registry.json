@@ -1,6 +1,6 @@
 {
   "schema_version": 6,
-  "updated_at": "2026-05-11T22:14+07:00",
+  "updated_at": "2026-05-11T22:15+07:00",
   "ecosystem": {
     "name": "TrishTEAM",
     "tagline": "Hệ sinh thái phần mềm + tri thức + công cụ cho kỹ sư xây dựng / giao thông Việt Nam",
@@ -61,9 +61,8 @@
       "tagline": "Kiểm tra hệ thống + benchmark CPU/RAM/disk + so sánh với 25 app phổ biến",
       "logo_url": "https://trishteam.io.vn/logos/trishcheck.png",
       "version": "1.0.0",
-      "size_bytes": 3437833,
+      "size_bytes": 3443815,
       "status": "released",
-      "release_at": "2026-05-07T09:00:00+07:00",
       "login_required": "user",
       "platforms": [
         "windows_x64"
@@ -73,7 +72,7 @@
       "download": {
         "windows_x64": {
           "url": "https://github.com/hosytri07/trishnexus-monorepo/releases/download/trishcheck-v1.0.0/TrishCheck_1.0.0_x64-setup.exe",
-          "sha256": "b79dff8de932c03f9fd51a6fa2e6cc9cdf66500eafd645ea6c047afae9023838",
+          "sha256": "bff3fb1d158dd5141fe74caa51ba8e8006b2146075dcf84137c3066b697bdf77",
           "installer_args": []
         }
       }
