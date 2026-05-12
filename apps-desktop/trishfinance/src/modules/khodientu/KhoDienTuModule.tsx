@@ -22,6 +22,7 @@ import {
   AlertTriangle,
 } from 'lucide-react';
 import { addLedgerEntry } from '../../lib/ledger-helper';
+import { PaymentModal, type PaymentResult } from '../../components/PaymentModal';
 
 // ============================================================
 // Types
@@ -436,6 +437,7 @@ function TxForm({ type, db, onSave, onClose }: { type: 'in' | 'out'; db: Db; onS
   const [customerPhone, setCustomerPhone] = useState('');
   const [note, setNote] = useState('');
   const [date, setDate] = useState(todayStr());
+  const [showPayment, setShowPayment] = useState(false);
 
   const product = db.products.find((p) => p.id === productId);
 
@@ -494,10 +496,25 @@ function TxForm({ type, db, onSave, onClose }: { type: 'in' | 'out'; db: Db; onS
 
       <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 16 }}>
         <button type="button" className="btn-secondary" onClick={onClose}>Hủy</button>
-        <button type="button" className="btn-primary" onClick={handleSubmit} disabled={!productId || qty <= 0} style={{ background: type === 'in' ? '#10B981' : '#F59E0B' }}>
-          {type === 'in' ? '⬇ Nhập' : '⬆ Xuất'}
-        </button>
+        {type === 'out' && qty * unitPrice > 0 ? (
+          <button type="button" className="btn-primary" onClick={() => setShowPayment(true)} disabled={!productId || qty <= 0}>
+            💳 Bán & Thanh toán
+          </button>
+        ) : (
+          <button type="button" className="btn-primary" onClick={handleSubmit} disabled={!productId || qty <= 0} style={{ background: type === 'in' ? '#10B981' : '#F59E0B' }}>
+            {type === 'in' ? '⬇ Nhập kho (ghi chi phí)' : '⬆ Xuất kho'}
+          </button>
+        )}
       </div>
+      {showPayment && (
+        <PaymentModal
+          total={qty * unitPrice}
+          description={`Bán ${product?.name ?? ''} x${qty}`.slice(0, 50)}
+          customerName={customerName}
+          onConfirm={(result) => { setShowPayment(false); setTimeout(() => handleSubmit(), 50); }}
+          onClose={() => setShowPayment(false)}
+        />
+      )}
     </ModalShell>
   );
 }

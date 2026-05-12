@@ -80,6 +80,8 @@ export function MediaDownloadScreen(): JSX.Element {
   const [removeWatermark, setRemoveWatermark] = useState(true);
   const [downloadPlaylist, setDownloadPlaylist] = useState(false);
   const [cookiesBrowser, setCookiesBrowser] = useState<string>('none');
+  const [cookiesFile, setCookiesFile] = useState<string>('');
+  const [outputFormat, setOutputFormat] = useState<string>('auto');
   const [queue, setQueue] = useState<QueueItem[]>([]);
   const [toast, setToast] = useState<{ msg: string; kind: 'ok' | 'err' } | null>(null);
   const [ytdlpAvailable, setYtdlpAvailable] = useState<boolean | null>(null);
@@ -206,6 +208,8 @@ export function MediaDownloadScreen(): JSX.Element {
             removeWatermark,
             downloadPlaylist,
             cookiesBrowser: cookiesBrowser === 'none' ? null : cookiesBrowser,
+            cookiesFile: cookiesFile || null,
+            outputFormat: outputFormat === 'auto' ? null : outputFormat,
           },
         );
 
@@ -426,7 +430,7 @@ export function MediaDownloadScreen(): JSX.Element {
             paddingTop: 14,
             borderTop: '1px solid var(--color-border-subtle)',
             display: 'grid',
-            gridTemplateColumns: '1fr 1fr 1fr 1fr',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))',
             gap: 12,
           }}
         >
@@ -571,14 +575,93 @@ export function MediaDownloadScreen(): JSX.Element {
               }}
             >
               <option value="none">— Không (public only) —</option>
-              <option value="chrome">🟢 Chrome</option>
-              <option value="firefox">🔥 Firefox</option>
-              <option value="edge">📘 Edge</option>
+              <option value="firefox">🔥 Firefox (Recommended)</option>
+              <option value="chrome">🟢 Chrome (đóng app trước)</option>
+              <option value="edge">📘 Edge (đóng app trước)</option>
               <option value="brave">🦁 Brave</option>
               <option value="opera">🔴 Opera</option>
             </select>
           </div>
+          {/* Phase 40.17 — Output format */}
+          <div>
+            <label
+              style={{
+                display: 'block',
+                fontSize: 11,
+                fontWeight: 600,
+                color: 'var(--color-text-muted)',
+                textTransform: 'uppercase',
+                letterSpacing: 0.4,
+                marginBottom: 6,
+              }}
+            >
+              📁 Định dạng file
+            </label>
+            <select
+              value={outputFormat}
+              onChange={(e) => setOutputFormat(e.target.value)}
+              title="Chuyển đổi sang format mong muốn (yt-dlp tự convert)"
+              style={{
+                width: '100%',
+                padding: '7px 8px',
+                borderRadius: 8,
+                border: '1px solid var(--color-border-default)',
+                background: 'var(--color-surface-bg)',
+                color: 'var(--color-text-primary)',
+                fontSize: 12,
+                outline: 'none',
+                cursor: 'pointer',
+              }}
+            >
+              <option value="auto">🎯 Tự động</option>
+              <optgroup label="📹 Video">
+                <option value="mp4">🎬 MP4 (phổ biến)</option>
+                <option value="webm">🌐 WebM</option>
+                <option value="mkv">📼 MKV (chất lượng cao)</option>
+              </optgroup>
+              <optgroup label="🎵 Audio only">
+                <option value="mp3">🎵 MP3 (phổ biến)</option>
+                <option value="m4a">🎶 M4A (chất lượng cao hơn MP3)</option>
+                <option value="opus">🎼 Opus (nhỏ nhất)</option>
+                <option value="flac">💎 FLAC (lossless)</option>
+              </optgroup>
+            </select>
+          </div>
         </div>
+
+        {/* Phase 40.17 — Cookies.txt advanced (workaround Chrome lock) */}
+        {cookiesBrowser !== 'none' && (
+          <details style={{ marginTop: 10, fontSize: 11, color: 'var(--color-text-muted)' }}>
+            <summary style={{ cursor: 'pointer', fontWeight: 600 }}>
+              ⚠ Chrome bị lỗi cookies? Click xem cách khắc phục
+            </summary>
+            <div style={{ marginTop: 8, padding: 10, background: 'rgba(245,158,11,0.05)', border: '1px solid rgba(245,158,11,0.2)', borderRadius: 6, lineHeight: 1.6 }}>
+              <strong style={{ color: '#92400E' }}>Lỗi "Could not copy Chrome cookie database":</strong> Chrome đang
+              chạy → DB bị lock. 3 cách fix (theo độ ưu tiên):
+              <ol style={{ paddingLeft: 18, margin: '6px 0' }}>
+                <li><strong>Đóng Chrome hoàn toàn</strong> (kể cả tray icon) → thử lại</li>
+                <li><strong>Đổi sang Firefox</strong> (không bị lock) — đăng nhập tài khoản trên Firefox</li>
+                <li><strong>Export cookies.txt thủ công:</strong> cài extension <em>"Get cookies.txt LOCALLY"</em> trên Chrome → vào trang video → click extension → Export → upload file bên dưới:</li>
+              </ol>
+              <div style={{ display: 'flex', gap: 6, alignItems: 'center', marginTop: 6 }}>
+                <input
+                  type="text"
+                  className="input"
+                  value={cookiesFile}
+                  onChange={(e) => setCookiesFile(e.target.value)}
+                  placeholder="Path đến cookies.txt (vd C:\Users\...\cookies.txt)"
+                  style={{ flex: 1, fontFamily: 'monospace', fontSize: 11 }}
+                />
+                {cookiesFile && (
+                  <button type="button" onClick={() => setCookiesFile('')} className="btn-secondary" style={{ padding: '4px 8px', fontSize: 10 }}>Xóa</button>
+                )}
+              </div>
+              <div style={{ fontSize: 10, color: 'var(--color-text-muted)', marginTop: 4 }}>
+                Nếu set cookies.txt → sẽ override dropdown trình duyệt
+              </div>
+            </div>
+          </details>
+        )}
       </div>
 
       {/* Toast */}

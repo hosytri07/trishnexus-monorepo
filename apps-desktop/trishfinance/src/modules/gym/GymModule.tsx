@@ -7,6 +7,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Dumbbell, Plus, Edit2, Trash2, X, User, CalendarCheck, TrendingUp, DollarSign, CreditCard } from 'lucide-react';
 import { addLedgerEntry } from '../../lib/ledger-helper';
+import { PaymentModal, type PaymentResult } from '../../components/PaymentModal';
 
 type PackageType = 'month1' | 'month3' | 'month6' | 'year1' | 'pt_pack' | 'custom';
 
@@ -143,6 +144,7 @@ function CheckInTab({ db, setDb }: { db: Db; setDb: (d: Db) => void }): JSX.Elem
 function MembersTab({ db, setDb }: { db: Db; setDb: (d: Db) => void }): JSX.Element {
   const [editing, setEditing] = useState<Member | null>(null);
   const [showForm, setShowForm] = useState(false);
+  const [showPayment, setShowPayment] = useState(false);
   const [cardNumber, setCardNumber] = useState(''); const [name, setName] = useState(''); const [phone, setPhone] = useState(''); const [packageId, setPackageId] = useState(''); const [paid, setPaid] = useState(0);
 
   function start(m: Member | null) { setEditing(m); setCardNumber(m?.cardNumber ?? ''); setName(m?.name ?? ''); setPhone(m?.phone ?? ''); setPackageId(m?.packageId ?? ''); setPaid(0); setShowForm(true); }
@@ -216,8 +218,25 @@ function MembersTab({ db, setDb }: { db: Db; setDb: (d: Db) => void }): JSX.Elem
               {packageId && <FormField label="Tiền khách trả (default = giá gói)"><input className="input" type="number" value={paid} onChange={(e) => setPaid(Number(e.target.value) || 0)} placeholder={String(db.packages.find((p) => p.id === packageId)?.price ?? 0)} /></FormField>}
             </>
           )}
-          <button type="button" className="btn-primary" onClick={save} disabled={!name.trim() || !cardNumber.trim()} style={{ marginTop: 12, width: '100%', justifyContent: 'center' }}>{editing ? 'Lưu' : 'Tạo thẻ'}</button>
+          {!editing && packageId ? (
+            <button type="button" className="btn-primary" onClick={() => setShowPayment(true)} disabled={!name.trim() || !cardNumber.trim()} style={{ marginTop: 12, width: '100%', justifyContent: 'center' }}>
+              💳 Tạo thẻ & Thanh toán
+            </button>
+          ) : (
+            <button type="button" className="btn-primary" onClick={save} disabled={!name.trim() || !cardNumber.trim()} style={{ marginTop: 12, width: '100%', justifyContent: 'center' }}>
+              {editing ? 'Lưu' : 'Tạo thẻ'}
+            </button>
+          )}
         </ModalShell>
+      )}
+      {showPayment && packageId && (
+        <PaymentModal
+          total={db.packages.find((p) => p.id === packageId)?.price ?? 0}
+          description={`Gym ${name} - ${db.packages.find((p) => p.id === packageId)?.name ?? ''}`.slice(0, 50)}
+          customerName={name}
+          onConfirm={(result) => { setShowPayment(false); setTimeout(() => save(), 50); }}
+          onClose={() => setShowPayment(false)}
+        />
       )}
     </div>
   );

@@ -548,6 +548,26 @@ function CalendarTab({ db, setDb }: { db: Db; setDb: (d: Db) => void }): JSX.Ele
   const managingBooking = managingBookingId ? db.bookings.find((b) => b.id === managingBookingId) : null;
   const managingCourt = managingBooking ? db.courts.find((c) => c.id === managingBooking.courtId) : null;
 
+  // Phase 40.17 — Realtime "Đang hoạt động": tick mỗi 30s để cập nhật currentHour
+  const [now, setNow] = useState(() => new Date());
+  useEffect(() => {
+    const t = setInterval(() => setNow(new Date()), 30_000);
+    return () => clearInterval(t);
+  }, []);
+
+  // Tìm các booking ĐANG diễn ra (today + currentHour nằm trong [startHour, endHour))
+  const activeBookings = useMemo(() => {
+    const todayDate = now.toISOString().slice(0, 10);
+    const currentHour = now.getHours() + now.getMinutes() / 60;
+    return db.bookings.filter(
+      (b) =>
+        b.date === todayDate &&
+        b.paymentStatus !== 'cancelled' &&
+        currentHour >= b.startHour &&
+        currentHour < b.endHour,
+    );
+  }, [db.bookings, now]);
+
   // Khung giờ 6h-23h
   const hours = useMemo(() => Array.from({ length: 18 }, (_, i) => i + 6), []);
   const activeCourts = db.courts.filter((c) => c.active);
@@ -612,6 +632,71 @@ function CalendarTab({ db, setDb }: { db: Db; setDb: (d: Db) => void }): JSX.Ele
 
   return (
     <div>
+      {/* Phase 40.17 — Realtime widget sân đang hoạt động NGAY BÂY GIỜ */}
+      {activeBookings.length > 0 && (
+        <div
+          className="card"
+          style={{
+            padding: 14,
+            marginBottom: 12,
+            background: 'linear-gradient(135deg, rgba(16,185,129,0.08), rgba(59,130,246,0.05))',
+            border: '1px solid rgba(16,185,129,0.3)',
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+            <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#10B981', boxShadow: '0 0 0 4px rgba(16,185,129,0.2)', animation: 'pulse 2s infinite' }} />
+            <strong style={{ fontSize: 13, color: '#065F46' }}>
+              ĐANG HOẠT ĐỘNG • {now.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })} • {activeBookings.length} sân
+            </strong>
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: 8 }}>
+            {activeBookings.map((b) => {
+              const c = db.courts.find((x) => x.id === b.courtId);
+              const info = PAYMENT_STATUS_LABEL[b.paymentStatus] ?? PAYMENT_STATUS_LABEL.unpaid;
+              const remainingMin = Math.max(0, Math.round((b.endHour - (now.getHours() + now.getMinutes() / 60)) * 60));
+              return (
+                <button
+                  key={b.id}
+                  type="button"
+                  onClick={() => setManagingBookingId(b.id)}
+                  className="card"
+                  style={{
+                    padding: 10,
+                    cursor: 'pointer',
+                    textAlign: 'left',
+                    background: 'var(--color-surface-card)',
+                    border: '1px solid var(--color-border-subtle)',
+                  }}
+                >
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 6 }}>
+                    <div style={{ minWidth: 0, flex: 1 }}>
+                      <div style={{ fontWeight: 700, fontSize: 13 }}>{c?.name ?? '?'}</div>
+                      <div style={{ fontSize: 11, color: 'var(--color-text-muted)' }}>👤 {b.customerName}</div>
+                      <div style={{ fontSize: 11, color: 'var(--color-text-muted)' }}>
+                        {String(b.startHour).padStart(2, '0')}h → {String(b.endHour).padStart(2, '0')}h · còn <strong>{remainingMin}'</strong>
+                      </div>
+                    </div>
+                    <span
+                      style={{
+                        padding: '2px 6px',
+                        borderRadius: 4,
+                        fontSize: 9,
+                        fontWeight: 700,
+                        background: info.bg,
+                        color: info.color,
+                        whiteSpace: 'nowrap',
+                      }}
+                    >
+                      {info.label.split(' ').slice(1).join(' ') || info.label}
+                    </span>
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
       <div className="card" style={{ padding: 14, marginBottom: 12, display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
         <label style={{ fontSize: 12, color: 'var(--color-text-muted)', fontWeight: 600 }}>Ngày:</label>
         <input className="input" type="date" value={date} onChange={(e) => setDate(e.target.value)} style={{ width: 160 }} />

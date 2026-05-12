@@ -1134,6 +1134,8 @@ async fn download_social_media(
     remove_watermark: bool,
     download_playlist: Option<bool>,
     cookies_browser: Option<String>,
+    cookies_file: Option<String>,
+    output_format: Option<String>,
 ) -> Result<MediaDownloadResult, String> {
     let cmd_name = resolve_ytdlp_cmd(&app);
 
@@ -1161,6 +1163,32 @@ async fn download_social_media(
         if !browser.is_empty() && browser != "none" {
             args.push("--cookies-from-browser".to_string());
             args.push(browser.clone());
+        }
+    }
+
+    // Phase 40.17 — Hoặc cookies từ file (workaround khi Chrome bị lock)
+    if let Some(file) = cookies_file.as_ref() {
+        if !file.is_empty() {
+            args.push("--cookies".to_string());
+            args.push(file.clone());
+        }
+    }
+
+    // Phase 40.17 — Output format override (mp4 / webm / mkv / mp3 / m4a / opus)
+    if let Some(fmt) = output_format.as_ref() {
+        if !fmt.is_empty() && fmt != "auto" {
+            // Audio formats — convert sau khi tải
+            if fmt == "mp3" || fmt == "m4a" || fmt == "opus" || fmt == "wav" || fmt == "flac" {
+                args.push("-x".to_string());
+                args.push("--audio-format".to_string());
+                args.push(fmt.clone());
+            } else {
+                // Video: merge into format
+                args.push("--merge-output-format".to_string());
+                args.push(fmt.clone());
+                args.push("--remux-video".to_string());
+                args.push(fmt.clone());
+            }
         }
     }
 
