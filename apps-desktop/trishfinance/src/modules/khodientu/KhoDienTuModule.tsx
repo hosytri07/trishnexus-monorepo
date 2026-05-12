@@ -21,6 +21,7 @@ import {
   TrendingUp,
   AlertTriangle,
 } from 'lucide-react';
+import { addLedgerEntry } from '../../lib/ledger-helper';
 
 // ============================================================
 // Types
@@ -346,6 +347,23 @@ function TxTab({ db, setDb }: { db: Db; setDb: (d: Db) => void }): JSX.Element {
     });
     setDb({ ...db, txs: [tx, ...db.txs], products });
     setTxForm(null);
+
+    // Phase 40.9 — Push vào sổ Tài chính
+    const product = db.products.find((p) => p.id === tx.productId);
+    const productName = product?.name ?? '(unknown)';
+    const total = tx.qty * tx.unitPrice;
+    addLedgerEntry({
+      amount: total,
+      kind: tx.type === 'in' ? 'chi' : 'thu',
+      category: tx.type === 'in' ? 'khac_chi' : 'kinh_doanh',
+      description:
+        tx.type === 'in'
+          ? `Nhập kho ${productName} × ${tx.qty}${tx.customerName ? ` (NCC: ${tx.customerName})` : ''}`
+          : `Bán ${productName} × ${tx.qty}${tx.customerName ? ` (Khách: ${tx.customerName})` : ''}`,
+      source: 'khodientu',
+      refId: tx.id,
+      date: tx.date,
+    });
   }
 
   const recentTxs = useMemo(() => db.txs.slice(0, 50), [db.txs]);

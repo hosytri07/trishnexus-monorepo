@@ -22,6 +22,7 @@ import {
   Receipt,
   CreditCard,
 } from 'lucide-react';
+import { addLedgerEntry } from '../../lib/ledger-helper';
 
 // ============================================================
 type ServiceCategory = 'print_bw' | 'print_color' | 'copy' | 'scan' | 'binding' | 'other';
@@ -201,11 +202,12 @@ function CalcTab({ db, setDb }: { db: Db; setDb: (d: Db) => void }): JSX.Element
 
   function handleCheckout(): void {
     if (items.length === 0) return;
+    const finalPaid = paid || total;
     const tx: Tx = {
       id: makeId(),
       items: txItems,
       total,
-      paid: paid || total,
+      paid: finalPaid,
       customerName: customerName.trim() || undefined,
       studentCard: studentCard.trim() || undefined,
       date: todayStr(),
@@ -216,6 +218,17 @@ function CalcTab({ db, setDb }: { db: Db; setDb: (d: Db) => void }): JSX.Element
     setCustomerName('');
     setStudentCard('');
     setPaid(0);
+
+    // Phase 40.9 — Push thu vào sổ Tài chính cá nhân
+    addLedgerEntry({
+      amount: Math.min(finalPaid, total), // chỉ tính tiền đã thu thực tế, không tính tiền thừa
+      kind: 'thu',
+      category: 'kinh_doanh',
+      description: `Photocopy — ${txItems.map((it) => `${it.serviceName}×${it.qty}`).join(', ')}${customerName.trim() ? ` (${customerName.trim()})` : ''}`,
+      source: 'photocopy',
+      refId: tx.id,
+      date: tx.date,
+    });
   }
 
   const activeServices = db.services.filter((s) => s.active);

@@ -21,7 +21,9 @@ import {
   CheckCircle2,
   DollarSign,
   Clock,
+  Wallet,
 } from 'lucide-react';
+import { addLedgerEntry, removeLedgerEntriesByRef, getBankAccounts } from '../../lib/ledger-helper';
 
 // ============================================================
 // Types
@@ -38,6 +40,16 @@ interface Court {
   createdAt: number;
 }
 
+/**
+ * Payment status chi tiết (Phase 40.8):
+ *  - unpaid: chưa thanh toán + chưa đặt cọc
+ *  - deposit: đã đặt cọc, còn nợ phần còn lại
+ *  - paid: đã thanh toán đủ
+ *  - debt: hết giờ chơi nhưng khách chưa trả → ghi nợ
+ *  - cancelled: hủy đặt
+ */
+type PaymentStatus = 'unpaid' | 'deposit' | 'paid' | 'debt' | 'cancelled';
+
 interface Booking {
   id: string;
   courtId: string;
@@ -47,11 +59,22 @@ interface Booking {
   customerName: string;
   customerPhone?: string;
   totalPrice: number;
-  deposit?: number;
-  status: 'booked' | 'completed' | 'cancelled';
+  /** Số tiền đã trả (đặt cọc hoặc thanh toán phần) — 0 = chưa trả gì */
+  paid: number;
+  paymentStatus: PaymentStatus;
+  /** Liên kết với Tài chính cá nhân (Phase 40.9): id của entry trong ledger */
+  ledgerEntryId?: string;
   note?: string;
   createdAt: number;
 }
+
+const PAYMENT_STATUS_LABEL: Record<PaymentStatus, { label: string; color: string; bg: string }> = {
+  unpaid: { label: '⚪ Chưa TT', color: '#6B7280', bg: 'rgba(107,114,128,0.15)' },
+  deposit: { label: '💰 Đặt cọc', color: '#92400E', bg: 'rgba(245,158,11,0.18)' },
+  paid: { label: '✅ Đã TT đủ', color: '#065F46', bg: 'rgba(16,185,129,0.18)' },
+  debt: { label: '⚠ Còn nợ', color: '#991B1B', bg: 'rgba(220,38,38,0.18)' },
+  cancelled: { label: '✕ Hủy', color: '#6B7280', bg: 'rgba(107,114,128,0.15)' },
+};
 
 interface Db {
   version: string;
@@ -116,7 +139,7 @@ export function SanTheThaoModule(): JSX.Element {
   }, [db]);
 
   const stats = useMemo(() => {
-    const todayBookings = db.bookings.filter((b) => b.date === todayStr() && b.status !== 'cancelled');
+    const todayBookings = db.bookings.filter((b) => b.date === todayStr() && b.paymentStatus !== 'cancelled');
     const todayRevenue = todayBookings.reduce((s, b) => s + b.totalPrice, 0);
     return {
       totalCourts: db.courts.filter((c) => c.active).length,
@@ -196,6 +219,7 @@ function TabButton({ active, onClick, icon: Icon, label }: { active: boolean; on
 function CourtsTab({ db, setDb }: { db: Db; setDb: (d: Db) => void }): JSX.Element {
   const [editing, setEditing] = useState<Court | null>(null);
   const [showForm, setShowForm] = useState(false);
+  const [showBulkForm, setShowBulkForm] = useState(false);
 
   function handleSave(court: Court): void {
     if (editing) {
@@ -206,18 +230,26 @@ function CourtsTab({ db, setDb }: { db: Db; setDb: (d: Db) => void }): JSX.Eleme
     setShowForm(false);
     setEditing(null);
   }
+  function handleBulkSave(courts: Court[]): void {
+    setDb({ ...db, courts: [...courts, ...db.courts] });
+    setShowBulkForm(false);
+  }
   function handleDelete(id: string): void {
-    if (!window.confirm) return;
     setDb({ ...db, courts: db.courts.filter((c) => c.id !== id) });
   }
 
   return (
     <div>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, flexWrap: 'wrap', gap: 8 }}>
         <h2 style={{ margin: 0, fontSize: 15, fontWeight: 700 }}>Danh sách sân ({db.courts.length})</h2>
-        <button type="button" className="btn-primary" onClick={() => { setEditing(null); setShowForm(true); }}>
-          <Plus className="h-4 w-4" /> Thêm sân
-        </button>
+        <div style={{ display: 'flex', gap: 6 }}>
+          <button type="button" className="btn-secondary" onClick={() => setShowBulkForm(true)}>
+            📋 Nhập hàng loạt
+          </button>
+          <button type="button" className="btn-primary" onClick={() => { setEditing(null); setShowForm(true); }}>
+            <Plus className="h-4 w-4" /> Thêm 1 sân
+          </button>
+        </div>
       </div>
 
       {db.courts.length === 0 ? (
@@ -255,7 +287,73 @@ function CourtsTab({ db, setDb }: { db: Db; setDb: (d: Db) => void }): JSX.Eleme
       )}
 
       {showForm && <CourtForm initial={editing} onSave={handleSave} onClose={() => { setShowForm(false); setEditing(null); }} />}
+      {showBulkForm && <BulkCourtForm onSave={handleBulkSave} onClose={() => setShowBulkForm(false)} />}
     </div>
+  );
+}
+
+// ============================================================
+// Bulk Court form — nhập nhiều sân 1 lúc
+// ============================================================
+function BulkCourtForm({ onSave, onClose }: { onSave: (courts: Court[]) => void; onClose: () => void }): JSX.Element {
+  const [names, setNames] = useState('Sân 1\nSân 2\nSân 3');
+  const [type, setType] = useState<CourtType>('pickleball');
+  const [pricePerHour, setPricePerHour] = useState<number>(150000);
+
+  const parsedNames = names.split('\n').map((s) => s.trim()).filter(Boolean);
+
+  function handleSubmit(): void {
+    if (parsedNames.length === 0) return;
+    const now = Date.now();
+    const courts: Court[] = parsedNames.map((name) => ({
+      id: makeId(),
+      name,
+      type,
+      pricePerHour: Math.max(0, pricePerHour),
+      active: true,
+      createdAt: now,
+    }));
+    onSave(courts);
+  }
+
+  return (
+    <ModalShell title={`📋 Nhập hàng loạt sân (${parsedNames.length})`} onClose={onClose}>
+      <FormField label="Tên các sân (mỗi dòng 1 tên)">
+        <textarea
+          value={names}
+          onChange={(e) => setNames(e.target.value)}
+          rows={10}
+          className="input"
+          placeholder="Sân 1&#10;Sân 2&#10;Sân pickleball A&#10;Sân pickleball B"
+          style={{ fontFamily: 'monospace', fontSize: 13, width: '100%', resize: 'vertical' }}
+          autoFocus
+        />
+        <div style={{ fontSize: 11, color: 'var(--color-text-muted)', marginTop: 4 }}>
+          💡 Tip: copy-paste từ Excel cũng được. Tên trống / khoảng trắng sẽ tự bỏ qua.
+        </div>
+      </FormField>
+      <FormField label="Loại sân (dùng chung cho tất cả)">
+        <select className="input" value={type} onChange={(e) => setType(e.target.value as CourtType)}>
+          {(Object.keys(COURT_TYPE_LABEL) as CourtType[]).map((t) => (
+            <option key={t} value={t}>{COURT_TYPE_LABEL[t]}</option>
+          ))}
+        </select>
+      </FormField>
+      <FormField label="Giá thuê / giờ (dùng chung — sửa từng sân sau cũng được)">
+        <input className="input" type="number" value={pricePerHour} onChange={(e) => setPricePerHour(Number(e.target.value) || 0)} min={0} step={10000} />
+      </FormField>
+
+      <div style={{ padding: 10, background: 'var(--color-surface-row)', borderRadius: 8, marginBottom: 12, fontSize: 12 }}>
+        Sẽ tạo <strong>{parsedNames.length} sân</strong> với cùng loại + giá. Có thể sửa từng sân ở danh sách sau.
+      </div>
+
+      <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+        <button type="button" className="btn-secondary" onClick={onClose}>Hủy</button>
+        <button type="button" className="btn-primary" onClick={handleSubmit} disabled={parsedNames.length === 0}>
+          ✚ Tạo {parsedNames.length} sân
+        </button>
+      </div>
+    </ModalShell>
   );
 }
 
@@ -318,6 +416,9 @@ function CourtForm({ initial, onSave, onClose }: { initial: Court | null; onSave
 function CalendarTab({ db, setDb }: { db: Db; setDb: (d: Db) => void }): JSX.Element {
   const [date, setDate] = useState(todayStr());
   const [bookingForm, setBookingForm] = useState<{ courtId: string; startHour: number } | null>(null);
+  const [managingBookingId, setManagingBookingId] = useState<string | null>(null);
+  const managingBooking = managingBookingId ? db.bookings.find((b) => b.id === managingBookingId) : null;
+  const managingCourt = managingBooking ? db.courts.find((c) => c.id === managingBooking.courtId) : null;
 
   // Khung giờ 6h-23h
   const hours = useMemo(() => Array.from({ length: 18 }, (_, i) => i + 6), []);
@@ -329,7 +430,7 @@ function CalendarTab({ db, setDb }: { db: Db; setDb: (d: Db) => void }): JSX.Ele
         (b) =>
           b.courtId === courtId &&
           b.date === date &&
-          b.status !== 'cancelled' &&
+          b.paymentStatus !== 'cancelled' &&
           hour >= b.startHour &&
           hour < b.endHour,
       ) ?? null
@@ -338,13 +439,47 @@ function CalendarTab({ db, setDb }: { db: Db; setDb: (d: Db) => void }): JSX.Ele
 
   function handleAddBooking(b: Booking): void {
     setDb({ ...db, bookings: [b, ...db.bookings] });
+    // Phase 40.9 — Push thu vào sổ Tài chính cá nhân nếu khách đã trả
+    if (b.paid > 0) {
+      addLedgerEntry({
+        amount: b.paid,
+        kind: 'thu',
+        category: 'cho_thue',
+        description: `Sân thể thao — ${b.customerName} (${db.courts.find((c) => c.id === b.courtId)?.name ?? ''})`,
+        source: 'santhethao',
+        refId: b.id,
+        date: b.date,
+      });
+    }
     setBookingForm(null);
   }
   function handleCancelBooking(id: string): void {
     setDb({
       ...db,
-      bookings: db.bookings.map((b) => (b.id === id ? { ...b, status: 'cancelled' as const } : b)),
+      bookings: db.bookings.map((b) => (b.id === id ? { ...b, paymentStatus: 'cancelled' as const } : b)),
     });
+    removeLedgerEntriesByRef(id);
+  }
+  function handleUpdatePayment(id: string, paid: number, paymentStatus: PaymentStatus): void {
+    const oldBooking = db.bookings.find((b) => b.id === id);
+    if (!oldBooking) return;
+    setDb({
+      ...db,
+      bookings: db.bookings.map((b) => (b.id === id ? { ...b, paid, paymentStatus } : b)),
+    });
+    // Phase 40.9 — Sync ledger: xóa entry cũ, push entry mới với số tiền cập nhật
+    removeLedgerEntriesByRef(id);
+    if (paid > 0) {
+      addLedgerEntry({
+        amount: paid,
+        kind: 'thu',
+        category: 'cho_thue',
+        description: `Sân thể thao — ${oldBooking.customerName} (${db.courts.find((c) => c.id === oldBooking.courtId)?.name ?? ''})`,
+        source: 'santhethao',
+        refId: id,
+        date: oldBooking.date,
+      });
+    }
   }
 
   return (
@@ -354,8 +489,12 @@ function CalendarTab({ db, setDb }: { db: Db; setDb: (d: Db) => void }): JSX.Ele
         <input className="input" type="date" value={date} onChange={(e) => setDate(e.target.value)} style={{ width: 160 }} />
         <button type="button" className="btn-secondary" onClick={() => setDate(todayStr())} style={{ padding: '6px 10px' }}>Hôm nay</button>
         <div style={{ flex: 1 }} />
-        <div style={{ fontSize: 11, color: 'var(--color-text-muted)' }}>
-          🟢 Trống · 🔴 Đã đặt · Click slot để đặt sân
+        <div style={{ fontSize: 11, color: 'var(--color-text-muted)', display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+          <span style={{ padding: '2px 6px', background: 'rgba(16,185,129,0.08)', color: '#065F46', borderRadius: 4 }}>🟢 Trống</span>
+          <span style={{ padding: '2px 6px', background: PAYMENT_STATUS_LABEL.unpaid.bg, color: PAYMENT_STATUS_LABEL.unpaid.color, borderRadius: 4 }}>{PAYMENT_STATUS_LABEL.unpaid.label}</span>
+          <span style={{ padding: '2px 6px', background: PAYMENT_STATUS_LABEL.deposit.bg, color: PAYMENT_STATUS_LABEL.deposit.color, borderRadius: 4 }}>{PAYMENT_STATUS_LABEL.deposit.label}</span>
+          <span style={{ padding: '2px 6px', background: PAYMENT_STATUS_LABEL.paid.bg, color: PAYMENT_STATUS_LABEL.paid.color, borderRadius: 4 }}>{PAYMENT_STATUS_LABEL.paid.label}</span>
+          <span style={{ padding: '2px 6px', background: PAYMENT_STATUS_LABEL.debt.bg, color: PAYMENT_STATUS_LABEL.debt.color, borderRadius: 4 }}>{PAYMENT_STATUS_LABEL.debt.label}</span>
         </div>
       </div>
 
@@ -385,16 +524,18 @@ function CalendarTab({ db, setDb }: { db: Db; setDb: (d: Db) => void }): JSX.Ele
                     const b = getBooking(court.id, h);
                     if (b) {
                       const isStart = h === b.startHour;
+                      const info = PAYMENT_STATUS_LABEL[b.paymentStatus];
                       return (
-                        <td key={h} style={{ padding: 0, background: 'rgba(220,38,38,0.18)', border: '1px solid var(--color-border-subtle)' }}>
+                        <td key={h} style={{ padding: 0, background: info.bg, border: '1px solid var(--color-border-subtle)' }}>
                           {isStart && (
                             <button
                               type="button"
-                              onClick={() => handleCancelBooking(b.id)}
-                              title={`${b.customerName} · ${b.startHour}-${b.endHour}h · ${formatMoney(b.totalPrice)}\n(click để hủy)`}
-                              style={{ width: '100%', height: '100%', padding: 4, background: 'transparent', border: 'none', cursor: 'pointer', fontSize: 10, color: '#991B1B', fontWeight: 700 }}
+                              onClick={() => setManagingBookingId(b.id)}
+                              title={`${b.customerName} · ${b.startHour}-${b.endHour}h · ${formatMoney(b.totalPrice)} · ${info.label}\n(click để quản lý)`}
+                              style={{ width: '100%', height: '100%', padding: 4, background: 'transparent', border: 'none', cursor: 'pointer', fontSize: 10, color: info.color, fontWeight: 700 }}
                             >
                               {b.customerName.slice(0, 8)}
+                              <div style={{ fontSize: 9, fontWeight: 500, opacity: 0.85 }}>{info.label.split(' ').slice(1).join(' ') || info.label}</div>
                             </button>
                           )}
                         </td>
@@ -425,12 +566,80 @@ function CalendarTab({ db, setDb }: { db: Db; setDb: (d: Db) => void }): JSX.Ele
           court={db.courts.find((c) => c.id === bookingForm.courtId)!}
           date={date}
           defaultStartHour={bookingForm.startHour}
-          existingBookings={db.bookings.filter((b) => b.date === date && b.status !== 'cancelled' && b.courtId === bookingForm.courtId)}
+          existingBookings={db.bookings.filter((b) => b.date === date && b.paymentStatus !== 'cancelled' && b.courtId === bookingForm.courtId)}
           onSave={handleAddBooking}
           onClose={() => setBookingForm(null)}
         />
       )}
+
+      {managingBooking && managingCourt && (
+        <ManageBookingModal
+          booking={managingBooking}
+          court={managingCourt}
+          onUpdate={(paid, status) => { handleUpdatePayment(managingBooking.id, paid, status); setManagingBookingId(null); }}
+          onCancel={() => { handleCancelBooking(managingBooking.id); setManagingBookingId(null); }}
+          onClose={() => setManagingBookingId(null)}
+        />
+      )}
     </div>
+  );
+}
+
+// ============================================================
+// Manage booking modal — update payment / cancel
+// ============================================================
+function ManageBookingModal({ booking, court, onUpdate, onCancel, onClose }: { booking: Booking; court: Court; onUpdate: (paid: number, status: PaymentStatus) => void; onCancel: () => void; onClose: () => void }): JSX.Element {
+  const [paid, setPaid] = useState(booking.paid);
+  const [status, setStatus] = useState<PaymentStatus>(booking.paymentStatus);
+  const remaining = booking.totalPrice - paid;
+
+  return (
+    <ModalShell title={`Đơn: ${booking.customerName}`} onClose={onClose}>
+      <div style={{ padding: 12, background: 'var(--color-surface-row)', borderRadius: 10, marginBottom: 12, fontSize: 12 }}>
+        <div><strong>{court.name}</strong> · {COURT_TYPE_LABEL[court.type]}</div>
+        <div style={{ color: 'var(--color-text-muted)', marginTop: 2 }}>📅 {booking.date} · {String(booking.startHour).padStart(2, '0')}h → {String(booking.endHour).padStart(2, '0')}h</div>
+        <div style={{ color: 'var(--color-text-muted)' }}>👤 {booking.customerName}{booking.customerPhone ? ` · ${booking.customerPhone}` : ''}</div>
+        <div style={{ marginTop: 6, fontSize: 16, fontWeight: 700, color: 'var(--color-accent-primary)' }}>{formatMoney(booking.totalPrice)}</div>
+      </div>
+
+      <FormField label="Khách đã trả (VND)">
+        <input className="input" type="number" value={paid} onChange={(e) => setPaid(Math.max(0, Number(e.target.value) || 0))} min={0} step={10000} />
+        <div style={{ fontSize: 11, color: 'var(--color-text-muted)', marginTop: 4 }}>
+          Còn lại: <strong style={{ color: remaining > 0 ? '#DC2626' : '#10B981' }}>{formatMoney(remaining)}</strong>
+        </div>
+      </FormField>
+
+      <FormField label="Trạng thái thanh toán">
+        <select className="input" value={status} onChange={(e) => setStatus(e.target.value as PaymentStatus)}>
+          <option value="unpaid">⚪ Chưa thanh toán</option>
+          <option value="deposit">💰 Đặt cọc — còn nợ</option>
+          <option value="paid">✅ Đã thanh toán đủ</option>
+          <option value="debt">⚠ Đã chơi xong — còn nợ</option>
+        </select>
+      </FormField>
+
+      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 10 }}>
+        <button type="button" className="btn-secondary" onClick={() => { setPaid(booking.totalPrice); setStatus('paid'); }} style={{ fontSize: 11, padding: '4px 8px' }}>
+          ⚡ Thu đủ ngay
+        </button>
+        <button type="button" className="btn-secondary" onClick={() => { setPaid(booking.totalPrice / 2); setStatus('deposit'); }} style={{ fontSize: 11, padding: '4px 8px' }}>
+          ⚡ Đặt cọc 50%
+        </button>
+        <button type="button" className="btn-secondary" onClick={() => { setPaid(0); setStatus('debt'); }} style={{ fontSize: 11, padding: '4px 8px' }}>
+          ⚡ Ghi nợ
+        </button>
+      </div>
+
+      <div style={{ display: 'flex', gap: 8, justifyContent: 'space-between', marginTop: 16 }}>
+        <button type="button" className="btn-secondary" onClick={onCancel} style={{ color: '#DC2626', borderColor: '#DC2626' }}>
+          🗑 Hủy đặt sân
+        </button>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <button type="button" className="btn-secondary" onClick={onClose}>Đóng</button>
+          <button type="button" className="btn-primary" onClick={() => onUpdate(paid, status)}>💾 Cập nhật</button>
+        </div>
+      </div>
+    </ModalShell>
   );
 }
 
@@ -439,16 +648,22 @@ function BookingForm({ court, date, defaultStartHour, existingBookings, onSave, 
   const [duration, setDuration] = useState(1);
   const [customerName, setCustomerName] = useState('');
   const [customerPhone, setCustomerPhone] = useState('');
-  const [deposit, setDeposit] = useState(0);
+  const [paid, setPaid] = useState(0);
+  const [paymentStatus, setPaymentStatus] = useState<PaymentStatus>('unpaid');
   const [note, setNote] = useState('');
 
   const endHour = startHour + duration;
   const totalPrice = court.pricePerHour * duration;
+  const remaining = totalPrice - paid;
 
-  // Check conflict
-  const hasConflict = existingBookings.some((b) => {
-    return !(endHour <= b.startHour || startHour >= b.endHour);
-  });
+  // Auto-update payment status khi paid thay đổi
+  useEffect(() => {
+    if (paid <= 0) setPaymentStatus('unpaid');
+    else if (paid >= totalPrice) setPaymentStatus('paid');
+    else setPaymentStatus('deposit');
+  }, [paid, totalPrice]);
+
+  const hasConflict = existingBookings.some((b) => !(endHour <= b.startHour || startHour >= b.endHour));
 
   function handleSubmit(): void {
     if (!customerName.trim() || hasConflict) return;
@@ -461,8 +676,8 @@ function BookingForm({ court, date, defaultStartHour, existingBookings, onSave, 
       customerName: customerName.trim(),
       customerPhone: customerPhone.trim() || undefined,
       totalPrice,
-      deposit: deposit > 0 ? deposit : undefined,
-      status: 'booked',
+      paid,
+      paymentStatus,
       note: note.trim() || undefined,
       createdAt: Date.now(),
     };
@@ -501,8 +716,23 @@ function BookingForm({ court, date, defaultStartHour, existingBookings, onSave, 
       <FormField label="SĐT khách (optional)">
         <input className="input" type="tel" value={customerPhone} onChange={(e) => setCustomerPhone(e.target.value)} placeholder="09xx..." />
       </FormField>
-      <FormField label="Đặt cọc (VND)">
-        <input className="input" type="number" value={deposit} onChange={(e) => setDeposit(Number(e.target.value) || 0)} min={0} step={50000} />
+      <FormField label="Khách đã trả (đặt cọc / thanh toán đủ)">
+        <div style={{ display: 'flex', gap: 6, marginBottom: 6, flexWrap: 'wrap' }}>
+          <button type="button" className="btn-secondary" onClick={() => setPaid(0)} style={{ fontSize: 11, padding: '4px 8px' }}>0đ</button>
+          <button type="button" className="btn-secondary" onClick={() => setPaid(Math.round(totalPrice / 2))} style={{ fontSize: 11, padding: '4px 8px' }}>50%</button>
+          <button type="button" className="btn-secondary" onClick={() => setPaid(totalPrice)} style={{ fontSize: 11, padding: '4px 8px' }}>Đủ</button>
+        </div>
+        <input className="input" type="number" value={paid} onChange={(e) => setPaid(Math.max(0, Number(e.target.value) || 0))} min={0} step={50000} />
+        {paid > 0 && remaining > 0 && (
+          <div style={{ fontSize: 11, color: '#92400E', marginTop: 4 }}>
+            💰 Đặt cọc — còn nợ <strong>{formatMoney(remaining)}</strong>
+          </div>
+        )}
+        {paid >= totalPrice && totalPrice > 0 && (
+          <div style={{ fontSize: 11, color: '#065F46', marginTop: 4 }}>
+            ✅ Đã thanh toán đủ
+          </div>
+        )}
       </FormField>
       <FormField label="Ghi chú">
         <input className="input" type="text" value={note} onChange={(e) => setNote(e.target.value)} placeholder="(optional)" />
@@ -541,12 +771,15 @@ function RevenueTab({ db }: { db: Db }): JSX.Element {
   const [toDate, setToDate] = useState(todayStr());
 
   const filtered = useMemo(() => {
-    return db.bookings.filter((b) => b.status !== 'cancelled' && b.date >= fromDate && b.date <= toDate);
+    return db.bookings.filter((b) => b.paymentStatus !== 'cancelled' && b.date >= fromDate && b.date <= toDate);
   }, [db.bookings, fromDate, toDate]);
 
   const totalRevenue = filtered.reduce((s, b) => s + b.totalPrice, 0);
-  const totalDeposit = filtered.reduce((s, b) => s + (b.deposit ?? 0), 0);
+  const totalPaid = filtered.reduce((s, b) => s + (b.paid ?? 0), 0);
+  const totalDebt = totalRevenue - totalPaid;
   const totalBookings = filtered.length;
+  const paidCount = filtered.filter((b) => b.paymentStatus === 'paid').length;
+  const debtCount = filtered.filter((b) => b.paymentStatus === 'debt' || b.paymentStatus === 'deposit').length;
 
   // Group by court
   const byCourt = useMemo(() => {
@@ -573,8 +806,9 @@ function RevenueTab({ db }: { db: Db }): JSX.Element {
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 12, marginBottom: 16 }}>
         <StatCard icon={DollarSign} label="Tổng doanh thu" value={formatMoney(totalRevenue)} color="#10B981" />
-        <StatCard icon={Calendar} label="Tổng đơn" value={String(totalBookings)} color="#3B82F6" />
-        <StatCard icon={Clock} label="Đã thu cọc" value={formatMoney(totalDeposit)} color="#F59E0B" />
+        <StatCard icon={Calendar} label="Tổng đơn" value={`${totalBookings} (${paidCount} đã TT, ${debtCount} nợ)`} color="#3B82F6" />
+        <StatCard icon={Clock} label="Đã thu" value={formatMoney(totalPaid)} color="#F59E0B" />
+        <StatCard icon={Clock} label="Còn nợ" value={formatMoney(totalDebt)} color={totalDebt > 0 ? '#DC2626' : '#94A3B8'} />
       </div>
 
       <h3 style={{ fontSize: 14, fontWeight: 700, marginBottom: 8 }}>Doanh thu theo sân</h3>
