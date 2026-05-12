@@ -159,6 +159,21 @@ export function App(): JSX.Element {
   const auth = useAuth();
   const ecosystem = useEcosystemAuth();
   const [page, setPage] = useState<ModuleKey>('dashboard');
+  const [logoutConfirm, setLogoutConfirm] = useState(false);
+
+  // Phase 40.1 — Logout đầy đủ: Office local + Firebase ecosystem
+  // (tránh useEffect auto-sign-in lại ngay sau logout)
+  async function fullLogout(): Promise<void> {
+    auth.logout();
+    if (ecosystem.signOut) {
+      try {
+        await ecosystem.signOut();
+      } catch (err) {
+        console.warn('[trishoffice] Firebase signOut fail:', err);
+      }
+    }
+    setLogoutConfirm(false);
+  }
 
   // Theme: light/dark đồng bộ với @trishteam/design-system
   const [theme, setTheme] = useState<'light' | 'dark'>(() => {
@@ -354,6 +369,7 @@ export function App(): JSX.Element {
         onToggleTheme={toggleTheme}
         onNavigate={setPage}
         onOpenSettings={() => setPage('settings')}
+        onLogoutRequest={() => setLogoutConfirm(true)}
       />
       <div className="app-shell">
         <aside className="app-sidebar">
@@ -428,14 +444,12 @@ export function App(): JSX.Element {
         <button
           type="button"
           className="app-nav-item"
-          onClick={() => {
-            if (confirm('Đăng xuất khỏi TrishOffice?')) auth.logout();
-          }}
+          onClick={() => setLogoutConfirm(true)}
           style={{
             marginTop: 8,
             color: '#DC2626',
           }}
-          title="Đăng xuất"
+          title="Đăng xuất khỏi TrishOffice + TrishTEAM"
         >
           <span style={{ fontSize: 16 }}>🚪</span>
           <span>Đăng xuất</span>
@@ -472,6 +486,83 @@ export function App(): JSX.Element {
           {page === 'settings' && <SettingsPage />}
         </main>
       </div>
+
+      {/* Phase 40.1 — Logout confirm modal (thay confirm browser popup) */}
+      {logoutConfirm && (
+        <div
+          onClick={() => setLogoutConfirm(false)}
+          style={{
+            position: 'fixed',
+            inset: 0,
+            background: 'rgba(0,0,0,0.55)',
+            zIndex: 2000,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            backdropFilter: 'blur(4px)',
+          }}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              maxWidth: 380,
+              padding: 24,
+              background: 'var(--color-surface-card, #FFF)',
+              border: '1px solid var(--color-border-default, #E5E7EB)',
+              borderRadius: 14,
+              color: 'var(--color-text-primary)',
+            }}
+          >
+            <h3 style={{ margin: '0 0 10px 0', fontSize: 17, fontWeight: 700 }}>
+              🚪 Đăng xuất?
+            </h3>
+            <p
+              style={{
+                margin: '0 0 18px 0',
+                fontSize: 13,
+                color: 'var(--color-text-secondary)',
+                lineHeight: 1.5,
+              }}
+            >
+              Đăng xuất sẽ thoát cả TrishOffice và tài khoản TrishTEAM. Lần sau mở lại
+              phải đăng nhập từ đầu.
+            </p>
+            <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+              <button
+                type="button"
+                onClick={() => setLogoutConfirm(false)}
+                style={{
+                  padding: '8px 14px',
+                  background: 'transparent',
+                  color: 'var(--color-text-secondary)',
+                  border: '1px solid var(--color-border-default)',
+                  borderRadius: 8,
+                  fontSize: 13,
+                  cursor: 'pointer',
+                }}
+              >
+                Hủy
+              </button>
+              <button
+                type="button"
+                onClick={() => void fullLogout()}
+                style={{
+                  padding: '8px 14px',
+                  background: '#DC2626',
+                  color: '#FFF',
+                  border: 'none',
+                  borderRadius: 8,
+                  fontSize: 13,
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                }}
+              >
+                Đăng xuất
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -1,21 +1,26 @@
 /**
- * TrishOffice Auth — Role + Permission domain types (Phase 38.7).
+ * TrishOffice Auth — Role + Permission domain types (Phase 38.7 + 40.1).
  *
- * 8 role:
- *   - owner       : Giám đốc (full access toàn bộ)
- *   - vice_director: Phó Giám đốc (như owner trừ User Management)
- *   - dept_manager: Trưởng phòng (quản lý phòng mình)
- *   - dept_deputy : Phó phòng (như TP nhưng ko approve cuối)
- *   - hr          : HR / Nhân sự (full module Nhân sự + Tài liệu HR)
- *   - accountant  : Kế toán (full module Kế toán)
- *   - staff       : Nhân viên (chỉ thấy hồ sơ + lương cá nhân)
- *   - admin_it    : Admin IT (User management + system settings)
+ * Phase 40.1 — Tách 'owner' (Giám đốc của 1 công ty) khỏi 'ecosystem_admin'
+ * (Admin TrishTEAM hệ sinh thái, có thể quản lý NHIỀU công ty multi-tenant).
+ *
+ * 9 role:
+ *   - ecosystem_admin: Admin TrishTEAM (cross-company, set role moi user)
+ *   - owner         : Giám đốc 1 công ty (full company nhưng KHÔNG cross-company)
+ *   - vice_director : Phó Giám đốc (như owner trừ User Management)
+ *   - dept_manager  : Trưởng phòng (quản lý phòng mình)
+ *   - dept_deputy   : Phó phòng (như TP nhưng ko approve cuối)
+ *   - hr            : HR / Nhân sự (full module Nhân sự + Tài liệu HR)
+ *   - accountant    : Kế toán (full module Kế toán)
+ *   - staff         : Nhân viên (chỉ thấy hồ sơ + lương cá nhân)
+ *   - admin_it      : Admin IT (User management + system settings)
  */
 
 // ============================================================
 // Role enum
 // ============================================================
 export type Role =
+  | 'ecosystem_admin'
   | 'owner'
   | 'vice_director'
   | 'dept_manager'
@@ -36,11 +41,19 @@ export interface RoleMeta {
 }
 
 export const ROLES: Record<Role, RoleMeta> = {
+  ecosystem_admin: {
+    key: 'ecosystem_admin',
+    label: 'Admin',
+    emoji: '🛡',
+    description:
+      'Admin TrishTEAM — cross-company, cấp/thu hồi role mọi user mọi công ty',
+    level: 999,
+  },
   owner: {
     key: 'owner',
     label: 'Giám đốc',
     emoji: '👑',
-    description: 'Toàn quyền — xem và quản lý mọi module, phê duyệt cuối cùng',
+    description: 'Toàn quyền 1 công ty — xem và quản lý mọi module, phê duyệt cuối cùng',
     level: 100,
   },
   vice_director: {

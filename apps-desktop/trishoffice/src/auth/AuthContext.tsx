@@ -399,7 +399,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }): JSX.E
           username: finalUsername,
           display_name: input.display_name || input.email,
           email: input.email,
-          role: 'owner',
+          role: 'ecosystem_admin', // Phase 40.1 — tách khỏi 'owner' (Giám đốc)
           firebase_uid: input.firebase_uid,
           is_ecosystem_admin: true,
           password_hash: hash,
@@ -421,7 +421,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }): JSX.E
                 ...u,
                 firebase_uid: input.firebase_uid,
                 is_ecosystem_admin: true,
-                role: 'owner' as const,
+                role: 'ecosystem_admin' as const, // Phase 40.1
                 active: true,
                 last_login_at: Date.now(),
                 updated_at: Date.now(),

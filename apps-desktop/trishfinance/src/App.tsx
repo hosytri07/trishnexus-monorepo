@@ -13,7 +13,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { getAppVersion, openUrl } from './lib/platform';
 import { AuthProvider, useAuth } from '@trishteam/auth/react';
-import { Building2, Wallet, ShoppingCart, LogOut, Sun, Moon, Settings as SettingsIcon, Shield, ExternalLink, Bell, Menu } from 'lucide-react';
+import { Building2, Wallet, ShoppingCart, LogOut, Sun, Moon, Settings as SettingsIcon, Shield, ExternalLink, Bell, Menu, Trophy, Package, Printer } from 'lucide-react';
 import { LoginScreen } from './pages/LoginScreen';
 import { SettingsModal } from './pages/SettingsModal';
 import { NhaTroModule } from './modules/nhatro/NhaTroModule';
@@ -24,7 +24,14 @@ import { InstallPWA } from './components/InstallPWA';
 import { useFinanceDb, dateVN, daysUntil, money, today } from './state';
 import logoUrl from './assets/logo.png';
 
-export type ModuleId = 'taichinh' | 'nhatro' | 'banhang';
+// Phase 40.5 — Thêm 3 module mới (scaffold MVP): santhethao / khodientu / photocopy
+export type ModuleId =
+  | 'taichinh'
+  | 'nhatro'
+  | 'banhang'
+  | 'santhethao'
+  | 'khodientu'
+  | 'photocopy';
 
 export default function App(): JSX.Element {
   return (
@@ -167,6 +174,10 @@ function MainShell(): JSX.Element {
     { id: 'taichinh', icon: Wallet, label: 'Tài chính cá nhân', sub: 'Sổ thu chi · Ví · Ngân sách' },
     { id: 'nhatro', icon: Building2, label: 'Quản lý nhà trọ', sub: 'Phòng · Khách · Hợp đồng · Hóa đơn' },
     { id: 'banhang', icon: ShoppingCart, label: 'Quản lý bán hàng', sub: 'POS · Sản phẩm · Đơn hàng' },
+    // Phase 40.5 — 3 module mới scaffold MVP (sẽ build chi tiết phiên sau)
+    { id: 'santhethao', icon: Trophy, label: 'Sân thể thao', sub: 'Đặt sân · Lịch trống · Doanh thu' },
+    { id: 'khodientu', icon: Package, label: 'Kho điện tử', sub: 'Nhập xuất · Tồn kho · Serial · Bảo hành' },
+    { id: 'photocopy', icon: Printer, label: 'Quán photocopy', sub: 'In · Copy · Scan · Gói sinh viên' },
   ];
 
   return (
@@ -295,6 +306,52 @@ function MainShell(): JSX.Element {
           {active === 'nhatro' && <NhaTroModule />}
           {active === 'taichinh' && <TaiChinhModule />}
           {active === 'banhang' && <BanHangModule />}
+          {/* Phase 40.5 — 3 module mới (scaffold MVP) */}
+          {active === 'santhethao' && (
+            <ComingSoonModule
+              icon={Trophy}
+              title="Quản lý sân thể thao"
+              tagline="Đặt sân pickleball / bóng đá / tennis · Lịch trống · Hóa đơn · Doanh thu"
+              features={[
+                'Quản lý nhiều sân (pickleball, bóng đá mini 5/7, tennis, cầu lông)',
+                'Lịch đặt sân (calendar view theo ngày/tuần)',
+                'Khung giờ cố định + tự động chặn slot trùng',
+                'Khách quen — lưu lịch sử + ưu đãi',
+                'Hóa đơn / thu cọc / hủy đặt',
+                'Báo cáo doanh thu theo sân + theo ngày',
+              ]}
+            />
+          )}
+          {active === 'khodientu' && (
+            <ComingSoonModule
+              icon={Package}
+              title="Quản lý kho điện tử"
+              tagline="Linh kiện / thiết bị điện tử · Serial · Bảo hành · Nhập-Xuất-Tồn"
+              features={[
+                'Danh mục sản phẩm với serial number tracking',
+                'Nhập kho từ nhà cung cấp + công nợ',
+                'Xuất kho bán lẻ + bán sỉ + bảo hành',
+                'Phiếu bảo hành: theo dõi từng serial',
+                'Cảnh báo tồn thấp / sắp hết hạn bảo hành',
+                'Báo cáo lãi gộp theo sản phẩm + nhà cung cấp',
+              ]}
+            />
+          )}
+          {active === 'photocopy' && (
+            <ComingSoonModule
+              icon={Printer}
+              title="Quản lý quán photocopy"
+              tagline="In · Copy · Scan · Đóng cuốn · Gói dịch vụ sinh viên"
+              features={[
+                'Bảng giá: in B/W · in màu · A4/A3 · 1 mặt / 2 mặt',
+                'Tính tiền nhanh: nhập số trang + chọn loại → ra tiền',
+                'Gói sinh viên: bán thẻ tháng / nạp tiền tài khoản',
+                'Quản lý đơn in lớn: từ file → báo giá → in → giao',
+                'Tài khoản khách quen: nợ tạm + thanh toán cuối tháng',
+                'Báo cáo doanh thu theo dịch vụ + theo nhân viên',
+              ]}
+            />
+          )}
         </div>
       </main>
 
@@ -312,7 +369,7 @@ function MainShell(): JSX.Element {
               data-active={isActive ? 'true' : 'false'}
             >
               <Icon style={{ width: 22, height: 22 }} />
-              <span>{m.id === 'taichinh' ? 'Tài chính' : m.id === 'nhatro' ? 'Nhà trọ' : 'Bán hàng'}</span>
+              <span>{m.label.split(' ').slice(-2).join(' ')}</span>
             </button>
           );
         })}
@@ -338,6 +395,119 @@ function MainShell(): JSX.Element {
 
       {/* Phase 27.3.C — Install PWA banner (Android Chrome / iOS Safari hint) */}
       <InstallPWA />
+    </div>
+  );
+}
+
+// ============================================================
+// Phase 40.5 — ComingSoonModule (MVP scaffold cho module mới)
+// ============================================================
+interface ComingSoonModuleProps {
+  icon: any;
+  title: string;
+  tagline: string;
+  features: string[];
+}
+
+function ComingSoonModule({ icon: Icon, title, tagline, features }: ComingSoonModuleProps): JSX.Element {
+  return (
+    <div style={{ maxWidth: 720, margin: '0 auto' }}>
+      <div
+        style={{
+          padding: 32,
+          borderRadius: 16,
+          background: 'linear-gradient(135deg, rgba(16,185,129,0.08) 0%, rgba(59,130,246,0.05) 100%)',
+          border: '1px solid var(--color-border-subtle)',
+          textAlign: 'center',
+        }}
+      >
+        <div
+          style={{
+            width: 72,
+            height: 72,
+            margin: '0 auto 16px',
+            borderRadius: 18,
+            background: 'var(--color-accent-soft)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+          }}
+        >
+          <Icon style={{ width: 36, height: 36, color: 'var(--color-accent-primary)' }} />
+        </div>
+        <h1 style={{ fontSize: 22, fontWeight: 700, color: 'var(--color-text-primary)', margin: 0 }}>
+          {title}
+        </h1>
+        <p style={{ fontSize: 14, color: 'var(--color-text-secondary)', marginTop: 6, marginBottom: 0 }}>
+          {tagline}
+        </p>
+        <div
+          style={{
+            display: 'inline-block',
+            marginTop: 16,
+            padding: '6px 14px',
+            background: 'rgba(245, 158, 11, 0.15)',
+            color: '#D97706',
+            borderRadius: 8,
+            fontSize: 12,
+            fontWeight: 600,
+            letterSpacing: 0.3,
+          }}
+        >
+          🚧 Đang phát triển — sẽ ra mắt phiên bản tiếp theo
+        </div>
+      </div>
+
+      <div
+        style={{
+          marginTop: 24,
+          padding: 24,
+          background: 'var(--color-surface-card)',
+          border: '1px solid var(--color-border-subtle)',
+          borderRadius: 14,
+        }}
+      >
+        <h2 style={{ fontSize: 15, fontWeight: 700, color: 'var(--color-text-primary)', marginTop: 0, marginBottom: 12 }}>
+          ✨ Tính năng dự kiến
+        </h2>
+        <ul style={{ margin: 0, padding: 0, listStyle: 'none' }}>
+          {features.map((f, i) => (
+            <li
+              key={i}
+              style={{
+                padding: '8px 0',
+                borderBottom: i < features.length - 1 ? '1px solid var(--color-border-subtle)' : 'none',
+                display: 'flex',
+                gap: 10,
+                alignItems: 'flex-start',
+                fontSize: 13,
+                color: 'var(--color-text-secondary)',
+                lineHeight: 1.5,
+              }}
+            >
+              <span style={{ color: 'var(--color-accent-primary)', fontWeight: 700, flexShrink: 0 }}>•</span>
+              <span>{f}</span>
+            </li>
+          ))}
+        </ul>
+      </div>
+
+      <div
+        style={{
+          marginTop: 16,
+          padding: 14,
+          background: 'rgba(99, 102, 241, 0.06)',
+          border: '1px solid rgba(99, 102, 241, 0.2)',
+          borderRadius: 10,
+          fontSize: 12,
+          color: 'var(--color-text-secondary)',
+          textAlign: 'center',
+          lineHeight: 1.6,
+        }}
+      >
+        💡 Bạn có ý tưởng hoặc tính năng cụ thể cho module này? Liên hệ admin Trí qua{' '}
+        <strong>hosytri77@gmail.com</strong> để góp ý.
+      </div>
     </div>
   );
 }

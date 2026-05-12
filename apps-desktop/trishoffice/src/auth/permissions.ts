@@ -61,7 +61,26 @@ const NONE: Permission = p('none', []);
 // ============================================================
 export const PERMISSIONS: Record<Role, Record<ModuleKey, Permission>> = {
   // ============================================================
-  // OWNER — Giám đốc: full toàn bộ trừ User Management
+  // ECOSYSTEM ADMIN — Admin TrishTEAM: full toàn bộ, cross-company
+  // ============================================================
+  ecosystem_admin: {
+    dashboard: FULL_ALL,
+    employees: FULL_ALL,
+    attendance: FULL_ALL,
+    assets: FULL_ALL,
+    workflows: FULL_ALL,
+    documents: FULL_ALL,
+    accounting: FULL_ALL,
+    calendar: FULL_ALL,
+    reports: FULL_ALL,
+    import_export: FULL_ALL,
+    users: FULL_ALL, // KHÁC owner — admin được quản lý user
+    departments: FULL_ALL,
+    settings: p('self', ['view', 'edit']),
+  },
+
+  // ============================================================
+  // OWNER — Giám đốc 1 công ty: full toàn bộ trừ User Management
   // ============================================================
   owner: {
     dashboard: FULL_ALL,

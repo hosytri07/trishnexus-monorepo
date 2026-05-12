@@ -266,9 +266,32 @@
   }
 }
 
-/* Hamburger button — hidden on desktop */
+/* Phase 40.4 — Hamburger toggle sidebar collapse cả desktop + mobile.
+ * Trước đây CSS hide desktop nhưng vẫn hiển thị do conflict btn-secondary → fix
+ * bằng cách cho luôn hoạt động: toggle sidebar in/out + main shift padding.
+ */
 .mobile-hamburger {
-  display: none;
+  display: inline-flex !important;
+}
+
+/* Desktop sidebar toggle (≥769px) */
+@media (min-width: 769px) {
+  body[data-sidebar-open="false"] aside.fixed {
+    transform: translateX(-100%);
+    transition: transform 220ms ease;
+  }
+  body[data-sidebar-open="true"] aside.fixed {
+    transform: translateX(0);
+    transition: transform 220ms ease;
+  }
+  body[data-sidebar-open="false"] main {
+    padding-left: 0 !important;
+    transition: padding-left 220ms ease;
+  }
+  body[data-sidebar-open="true"] main {
+    padding-left: 256px;
+    transition: padding-left 220ms ease;
+  }
 }
 
 /* ==========================================================

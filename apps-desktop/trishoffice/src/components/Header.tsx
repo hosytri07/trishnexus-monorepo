@@ -20,6 +20,8 @@ interface HeaderProps {
   onNavigate?: (page: ModuleKey) => void;
   /** App version (từ Tauri) */
   appVersion?: string;
+  /** Phase 40.1 — callback yêu cầu logout (parent App show modal confirm) */
+  onLogoutRequest?: () => void;
 }
 
 export function Header({
@@ -28,6 +30,7 @@ export function Header({
   onOpenSettings,
   onNavigate,
   appVersion,
+  onLogoutRequest,
 }: HeaderProps): JSX.Element {
   const auth = useAuth();
   const me = auth.currentUser;
@@ -105,9 +108,10 @@ export function Header({
             type="button"
             className="app-topbar-icon-btn"
             onClick={() => {
-              if (confirm('Đăng xuất khỏi TrishOffice?')) auth.logout();
+              if (onLogoutRequest) onLogoutRequest();
+              else auth.logout(); // fallback nếu chưa wire
             }}
-            title="Đăng xuất"
+            title="Đăng xuất khỏi TrishOffice + TrishTEAM"
             style={{ color: '#dc2626', borderColor: 'rgba(220,38,38,0.3)' }}
           >
             <LogOut size={15} />
