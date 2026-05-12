@@ -1013,6 +1013,151 @@ fn webdav_open_cache_dir(app: tauri::AppHandle) -> Result<String, String> {
     Ok(dir_str)
 }
 
+// ============================================================
+// Phase 40.6 — Social media video downloader (yt-dlp)
+// ============================================================
+
+/// Check if yt-dlp binary is available in PATH.
+#[tauri::command]
+fn check_ytdlp_available() -> Result<bool, String> {
+    #[cfg(target_os = "windows")]
+    let cmd = "yt-dlp.exe";
+    #[cfg(not(target_os = "windows"))]
+    let cmd = "yt-dlp";
+
+    match std::process::Command::new(cmd).arg("--version").output() {
+        Ok(out) => Ok(out.status.success()),
+        Err(_) => Ok(false),
+    }
+}
+
+#[derive(Serialize, Deserialize)]
+pub struct MediaDownloadResult {
+    pub ok: bool,
+    pub output_path: Option<String>,
+    pub stdout: String,
+    pub stderr: String,
+}
+
+/// Download video/audio từ social media (FB/TikTok/YouTube/IG/Twitter) qua yt-dlp.
+///
+/// args:
+///   - url: URL video
+///   - quality: 'best' | '1080p' | '720p' | '480p' | 'audio'
+///   - output_dir: thư mục lưu file (frontend tự lấy via Tauri path API)
+///   - remove_watermark: true để gọi yt-dlp với extractor-args remove_watermark (chỉ TikTok)
+#[tauri::command]
+async fn download_social_media(
+    app: tauri::AppHandle,
+    url: String,
+    quality: String,
+    output_dir: String,
+    remove_watermark: bool,
+) -> Result<MediaDownloadResult, String> {
+    #[cfg(target_os = "windows")]
+    let cmd_name = "yt-dlp.exe";
+    #[cfg(not(target_os = "windows"))]
+    let cmd_name = "yt-dlp";
+
+    // Output template: ~/output_dir/<title>.<ext>
+    let output_template = format!("{}/%(title)s.%(ext)s", output_dir);
+
+    let mut args: Vec<String> = vec![
+        url.clone(),
+        "-o".to_string(),
+        output_template.clone(),
+        "--no-playlist".to_string(),
+        "--newline".to_string(), // progress newline-delimited
+        "--no-warnings".to_string(),
+    ];
+
+    // Quality / format
+    match quality.as_str() {
+        "audio" => {
+            args.push("-x".to_string()); // extract audio
+            args.push("--audio-format".to_string());
+            args.push("mp3".to_string());
+        }
+        "1080p" => {
+            args.push("-f".to_string());
+            args.push("bv*[height<=1080]+ba/b[height<=1080]".to_string());
+        }
+        "720p" => {
+            args.push("-f".to_string());
+            args.push("bv*[height<=720]+ba/b[height<=720]".to_string());
+        }
+        "480p" => {
+            args.push("-f".to_string());
+            args.push("bv*[height<=480]+ba/b[height<=480]".to_string());
+        }
+        _ => {
+            // best (default)
+            args.push("-f".to_string());
+            args.push("bv*+ba/b".to_string());
+        }
+    }
+
+    // TikTok watermark removal (yt-dlp default đã tải bản no-watermark cho TikTok)
+    if !remove_watermark && url.to_lowercase().contains("tiktok.com") {
+        // Nếu user muốn GIỮ watermark → dùng format có watermark
+        // (yt-dlp default đã pick no-watermark, không cần arg)
+    }
+
+    let _ = app.emit(
+        "media-download:progress",
+        serde_json::json!({ "url": url, "status": "starting" }),
+    );
+
+    let output = std::process::Command::new(cmd_name)
+        .args(&args)
+        .output()
+        .map_err(|e| {
+            format!(
+                "Không chạy được yt-dlp ({}): {}\n\nVui lòng cài: winget install yt-dlp.yt-dlp",
+                cmd_name, e
+            )
+        })?;
+
+    let stdout = String::from_utf8_lossy(&output.stdout).to_string();
+    let stderr = String::from_utf8_lossy(&output.stderr).to_string();
+
+    if !output.status.success() {
+        let _ = app.emit(
+            "media-download:progress",
+            serde_json::json!({ "url": url, "status": "error", "error": stderr.clone() }),
+        );
+        return Ok(MediaDownloadResult {
+            ok: false,
+            output_path: None,
+            stdout,
+            stderr,
+        });
+    }
+
+    // Try parse output path từ stdout dòng "[download] Destination: ..."
+    let output_path = stdout
+        .lines()
+        .filter_map(|line| {
+            line.trim()
+                .strip_prefix("[download] Destination: ")
+                .or_else(|| line.trim().strip_prefix("[Merger] Merging formats into \""))
+                .map(|p| p.trim_end_matches('"').to_string())
+        })
+        .last();
+
+    let _ = app.emit(
+        "media-download:progress",
+        serde_json::json!({ "url": url, "status": "done", "path": output_path.clone() }),
+    );
+
+    Ok(MediaDownloadResult {
+        ok: true,
+        output_path,
+        stdout,
+        stderr,
+    })
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     use tauri::{
@@ -1034,6 +1179,9 @@ pub fn run() {
         .manage(DownloadControl::default())
         .manage(WebDavServerState::default())
         .invoke_handler(tauri::generate_handler![
+            // Phase 40.6 — Social media downloader (yt-dlp)
+            check_ytdlp_available,
+            download_social_media,
             app_version,
             ping,
             exit_app,

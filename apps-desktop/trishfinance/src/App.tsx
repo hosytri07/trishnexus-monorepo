@@ -23,6 +23,9 @@ import { DialogProvider } from './components/DialogProvider';
 import { InstallPWA } from './components/InstallPWA';
 import { useFinanceDb, dateVN, daysUntil, money, today } from './state';
 import logoUrl from './assets/logo.png';
+import { SanTheThaoModule } from './modules/santhethao/SanTheThaoModule';
+import { KhoDienTuModule } from './modules/khodientu/KhoDienTuModule';
+import { PhotocopyModule } from './modules/photocopy/PhotocopyModule';
 
 // Phase 40.5 — Thêm 3 module mới (scaffold MVP): santhethao / khodientu / photocopy
 export type ModuleId =
@@ -306,52 +309,10 @@ function MainShell(): JSX.Element {
           {active === 'nhatro' && <NhaTroModule />}
           {active === 'taichinh' && <TaiChinhModule />}
           {active === 'banhang' && <BanHangModule />}
-          {/* Phase 40.5 — 3 module mới (scaffold MVP) */}
-          {active === 'santhethao' && (
-            <ComingSoonModule
-              icon={Trophy}
-              title="Quản lý sân thể thao"
-              tagline="Đặt sân pickleball / bóng đá / tennis · Lịch trống · Hóa đơn · Doanh thu"
-              features={[
-                'Quản lý nhiều sân (pickleball, bóng đá mini 5/7, tennis, cầu lông)',
-                'Lịch đặt sân (calendar view theo ngày/tuần)',
-                'Khung giờ cố định + tự động chặn slot trùng',
-                'Khách quen — lưu lịch sử + ưu đãi',
-                'Hóa đơn / thu cọc / hủy đặt',
-                'Báo cáo doanh thu theo sân + theo ngày',
-              ]}
-            />
-          )}
-          {active === 'khodientu' && (
-            <ComingSoonModule
-              icon={Package}
-              title="Quản lý kho điện tử"
-              tagline="Linh kiện / thiết bị điện tử · Serial · Bảo hành · Nhập-Xuất-Tồn"
-              features={[
-                'Danh mục sản phẩm với serial number tracking',
-                'Nhập kho từ nhà cung cấp + công nợ',
-                'Xuất kho bán lẻ + bán sỉ + bảo hành',
-                'Phiếu bảo hành: theo dõi từng serial',
-                'Cảnh báo tồn thấp / sắp hết hạn bảo hành',
-                'Báo cáo lãi gộp theo sản phẩm + nhà cung cấp',
-              ]}
-            />
-          )}
-          {active === 'photocopy' && (
-            <ComingSoonModule
-              icon={Printer}
-              title="Quản lý quán photocopy"
-              tagline="In · Copy · Scan · Đóng cuốn · Gói dịch vụ sinh viên"
-              features={[
-                'Bảng giá: in B/W · in màu · A4/A3 · 1 mặt / 2 mặt',
-                'Tính tiền nhanh: nhập số trang + chọn loại → ra tiền',
-                'Gói sinh viên: bán thẻ tháng / nạp tiền tài khoản',
-                'Quản lý đơn in lớn: từ file → báo giá → in → giao',
-                'Tài khoản khách quen: nợ tạm + thanh toán cuối tháng',
-                'Báo cáo doanh thu theo dịch vụ + theo nhân viên',
-              ]}
-            />
-          )}
+          {/* Phase 40.5 — 3 module mới đầy đủ feature */}
+          {active === 'santhethao' && <SanTheThaoModule />}
+          {active === 'khodientu' && <KhoDienTuModule />}
+          {active === 'photocopy' && <PhotocopyModule />}
         </div>
       </main>
 

@@ -109,7 +109,23 @@ export function AuthProvider({ children }: { children: React.ReactNode }): JSX.E
 
   // Load users + session lần đầu
   useEffect(() => {
-    const allUsers = loadAll<AppUser>(USERS_COLLECTION);
+    let allUsers = loadAll<AppUser>(USERS_COLLECTION);
+
+    // Phase 40.1 — Migration: ecosystem admin từ role 'owner' (cũ) → 'ecosystem_admin'.
+    // User test trước có role='owner' + is_ecosystem_admin=true → tự sửa.
+    const needMigrate = allUsers.some(
+      (u) => u.is_ecosystem_admin === true && (u.role as string) !== 'ecosystem_admin',
+    );
+    if (needMigrate) {
+      allUsers = allUsers.map((u) =>
+        u.is_ecosystem_admin === true && (u.role as string) !== 'ecosystem_admin'
+          ? { ...u, role: 'ecosystem_admin' as const, updated_at: Date.now() }
+          : u,
+      );
+      saveAll<AppUser>(USERS_COLLECTION, allUsers);
+      console.info('[trishoffice] migrated ecosystem admins from "owner" to "ecosystem_admin"');
+    }
+
     setUsers(allUsers);
 
     // Restore session
@@ -412,9 +428,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }): JSX.E
         persistUsers(next);
       } else if (
         !admin.is_ecosystem_admin ||
-        admin.firebase_uid !== input.firebase_uid
+        admin.firebase_uid !== input.firebase_uid ||
+        (admin.role as string) !== 'ecosystem_admin' // Phase 40.1 — force update role
       ) {
-        // Update để chắc chắn flag + uid đúng
+        // Update để chắc chắn flag + uid + role đúng
         const next = users.map((u) =>
           u.id === admin!.id
             ? {

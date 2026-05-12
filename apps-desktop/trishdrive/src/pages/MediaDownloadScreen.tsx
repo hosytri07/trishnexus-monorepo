@@ -16,7 +16,7 @@
  *  - Twitter/X (video tweet)
  */
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   Video,
   Link as LinkIcon,
@@ -26,7 +26,11 @@ import {
   AlertCircle,
   Loader2,
   ExternalLink,
+  FolderOpen,
 } from 'lucide-react';
+import { invoke } from '@tauri-apps/api/core';
+import { documentDir, join } from '@tauri-apps/api/path';
+import { openUrl } from '@tauri-apps/plugin-opener';
 
 type PlatformId = 'youtube' | 'tiktok' | 'facebook' | 'instagram' | 'twitter' | 'unknown';
 
@@ -69,11 +73,24 @@ export function MediaDownloadScreen(): JSX.Element {
   const [removeWatermark, setRemoveWatermark] = useState(true);
   const [queue, setQueue] = useState<QueueItem[]>([]);
   const [toast, setToast] = useState<{ msg: string; kind: 'ok' | 'err' } | null>(null);
+  const [ytdlpAvailable, setYtdlpAvailable] = useState<boolean | null>(null);
+  const [outputDir, setOutputDir] = useState<string>('');
 
   const platform = detectPlatform(url);
   const platformInfo = PLATFORMS.find((p) => p.id === platform);
 
-  function handleAdd(): void {
+  // Phase 40.6 — Check yt-dlp + setup output dir
+  useEffect(() => {
+    void invoke<boolean>('check_ytdlp_available')
+      .then(setYtdlpAvailable)
+      .catch(() => setYtdlpAvailable(false));
+    void documentDir()
+      .then((d) => join(d, 'TrishDrive', 'MediaDownloads'))
+      .then(setOutputDir)
+      .catch(() => setOutputDir('Documents/TrishDrive/MediaDownloads'));
+  }, []);
+
+  async function handleAdd(): Promise<void> {
     if (!url.trim()) {
       setToast({ msg: 'Vui lòng paste link video', kind: 'err' });
       return;
@@ -85,26 +102,59 @@ export function MediaDownloadScreen(): JSX.Element {
       });
       return;
     }
+    if (!ytdlpAvailable) {
+      setToast({ msg: 'yt-dlp chưa cài — xem hướng dẫn cài bên dưới', kind: 'err' });
+      return;
+    }
+
     const item: QueueItem = {
       id: `dl_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
       url: url.trim(),
       platform,
-      status: 'pending',
+      status: 'downloading',
     };
     setQueue((q) => [item, ...q]);
     setUrl('');
-    setToast({ msg: `Đã thêm vào queue (${platformInfo?.name})`, kind: 'ok' });
+    setToast({ msg: `🎬 Đang tải (${platformInfo?.name})...`, kind: 'ok' });
 
-    // MVP: simulate download flow để Trí thấy UI
-    setTimeout(() => {
+    // Phase 40.6 — Gọi Rust command thật
+    try {
+      const result = await invoke<{ ok: boolean; output_path?: string; stderr: string }>(
+        'download_social_media',
+        {
+          url: item.url,
+          quality,
+          outputDir,
+          removeWatermark,
+        },
+      );
+
+      if (result.ok) {
+        setQueue((q) =>
+          q.map((it) =>
+            it.id === item.id
+              ? { ...it, status: 'done', title: result.output_path?.split(/[\\/]/).pop() }
+              : it,
+          ),
+        );
+        setToast({ msg: `✅ Đã tải xong → ${outputDir}`, kind: 'ok' });
+      } else {
+        setQueue((q) =>
+          q.map((it) =>
+            it.id === item.id
+              ? { ...it, status: 'error', error: result.stderr.slice(0, 200) || 'yt-dlp failed' }
+              : it,
+          ),
+        );
+      }
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
       setQueue((q) =>
         q.map((it) =>
-          it.id === item.id
-            ? { ...it, status: 'error', error: 'Tính năng đang phát triển — sẽ tích hợp yt-dlp ở v1.1' }
-            : it,
+          it.id === item.id ? { ...it, status: 'error', error: msg } : it,
         ),
       );
-    }, 1500);
+    }
   }
 
   function handleRemove(id: string): void {
@@ -236,7 +286,7 @@ export function MediaDownloadScreen(): JSX.Element {
               value={url}
               onChange={(e) => setUrl(e.target.value)}
               onKeyDown={(e) => {
-                if (e.key === 'Enter') handleAdd();
+                if (e.key === 'Enter') void handleAdd();
               }}
               placeholder="https://www.tiktok.com/@user/video/..."
               style={{
@@ -253,7 +303,7 @@ export function MediaDownloadScreen(): JSX.Element {
           </div>
           <button
             type="button"
-            onClick={handleAdd}
+            onClick={() => void handleAdd()}
             disabled={!url.trim()}
             className="btn-primary"
             style={{ padding: '10px 16px', whiteSpace: 'nowrap' }}
@@ -508,36 +558,63 @@ export function MediaDownloadScreen(): JSX.Element {
         </div>
       )}
 
-      {/* MVP notice */}
-      <div
-        style={{
-          marginTop: 8,
-          padding: 14,
-          borderRadius: 10,
-          background: 'rgba(245, 158, 11, 0.08)',
-          border: '1px solid rgba(245, 158, 11, 0.3)',
-          fontSize: 12,
-          color: '#92400E',
-          lineHeight: 1.6,
-        }}
-      >
-        <strong>🚧 Module đang phát triển</strong> — UI và queue đã sẵn sàng. Backend tải video
-        thực tế (yt-dlp integration) sẽ ra mắt phiên bản tiếp theo (v1.1) trong vài tuần tới.
-        Trong lúc chờ, bạn có thể dùng tạm{' '}
-        <a
-          href="#"
-          onClick={(e) => {
-            e.preventDefault();
-            void import('@tauri-apps/plugin-opener').then((m) =>
-              m.openUrl('https://snaptik.app/'),
-            );
+      {/* yt-dlp availability banner */}
+      {ytdlpAvailable === false && (
+        <div
+          style={{
+            marginTop: 8,
+            padding: 14,
+            borderRadius: 10,
+            background: 'rgba(220,38,38,0.08)',
+            border: '1px solid rgba(220,38,38,0.3)',
+            fontSize: 12,
+            color: '#991B1B',
+            lineHeight: 1.6,
           }}
-          style={{ color: '#D97706', fontWeight: 600 }}
         >
-          web tools bên thứ 3
-        </a>{' '}
-        <ExternalLink style={{ width: 11, height: 11, verticalAlign: -1 }} />
-      </div>
+          <strong>⚠ Cần cài yt-dlp</strong> — Module Tải video cần engine yt-dlp để tải.
+          Cài 1 lần là dùng được mãi:
+          <pre style={{ marginTop: 8, padding: 10, background: 'rgba(0,0,0,0.08)', borderRadius: 6, fontSize: 11, fontFamily: 'monospace', overflowX: 'auto' }}>
+{`# PowerShell (Windows) — chạy lệnh:
+winget install yt-dlp.yt-dlp
+
+# Hoặc tải trực tiếp từ:
+# https://github.com/yt-dlp/yt-dlp/releases`}
+          </pre>
+          Sau khi cài → restart TrishDrive (đóng và mở lại app) → nút check sẽ tự nhận.
+        </div>
+      )}
+      {ytdlpAvailable === true && (
+        <div
+          style={{
+            marginTop: 8,
+            padding: 12,
+            borderRadius: 10,
+            background: 'rgba(16,185,129,0.08)',
+            border: '1px solid rgba(16,185,129,0.3)',
+            fontSize: 12,
+            color: '#065F46',
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            gap: 8,
+          }}
+        >
+          <div>
+            <CheckCircle2 style={{ width: 14, height: 14, display: 'inline', verticalAlign: -2 }} />{' '}
+            yt-dlp đã sẵn sàng · Lưu tại: <code style={{ fontFamily: 'monospace', fontSize: 11 }}>{outputDir}</code>
+          </div>
+          <button
+            type="button"
+            onClick={() => void openUrl(outputDir)}
+            className="btn-secondary"
+            style={{ padding: '4px 10px', fontSize: 11 }}
+            title="Mở thư mục lưu"
+          >
+            <FolderOpen style={{ width: 12, height: 12 }} /> Mở thư mục
+          </button>
+        </div>
+      )}
     </div>
   );
 }

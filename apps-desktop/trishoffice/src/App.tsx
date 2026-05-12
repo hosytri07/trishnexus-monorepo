@@ -163,6 +163,9 @@ export function App(): JSX.Element {
   const [page, setPage] = useState<ModuleKey>('dashboard');
   const [logoutConfirm, setLogoutConfirm] = useState(false);
   const [companySwitcherOpen, setCompanySwitcherOpen] = useState(false);
+  const [createCompanyModal, setCreateCompanyModal] = useState(false);
+  const [newCompanyName, setNewCompanyName] = useState('');
+  const [newCompanyCode, setNewCompanyCode] = useState('');
 
   // Phase 40.2 — Auto-create default company khi user TrishTEAM vừa login lần đầu
   useEffect(() => {
@@ -493,17 +496,10 @@ export function App(): JSX.Element {
                   <button
                     type="button"
                     onClick={() => {
-                      const name = prompt('Tên công ty mới:');
-                      if (!name?.trim()) return;
-                      const code = prompt('Mã viết tắt (vd ABC):')?.trim().toUpperCase() || 'NEW';
-                      if (!ecosystem.firebaseUser) return;
-                      companies.createCompany({
-                        name: name.trim(),
-                        code,
-                        logo: '🏢',
-                        owner_uid: ecosystem.firebaseUser.uid,
-                      });
                       setCompanySwitcherOpen(false);
+                      setNewCompanyName('');
+                      setNewCompanyCode('');
+                      setCreateCompanyModal(true);
                     }}
                     style={{
                       width: '100%',
@@ -711,6 +707,162 @@ export function App(): JSX.Element {
                 }}
               >
                 Đăng xuất
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Phase 40.2 — Create company modal (thay prompt browser) */}
+      {createCompanyModal && (
+        <div
+          onClick={() => setCreateCompanyModal(false)}
+          style={{
+            position: 'fixed',
+            inset: 0,
+            background: 'rgba(0,0,0,0.55)',
+            zIndex: 2000,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            backdropFilter: 'blur(4px)',
+          }}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              maxWidth: 420,
+              width: '90%',
+              padding: 24,
+              background: 'var(--color-surface-card, #FFF)',
+              border: '1px solid var(--color-border-default, #E5E7EB)',
+              borderRadius: 14,
+              color: 'var(--color-text-primary)',
+            }}
+          >
+            <h3 style={{ margin: '0 0 6px 0', fontSize: 17, fontWeight: 700 }}>
+              🏢 Tạo công ty mới
+            </h3>
+            <p
+              style={{
+                margin: '0 0 18px 0',
+                fontSize: 12,
+                color: 'var(--color-text-secondary)',
+                lineHeight: 1.5,
+              }}
+            >
+              Mỗi công ty có dữ liệu nhân sự / chấm công / tài sản riêng. Bạn có thể chuyển
+              giữa các công ty qua dropdown ở sidebar.
+            </p>
+
+            <label
+              style={{
+                display: 'block',
+                fontSize: 11,
+                fontWeight: 600,
+                color: 'var(--color-text-muted)',
+                textTransform: 'uppercase',
+                letterSpacing: 0.4,
+                marginBottom: 6,
+              }}
+            >
+              Tên công ty
+            </label>
+            <input
+              type="text"
+              value={newCompanyName}
+              onChange={(e) => setNewCompanyName(e.target.value)}
+              placeholder="VD: Công ty TNHH ABC"
+              autoFocus
+              style={{
+                width: '100%',
+                padding: '10px 12px',
+                marginBottom: 12,
+                border: '1px solid var(--color-border-default, #D1D5DB)',
+                borderRadius: 8,
+                fontSize: 13,
+                background: 'var(--color-surface-bg)',
+                color: 'var(--color-text-primary)',
+                outline: 'none',
+              }}
+            />
+
+            <label
+              style={{
+                display: 'block',
+                fontSize: 11,
+                fontWeight: 600,
+                color: 'var(--color-text-muted)',
+                textTransform: 'uppercase',
+                letterSpacing: 0.4,
+                marginBottom: 6,
+              }}
+            >
+              Mã viết tắt (3-12 ký tự)
+            </label>
+            <input
+              type="text"
+              value={newCompanyCode}
+              onChange={(e) => setNewCompanyCode(e.target.value.toUpperCase().slice(0, 12))}
+              placeholder="VD: ABC, GT-DN"
+              style={{
+                width: '100%',
+                padding: '10px 12px',
+                marginBottom: 18,
+                border: '1px solid var(--color-border-default, #D1D5DB)',
+                borderRadius: 8,
+                fontSize: 13,
+                fontFamily: 'monospace',
+                letterSpacing: 1,
+                background: 'var(--color-surface-bg)',
+                color: 'var(--color-text-primary)',
+                outline: 'none',
+              }}
+            />
+
+            <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+              <button
+                type="button"
+                onClick={() => setCreateCompanyModal(false)}
+                style={{
+                  padding: '8px 14px',
+                  background: 'transparent',
+                  color: 'var(--color-text-secondary)',
+                  border: '1px solid var(--color-border-default)',
+                  borderRadius: 8,
+                  fontSize: 13,
+                  cursor: 'pointer',
+                }}
+              >
+                Hủy
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  if (!newCompanyName.trim() || !ecosystem.firebaseUser) return;
+                  companies.createCompany({
+                    name: newCompanyName.trim(),
+                    code: newCompanyCode.trim() || 'NEW',
+                    logo: '🏢',
+                    owner_uid: ecosystem.firebaseUser.uid,
+                  });
+                  setCreateCompanyModal(false);
+                }}
+                disabled={!newCompanyName.trim()}
+                style={{
+                  padding: '8px 14px',
+                  background: newCompanyName.trim()
+                    ? 'var(--color-accent-primary, #10B981)'
+                    : 'var(--color-border-default)',
+                  color: '#FFF',
+                  border: 'none',
+                  borderRadius: 8,
+                  fontSize: 13,
+                  fontWeight: 700,
+                  cursor: newCompanyName.trim() ? 'pointer' : 'not-allowed',
+                }}
+              >
+                Tạo
               </button>
             </div>
           </div>
