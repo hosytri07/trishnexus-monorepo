@@ -1384,8 +1384,9 @@ async fn download_social_media(
         args.push("--yes-playlist".to_string());
     }
 
-    // Phase 40.18 — Quality / format với fallback bền hơn
-    // Pattern: thử format chính, nếu không có → fallback cuối là `b` (best available)
+    // Phase 40.20 — Quality / format với fallback CỰC bền:
+    // Thay vì bv*+ba (cần ffmpeg merge), dùng `best` (single format, không cần merge).
+    // Cuối cùng fallback `*` = ANY format yt-dlp có thể tải.
     match quality.as_str() {
         "audio" => {
             args.push("-x".to_string()); // extract audio
@@ -1394,20 +1395,19 @@ async fn download_social_media(
         }
         "1080p" => {
             args.push("-f".to_string());
-            args.push("bv*[height<=1080]+ba/bv*[height<=1080]/b[height<=1080]/bv*+ba/b".to_string());
+            args.push("best[height<=1080]/bv*[height<=1080]+ba/best/bv*+ba/*".to_string());
         }
         "720p" => {
             args.push("-f".to_string());
-            args.push("bv*[height<=720]+ba/bv*[height<=720]/b[height<=720]/bv*+ba/b".to_string());
+            args.push("best[height<=720]/bv*[height<=720]+ba/best/bv*+ba/*".to_string());
         }
         "480p" => {
             args.push("-f".to_string());
-            args.push("bv*[height<=480]+ba/bv*[height<=480]/b[height<=480]/bv*+ba/b".to_string());
+            args.push("best[height<=480]/bv*[height<=480]+ba/best/bv*+ba/*".to_string());
         }
         _ => {
-            // best (default)
-            args.push("-f".to_string());
-            args.push("bv*+ba/b".to_string());
+            // best (default) — bỏ -f hoàn toàn, để yt-dlp tự chọn (an toàn nhất)
+            // Không push gì vào args → yt-dlp default = bv*+ba/b
         }
     }
 
