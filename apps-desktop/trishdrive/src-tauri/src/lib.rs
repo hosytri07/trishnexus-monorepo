@@ -1223,6 +1223,115 @@ fn check_nodejs_available() -> Result<bool, String> {
     }
 }
 
+/// Path tới deno.exe bundled (AppData/bin).
+fn deno_local_path(app: &tauri::AppHandle) -> Result<std::path::PathBuf, String> {
+    use tauri::Manager;
+    let app_data = app.path().app_data_dir().map_err(|e| format!("AppData dir: {}", e))?;
+    let bin_dir = app_data.join("bin");
+    std::fs::create_dir_all(&bin_dir).map_err(|e| format!("Create bin: {}", e))?;
+    #[cfg(target_os = "windows")]
+    let exe = bin_dir.join("deno.exe");
+    #[cfg(not(target_os = "windows"))]
+    let exe = bin_dir.join("deno");
+    Ok(exe)
+}
+
+#[tauri::command]
+fn check_deno_available(app: tauri::AppHandle) -> Result<bool, String> {
+    if let Ok(local) = deno_local_path(&app) {
+        if local.exists() {
+            return Ok(true);
+        }
+    }
+    // Fallback PATH
+    #[cfg(target_os = "windows")]
+    let cmd = "deno.exe";
+    #[cfg(not(target_os = "windows"))]
+    let cmd = "deno";
+    match std::process::Command::new(cmd).arg("--version").output() {
+        Ok(out) => Ok(out.status.success()),
+        Err(_) => Ok(false),
+    }
+}
+
+/// Auto-install Deno portable (~30MB, single binary, support n-sig JS challenge).
+#[tauri::command]
+async fn install_deno(app: tauri::AppHandle) -> Result<String, String> {
+    #[cfg(not(target_os = "windows"))]
+    {
+        return Err("Auto-install Deno chỉ hỗ trợ Windows. macOS: brew install deno / Linux: snap install deno".to_string());
+    }
+
+    #[cfg(target_os = "windows")]
+    {
+        use tauri::Manager;
+        let app_data = app.path().app_data_dir().map_err(|e| format!("AppData: {}", e))?;
+        let bin_dir = app_data.join("bin");
+        std::fs::create_dir_all(&bin_dir).map_err(|e| format!("mkdir: {}", e))?;
+        let zip_path = bin_dir.join("deno.zip");
+        let url = "https://github.com/denoland/deno/releases/latest/download/deno-x86_64-pc-windows-msvc.zip";
+
+        let _ = app.emit(
+            "deno-install:progress",
+            serde_json::json!({ "status": "downloading", "msg": "Tải Deno ~30MB..." }),
+        );
+
+        let client = reqwest::Client::builder()
+            .timeout(std::time::Duration::from_secs(300))
+            .user_agent(concat!("TrishDrive/", env!("CARGO_PKG_VERSION")))
+            .build()
+            .map_err(|e| format!("HTTP client: {}", e))?;
+
+        let resp = client.get(url).send().await.map_err(|e| format!("DL: {}", e))?;
+        if !resp.status().is_success() {
+            return Err(format!("HTTP {}", resp.status().as_u16()));
+        }
+        let bytes = resp.bytes().await.map_err(|e| format!("Body: {}", e))?;
+        std::fs::write(&zip_path, &bytes).map_err(|e| format!("Write: {}", e))?;
+
+        let _ = app.emit(
+            "deno-install:progress",
+            serde_json::json!({ "status": "extracting" }),
+        );
+
+        let extract_to = bin_dir.join("deno-tmp");
+        let _ = std::fs::remove_dir_all(&extract_to);
+        let out = std::process::Command::new("powershell")
+            .args([
+                "-NoProfile",
+                "-Command",
+                &format!(
+                    "Expand-Archive -Path '{}' -DestinationPath '{}' -Force",
+                    zip_path.display(),
+                    extract_to.display()
+                ),
+            ])
+            .output()
+            .map_err(|e| format!("Extract: {}", e))?;
+        if !out.status.success() {
+            return Err(format!("Extract fail: {}", String::from_utf8_lossy(&out.stderr)));
+        }
+
+        // Deno zip chỉ chứa 1 file deno.exe ở root
+        let src = extract_to.join("deno.exe");
+        let dst = bin_dir.join("deno.exe");
+        if !src.exists() {
+            return Err("Không tìm thấy deno.exe trong zip".to_string());
+        }
+        std::fs::copy(&src, &dst).map_err(|e| format!("Copy: {}", e))?;
+
+        let _ = std::fs::remove_dir_all(&extract_to);
+        let _ = std::fs::remove_file(&zip_path);
+
+        let _ = app.emit(
+            "deno-install:progress",
+            serde_json::json!({ "status": "done", "path": dst.to_string_lossy() }),
+        );
+
+        Ok(dst.to_string_lossy().to_string())
+    }
+}
+
 /// Update yt-dlp local bundled (gọi `yt-dlp -U`).
 #[tauri::command]
 async fn update_ytdlp(app: tauri::AppHandle) -> Result<String, String> {
@@ -1357,6 +1466,14 @@ async fn download_social_media(
         if ffmpeg.exists() {
             args.push("--ffmpeg-location".to_string());
             args.push(ffmpeg.parent().unwrap_or(&ffmpeg).to_string_lossy().to_string());
+        }
+    }
+
+    // Phase 40.22 — Pass Deno location (cho n-sig JS challenge)
+    if let Ok(deno) = deno_local_path(&app) {
+        if deno.exists() {
+            args.push("--js-runtimes".to_string());
+            args.push(format!("deno:{}", deno.to_string_lossy()));
         }
     }
 
@@ -1577,6 +1694,8 @@ pub fn run() {
             check_ffmpeg_available,
             install_ffmpeg,
             check_nodejs_available,
+            check_deno_available,
+            install_deno,
             download_social_media,
             app_version,
             ping,

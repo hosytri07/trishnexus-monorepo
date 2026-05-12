@@ -89,6 +89,8 @@ export function MediaDownloadScreen(): JSX.Element {
   const [ffmpegAvailable, setFfmpegAvailable] = useState<boolean | null>(null);
   const [installingFfmpeg, setInstallingFfmpeg] = useState(false);
   const [updatingYtdlp, setUpdatingYtdlp] = useState(false);
+  const [denoAvailable, setDenoAvailable] = useState<boolean | null>(null);
+  const [installingDeno, setInstallingDeno] = useState(false);
   const [outputDir, setOutputDir] = useState<string>('');
 
   // Phase 40.16 — Listen progress events từ Rust
@@ -127,10 +129,11 @@ export function MediaDownloadScreen(): JSX.Element {
   const platform = detectPlatform(firstUrl);
   const platformInfo = PLATFORMS.find((p) => p.id === platform);
 
-  // Phase 40.6 + 40.18 — Check yt-dlp + ffmpeg + setup output dir
+  // Phase 40.6 + 40.18 + 40.22 — Check yt-dlp + ffmpeg + Deno + setup output dir
   useEffect(() => {
     void invoke<boolean>('check_ytdlp_available').then(setYtdlpAvailable).catch(() => setYtdlpAvailable(false));
     void invoke<boolean>('check_ffmpeg_available').then(setFfmpegAvailable).catch(() => setFfmpegAvailable(false));
+    void invoke<boolean>('check_deno_available').then(setDenoAvailable).catch(() => setDenoAvailable(false));
     void documentDir()
       .then((d) => join(d, 'TrishDrive', 'MediaDownloads'))
       .then(setOutputDir)
@@ -149,6 +152,21 @@ export function MediaDownloadScreen(): JSX.Element {
       setToast({ msg: `⚠ Cài ffmpeg fail: ${e instanceof Error ? e.message : String(e)}`, kind: 'err' });
     } finally {
       setInstallingFfmpeg(false);
+    }
+  }
+
+  async function handleInstallDeno(): Promise<void> {
+    if (installingDeno) return;
+    setInstallingDeno(true);
+    setToast({ msg: '⏳ Đang tải Deno ~40MB (bypass YouTube n-sig challenge)...', kind: 'ok' });
+    try {
+      await invoke<string>('install_deno');
+      setDenoAvailable(true);
+      setToast({ msg: '✅ Đã cài Deno — giờ tải video YouTube private/restricted OK', kind: 'ok' });
+    } catch (e) {
+      setToast({ msg: `⚠ Cài Deno fail: ${e instanceof Error ? e.message : String(e)}`, kind: 'err' });
+    } finally {
+      setInstallingDeno(false);
     }
   }
 
@@ -962,7 +980,7 @@ winget install yt-dlp.yt-dlp
         >
           <div>
             <CheckCircle2 style={{ width: 14, height: 14, display: 'inline', verticalAlign: -2 }} />{' '}
-            yt-dlp sẵn sàng · {ffmpegAvailable ? '✅ ffmpeg OK' : '⚠ ffmpeg thiếu'}
+            yt-dlp sẵn sàng · {ffmpegAvailable ? '✅ ffmpeg' : '⚠ ffmpeg thiếu'} · {denoAvailable ? '✅ Deno' : '⚠ Deno thiếu'}
           </div>
           <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
             <button
@@ -995,6 +1013,55 @@ winget install yt-dlp.yt-dlp
               <FolderOpen style={{ width: 12, height: 12 }} /> Thư mục
             </button>
           </div>
+        </div>
+      )}
+
+      {/* Phase 40.22 — Deno banner (bypass YouTube n-sig challenge) */}
+      {ytdlpAvailable === true && denoAvailable === false && (
+        <div
+          style={{
+            marginTop: 8,
+            padding: 14,
+            borderRadius: 10,
+            background: 'rgba(124,58,237,0.08)',
+            border: '1px solid rgba(124,58,237,0.3)',
+            fontSize: 13,
+            color: '#5B21B6',
+            lineHeight: 1.6,
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+            <AlertCircle style={{ width: 18, height: 18 }} />
+            <strong>Cần cài Deno để bypass YouTube anti-bot "n challenge"</strong>
+          </div>
+          <p style={{ fontSize: 12, margin: '0 0 8px' }}>
+            YouTube chặn 1 số video (private/restricted/age-gated) bằng JavaScript challenge.
+            Deno là JS runtime gọn nhẹ (~40MB) — yt-dlp sẽ tự dùng để decode.
+            Không cài thì: tải public OK nhưng video private/restricted có thể fail với lỗi
+            "<em>nsig extraction failed</em>" / "<em>Only images are available</em>".
+          </p>
+          <button
+            type="button"
+            onClick={() => void handleInstallDeno()}
+            disabled={installingDeno}
+            className="btn-primary"
+            style={{
+              width: '100%',
+              padding: '12px',
+              fontSize: 14,
+              fontWeight: 700,
+              justifyContent: 'center',
+              background: installingDeno ? 'var(--color-border-default)' : '#7C3AED',
+            }}
+          >
+            {installingDeno ? (
+              <>
+                <Loader2 className="animate-spin h-4 w-4" /> Đang tải Deno (~40MB, có thể mất 30-60 giây)...
+              </>
+            ) : (
+              <>📥 Cài Deno tự động (1 click)</>
+            )}
+          </button>
         </div>
       )}
 
