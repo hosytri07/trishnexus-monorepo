@@ -1343,20 +1343,19 @@ async fn download_social_media(
         }
     }
 
-    // Phase 40.16 — Tải video private: dùng cookies từ trình duyệt
-    // cookies_browser: 'chrome' | 'firefox' | 'edge' | 'brave' | 'opera' | 'safari'
-    if let Some(browser) = cookies_browser.as_ref() {
+    // Phase 40.16 + 40.17 + 40.19 — Cookies cho private video.
+    // Ưu tiên: cookies_file > cookies_browser. Nếu CẢ HAI cùng pass, yt-dlp lỗi
+    // → chỉ dùng 1 nguồn.
+    let has_file = cookies_file.as_ref().map(|s| !s.is_empty()).unwrap_or(false);
+    if has_file {
+        if let Some(file) = cookies_file.as_ref() {
+            args.push("--cookies".to_string());
+            args.push(file.clone());
+        }
+    } else if let Some(browser) = cookies_browser.as_ref() {
         if !browser.is_empty() && browser != "none" {
             args.push("--cookies-from-browser".to_string());
             args.push(browser.clone());
-        }
-    }
-
-    // Phase 40.17 — Hoặc cookies từ file (workaround khi Chrome bị lock)
-    if let Some(file) = cookies_file.as_ref() {
-        if !file.is_empty() {
-            args.push("--cookies".to_string());
-            args.push(file.clone());
         }
     }
 
