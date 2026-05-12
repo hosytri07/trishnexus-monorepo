@@ -660,38 +660,82 @@ export function MediaDownloadScreen(): JSX.Element {
           </div>
         </div>
 
-        {/* Phase 40.17 — Cookies.txt advanced (workaround Chrome lock) */}
+        {/* Phase 40.19 — Cookies UX + Chrome ABE warning */}
         {cookiesBrowser !== 'none' && (
-          <details style={{ marginTop: 10, fontSize: 11, color: 'var(--color-text-muted)' }}>
-            <summary style={{ cursor: 'pointer', fontWeight: 600 }}>
-              ⚠ Chrome bị lỗi cookies? Click xem cách khắc phục
-            </summary>
-            <div style={{ marginTop: 8, padding: 10, background: 'rgba(245,158,11,0.05)', border: '1px solid rgba(245,158,11,0.2)', borderRadius: 6, lineHeight: 1.6 }}>
-              <strong style={{ color: '#92400E' }}>Lỗi "Could not copy Chrome cookie database":</strong> Chrome đang
-              chạy → DB bị lock. 3 cách fix (theo độ ưu tiên):
-              <ol style={{ paddingLeft: 18, margin: '6px 0' }}>
-                <li><strong>Đóng Chrome hoàn toàn</strong> (kể cả tray icon) → thử lại</li>
-                <li><strong>Đổi sang Firefox</strong> (không bị lock) — đăng nhập tài khoản trên Firefox</li>
-                <li><strong>Export cookies.txt thủ công:</strong> cài extension <em>"Get cookies.txt LOCALLY"</em> trên Chrome → vào trang video → click extension → Export → upload file bên dưới:</li>
-              </ol>
-              <div style={{ display: 'flex', gap: 6, alignItems: 'center', marginTop: 6 }}>
-                <input
-                  type="text"
-                  className="input"
-                  value={cookiesFile}
-                  onChange={(e) => setCookiesFile(e.target.value)}
-                  placeholder="Path đến cookies.txt (vd C:\Users\...\cookies.txt)"
-                  style={{ flex: 1, fontFamily: 'monospace', fontSize: 11 }}
-                />
-                {cookiesFile && (
-                  <button type="button" onClick={() => setCookiesFile('')} className="btn-secondary" style={{ padding: '4px 8px', fontSize: 10 }}>Xóa</button>
-                )}
-              </div>
-              <div style={{ fontSize: 10, color: 'var(--color-text-muted)', marginTop: 4 }}>
-                Nếu set cookies.txt → sẽ override dropdown trình duyệt
-              </div>
+          <div style={{ marginTop: 10, padding: 12, background: 'rgba(220,38,38,0.06)', border: '1px solid rgba(220,38,38,0.25)', borderRadius: 8, fontSize: 12, lineHeight: 1.6 }}>
+            <strong style={{ color: '#991B1B', display: 'flex', alignItems: 'center', gap: 6 }}>
+              <AlertCircle style={{ width: 14, height: 14 }} /> Chrome 127+ có "App-Bound Encryption" — KHÔNG external tool nào extract cookies được
+            </strong>
+            <p style={{ margin: '6px 0', color: '#991B1B' }}>
+              Đây là <strong>giới hạn của Chrome</strong>, không phải bug TrishDrive. Cách <strong>chắc chắn work</strong>:
+            </p>
+            <ol style={{ paddingLeft: 18, margin: '6px 0', color: '#991B1B' }}>
+              <li>
+                <strong>Cách 1 (Recommended): cài extension Cookie Editor 1 lần → dùng mãi</strong>
+                <div style={{ display: 'flex', gap: 6, marginTop: 4, flexWrap: 'wrap' }}>
+                  <button
+                    type="button"
+                    onClick={() => void openUrl('https://chromewebstore.google.com/detail/get-cookiestxt-locally/cclelndahbckbenkjhflpdbgdldlbecc')}
+                    className="btn-secondary"
+                    style={{ padding: '4px 10px', fontSize: 11 }}
+                  >
+                    🛒 Cài Get cookies.txt LOCALLY (Chrome)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => void openUrl('https://addons.mozilla.org/en-US/firefox/addon/cookies-txt/')}
+                    className="btn-secondary"
+                    style={{ padding: '4px 10px', fontSize: 11 }}
+                  >
+                    🔥 Cài cookies.txt (Firefox)
+                  </button>
+                </div>
+                <div style={{ marginTop: 4, fontSize: 11 }}>
+                  Sau cài: vào video YouTube/Facebook private → click icon extension → Export → file .txt save Downloads
+                </div>
+              </li>
+              <li style={{ marginTop: 8 }}>
+                <strong>Cách 2: dùng Firefox</strong> (không có ABE) → đăng nhập tài khoản tại trang muốn tải → chọn "🔥 Firefox" trong dropdown
+              </li>
+            </ol>
+
+            <label style={{ display: 'block', fontSize: 11, fontWeight: 600, color: '#92400E', marginTop: 10, textTransform: 'uppercase', letterSpacing: 0.4 }}>
+              📁 Path đến cookies.txt (sau khi export)
+            </label>
+            <div style={{ display: 'flex', gap: 6, alignItems: 'center', marginTop: 4 }}>
+              <input
+                type="text"
+                className="input"
+                value={cookiesFile}
+                onChange={(e) => setCookiesFile(e.target.value)}
+                placeholder="VD: C:\Users\ADMIN\Downloads\cookies.txt"
+                style={{ flex: 1, fontFamily: 'monospace', fontSize: 11 }}
+              />
+              <button
+                type="button"
+                onClick={async () => {
+                  // Auto-detect: try common Downloads paths
+                  try {
+                    const dir = await documentDir();
+                    const guess = await join(dir, '..', 'Downloads', 'cookies.txt');
+                    setCookiesFile(guess);
+                    setToast({ msg: 'Đã set path mặc định — sửa lại nếu sai', kind: 'ok' });
+                  } catch { /* */ }
+                }}
+                className="btn-secondary"
+                style={{ padding: '4px 10px', fontSize: 10, whiteSpace: 'nowrap' }}
+                title="Auto-detect cookies.txt trong Downloads"
+              >
+                🔍 Auto-detect
+              </button>
+              {cookiesFile && (
+                <button type="button" onClick={() => setCookiesFile('')} className="btn-secondary" style={{ padding: '4px 8px', fontSize: 10 }}>✕</button>
+              )}
             </div>
-          </details>
+            <div style={{ fontSize: 10, color: 'var(--color-text-muted)', marginTop: 4 }}>
+              💡 Khi set path → sẽ ưu tiên dùng file này thay vì cookies trình duyệt
+            </div>
+          </div>
         )}
       </div>
 

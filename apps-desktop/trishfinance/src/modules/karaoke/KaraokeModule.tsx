@@ -29,13 +29,20 @@ interface DrinkItem {
 }
 
 type PaymentStatus = 'unpaid' | 'paid' | 'debt';
+type SessionStatus = 'active' | 'closed';
 
 interface Session {
   id: string;
   roomId: string;
   date: string;
-  startTime: string; // HH:MM
-  endTime: string;
+  /** Phase 40.19 — track active session realtime */
+  status: SessionStatus;
+  /** Unix ms khi mở phòng — dùng để tính thời gian realtime */
+  startAt: number;
+  /** Unix ms khi đóng phòng + thanh toán (null nếu đang active) */
+  endAt?: number;
+  startTime: string; // HH:MM hiển thị
+  endTime?: string;
   hours: number;
   customerName: string;
   customerPhone?: string;
@@ -85,15 +92,34 @@ function makeId(): string { return `${Date.now()}_${Math.random().toString(36).s
 function formatMoney(n: number): string { return new Intl.NumberFormat('vi-VN').format(Math.round(n)) + 'đ'; }
 function todayStr(): string { return new Date().toISOString().slice(0, 10); }
 
-type Tab = 'pos' | 'rooms' | 'drinks' | 'history';
+type Tab = 'active' | 'open' | 'rooms' | 'drinks' | 'history';
 
 export function KaraokeModule(): JSX.Element {
   const [db, setDb] = useState<Db>(() => loadDb());
-  const [tab, setTab] = useState<Tab>('pos');
+  const [tab, setTab] = useState<Tab>('active');
+
+  // Phase 40.19 — Migration: session cũ không có status → mặc định 'closed'
+  useEffect(() => {
+    const needMigrate = db.sessions.some((s: any) => s.status === undefined);
+    if (needMigrate) {
+      setDb({
+        ...db,
+        sessions: db.sessions.map((s: any) => ({
+          ...s,
+          status: s.status ?? 'closed',
+          startAt: s.startAt ?? (s.createdAt ?? Date.now()),
+          endAt: s.endAt ?? (s.createdAt ?? Date.now()),
+        })),
+      });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   useEffect(() => { saveDb(db); }, [db]);
 
   const todayRev = db.sessions.filter((s) => s.date === todayStr() && s.paymentStatus !== 'unpaid').reduce((sum, s) => sum + s.paid, 0);
   const debtSessions = db.sessions.filter((s) => s.paymentStatus === 'debt' || (s.paymentStatus === 'unpaid' && s.paid < s.total));
+  const activeSessions = db.sessions.filter((s) => s.status === 'active');
 
   return (
     <div>
@@ -105,13 +131,15 @@ export function KaraokeModule(): JSX.Element {
       </div>
 
       <div style={{ display: 'flex', gap: 4, marginBottom: 16, borderBottom: '1px solid var(--color-border-subtle)' }}>
-        <TabBtn active={tab === 'pos'} onClick={() => setTab('pos')} icon={Mic} label="Đặt phòng / Tính tiền" />
+        <TabBtn active={tab === 'active'} onClick={() => setTab('active')} icon={Clock} label={`🟢 Phòng đang hát${activeSessions.length > 0 ? ` (${activeSessions.length})` : ''}`} />
+        <TabBtn active={tab === 'open'} onClick={() => setTab('open')} icon={Mic} label="Mở phòng mới" />
         <TabBtn active={tab === 'rooms'} onClick={() => setTab('rooms')} icon={Edit2} label="Quản lý phòng" />
         <TabBtn active={tab === 'drinks'} onClick={() => setTab('drinks')} icon={ShoppingBag} label="Bảng giá đồ uống" />
         <TabBtn active={tab === 'history'} onClick={() => setTab('history')} icon={TrendingUp} label="Lịch sử" />
       </div>
 
-      {tab === 'pos' && <PosTab db={db} setDb={setDb} />}
+      {tab === 'active' && <ActiveSessionsTab db={db} setDb={setDb} />}
+      {tab === 'open' && <OpenRoomTab db={db} setDb={setDb} onOpened={() => setTab('active')} />}
       {tab === 'rooms' && <RoomsTab db={db} setDb={setDb} />}
       {tab === 'drinks' && <DrinksTab db={db} setDb={setDb} />}
       {tab === 'history' && <HistoryTab db={db} />}
@@ -141,6 +169,291 @@ function TabBtn({ active, onClick, icon: Icon, label }: { active: boolean; onCli
 }
 
 // ============================================================
+// Phase 40.19 — OpenRoomTab: mở phòng mới (status='active')
+// ============================================================
+function OpenRoomTab({ db, setDb, onOpened }: { db: Db; setDb: (d: Db) => void; onOpened: () => void }): JSX.Element {
+  const [roomId, setRoomId] = useState(db.rooms.find((r) => r.active)?.id ?? '');
+  const [customerName, setCustomerName] = useState('');
+  const [customerPhone, setCustomerPhone] = useState('');
+
+  const busyRoomIds = new Set(db.sessions.filter((s) => s.status === 'active').map((s) => s.roomId));
+  const availableRooms = db.rooms.filter((r) => r.active && !busyRoomIds.has(r.id));
+
+  function openRoom(): void {
+    if (!roomId || !customerName.trim()) return;
+    if (busyRoomIds.has(roomId)) { alert('Phòng này đang có khách'); return; }
+    const now = Date.now();
+    const startTime = new Date(now).toTimeString().slice(0, 5);
+    const session: Session = {
+      id: makeId(), roomId, date: todayStr(), status: 'active', startAt: now, startTime,
+      hours: 0, customerName: customerName.trim(), customerPhone: customerPhone.trim() || undefined,
+      drinks: [], roomCharge: 0, drinksCharge: 0, total: 0, paid: 0, paymentStatus: 'unpaid', createdAt: now,
+    };
+    setDb({ ...db, sessions: [session, ...db.sessions] });
+    setCustomerName(''); setCustomerPhone('');
+    onOpened();
+  }
+
+  return (
+    <div style={{ maxWidth: 480 }}>
+      <div className="card" style={{ padding: 18 }}>
+        <h3 style={{ fontSize: 15, fontWeight: 700, marginTop: 0, marginBottom: 12 }}>🎤 Mở phòng cho khách mới</h3>
+        {availableRooms.length === 0 ? (
+          <div style={{ padding: 24, textAlign: 'center', color: 'var(--color-text-muted)', fontSize: 13 }}>
+            {db.rooms.length === 0 ? 'Chưa có phòng — sang tab Quản lý phòng để tạo trước' : '⚠ Tất cả phòng đang có khách — đợi đóng phòng cũ hoặc thêm phòng'}
+          </div>
+        ) : (
+          <>
+            <FormField label="Phòng (chỉ hiện phòng trống)">
+              <select className="input" value={roomId} onChange={(e) => setRoomId(e.target.value)}>
+                {availableRooms.map((r) => (
+                  <option key={r.id} value={r.id}>{r.name} — {ROOM_TYPE_LABEL[r.type]} — {formatMoney(r.pricePerHour)}/h</option>
+                ))}
+              </select>
+            </FormField>
+            <FormField label="Tên khách">
+              <input className="input" value={customerName} onChange={(e) => setCustomerName(e.target.value)} placeholder="VD: Anh A bàn 1" autoFocus />
+            </FormField>
+            <FormField label="SĐT (optional)">
+              <input className="input" type="tel" value={customerPhone} onChange={(e) => setCustomerPhone(e.target.value)} placeholder="09xx..." />
+            </FormField>
+            <div style={{ padding: 10, background: 'rgba(16,185,129,0.06)', border: '1px solid rgba(16,185,129,0.25)', borderRadius: 8, fontSize: 12, color: '#065F46', marginBottom: 12 }}>
+              💡 Phòng bắt đầu tính giờ NGAY khi bấm nút bên dưới. Khách xong → vào tab "🟢 Phòng đang hát" → bấm "Đóng phòng & Thanh toán".
+            </div>
+            <button type="button" className="btn-primary" onClick={openRoom} disabled={!roomId || !customerName.trim()} style={{ width: '100%', justifyContent: 'center', padding: 14, fontWeight: 700, fontSize: 14 }}>
+              🎤 MỞ PHÒNG — Bắt đầu tính giờ
+            </button>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// Phase 40.19 — ActiveSessionsTab: phòng đang hát realtime
+function ActiveSessionsTab({ db, setDb }: { db: Db; setDb: (d: Db) => void }): JSX.Element {
+  const [now, setNow] = useState(() => Date.now());
+  const [managingId, setManagingId] = useState<string | null>(null);
+
+  useEffect(() => {
+    const t = setInterval(() => setNow(Date.now()), 5_000);
+    return () => clearInterval(t);
+  }, []);
+
+  const active = db.sessions.filter((s) => s.status === 'active');
+  const managing = managingId ? db.sessions.find((s) => s.id === managingId) : null;
+
+  function onAddDrink(drinkId: string): void {
+    if (!managing) return;
+    const d = db.drinks.find((x) => x.id === drinkId);
+    if (!d) return;
+    const existing = managing.drinks.find((x) => x.drinkId === drinkId);
+    const newDrinks = existing
+      ? managing.drinks.map((x) => x.drinkId === drinkId ? { ...x, qty: x.qty + 1, subtotal: (x.qty + 1) * x.price } : x)
+      : [...managing.drinks, { drinkId, name: d.name, qty: 1, price: d.price, subtotal: d.price }];
+    setDb({ ...db, sessions: db.sessions.map((s) => s.id === managing.id ? { ...s, drinks: newDrinks } : s) });
+  }
+  function onUpdateDrink(drinkId: string, qty: number): void {
+    if (!managing) return;
+    const newDrinks = qty <= 0
+      ? managing.drinks.filter((x) => x.drinkId !== drinkId)
+      : managing.drinks.map((x) => x.drinkId === drinkId ? { ...x, qty, subtotal: qty * x.price } : x);
+    setDb({ ...db, sessions: db.sessions.map((s) => s.id === managing.id ? { ...s, drinks: newDrinks } : s) });
+  }
+  function onCloseSession(paid: number): void {
+    if (!managing) return;
+    const room = db.rooms.find((r) => r.id === managing.roomId);
+    const endAt = Date.now();
+    const elapsedHours = (endAt - managing.startAt) / 3_600_000;
+    const roomCharge = (room?.pricePerHour ?? 0) * elapsedHours;
+    const drinksCharge = managing.drinks.reduce((s, x) => s + x.subtotal, 0);
+    const total = roomCharge + drinksCharge;
+    const endTime = new Date(endAt).toTimeString().slice(0, 5);
+    const closed: Session = {
+      ...managing, status: 'closed', endAt, endTime, hours: elapsedHours,
+      roomCharge, drinksCharge, total, paid,
+      paymentStatus: paid >= total ? 'paid' : paid > 0 ? 'unpaid' : 'debt',
+    };
+    setDb({ ...db, sessions: db.sessions.map((s) => s.id === managing.id ? closed : s) });
+    if (paid > 0 && room) {
+      addLedgerEntry({
+        amount: Math.min(paid, total),
+        kind: 'thu',
+        category: 'kinh_doanh',
+        description: `Karaoke — ${managing.customerName} · ${room.name} (${elapsedHours.toFixed(1)}h)`,
+        source: 'karaoke' as any,
+        refId: managing.id,
+        date: managing.date,
+      });
+    }
+    setManagingId(null);
+  }
+
+  return (
+    <div>
+      {active.length === 0 ? (
+        <div className="card" style={{ padding: 40, textAlign: 'center' }}>
+          <Mic style={{ width: 36, height: 36, color: 'var(--color-text-muted)', margin: '0 auto 10px' }} />
+          <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--color-text-secondary)', marginBottom: 4 }}>Chưa có phòng nào đang hát</div>
+          <div style={{ fontSize: 12, color: 'var(--color-text-muted)' }}>Sang tab "Mở phòng mới" để bắt đầu</div>
+        </div>
+      ) : (
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 12 }}>
+          {active.map((s) => {
+            const room = db.rooms.find((r) => r.id === s.roomId);
+            const elapsedMin = (now - s.startAt) / 60_000;
+            const elapsedHours = elapsedMin / 60;
+            const elapsedRoomCharge = (room?.pricePerHour ?? 0) * elapsedHours;
+            const drinksTotal = s.drinks.reduce((sum, d) => sum + d.subtotal, 0);
+            const currentTotal = elapsedRoomCharge + drinksTotal;
+            return (
+              <button key={s.id} type="button" onClick={() => setManagingId(s.id)} className="card" style={{ padding: 14, textAlign: 'left', cursor: 'pointer', background: 'linear-gradient(135deg, rgba(168,85,247,0.05), rgba(16,185,129,0.05))', border: '1px solid rgba(168,85,247,0.3)' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6 }}>
+                  <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#10B981', boxShadow: '0 0 0 4px rgba(16,185,129,0.2)' }} />
+                  <strong style={{ color: '#065F46', fontSize: 11, fontWeight: 700, letterSpacing: 0.4 }}>ĐANG HÁT</strong>
+                </div>
+                <div style={{ fontSize: 16, fontWeight: 700 }}>{room?.name ?? '?'}</div>
+                <div style={{ fontSize: 12, color: 'var(--color-text-muted)', marginTop: 2 }}>👤 {s.customerName}</div>
+                <div style={{ marginTop: 10, padding: 10, background: 'var(--color-surface-row)', borderRadius: 8 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12 }}>
+                    <span style={{ color: 'var(--color-text-muted)' }}>Mở lúc:</span><strong>{s.startTime}</strong>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, marginTop: 2 }}>
+                    <span style={{ color: 'var(--color-text-muted)' }}>Đã hát:</span>
+                    <strong style={{ color: 'var(--color-accent-primary)' }}>{Math.floor(elapsedMin / 60)}h{String(Math.floor(elapsedMin % 60)).padStart(2, '0')}</strong>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, marginTop: 2 }}>
+                    <span style={{ color: 'var(--color-text-muted)' }}>Đồ uống:</span>
+                    <strong>{s.drinks.length} món · {formatMoney(drinksTotal)}</strong>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, marginTop: 6, paddingTop: 6, borderTop: '1px solid var(--color-border-subtle)' }}>
+                    <span style={{ fontWeight: 700, color: 'var(--color-text-muted)' }}>Tạm tính:</span>
+                    <strong style={{ fontSize: 16, color: 'var(--color-accent-primary)', fontWeight: 800 }}>{formatMoney(currentTotal)}</strong>
+                  </div>
+                </div>
+                <div style={{ marginTop: 8, fontSize: 11, color: 'var(--color-text-muted)', textAlign: 'center' }}>
+                  → Click để gọi đồ / đóng phòng
+                </div>
+              </button>
+            );
+          })}
+        </div>
+      )}
+
+      {managing && (
+        <ActiveSessionModal
+          session={managing}
+          room={db.rooms.find((r) => r.id === managing.roomId)!}
+          allDrinks={db.drinks}
+          onAddDrink={onAddDrink}
+          onUpdateDrink={onUpdateDrink}
+          onCloseSession={onCloseSession}
+          onClose={() => setManagingId(null)}
+        />
+      )}
+    </div>
+  );
+}
+
+function ActiveSessionModal({ session, room, allDrinks, onAddDrink, onUpdateDrink, onCloseSession, onClose }: {
+  session: Session; room: Room; allDrinks: DrinkItem[];
+  onAddDrink: (drinkId: string) => void;
+  onUpdateDrink: (drinkId: string, qty: number) => void;
+  onCloseSession: (paid: number) => void;
+  onClose: () => void;
+}): JSX.Element {
+  const [now, setNow] = useState(() => Date.now());
+  const [showPayment, setShowPayment] = useState(false);
+  useEffect(() => {
+    const t = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(t);
+  }, []);
+
+  const elapsedMs = now - session.startAt;
+  const elapsedHours = elapsedMs / 3_600_000;
+  const elapsedMin = elapsedMs / 60_000;
+  const roomCharge = room.pricePerHour * elapsedHours;
+  const drinksCharge = session.drinks.reduce((s, x) => s + x.subtotal, 0);
+  const total = roomCharge + drinksCharge;
+
+  return (
+    <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20, backdropFilter: 'blur(4px)' }}>
+      <div onClick={(e) => e.stopPropagation()} className="card" style={{ maxWidth: 720, width: '100%', maxHeight: '92vh', overflow: 'auto', padding: 0 }}>
+        <div style={{ padding: 18, background: 'linear-gradient(135deg, rgba(168,85,247,0.1), rgba(16,185,129,0.06))', borderRadius: '14px 14px 0 0', borderBottom: '1px solid var(--color-border-subtle)' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+            <div>
+              <div style={{ fontSize: 11, color: '#065F46', fontWeight: 700, letterSpacing: 0.4, marginBottom: 4 }}>🟢 ĐANG HÁT</div>
+              <h2 style={{ margin: 0, fontSize: 20, fontWeight: 800 }}>{room.name}</h2>
+              <div style={{ fontSize: 12, color: 'var(--color-text-muted)', marginTop: 2 }}>👤 {session.customerName} · Mở {session.startTime}</div>
+            </div>
+            <button type="button" onClick={onClose} className="icon-btn"><X style={{ width: 16, height: 16 }} /></button>
+          </div>
+          <div style={{ marginTop: 12, display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10 }}>
+            <div style={{ padding: 10, background: 'var(--color-surface-card)', borderRadius: 8 }}>
+              <div style={{ fontSize: 10, color: 'var(--color-text-muted)', fontWeight: 600, textTransform: 'uppercase' }}>Đã hát</div>
+              <div style={{ fontSize: 18, fontWeight: 800, color: 'var(--color-accent-primary)', marginTop: 2 }}>{Math.floor(elapsedMin / 60)}h{String(Math.floor(elapsedMin % 60)).padStart(2, '0')}</div>
+            </div>
+            <div style={{ padding: 10, background: 'var(--color-surface-card)', borderRadius: 8 }}>
+              <div style={{ fontSize: 10, color: 'var(--color-text-muted)', fontWeight: 600, textTransform: 'uppercase' }}>Phòng</div>
+              <div style={{ fontSize: 14, fontWeight: 700, marginTop: 2 }}>{formatMoney(roomCharge)}</div>
+            </div>
+            <div style={{ padding: 10, background: 'var(--color-surface-card)', borderRadius: 8 }}>
+              <div style={{ fontSize: 10, color: 'var(--color-text-muted)', fontWeight: 600, textTransform: 'uppercase' }}>Tổng tạm</div>
+              <div style={{ fontSize: 18, fontWeight: 800, color: '#10B981', marginTop: 2 }}>{formatMoney(total)}</div>
+            </div>
+          </div>
+        </div>
+
+        <div style={{ padding: 18, display: 'grid', gridTemplateColumns: '1.5fr 1fr', gap: 14 }}>
+          <div>
+            <h3 style={{ fontSize: 13, fontWeight: 700, marginTop: 0, marginBottom: 8 }}>🍹 Gọi thêm</h3>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(100px, 1fr))', gap: 6 }}>
+              {allDrinks.filter((d) => d.active).map((d) => (
+                <button key={d.id} type="button" onClick={() => onAddDrink(d.id)} style={{ padding: 8, background: 'var(--color-surface-row)', border: '1px solid var(--color-border-subtle)', borderRadius: 8, cursor: 'pointer', fontSize: 10, color: 'var(--color-text-primary)', textAlign: 'left' }}>
+                  <div style={{ fontWeight: 600 }}>{d.name}</div>
+                  <div style={{ color: 'var(--color-accent-primary)', fontWeight: 700, marginTop: 2 }}>{formatMoney(d.price)}</div>
+                </button>
+              ))}
+            </div>
+          </div>
+          <div>
+            <h3 style={{ fontSize: 13, fontWeight: 700, marginTop: 0, marginBottom: 8 }}>🧾 Đã gọi ({session.drinks.length})</h3>
+            {session.drinks.length === 0 ? (
+              <div style={{ padding: 12, textAlign: 'center', fontSize: 11, color: 'var(--color-text-muted)' }}>Chưa gọi gì</div>
+            ) : session.drinks.map((it) => (
+              <div key={it.drinkId} style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 11, padding: '4px 0' }}>
+                <div style={{ flex: 1, minWidth: 0 }}>{it.name}</div>
+                <button className="icon-btn" onClick={() => onUpdateDrink(it.drinkId, it.qty - 1)} style={{ padding: 2 }}>−</button>
+                <span style={{ width: 20, textAlign: 'center', fontWeight: 600 }}>{it.qty}</span>
+                <button className="icon-btn" onClick={() => onUpdateDrink(it.drinkId, it.qty + 1)} style={{ padding: 2 }}>+</button>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div style={{ padding: 18, borderTop: '1px solid var(--color-border-subtle)' }}>
+          <button type="button" className="btn-primary" onClick={() => setShowPayment(true)} style={{ width: '100%', padding: 14, fontSize: 15, fontWeight: 700, justifyContent: 'center' }}>
+            💳 Đóng phòng & Thanh toán {formatMoney(total)}
+          </button>
+        </div>
+
+        {showPayment && (
+          <PaymentModal
+            total={total}
+            description={`Karaoke ${room.name} ${elapsedHours.toFixed(1)}h`}
+            customerName={session.customerName}
+            onConfirm={(result) => { setShowPayment(false); onCloseSession(result.paid); }}
+            onClose={() => setShowPayment(false)}
+          />
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ============================================================
+// @deprecated Phase 40.19 — PosTab cũ giữ lại không dùng (sẽ xóa phiên sau)
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 function PosTab({ db, setDb }: { db: Db; setDb: (d: Db) => void }): JSX.Element {
   const [roomId, setRoomId] = useState(db.rooms.find((r) => r.active)?.id ?? '');
   const [hours, setHours] = useState(2);
