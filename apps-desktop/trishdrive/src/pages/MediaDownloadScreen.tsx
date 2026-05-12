@@ -964,16 +964,26 @@ winget install yt-dlp.yt-dlp
             <CheckCircle2 style={{ width: 14, height: 14, display: 'inline', verticalAlign: -2 }} />{' '}
             yt-dlp sẵn sàng · {ffmpegAvailable ? '✅ ffmpeg OK' : '⚠ ffmpeg thiếu'}
           </div>
-          <div style={{ display: 'flex', gap: 6 }}>
+          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
             <button
               type="button"
               onClick={() => void handleUpdateYtdlp()}
               disabled={updatingYtdlp}
               className="btn-secondary"
               style={{ padding: '4px 10px', fontSize: 11 }}
-              title="Update yt-dlp (fix lỗi cookies/format mới)"
+              title="Gọi yt-dlp -U để self-update"
             >
-              {updatingYtdlp ? <Loader2 className="animate-spin" style={{ width: 12, height: 12 }} /> : '🔄'} Update yt-dlp
+              {updatingYtdlp ? <Loader2 className="animate-spin" style={{ width: 12, height: 12 }} /> : '🔄'} Update
+            </button>
+            <button
+              type="button"
+              onClick={() => void handleInstallYtdlp()}
+              disabled={installing}
+              className="btn-secondary"
+              style={{ padding: '4px 10px', fontSize: 11 }}
+              title="Tải lại bản LATEST từ GitHub (bypass system yt-dlp)"
+            >
+              {installing ? <Loader2 className="animate-spin" style={{ width: 12, height: 12 }} /> : '📥'} Cài LẠI bundled
             </button>
             <button
               type="button"
@@ -982,7 +992,7 @@ winget install yt-dlp.yt-dlp
               style={{ padding: '4px 10px', fontSize: 11 }}
               title="Mở thư mục lưu"
             >
-              <FolderOpen style={{ width: 12, height: 12 }} /> Mở thư mục
+              <FolderOpen style={{ width: 12, height: 12 }} /> Thư mục
             </button>
           </div>
         </div>

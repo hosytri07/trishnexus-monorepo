@@ -1210,6 +1210,19 @@ fn walkdir_rs(root: &std::path::Path) -> Vec<std::fs::DirEntry> {
     result
 }
 
+/// Check Node.js có sẵn (giúp yt-dlp bypass YouTube n-sig challenge).
+#[tauri::command]
+fn check_nodejs_available() -> Result<bool, String> {
+    #[cfg(target_os = "windows")]
+    let cmd = "node.exe";
+    #[cfg(not(target_os = "windows"))]
+    let cmd = "node";
+    match std::process::Command::new(cmd).arg("--version").output() {
+        Ok(out) => Ok(out.status.success()),
+        Err(_) => Ok(false),
+    }
+}
+
 /// Update yt-dlp local bundled (gọi `yt-dlp -U`).
 #[tauri::command]
 async fn update_ytdlp(app: tauri::AppHandle) -> Result<String, String> {
@@ -1333,6 +1346,10 @@ async fn download_social_media(
         // Phase 40.16 — Custom progress template để parse % và bytes
         "--progress-template".to_string(),
         "download:[TRISH_PROGRESS]%(progress._percent_str)s|%(progress._downloaded_bytes_str)s|%(progress._total_bytes_str)s|%(progress._speed_str)s|%(progress._eta_str)s".to_string(),
+        // Phase 40.21 — YouTube anti-bot bypass: dùng player_client tv/ios/android
+        // (không yêu cầu JS runtime để solve n-sig challenge)
+        "--extractor-args".to_string(),
+        "youtube:player_client=tv,ios,web;youtube:formats=missing_pot".to_string(),
     ];
 
     // Phase 40.18 — Pass ffmpeg location nếu đã cài local
@@ -1553,12 +1570,13 @@ pub fn run() {
         .manage(DownloadControl::default())
         .manage(WebDavServerState::default())
         .invoke_handler(tauri::generate_handler![
-            // Phase 40.6 + 40.10 + 40.18 — Social media downloader (yt-dlp + ffmpeg)
+            // Phase 40.6 + 40.10 + 40.18 + 40.21 — Social media downloader (yt-dlp + ffmpeg + node)
             check_ytdlp_available,
             install_ytdlp,
             update_ytdlp,
             check_ffmpeg_available,
             install_ffmpeg,
+            check_nodejs_available,
             download_social_media,
             app_version,
             ping,
