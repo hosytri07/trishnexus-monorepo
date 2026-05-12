@@ -17,8 +17,9 @@ import { adminDb, adminReady } from '@/lib/firebase-admin';
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
-const SCHEMA_VERSION = 3;
-const RELEASE_AT_DEFAULT = '2026-05-04T09:00:00+07:00';
+// Phase 38 — Schema v6: bỏ requires_key/key_type. login_required='none'|'user'.
+const SCHEMA_VERSION = 6;
+const RELEASE_AT_DEFAULT = '2026-05-07T09:00:00+07:00';
 
 interface AppMetaDoc {
   name?: string;
@@ -77,7 +78,8 @@ export async function GET() {
       updated_at: new Date().toISOString(),
       ecosystem: {
         name: 'TrishTEAM',
-        tagline: 'Hệ sinh thái năng suất cá nhân',
+        tagline:
+          'Hệ sinh thái phần mềm + tri thức + công cụ cho kỹ sư xây dựng / giao thông Việt Nam',
         logo_url: 'https://trishteam.io.vn/logo.svg',
         website: 'https://trishteam.io.vn',
       },

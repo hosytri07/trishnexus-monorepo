@@ -1,10 +1,9 @@
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
-import { AuthApp } from '@trishteam/auth/react';
+import { AuthProvider } from '@trishteam/auth/react';
 import { installTauriTelemetry } from '@trishteam/telemetry/tauri';
 import { App } from './App.js';
 import packageJson from '../package.json' with { type: 'json' };
-import logoUrl from './icons/trishlauncher.png';
 // Phase 33 — design-system: Plus Jakarta Sans + emerald + utility CSS.
 import '@trishteam/design-system';
 import './styles.css';
@@ -21,20 +20,15 @@ if (!container) {
   throw new Error('Missing #root container — check index.html');
 }
 
-// Phase 38.9 — Wrap với AuthApp:
-// • Chưa login → LoginScreen
-// • Login + role=trial → block screen với form Promo Code + Activation Key (TierGate)
-// • Login + role=demo còn hạn / user / admin → render App (dashboard Launcher)
+// Phase 38.9 — KHÔNG gate Launcher (no login required).
+// AuthProvider chỉ cấp context cho nút "🔑 Tài khoản" tùy chọn (xem AccountButton).
+// User KHÔNG cần login để dùng Launcher.
 createRoot(container).render(
   <StrictMode>
-    <div className="ts-app" style={{ minHeight: '100vh' }}>
-      <AuthApp
-        appName="TrishLauncher"
-        tagline="Hub trung tâm — cài đặt + cập nhật + chạy 11 app TrishTEAM"
-        logoUrl={logoUrl}
-      >
+    <AuthProvider>
+      <div className="ts-app" style={{ minHeight: '100vh' }}>
         <App />
-      </AuthApp>
-    </div>
+      </div>
+    </AuthProvider>
   </StrictMode>,
 );

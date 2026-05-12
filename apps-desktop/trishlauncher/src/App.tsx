@@ -36,6 +36,7 @@ import { LAUNCHER_ICON, iconFor } from './icons/index.js';
 import { AppDetailModal } from './components/AppDetailModal.js';
 import { SettingsModal } from './components/SettingsModal.js';
 import { QuickSearch } from './components/QuickSearch.js';
+import { AccountButton } from './components/AccountButton.js';
 import { trackOpen, compareByUsage, getAllStats } from './app-stats.js';
 import {
   loadSettings,
@@ -500,6 +501,7 @@ export function App(): JSX.Element {
             {refreshing ? '⏳ ' : '🔄 '}
             {tr('topbar.check_updates')}
           </button>
+          <AccountButton />
           <button
             className="btn btn-ghost"
             onClick={() => setSettingsOpen(true)}
