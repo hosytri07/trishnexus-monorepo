@@ -17,6 +17,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useAuth as useEcosystemAuth } from '@trishteam/auth/react';
 import { useAuth } from './auth/AuthContext';
+import { useCompanies } from './useCompanies';
 import { canSeeModule } from './auth/permissions';
 import { ROLES } from './auth/types';
 import { LoginPage } from './auth/LoginPage';
@@ -158,8 +159,31 @@ const NAV: NavItem[] = [
 export function App(): JSX.Element {
   const auth = useAuth();
   const ecosystem = useEcosystemAuth();
+  const companies = useCompanies();
   const [page, setPage] = useState<ModuleKey>('dashboard');
   const [logoutConfirm, setLogoutConfirm] = useState(false);
+  const [companySwitcherOpen, setCompanySwitcherOpen] = useState(false);
+
+  // Phase 40.2 — Auto-create default company khi user TrishTEAM vừa login lần đầu
+  useEffect(() => {
+    if (companies.loading) return;
+    if (!ecosystem.firebaseUser) return;
+    if (companies.activeCompany) return;
+    if (companies.companies.length > 0) return;
+    const displayName =
+      ecosystem.profile?.display_name ||
+      ecosystem.firebaseUser.displayName ||
+      ecosystem.firebaseUser.email?.split('@')[0] ||
+      'tôi';
+    companies.bootstrapDefaultCompany(ecosystem.firebaseUser.uid, displayName);
+  }, [
+    companies.loading,
+    companies.activeCompany,
+    companies.companies.length,
+    companies.bootstrapDefaultCompany,
+    ecosystem.firebaseUser,
+    ecosystem.profile,
+  ]);
 
   // Phase 40.1 — Logout đầy đủ: Office local + Firebase ecosystem
   // (tránh useEffect auto-sign-in lại ngay sau logout)
@@ -374,6 +398,135 @@ export function App(): JSX.Element {
       <div className="app-shell">
         <aside className="app-sidebar">
           {/* Phase 38.8 — Logo đã chuyển lên Header. Sidebar giữ user info card */}
+
+          {/* Phase 40.2 — Company switcher */}
+          {companies.activeCompany && (
+            <div style={{ position: 'relative', margin: '0 4px 10px' }}>
+              <button
+                type="button"
+                onClick={() => setCompanySwitcherOpen((v) => !v)}
+                style={{
+                  width: '100%',
+                  padding: '10px 12px',
+                  background: 'var(--color-surface-card)',
+                  border: '1px solid var(--color-border-default)',
+                  borderRadius: 10,
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 10,
+                  fontSize: 13,
+                  color: 'var(--color-text-primary)',
+                  textAlign: 'left',
+                }}
+              >
+                <span style={{ fontSize: 20 }}>{companies.activeCompany.logo ?? '🏢'}</span>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontWeight: 700, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {companies.activeCompany.name}
+                  </div>
+                  <div style={{ fontSize: 10, color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: 0.4 }}>
+                    {companies.activeCompany.code}
+                  </div>
+                </div>
+                <span style={{ fontSize: 11, color: 'var(--color-text-muted)' }}>
+                  {companySwitcherOpen ? '▲' : '▼'}
+                </span>
+              </button>
+
+              {companySwitcherOpen && (
+                <div
+                  style={{
+                    position: 'absolute',
+                    top: 'calc(100% + 4px)',
+                    left: 0,
+                    right: 0,
+                    background: 'var(--color-surface-card)',
+                    border: '1px solid var(--color-border-default)',
+                    borderRadius: 10,
+                    boxShadow: '0 8px 24px rgba(0,0,0,0.12)',
+                    zIndex: 100,
+                    maxHeight: 280,
+                    overflowY: 'auto',
+                  }}
+                >
+                  {companies.companies.map((c) => (
+                    <button
+                      key={c.id}
+                      type="button"
+                      onClick={() => {
+                        companies.switchCompany(c.id);
+                        setCompanySwitcherOpen(false);
+                      }}
+                      style={{
+                        width: '100%',
+                        padding: '8px 12px',
+                        background:
+                          c.id === companies.activeCompanyId
+                            ? 'var(--color-accent-soft)'
+                            : 'transparent',
+                        border: 'none',
+                        borderBottom: '1px solid var(--color-border-subtle)',
+                        textAlign: 'left',
+                        cursor: 'pointer',
+                        fontSize: 12,
+                        color: 'var(--color-text-primary)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 8,
+                      }}
+                    >
+                      <span style={{ fontSize: 16 }}>{c.logo ?? '🏢'}</span>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          {c.name}
+                        </div>
+                        <div style={{ fontSize: 10, color: 'var(--color-text-muted)' }}>
+                          {c.code}
+                        </div>
+                      </div>
+                      {c.id === companies.activeCompanyId && (
+                        <span style={{ color: 'var(--color-accent-primary)', fontSize: 14 }}>✓</span>
+                      )}
+                    </button>
+                  ))}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const name = prompt('Tên công ty mới:');
+                      if (!name?.trim()) return;
+                      const code = prompt('Mã viết tắt (vd ABC):')?.trim().toUpperCase() || 'NEW';
+                      if (!ecosystem.firebaseUser) return;
+                      companies.createCompany({
+                        name: name.trim(),
+                        code,
+                        logo: '🏢',
+                        owner_uid: ecosystem.firebaseUser.uid,
+                      });
+                      setCompanySwitcherOpen(false);
+                    }}
+                    style={{
+                      width: '100%',
+                      padding: '10px 12px',
+                      background: 'transparent',
+                      border: 'none',
+                      textAlign: 'left',
+                      cursor: 'pointer',
+                      fontSize: 12,
+                      fontWeight: 600,
+                      color: 'var(--color-accent-primary)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 8,
+                    }}
+                  >
+                    <span style={{ fontSize: 16 }}>➕</span>
+                    Tạo công ty mới
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
 
         {/* User info */}
         <div

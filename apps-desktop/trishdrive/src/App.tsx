@@ -16,7 +16,7 @@
  */
 
 import { useEffect, useState } from 'react';
-import { Download, BookOpen, History, HelpCircle, LogOut, Sun, Moon, Settings, Shield, WifiOff } from 'lucide-react';
+import { Download, BookOpen, History, HelpCircle, LogOut, Sun, Moon, Settings, Shield, WifiOff, Video } from 'lucide-react';
 import { listen } from '@tauri-apps/api/event';
 import { invoke } from '@tauri-apps/api/core';
 import { AuthProvider, useAuth } from '@trishteam/auth/react';
@@ -25,11 +25,13 @@ import { DownloadScreen } from './pages/DownloadScreen';
 import { LibraryScreen } from './pages/LibraryScreen';
 import { HistoryScreen } from './pages/HistoryScreen';
 import { HelpPage } from './pages/HelpPage';
+import { MediaDownloadScreen } from './pages/MediaDownloadScreen';
 import { SettingsModal, loadCloseBehavior, loadSpeedLimit } from './pages/SettingsModal';
 import { DownloadManager } from './pages/DownloadManager';
 import logoUrl from './assets/logo.png';
 
-type Page = 'download' | 'library' | 'history' | 'help';
+// Phase 40.6 — Thêm tab 'mxh' (Tải video MXH: FB/TikTok/YouTube/Instagram)
+type Page = 'download' | 'mxh' | 'library' | 'history' | 'help';
 
 export function App(): JSX.Element {
   // Phase 24.3.G — wrap ts-app ở MOST OUTER để utility CSS scope đúng cho mọi child.
@@ -131,7 +133,7 @@ function MainShell({ theme, setTheme }: { theme: 'light' | 'dark'; setTheme: (t:
   useEffect(() => {
     const unlisten = listen<string>('nav-to-tab', (e) => {
       const tab = e.payload as Page;
-      if (['download', 'library', 'history', 'help'].includes(tab)) {
+      if (['download', 'mxh', 'library', 'history', 'help'].includes(tab)) {
         setPage(tab);
       }
     });
@@ -256,6 +258,7 @@ function MainShell({ theme, setTheme }: { theme: 'light' | 'dark'; setTheme: (t:
       {/* Top tab nav */}
       <nav style={{ display: 'flex', gap: 2, padding: '0 22px', borderBottom: '1px solid var(--color-border-subtle)', background: 'var(--color-surface-bg-elevated)', overflowX: 'auto' }}>
         <TabBtn icon={Download} label="Tải file" active={page === 'download'} onClick={() => setPage('download')} />
+        <TabBtn icon={Video} label="Tải video MXH" active={page === 'mxh'} onClick={() => setPage('mxh')} />
         <TabBtn icon={BookOpen} label="Thư viện TrishTEAM" active={page === 'library'} onClick={() => setPage('library')} />
         <TabBtn icon={History} label="Lịch sử" active={page === 'history'} onClick={() => setPage('history')} />
         <TabBtn icon={HelpCircle} label="Hướng dẫn" active={page === 'help'} onClick={() => setPage('help')} />
@@ -265,6 +268,7 @@ function MainShell({ theme, setTheme }: { theme: 'light' | 'dark'; setTheme: (t:
       <div style={{ flex: 1, overflow: 'auto' }}>
         <div style={{ padding: '24px 28px', width: '100%' }}>
           {page === 'download' && <DownloadScreen onDone={() => setRefreshTick(t => t + 1)} />}
+          {page === 'mxh' && <MediaDownloadScreen />}
           {page === 'library' && <LibraryScreen />}
           {page === 'history' && <HistoryScreen refreshTick={refreshTick} />}
           {page === 'help' && <HelpPage />}

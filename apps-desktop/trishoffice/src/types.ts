@@ -1,8 +1,42 @@
 /**
- * TrishOffice — Domain types (Phase 38.6 rebuilt scope).
+ * TrishOffice — Domain types (Phase 38.6 rebuilt scope + Phase 40.2 multi-tenant).
  *
  * 7 module types. Phase 1 dùng localStorage; Phase 2+ Firestore sync.
+ *
+ * Phase 40.2 — Multi-tenant: mỗi user TrishTEAM mặc định 1 Company. Có thể tạo
+ * thêm. Data Employee/Attendance/Asset/... CHƯA scope theo company_id ở phiên
+ * này — sẽ migrate ở Phase 41.
  */
+
+// ============================================================
+// 0. Company (Phase 40.2 — multi-tenant)
+// ============================================================
+export interface Company {
+  /** Doc ID = generateId('cmp') */
+  id: string;
+  /** Tên công ty (vd "Công ty TNHH ABC") */
+  name: string;
+  /** Mã viết tắt (vd "ABC", "GT-DANANG") */
+  code: string;
+  /** Logo URL hoặc emoji */
+  logo?: string;
+  /** Địa chỉ trụ sở */
+  address?: string;
+  /** Mã số thuế */
+  tax_code?: string;
+  /** Email liên hệ */
+  email?: string;
+  /** Phone công ty */
+  phone?: string;
+  /** UID user TrishTEAM tạo company này (chủ company, sẽ là role 'owner') */
+  owner_uid: string;
+  /** Active = false → công ty đã đóng / suspended */
+  active: boolean;
+  /** Note nội bộ */
+  note?: string;
+  created_at: number;
+  updated_at: number;
+}
 
 // ============================================================
 // 1. Nhân sự (Employees)
