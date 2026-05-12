@@ -68,15 +68,20 @@ function detectPlatform(url: string): PlatformId {
 }
 
 export function MediaDownloadScreen(): JSX.Element {
-  const [url, setUrl] = useState('');
+  const [urls, setUrls] = useState('');
   const [quality, setQuality] = useState<'best' | '1080p' | '720p' | '480p' | 'audio'>('best');
   const [removeWatermark, setRemoveWatermark] = useState(true);
+  const [downloadPlaylist, setDownloadPlaylist] = useState(false);
   const [queue, setQueue] = useState<QueueItem[]>([]);
   const [toast, setToast] = useState<{ msg: string; kind: 'ok' | 'err' } | null>(null);
   const [ytdlpAvailable, setYtdlpAvailable] = useState<boolean | null>(null);
+  const [installing, setInstalling] = useState(false);
   const [outputDir, setOutputDir] = useState<string>('');
 
-  const platform = detectPlatform(url);
+  // Parse multi-line URLs
+  const parsedUrls = urls.split('\n').map((u) => u.trim()).filter((u) => u.length > 0);
+  const firstUrl = parsedUrls[0] ?? '';
+  const platform = detectPlatform(firstUrl);
   const platformInfo = PLATFORMS.find((p) => p.id === platform);
 
   // Phase 40.6 — Check yt-dlp + setup output dir
@@ -90,71 +95,107 @@ export function MediaDownloadScreen(): JSX.Element {
       .catch(() => setOutputDir('Documents/TrishDrive/MediaDownloads'));
   }, []);
 
-  async function handleAdd(): Promise<void> {
-    if (!url.trim()) {
-      setToast({ msg: 'Vui lòng paste link video', kind: 'err' });
-      return;
+  async function handleInstallYtdlp(): Promise<void> {
+    if (installing) return;
+    setInstalling(true);
+    setToast({ msg: '⏳ Đang tải yt-dlp.exe từ GitHub (~17 MB)...', kind: 'ok' });
+    try {
+      const path = await invoke<string>('install_ytdlp');
+      setYtdlpAvailable(true);
+      setToast({ msg: `✅ Đã cài yt-dlp vào ${path.split(/[\\/]/).slice(-3).join('/')}`, kind: 'ok' });
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      setToast({ msg: `⚠ Cài fail: ${msg}`, kind: 'err' });
+    } finally {
+      setInstalling(false);
     }
-    if (platform === 'unknown') {
-      setToast({
-        msg: 'Link không thuộc nền tảng hỗ trợ (YouTube/TikTok/FB/IG/X)',
-        kind: 'err',
-      });
+  }
+
+  async function handleAdd(): Promise<void> {
+    if (parsedUrls.length === 0) {
+      setToast({ msg: 'Vui lòng paste ít nhất 1 link', kind: 'err' });
       return;
     }
     if (!ytdlpAvailable) {
-      setToast({ msg: 'yt-dlp chưa cài — xem hướng dẫn cài bên dưới', kind: 'err' });
+      setToast({ msg: 'yt-dlp chưa cài — bấm "Cài tự động" bên dưới', kind: 'err' });
       return;
     }
 
-    const item: QueueItem = {
-      id: `dl_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
-      url: url.trim(),
-      platform,
-      status: 'downloading',
-    };
-    setQueue((q) => [item, ...q]);
-    setUrl('');
-    setToast({ msg: `🎬 Đang tải (${platformInfo?.name})...`, kind: 'ok' });
+    // Validate URLs + tạo queue items
+    const newItems: QueueItem[] = [];
+    for (const u of parsedUrls) {
+      const p = detectPlatform(u);
+      if (p === 'unknown') {
+        setQueue((q) => [
+          {
+            id: `dl_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+            url: u,
+            platform: 'unknown',
+            status: 'error',
+            error: 'Link không thuộc nền tảng hỗ trợ',
+          },
+          ...q,
+        ]);
+        continue;
+      }
+      newItems.push({
+        id: `dl_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+        url: u,
+        platform: p,
+        status: 'pending',
+      });
+    }
 
-    // Phase 40.6 — Gọi Rust command thật
-    try {
-      const result = await invoke<{ ok: boolean; output_path?: string; stderr: string }>(
-        'download_social_media',
-        {
-          url: item.url,
-          quality,
-          outputDir,
-          removeWatermark,
-        },
-      );
+    if (newItems.length === 0) {
+      setToast({ msg: 'Không có link hợp lệ', kind: 'err' });
+      return;
+    }
 
-      if (result.ok) {
-        setQueue((q) =>
-          q.map((it) =>
-            it.id === item.id
-              ? { ...it, status: 'done', title: result.output_path?.split(/[\\/]/).pop() }
-              : it,
-          ),
+    setQueue((q) => [...newItems, ...q]);
+    setUrls('');
+    setToast({ msg: `🎬 Đang xử lý ${newItems.length} link${downloadPlaylist ? ' (kèm playlist)' : ''}...`, kind: 'ok' });
+
+    // Tải tuần tự (parallel rủi ro với yt-dlp + IP rate limit)
+    for (const item of newItems) {
+      setQueue((q) => q.map((it) => (it.id === item.id ? { ...it, status: 'downloading' } : it)));
+      try {
+        const result = await invoke<{ ok: boolean; output_path?: string; stderr: string }>(
+          'download_social_media',
+          {
+            url: item.url,
+            quality,
+            outputDir,
+            removeWatermark,
+            downloadPlaylist,
+          },
         );
-        setToast({ msg: `✅ Đã tải xong → ${outputDir}`, kind: 'ok' });
-      } else {
+
+        if (result.ok) {
+          setQueue((q) =>
+            q.map((it) =>
+              it.id === item.id
+                ? { ...it, status: 'done', title: result.output_path?.split(/[\\/]/).pop() }
+                : it,
+            ),
+          );
+        } else {
+          setQueue((q) =>
+            q.map((it) =>
+              it.id === item.id
+                ? { ...it, status: 'error', error: result.stderr.slice(0, 200) || 'yt-dlp failed' }
+                : it,
+            ),
+          );
+        }
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : String(e);
         setQueue((q) =>
-          q.map((it) =>
-            it.id === item.id
-              ? { ...it, status: 'error', error: result.stderr.slice(0, 200) || 'yt-dlp failed' }
-              : it,
-          ),
+          q.map((it) => (it.id === item.id ? { ...it, status: 'error', error: msg } : it)),
         );
       }
-    } catch (e) {
-      const msg = e instanceof Error ? e.message : String(e);
-      setQueue((q) =>
-        q.map((it) =>
-          it.id === item.id ? { ...it, status: 'error', error: msg } : it,
-        ),
-      );
     }
+
+    setToast({ msg: `✅ Đã xử lý xong ${newItems.length} link`, kind: 'ok' });
   }
 
   function handleRemove(id: string): void {
@@ -266,90 +307,78 @@ export function MediaDownloadScreen(): JSX.Element {
             marginBottom: 6,
           }}
         >
-          Link video
+          Link video (mỗi dòng 1 link — paste nhiều cùng lúc OK)
         </label>
-        <div style={{ display: 'flex', gap: 8 }}>
-          <div style={{ flex: 1, position: 'relative' }}>
-            <LinkIcon
-              style={{
-                position: 'absolute',
-                left: 12,
-                top: '50%',
-                transform: 'translateY(-50%)',
-                width: 16,
-                height: 16,
-                color: 'var(--color-text-muted)',
-              }}
-            />
-            <input
-              type="url"
-              value={url}
-              onChange={(e) => setUrl(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') void handleAdd();
-              }}
-              placeholder="https://www.tiktok.com/@user/video/..."
-              style={{
-                width: '100%',
-                padding: '10px 12px 10px 36px',
-                borderRadius: 8,
-                border: '1px solid var(--color-border-default)',
-                background: 'var(--color-surface-bg)',
-                color: 'var(--color-text-primary)',
-                fontSize: 13,
-                outline: 'none',
-              }}
-            />
-          </div>
-          <button
-            type="button"
-            onClick={() => void handleAdd()}
-            disabled={!url.trim()}
-            className="btn-primary"
-            style={{ padding: '10px 16px', whiteSpace: 'nowrap' }}
-          >
-            <DownloadIcon className="h-4 w-4" /> Thêm vào queue
-          </button>
+        <div style={{ position: 'relative', marginBottom: 8 }}>
+          <LinkIcon
+            style={{
+              position: 'absolute',
+              left: 12,
+              top: 12,
+              width: 16,
+              height: 16,
+              color: 'var(--color-text-muted)',
+            }}
+          />
+          <textarea
+            value={urls}
+            onChange={(e) => setUrls(e.target.value)}
+            placeholder="https://www.tiktok.com/@user/video/...&#10;https://youtube.com/watch?v=...&#10;https://www.facebook.com/watch?v=..."
+            rows={4}
+            style={{
+              width: '100%',
+              padding: '10px 12px 10px 36px',
+              borderRadius: 8,
+              border: '1px solid var(--color-border-default)',
+              background: 'var(--color-surface-bg)',
+              color: 'var(--color-text-primary)',
+              fontSize: 13,
+              outline: 'none',
+              fontFamily: 'monospace',
+              resize: 'vertical',
+              minHeight: 80,
+            }}
+          />
         </div>
 
-        {url && platform !== 'unknown' && platformInfo && (
+        {parsedUrls.length > 0 && (
           <div
             style={{
-              marginTop: 10,
               padding: '8px 12px',
               background: 'rgba(16,185,129,0.08)',
               border: '1px solid rgba(16,185,129,0.3)',
               borderRadius: 8,
               fontSize: 12,
               color: '#065F46',
-              display: 'inline-flex',
+              marginBottom: 10,
+              display: 'flex',
               alignItems: 'center',
               gap: 6,
+              flexWrap: 'wrap',
             }}
           >
             <CheckCircle2 style={{ width: 14, height: 14 }} />
-            Phát hiện: <strong>{platformInfo.emoji} {platformInfo.name}</strong>
+            Phát hiện <strong>{parsedUrls.length} link</strong>
+            {(() => {
+              const platforms = new Set(parsedUrls.map(detectPlatform).filter((p) => p !== 'unknown'));
+              return [...platforms].map((p) => {
+                const info = PLATFORMS.find((x) => x.id === p);
+                return <span key={p}>{info?.emoji} {info?.name}</span>;
+              });
+            })()}
           </div>
         )}
-        {url && platform === 'unknown' && (
-          <div
-            style={{
-              marginTop: 10,
-              padding: '8px 12px',
-              background: 'rgba(220,38,38,0.08)',
-              border: '1px solid rgba(220,38,38,0.3)',
-              borderRadius: 8,
-              fontSize: 12,
-              color: '#991B1B',
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: 6,
-            }}
-          >
-            <AlertCircle style={{ width: 14, height: 14 }} />
-            Link không thuộc nền tảng hỗ trợ
-          </div>
-        )}
+
+        <button
+          type="button"
+          onClick={() => void handleAdd()}
+          disabled={parsedUrls.length === 0 || !ytdlpAvailable}
+          className="btn-primary"
+          style={{ padding: '10px 16px', whiteSpace: 'nowrap', width: '100%', justifyContent: 'center' }}
+        >
+          <DownloadIcon className="h-4 w-4" />{' '}
+          Tải xuống {parsedUrls.length > 0 && `(${parsedUrls.length})`}
+        </button>
 
         {/* Options */}
         <div
@@ -358,7 +387,7 @@ export function MediaDownloadScreen(): JSX.Element {
             paddingTop: 14,
             borderTop: '1px solid var(--color-border-subtle)',
             display: 'grid',
-            gridTemplateColumns: '1fr 1fr',
+            gridTemplateColumns: '1fr 1fr 1fr',
             gap: 14,
           }}
         >
@@ -409,14 +438,14 @@ export function MediaDownloadScreen(): JSX.Element {
                 marginBottom: 6,
               }}
             >
-              Tùy chọn TikTok
+              TikTok
             </label>
             <label
               style={{
                 display: 'inline-flex',
                 alignItems: 'center',
                 gap: 6,
-                padding: '7px 12px',
+                padding: '7px 10px',
                 borderRadius: 8,
                 border: '1px solid var(--color-border-default)',
                 background: 'var(--color-surface-bg)',
@@ -431,7 +460,44 @@ export function MediaDownloadScreen(): JSX.Element {
                 onChange={(e) => setRemoveWatermark(e.target.checked)}
                 style={{ accentColor: 'var(--color-accent-primary)' }}
               />
-              Xóa watermark TikTok
+              Xóa watermark
+            </label>
+          </div>
+          <div>
+            <label
+              style={{
+                display: 'block',
+                fontSize: 11,
+                fontWeight: 600,
+                color: 'var(--color-text-muted)',
+                textTransform: 'uppercase',
+                letterSpacing: 0.4,
+                marginBottom: 6,
+              }}
+            >
+              Playlist (YT)
+            </label>
+            <label
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 6,
+                padding: '7px 10px',
+                borderRadius: 8,
+                border: '1px solid var(--color-border-default)',
+                background: 'var(--color-surface-bg)',
+                cursor: 'pointer',
+                fontSize: 12,
+                color: 'var(--color-text-primary)',
+              }}
+            >
+              <input
+                type="checkbox"
+                checked={downloadPlaylist}
+                onChange={(e) => setDownloadPlaylist(e.target.checked)}
+                style={{ accentColor: 'var(--color-accent-primary)' }}
+              />
+              Tải cả playlist
             </label>
           </div>
         </div>
@@ -563,25 +629,53 @@ export function MediaDownloadScreen(): JSX.Element {
         <div
           style={{
             marginTop: 8,
-            padding: 14,
+            padding: 16,
             borderRadius: 10,
-            background: 'rgba(220,38,38,0.08)',
-            border: '1px solid rgba(220,38,38,0.3)',
-            fontSize: 12,
-            color: '#991B1B',
+            background: 'rgba(245,158,11,0.08)',
+            border: '1px solid rgba(245,158,11,0.3)',
+            fontSize: 13,
+            color: '#92400E',
             lineHeight: 1.6,
           }}
         >
-          <strong>⚠ Cần cài yt-dlp</strong> — Module Tải video cần engine yt-dlp để tải.
-          Cài 1 lần là dùng được mãi:
-          <pre style={{ marginTop: 8, padding: 10, background: 'rgba(0,0,0,0.08)', borderRadius: 6, fontSize: 11, fontFamily: 'monospace', overflowX: 'auto' }}>
-{`# PowerShell (Windows) — chạy lệnh:
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+            <AlertCircle style={{ width: 18, height: 18 }} />
+            <strong>Cần cài engine yt-dlp</strong> — TrishDrive sẽ tự tải về AppData (~17 MB),
+            không ảnh hưởng phần mềm khác. Chỉ cài 1 lần là dùng được mãi.
+          </div>
+          <button
+            type="button"
+            onClick={() => void handleInstallYtdlp()}
+            disabled={installing}
+            className="btn-primary"
+            style={{
+              width: '100%',
+              padding: '12px',
+              fontSize: 14,
+              fontWeight: 700,
+              justifyContent: 'center',
+              marginTop: 4,
+              background: installing ? 'var(--color-border-default)' : '#F59E0B',
+            }}
+          >
+            {installing ? (
+              <>
+                <Loader2 className="animate-spin h-4 w-4" /> Đang tải yt-dlp.exe từ GitHub...
+              </>
+            ) : (
+              <>📥 Cài yt-dlp tự động (1 click)</>
+            )}
+          </button>
+          <details style={{ marginTop: 10, fontSize: 11 }}>
+            <summary style={{ cursor: 'pointer' }}>Hoặc cài thủ công (chuyên gia)</summary>
+            <pre style={{ marginTop: 6, padding: 8, background: 'rgba(0,0,0,0.08)', borderRadius: 6, fontFamily: 'monospace', overflowX: 'auto' }}>
+{`# PowerShell:
 winget install yt-dlp.yt-dlp
 
-# Hoặc tải trực tiếp từ:
+# Hoặc tải trực tiếp:
 # https://github.com/yt-dlp/yt-dlp/releases`}
-          </pre>
-          Sau khi cài → restart TrishDrive (đóng và mở lại app) → nút check sẽ tự nhận.
+            </pre>
+          </details>
         </div>
       )}
       {ytdlpAvailable === true && (

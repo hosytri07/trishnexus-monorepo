@@ -1014,20 +1014,99 @@ fn webdav_open_cache_dir(app: tauri::AppHandle) -> Result<String, String> {
 }
 
 // ============================================================
-// Phase 40.6 — Social media video downloader (yt-dlp)
+// Phase 40.6 + 40.10 — Social media video downloader (yt-dlp)
 // ============================================================
 
-/// Check if yt-dlp binary is available in PATH.
-#[tauri::command]
-fn check_ytdlp_available() -> Result<bool, String> {
+/// Trả về path nơi lưu yt-dlp local bundled trong AppData.
+fn ytdlp_local_path(app: &tauri::AppHandle) -> Result<std::path::PathBuf, String> {
+    use tauri::Manager;
+    let app_data = app
+        .path()
+        .app_data_dir()
+        .map_err(|e| format!("Không lấy được AppData dir: {}", e))?;
+    let bin_dir = app_data.join("bin");
+    std::fs::create_dir_all(&bin_dir).map_err(|e| format!("Tạo bin dir fail: {}", e))?;
     #[cfg(target_os = "windows")]
-    let cmd = "yt-dlp.exe";
+    let exe = bin_dir.join("yt-dlp.exe");
     #[cfg(not(target_os = "windows"))]
-    let cmd = "yt-dlp";
+    let exe = bin_dir.join("yt-dlp");
+    Ok(exe)
+}
 
-    match std::process::Command::new(cmd).arg("--version").output() {
+/// Resolve yt-dlp executable path: ưu tiên local bundled (AppData),
+/// fallback `yt-dlp` trong PATH.
+fn resolve_ytdlp_cmd(app: &tauri::AppHandle) -> String {
+    if let Ok(local) = ytdlp_local_path(app) {
+        if local.exists() {
+            return local.to_string_lossy().to_string();
+        }
+    }
+    #[cfg(target_os = "windows")]
+    let fallback = "yt-dlp.exe";
+    #[cfg(not(target_os = "windows"))]
+    let fallback = "yt-dlp";
+    fallback.to_string()
+}
+
+/// Check if yt-dlp binary is available (local bundled OR PATH).
+#[tauri::command]
+fn check_ytdlp_available(app: tauri::AppHandle) -> Result<bool, String> {
+    let cmd = resolve_ytdlp_cmd(&app);
+    match std::process::Command::new(&cmd).arg("--version").output() {
         Ok(out) => Ok(out.status.success()),
         Err(_) => Ok(false),
+    }
+}
+
+/// Auto-install yt-dlp vào AppData (chỉ Windows hỗ trợ binary single .exe).
+/// Tải từ GitHub releases (latest). Trả path đã lưu.
+#[tauri::command]
+async fn install_ytdlp(app: tauri::AppHandle) -> Result<String, String> {
+    #[cfg(not(target_os = "windows"))]
+    {
+        return Err("Auto-install chỉ hỗ trợ Windows. macOS/Linux dùng: brew install yt-dlp / apt install yt-dlp".to_string());
+    }
+
+    #[cfg(target_os = "windows")]
+    {
+        let target = ytdlp_local_path(&app)?;
+        let url = "https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp.exe";
+
+        let _ = app.emit(
+            "ytdlp-install:progress",
+            serde_json::json!({ "status": "downloading", "url": url }),
+        );
+
+        let client = reqwest::Client::builder()
+            .timeout(std::time::Duration::from_secs(120))
+            .user_agent(concat!("TrishDrive/", env!("CARGO_PKG_VERSION")))
+            .build()
+            .map_err(|e| format!("Tạo HTTP client fail: {}", e))?;
+
+        let resp = client
+            .get(url)
+            .send()
+            .await
+            .map_err(|e| format!("Download fail: {}", e))?;
+
+        if !resp.status().is_success() {
+            return Err(format!("HTTP {} từ GitHub", resp.status().as_u16()));
+        }
+
+        let bytes = resp
+            .bytes()
+            .await
+            .map_err(|e| format!("Đọc body fail: {}", e))?;
+
+        std::fs::write(&target, &bytes)
+            .map_err(|e| format!("Ghi file {} fail: {}", target.display(), e))?;
+
+        let _ = app.emit(
+            "ytdlp-install:progress",
+            serde_json::json!({ "status": "done", "path": target.to_string_lossy() }),
+        );
+
+        Ok(target.to_string_lossy().to_string())
     }
 }
 
@@ -1053,23 +1132,31 @@ async fn download_social_media(
     quality: String,
     output_dir: String,
     remove_watermark: bool,
+    download_playlist: Option<bool>,
 ) -> Result<MediaDownloadResult, String> {
-    #[cfg(target_os = "windows")]
-    let cmd_name = "yt-dlp.exe";
-    #[cfg(not(target_os = "windows"))]
-    let cmd_name = "yt-dlp";
+    let cmd_name = resolve_ytdlp_cmd(&app);
 
-    // Output template: ~/output_dir/<title>.<ext>
-    let output_template = format!("{}/%(title)s.%(ext)s", output_dir);
+    // Output template: với playlist → tạo subfolder theo title playlist
+    let output_template = if download_playlist.unwrap_or(false) {
+        format!("{}/%(playlist_title|Playlist)s/%(playlist_index)03d - %(title)s.%(ext)s", output_dir)
+    } else {
+        format!("{}/%(title)s.%(ext)s", output_dir)
+    };
 
     let mut args: Vec<String> = vec![
         url.clone(),
         "-o".to_string(),
         output_template.clone(),
-        "--no-playlist".to_string(),
         "--newline".to_string(), // progress newline-delimited
         "--no-warnings".to_string(),
     ];
+
+    // Default: no-playlist trừ khi user opt-in
+    if !download_playlist.unwrap_or(false) {
+        args.push("--no-playlist".to_string());
+    } else {
+        args.push("--yes-playlist".to_string());
+    }
 
     // Quality / format
     match quality.as_str() {
@@ -1108,12 +1195,12 @@ async fn download_social_media(
         serde_json::json!({ "url": url, "status": "starting" }),
     );
 
-    let output = std::process::Command::new(cmd_name)
+    let output = std::process::Command::new(&cmd_name)
         .args(&args)
         .output()
         .map_err(|e| {
             format!(
-                "Không chạy được yt-dlp ({}): {}\n\nVui lòng cài: winget install yt-dlp.yt-dlp",
+                "Không chạy được yt-dlp ({}): {}\n\nBấm 'Cài yt-dlp tự động' bên dưới để tải về.",
                 cmd_name, e
             )
         })?;
@@ -1179,8 +1266,9 @@ pub fn run() {
         .manage(DownloadControl::default())
         .manage(WebDavServerState::default())
         .invoke_handler(tauri::generate_handler![
-            // Phase 40.6 — Social media downloader (yt-dlp)
+            // Phase 40.6 + 40.10 — Social media downloader (yt-dlp)
             check_ytdlp_available,
+            install_ytdlp,
             download_social_media,
             app_version,
             ping,

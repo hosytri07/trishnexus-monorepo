@@ -13,7 +13,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { getAppVersion, openUrl } from './lib/platform';
 import { AuthProvider, useAuth } from '@trishteam/auth/react';
-import { Building2, Wallet, ShoppingCart, LogOut, Sun, Moon, Settings as SettingsIcon, Shield, ExternalLink, Bell, Menu, Trophy, Package, Printer } from 'lucide-react';
+import { Building2, Wallet, ShoppingCart, LogOut, Sun, Moon, Settings as SettingsIcon, Shield, ExternalLink, Bell, Menu, Trophy, Package, Printer, Home, Mic, Sparkles, Coffee, Dumbbell } from 'lucide-react';
 import { LoginScreen } from './pages/LoginScreen';
 import { SettingsModal } from './pages/SettingsModal';
 import { NhaTroModule } from './modules/nhatro/NhaTroModule';
@@ -26,15 +26,26 @@ import logoUrl from './assets/logo.png';
 import { SanTheThaoModule } from './modules/santhethao/SanTheThaoModule';
 import { KhoDienTuModule } from './modules/khodientu/KhoDienTuModule';
 import { PhotocopyModule } from './modules/photocopy/PhotocopyModule';
+import { DashboardModule } from './modules/dashboard/DashboardModule';
+import { KaraokeModule } from './modules/karaoke/KaraokeModule';
+import { SpaModule } from './modules/spa/SpaModule';
+import { CafeModule } from './modules/cafe/CafeModule';
+import { GymModule } from './modules/gym/GymModule';
 
 // Phase 40.5 — Thêm 3 module mới (scaffold MVP): santhethao / khodientu / photocopy
+// Phase 40.11 — Dashboard tổng hợp. Phase 40.12 — 4 module ngành mới.
 export type ModuleId =
+  | 'dashboard'
   | 'taichinh'
   | 'nhatro'
   | 'banhang'
   | 'santhethao'
   | 'khodientu'
-  | 'photocopy';
+  | 'photocopy'
+  | 'karaoke'
+  | 'spa'
+  | 'cafe'
+  | 'gym';
 
 export default function App(): JSX.Element {
   return (
@@ -105,7 +116,7 @@ function MainShell(): JSX.Element {
   const { profile, firebaseUser, signOut } = useAuth();
   const finance = useFinanceDb();
   const [active, setActive] = useState<ModuleId>(() => {
-    try { return (localStorage.getItem('trishfinance:active_module') as ModuleId) || 'taichinh'; } catch { return 'taichinh'; }
+    try { return (localStorage.getItem('trishfinance:active_module') as ModuleId) || 'dashboard'; } catch { return 'dashboard'; }
   });
   const [theme, setTheme] = useState<'light' | 'dark'>(() => {
     try { return (localStorage.getItem('trishfinance_theme') as 'light' | 'dark') || 'light'; } catch { return 'light'; }
@@ -174,13 +185,17 @@ function MainShell(): JSX.Element {
     : { label: role || 'guest', bg: 'rgba(99,102,241,0.15)', color: '#4338ca' };
 
   const MODULES: Array<{ id: ModuleId; icon: any; label: string; sub: string }> = [
+    { id: 'dashboard', icon: Home, label: 'Trang chủ', sub: 'Tổng quan · Thu chi · Cảnh báo' },
     { id: 'taichinh', icon: Wallet, label: 'Tài chính cá nhân', sub: 'Sổ thu chi · Ví · Ngân sách' },
     { id: 'nhatro', icon: Building2, label: 'Quản lý nhà trọ', sub: 'Phòng · Khách · Hợp đồng · Hóa đơn' },
     { id: 'banhang', icon: ShoppingCart, label: 'Quản lý bán hàng', sub: 'POS · Sản phẩm · Đơn hàng' },
-    // Phase 40.5 — 3 module mới scaffold MVP (sẽ build chi tiết phiên sau)
     { id: 'santhethao', icon: Trophy, label: 'Sân thể thao', sub: 'Đặt sân · Lịch trống · Doanh thu' },
     { id: 'khodientu', icon: Package, label: 'Kho điện tử', sub: 'Nhập xuất · Tồn kho · Serial · Bảo hành' },
     { id: 'photocopy', icon: Printer, label: 'Quán photocopy', sub: 'In · Copy · Scan · Gói sinh viên' },
+    { id: 'karaoke', icon: Mic, label: 'Karaoke', sub: 'Đặt phòng · Tính giờ · Đồ uống' },
+    { id: 'spa', icon: Sparkles, label: 'Spa / Salon', sub: 'Lịch hẹn · Liệu trình · Thẻ thành viên' },
+    { id: 'cafe', icon: Coffee, label: 'Cafe / Bar', sub: 'Menu · Bàn · Order · Bill' },
+    { id: 'gym', icon: Dumbbell, label: 'Gym / Fitness', sub: 'Thẻ tập · PT · Lịch lớp' },
   ];
 
   return (
@@ -306,13 +321,18 @@ function MainShell(): JSX.Element {
         </header>
 
         <div style={{ padding: '20px 22px' }}>
+          {active === 'dashboard' && <DashboardModule />}
           {active === 'nhatro' && <NhaTroModule />}
           {active === 'taichinh' && <TaiChinhModule />}
           {active === 'banhang' && <BanHangModule />}
-          {/* Phase 40.5 — 3 module mới đầy đủ feature */}
           {active === 'santhethao' && <SanTheThaoModule />}
           {active === 'khodientu' && <KhoDienTuModule />}
           {active === 'photocopy' && <PhotocopyModule />}
+          {/* Phase 40.12 — 4 module ngành dịch vụ mới */}
+          {active === 'karaoke' && <KaraokeModule />}
+          {active === 'spa' && <SpaModule />}
+          {active === 'cafe' && <CafeModule />}
+          {active === 'gym' && <GymModule />}
         </div>
       </main>
 
