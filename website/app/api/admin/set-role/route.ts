@@ -14,6 +14,8 @@ import { type NextRequest } from 'next/server';
 import { FieldValue } from 'firebase-admin/firestore';
 import { adminAuth, adminDb, adminReady } from '@/lib/firebase-admin';
 import { corsJson, corsOptions } from '@/lib/cors';
+import { sendEmailFireAndForget } from '@/lib/email-sender';
+import { roleChangeEmail } from '@/lib/email-templates';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -130,7 +132,35 @@ export async function POST(req: NextRequest) {
       update.demo_set_by_uid = FieldValue.delete();
       update.demo_set_at = FieldValue.delete();
     }
+    // Đọc role cũ trước khi ghi (cho audit + email)
+    const existingUserSnap = await db.collection('users').doc(uid).get();
+    const oldRole = existingUserSnap.exists
+      ? (existingUserSnap.data() as { role?: string; display_name?: string }).role
+      : undefined;
+    const userDisplayName = existingUserSnap.exists
+      ? (existingUserSnap.data() as { display_name?: string }).display_name
+      : undefined;
+
     await db.collection('users').doc(uid).set(update, { merge: true });
+
+    // Phase 39 — Gửi email notify user (fire-and-forget, không block API)
+    if (existing.email) {
+      const { subject, html } = roleChangeEmail({
+        userEmail: existing.email,
+        userName: userDisplayName ?? existing.displayName ?? undefined,
+        newRole: role,
+        oldRole,
+        demoExpiresAt: demoExpiresAt ?? undefined,
+        demoDays: role === 'demo' && demoExpiresAt
+          ? Math.round((demoExpiresAt - Date.now()) / 86_400_000)
+          : undefined,
+      });
+      sendEmailFireAndForget({
+        to: existing.email,
+        subject,
+        html,
+      });
+    }
 
     await db.collection('audit').add({
       action: 'set_role',

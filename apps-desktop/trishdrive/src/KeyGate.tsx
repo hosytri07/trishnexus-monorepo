@@ -1,28 +1,8 @@
 /**
- * Phase 37.3 — KeyGate wrapper Tauri-specific cho TrishDrive.
+ * @deprecated Phase 38.9 — KeyGate (16-char key activation) thay bằng AuthApp + TierGate.
+ *
+ * File này giữ làm placeholder để không break import history. Logic mới ở
+ * packages/auth/src/tier-gate.tsx — form Promo + Key 16-char trên block screen.
+ * Xóa hẳn ở phase sau khi không còn ref.
  */
-import { invoke } from '@tauri-apps/api/core';
-import { KeyGate as KeyGateGeneric } from '@trishteam/auth/react';
-import type { ReactNode } from 'react';
-
-const APP_ID = 'trishdrive';
-const APP_NAME = 'TrishDrive';
-
-async function getMachineId(): Promise<string> {
-  return invoke<string>('get_device_id');
-}
-
-export function KeyGate({ children }: { children: ReactNode }): JSX.Element {
-  return (
-    <KeyGateGeneric
-      appId={APP_ID}
-      appName={APP_NAME}
-      keyType="account"
-      getMachineId={getMachineId}
-      // Phase 38.17 — Admin hệ sinh thái không cần activate key
-      skipForAdmin
-    >
-      {children}
-    </KeyGateGeneric>
-  );
-}
+export {};

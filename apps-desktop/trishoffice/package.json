@@ -1,7 +1,7 @@
 {
   "name": "@trishteam/trishoffice",
   "private": true,
-  "version": "0.1.0",
+  "version": "1.0.0",
   "description": "TrishOffice — BuildOffice Assistant: Project Launcher + File Rename Pro + Biên bản tự động + Photo Report + Công văn manager. Part of TrishTEAM ecosystem (Phase 38.6).",
   "type": "module",
   "scripts": {

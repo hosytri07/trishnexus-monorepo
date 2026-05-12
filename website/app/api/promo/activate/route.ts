@@ -23,6 +23,8 @@ import { type NextRequest } from 'next/server';
 import { FieldValue } from 'firebase-admin/firestore';
 import { adminAuth, adminDb, adminReady } from '@/lib/firebase-admin';
 import { corsJson, corsOptions } from '@/lib/cors';
+import { sendEmailFireAndForget } from '@/lib/email-sender';
+import { demoActivatedEmail } from '@/lib/email-templates';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -180,6 +182,23 @@ export async function POST(req: NextRequest) {
 
     if (!result.ok) {
       return corsJson({ error: result.error }, { status: result.status });
+    }
+
+    // Phase 39 — Email user welcome (fire-and-forget)
+    if (caller.decoded.email) {
+      const { subject, html } = demoActivatedEmail({
+        userEmail: caller.decoded.email,
+        userName: caller.decoded.name as string | undefined,
+        source: 'promo',
+        sourceCode: code,
+        demoExpiresAt: result.demo_expires_at,
+        durationDays: result.duration_days,
+      });
+      sendEmailFireAndForget({
+        to: caller.decoded.email,
+        subject,
+        html,
+      });
     }
 
     // Custom claim không cần đổi (demo không có claim admin) — chỉ Firestore.
