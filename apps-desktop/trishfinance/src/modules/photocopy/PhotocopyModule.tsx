@@ -21,6 +21,8 @@ import {
   Calculator,
   Receipt,
   CreditCard,
+  Wallet,
+  ArrowDownToLine,
 } from 'lucide-react';
 import { addLedgerEntry } from '../../lib/ledger-helper';
 
@@ -52,7 +54,35 @@ interface Tx {
   paid: number;
   customerName?: string;
   customerPhone?: string;
-  studentCard?: string;
+  studentCard?: string; // legacy — chỉ là label
+  /** Phase 40.14 — Liên kết với thẻ sinh viên (trừ từ số dư) */
+  studentCardId?: string;
+  /** Phương thức TT */
+  paymentMethod?: 'cash' | 'card_balance';
+  note?: string;
+  date: string;
+  createdAt: number;
+}
+
+/**
+ * Phase 40.14 — Thẻ sinh viên prepaid.
+ * User nạp tiền → balance tăng. Mỗi lần dùng dịch vụ → tự trừ từ balance.
+ */
+interface StudentCard {
+  id: string;
+  cardNumber: string; // chữ hoa, unique
+  name: string;
+  phone?: string;
+  balance: number;
+  totalSpent: number;
+  createdAt: number;
+  active: boolean;
+}
+
+interface CardTopup {
+  id: string;
+  cardId: string;
+  amount: number;
   note?: string;
   date: string;
   createdAt: number;
@@ -62,13 +92,15 @@ interface Db {
   version: string;
   services: Service[];
   txs: Tx[];
+  /** Phase 40.14 */
+  studentCards?: StudentCard[];
+  cardTopups?: CardTopup[];
 }
 
 const DB_KEY = 'trishfinance:photocopy_db';
 const EMPTY_DB: Db = {
   version: '1.0.0',
   services: [
-    // Seed data
     { id: 'svc_print_bw_a4', name: 'In trắng đen A4', category: 'print_bw', unitPrice: 500, unit: 'trang', active: true },
     { id: 'svc_print_color_a4', name: 'In màu A4', category: 'print_color', unitPrice: 3000, unit: 'trang', active: true },
     { id: 'svc_copy_a4', name: 'Photo A4', category: 'copy', unitPrice: 300, unit: 'trang', active: true },
@@ -76,6 +108,8 @@ const EMPTY_DB: Db = {
     { id: 'svc_binding', name: 'Đóng cuốn (kẹp lò xo)', category: 'binding', unitPrice: 8000, unit: 'cuốn', active: true },
   ],
   txs: [],
+  studentCards: [],
+  cardTopups: [],
 };
 
 const CATEGORY_LABEL: Record<ServiceCategory, string> = {
@@ -103,7 +137,7 @@ function formatMoney(n: number): string { return new Intl.NumberFormat('vi-VN').
 function todayStr(): string { return new Date().toISOString().slice(0, 10); }
 
 // ============================================================
-type Tab = 'calc' | 'services' | 'history';
+type Tab = 'calc' | 'services' | 'cards' | 'history';
 
 export function PhotocopyModule(): JSX.Element {
   const [db, setDb] = useState<Db>(() => loadDb());
@@ -131,11 +165,13 @@ export function PhotocopyModule(): JSX.Element {
       <div style={{ display: 'flex', gap: 4, marginBottom: 16, borderBottom: '1px solid var(--color-border-subtle)' }}>
         <TabButton active={tab === 'calc'} onClick={() => setTab('calc')} icon={Calculator} label="Tính tiền" />
         <TabButton active={tab === 'services'} onClick={() => setTab('services')} icon={Edit2} label="Bảng giá" />
+        <TabButton active={tab === 'cards'} onClick={() => setTab('cards')} icon={CreditCard} label="Thẻ sinh viên" />
         <TabButton active={tab === 'history'} onClick={() => setTab('history')} icon={Receipt} label="Lịch sử" />
       </div>
 
       {tab === 'calc' && <CalcTab db={db} setDb={setDb} />}
       {tab === 'services' && <ServicesTab db={db} setDb={setDb} />}
+      {tab === 'cards' && <CardsTab db={db} setDb={setDb} />}
       {tab === 'history' && <HistoryTab db={db} />}
     </div>
   );
@@ -168,7 +204,8 @@ function TabButton({ active, onClick, icon: Icon, label }: { active: boolean; on
 function CalcTab({ db, setDb }: { db: Db; setDb: (d: Db) => void }): JSX.Element {
   const [items, setItems] = useState<Array<{ serviceId: string; qty: number }>>([]);
   const [customerName, setCustomerName] = useState('');
-  const [studentCard, setStudentCard] = useState('');
+  const [studentCardId, setStudentCardId] = useState('');
+  const [paymentMethod, setPaymentMethod] = useState<'cash' | 'card_balance'>('cash');
   const [paid, setPaid] = useState(0);
 
   function addService(serviceId: string): void {
@@ -200,35 +237,60 @@ function CalcTab({ db, setDb }: { db: Db; setDb: (d: Db) => void }): JSX.Element
   const total = txItems.reduce((s, x) => s + x.subtotal, 0);
   const change = paid - total;
 
+  const selectedCard = studentCardId ? (db.studentCards ?? []).find((c) => c.id === studentCardId) : null;
+  const useCardBalance = paymentMethod === 'card_balance' && selectedCard !== null;
+  const cardSufficient = useCardBalance && selectedCard && selectedCard.balance >= total;
+
   function handleCheckout(): void {
     if (items.length === 0) return;
-    const finalPaid = paid || total;
+    if (useCardBalance && !cardSufficient) {
+      alert(`Thẻ ${selectedCard?.cardNumber} không đủ số dư (cần ${formatMoney(total)}, có ${formatMoney(selectedCard?.balance ?? 0)})`);
+      return;
+    }
+    const finalPaid = useCardBalance ? total : (paid || total);
     const tx: Tx = {
       id: makeId(),
       items: txItems,
       total,
       paid: finalPaid,
-      customerName: customerName.trim() || undefined,
-      studentCard: studentCard.trim() || undefined,
+      customerName: customerName.trim() || selectedCard?.name || undefined,
+      studentCard: selectedCard?.cardNumber,
+      studentCardId: selectedCard?.id,
+      paymentMethod: useCardBalance ? 'card_balance' : 'cash',
       date: todayStr(),
       createdAt: Date.now(),
     };
-    setDb({ ...db, txs: [tx, ...db.txs] });
-    setItems([]);
-    setCustomerName('');
-    setStudentCard('');
-    setPaid(0);
 
-    // Phase 40.9 — Push thu vào sổ Tài chính cá nhân
-    addLedgerEntry({
-      amount: Math.min(finalPaid, total), // chỉ tính tiền đã thu thực tế, không tính tiền thừa
-      kind: 'thu',
-      category: 'kinh_doanh',
-      description: `Photocopy — ${txItems.map((it) => `${it.serviceName}×${it.qty}`).join(', ')}${customerName.trim() ? ` (${customerName.trim()})` : ''}`,
-      source: 'photocopy',
-      refId: tx.id,
-      date: tx.date,
-    });
+    let nextDb: Db = { ...db, txs: [tx, ...db.txs] };
+
+    // Trừ balance khỏi thẻ
+    if (useCardBalance && selectedCard) {
+      nextDb = {
+        ...nextDb,
+        studentCards: (db.studentCards ?? []).map((c) =>
+          c.id === selectedCard.id
+            ? { ...c, balance: c.balance - total, totalSpent: c.totalSpent + total }
+            : c,
+        ),
+      };
+    }
+    setDb(nextDb);
+
+    setItems([]); setCustomerName(''); setStudentCardId(''); setPaymentMethod('cash'); setPaid(0);
+
+    // Phase 40.9 — Push thu vào sổ Tài chính.
+    // KHÔNG push khi trả bằng card balance (vì tiền đã được ghi nhận lúc nạp thẻ)
+    if (!useCardBalance) {
+      addLedgerEntry({
+        amount: Math.min(finalPaid, total),
+        kind: 'thu',
+        category: 'kinh_doanh',
+        description: `Photocopy — ${txItems.map((it) => `${it.serviceName}×${it.qty}`).join(', ')}${customerName.trim() ? ` (${customerName.trim()})` : ''}`,
+        source: 'photocopy',
+        refId: tx.id,
+        date: tx.date,
+      });
+    }
   }
 
   const activeServices = db.services.filter((s) => s.active);
@@ -303,22 +365,48 @@ function CalcTab({ db, setDb }: { db: Db; setDb: (d: Db) => void }): JSX.Element
             </div>
 
             <FormField label="Tên khách (optional)">
-              <input className="input" value={customerName} onChange={(e) => setCustomerName(e.target.value)} placeholder="Khách lẻ" />
+              <input className="input" value={customerName} onChange={(e) => setCustomerName(e.target.value)} placeholder={selectedCard?.name || 'Khách lẻ'} />
             </FormField>
-            <FormField label="Mã thẻ sinh viên (optional)">
-              <input className="input" value={studentCard} onChange={(e) => setStudentCard(e.target.value)} placeholder="VD: SV2026001" />
+            <FormField label="🎫 Thẻ sinh viên (nếu có)">
+              <select className="input" value={studentCardId} onChange={(e) => { setStudentCardId(e.target.value); if (!e.target.value) setPaymentMethod('cash'); }}>
+                <option value="">— Khách lẻ —</option>
+                {(db.studentCards ?? []).filter((c) => c.active).map((c) => (
+                  <option key={c.id} value={c.id}>{c.cardNumber} · {c.name} (Số dư: {formatMoney(c.balance)})</option>
+                ))}
+              </select>
+              {selectedCard && (
+                <div style={{ marginTop: 6, padding: 8, background: 'rgba(59,130,246,0.08)', borderRadius: 6, fontSize: 11 }}>
+                  <div>💳 <strong>{selectedCard.cardNumber}</strong> — {selectedCard.name}</div>
+                  <div>Số dư: <strong style={{ color: selectedCard.balance >= total ? '#10B981' : '#DC2626' }}>{formatMoney(selectedCard.balance)}</strong></div>
+                </div>
+              )}
             </FormField>
-            <FormField label="Tiền khách đưa">
-              <input className="input" type="number" value={paid} onChange={(e) => setPaid(Number(e.target.value) || 0)} placeholder={String(total)} />
-            </FormField>
-            {paid > 0 && change >= 0 && (
+            {selectedCard && (
+              <FormField label="Phương thức thanh toán">
+                <div style={{ display: 'flex', gap: 6 }}>
+                  <button type="button" onClick={() => setPaymentMethod('cash')} style={{ flex: 1, padding: 8, background: paymentMethod === 'cash' ? 'var(--color-accent-primary)' : 'var(--color-surface-row)', color: paymentMethod === 'cash' ? '#FFF' : 'var(--color-text-primary)', border: '1px solid var(--color-border-default)', borderRadius: 6, fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>💵 Tiền mặt</button>
+                  <button type="button" onClick={() => setPaymentMethod('card_balance')} disabled={selectedCard.balance < total} style={{ flex: 1, padding: 8, background: paymentMethod === 'card_balance' ? 'var(--color-accent-primary)' : 'var(--color-surface-row)', color: paymentMethod === 'card_balance' ? '#FFF' : (selectedCard.balance < total ? 'var(--color-text-muted)' : 'var(--color-text-primary)'), border: '1px solid var(--color-border-default)', borderRadius: 6, fontSize: 12, fontWeight: 600, cursor: selectedCard.balance < total ? 'not-allowed' : 'pointer' }}>💳 Trừ số dư thẻ {selectedCard.balance < total && '(thiếu)'}</button>
+                </div>
+              </FormField>
+            )}
+            {!useCardBalance && (
+              <FormField label="Tiền khách đưa">
+                <input className="input" type="number" value={paid} onChange={(e) => setPaid(Number(e.target.value) || 0)} placeholder={String(total)} />
+              </FormField>
+            )}
+            {!useCardBalance && paid > 0 && change >= 0 && (
               <div style={{ padding: 8, background: 'rgba(16,185,129,0.1)', borderRadius: 8, fontSize: 12, marginBottom: 10 }}>
                 💰 Tiền thừa: <strong>{formatMoney(change)}</strong>
               </div>
             )}
-            {paid > 0 && change < 0 && (
+            {!useCardBalance && paid > 0 && change < 0 && (
               <div style={{ padding: 8, background: 'rgba(220,38,38,0.1)', borderRadius: 8, fontSize: 12, marginBottom: 10, color: '#991B1B' }}>
                 ⚠ Còn thiếu: <strong>{formatMoney(-change)}</strong>
+              </div>
+            )}
+            {useCardBalance && (
+              <div style={{ padding: 8, background: 'rgba(59,130,246,0.1)', borderRadius: 8, fontSize: 12, marginBottom: 10, color: '#1E40AF' }}>
+                💳 Trừ <strong>{formatMoney(total)}</strong> từ thẻ. Số dư sau: <strong>{formatMoney((selectedCard?.balance ?? 0) - total)}</strong>
               </div>
             )}
 
@@ -522,6 +610,192 @@ function HistoryTab({ db }: { db: Db }): JSX.Element {
         </div>
       )}
     </div>
+  );
+}
+
+// ============================================================
+// Phase 40.14 — Student card tab (nạp + trừ tự động)
+// ============================================================
+function CardsTab({ db, setDb }: { db: Db; setDb: (d: Db) => void }): JSX.Element {
+  const cards = db.studentCards ?? [];
+  const [showForm, setShowForm] = useState(false);
+  const [showTopup, setShowTopup] = useState<StudentCard | null>(null);
+  const [editing, setEditing] = useState<StudentCard | null>(null);
+
+  function saveCard(c: StudentCard): void {
+    const next = editing ? cards.map((x) => (x.id === c.id ? c : x)) : [c, ...cards];
+    setDb({ ...db, studentCards: next });
+    setShowForm(false); setEditing(null);
+  }
+  function deleteCard(id: string): void { setDb({ ...db, studentCards: cards.filter((c) => c.id !== id) }); }
+  function topup(cardId: string, amount: number): void {
+    if (amount <= 0) return;
+    const card = cards.find((c) => c.id === cardId);
+    if (!card) return;
+    const topupEntry: CardTopup = {
+      id: makeId(),
+      cardId,
+      amount,
+      date: todayStr(),
+      createdAt: Date.now(),
+    };
+    setDb({
+      ...db,
+      studentCards: cards.map((c) => (c.id === cardId ? { ...c, balance: c.balance + amount } : c)),
+      cardTopups: [topupEntry, ...(db.cardTopups ?? [])],
+    });
+    // Push ledger thu khi user nạp tiền
+    addLedgerEntry({
+      amount,
+      kind: 'thu',
+      category: 'kinh_doanh',
+      description: `Photocopy — Nạp thẻ ${card.cardNumber} (${card.name})`,
+      source: 'photocopy',
+      refId: `topup_${topupEntry.id}`,
+      date: topupEntry.date,
+    });
+    setShowTopup(null);
+  }
+
+  const totalBalance = cards.reduce((s, c) => s + c.balance, 0);
+
+  return (
+    <div>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, flexWrap: 'wrap', gap: 8 }}>
+        <div>
+          <h2 style={{ margin: 0, fontSize: 15, fontWeight: 700 }}>Thẻ sinh viên ({cards.length})</h2>
+          <p style={{ margin: '4px 0 0', fontSize: 12, color: 'var(--color-text-muted)' }}>
+            Tổng số dư đang giữ: <strong style={{ color: '#3B82F6' }}>{formatMoney(totalBalance)}</strong>
+          </p>
+        </div>
+        <button type="button" className="btn-primary" onClick={() => { setEditing(null); setShowForm(true); }}>
+          <Plus className="h-4 w-4" /> Thêm thẻ
+        </button>
+      </div>
+
+      {cards.length === 0 ? (
+        <div className="card" style={{ padding: 32, textAlign: 'center', color: 'var(--color-text-muted)' }}>
+          Chưa có thẻ — bấm "Thêm thẻ" để tạo. Khách nạp tiền trước, mỗi lần dùng dịch vụ tự trừ.
+        </div>
+      ) : (
+        <div className="card" style={{ padding: 0, overflow: 'auto' }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+            <thead>
+              <tr style={{ background: 'var(--color-surface-row)', fontSize: 11, textTransform: 'uppercase' }}>
+                <th style={{ padding: 10, textAlign: 'left' }}>Mã thẻ</th>
+                <th style={{ padding: 10, textAlign: 'left' }}>Tên</th>
+                <th style={{ padding: 10, textAlign: 'left' }}>SĐT</th>
+                <th style={{ padding: 10, textAlign: 'right' }}>Số dư</th>
+                <th style={{ padding: 10, textAlign: 'right' }}>Đã chi tiêu</th>
+                <th style={{ padding: 10, textAlign: 'right' }}>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {cards.map((c) => (
+                <tr key={c.id} style={{ borderTop: '1px solid var(--color-border-subtle)', opacity: c.active ? 1 : 0.5 }}>
+                  <td style={{ padding: 10, fontFamily: 'monospace', fontWeight: 700 }}>{c.cardNumber}</td>
+                  <td style={{ padding: 10, fontWeight: 600 }}>{c.name}</td>
+                  <td style={{ padding: 10 }}>{c.phone ?? '—'}</td>
+                  <td style={{ padding: 10, textAlign: 'right', fontWeight: 700, color: c.balance > 0 ? '#10B981' : '#DC2626', fontVariantNumeric: 'tabular-nums' }}>
+                    {formatMoney(c.balance)}
+                  </td>
+                  <td style={{ padding: 10, textAlign: 'right', color: 'var(--color-text-muted)', fontVariantNumeric: 'tabular-nums' }}>
+                    {formatMoney(c.totalSpent)}
+                  </td>
+                  <td style={{ padding: 10, textAlign: 'right' }}>
+                    <button type="button" className="btn-secondary" onClick={() => setShowTopup(c)} style={{ padding: '4px 8px', fontSize: 11, marginRight: 4 }}>
+                      <ArrowDownToLine style={{ width: 12, height: 12 }} /> Nạp
+                    </button>
+                    <button type="button" className="icon-btn" onClick={() => { setEditing(c); setShowForm(true); }}>
+                      <Edit2 style={{ width: 14, height: 14 }} />
+                    </button>
+                    <button type="button" className="icon-btn" onClick={() => deleteCard(c.id)} style={{ color: '#DC2626' }}>
+                      <Trash2 style={{ width: 14, height: 14 }} />
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {showForm && <CardForm initial={editing} onSave={saveCard} onClose={() => { setShowForm(false); setEditing(null); }} />}
+      {showTopup && <TopupModal card={showTopup} onTopup={(amt) => topup(showTopup.id, amt)} onClose={() => setShowTopup(null)} />}
+    </div>
+  );
+}
+
+function CardForm({ initial, onSave, onClose }: { initial: StudentCard | null; onSave: (c: StudentCard) => void; onClose: () => void }): JSX.Element {
+  const [cardNumber, setCardNumber] = useState(initial?.cardNumber ?? '');
+  const [name, setName] = useState(initial?.name ?? '');
+  const [phone, setPhone] = useState(initial?.phone ?? '');
+  const [initialBalance, setInitialBalance] = useState(0);
+  const [active, setActive] = useState(initial?.active ?? true);
+
+  function handleSubmit(): void {
+    if (!cardNumber.trim() || !name.trim()) return;
+    const card: StudentCard = {
+      id: initial?.id ?? makeId(),
+      cardNumber: cardNumber.trim().toUpperCase(),
+      name: name.trim(),
+      phone: phone.trim() || undefined,
+      balance: initial?.balance ?? initialBalance,
+      totalSpent: initial?.totalSpent ?? 0,
+      createdAt: initial?.createdAt ?? Date.now(),
+      active,
+    };
+    onSave(card);
+  }
+
+  return (
+    <ModalShell title={initial ? 'Sửa thẻ' : 'Thêm thẻ sinh viên'} onClose={onClose}>
+      <FormField label="Mã thẻ (auto uppercase)">
+        <input className="input" value={cardNumber} onChange={(e) => setCardNumber(e.target.value.toUpperCase())} placeholder="VD: SV2026001" style={{ fontFamily: 'monospace' }} autoFocus />
+      </FormField>
+      <FormField label="Tên"><input className="input" value={name} onChange={(e) => setName(e.target.value)} /></FormField>
+      <FormField label="SĐT"><input className="input" value={phone} onChange={(e) => setPhone(e.target.value)} /></FormField>
+      {!initial && (
+        <FormField label="Nạp ban đầu (VND)">
+          <input className="input" type="number" value={initialBalance} onChange={(e) => setInitialBalance(Number(e.target.value) || 0)} min={0} step={50000} />
+          <div style={{ fontSize: 11, color: 'var(--color-text-muted)', marginTop: 4 }}>Sẽ tự push vào sổ Tài chính cá nhân</div>
+        </FormField>
+      )}
+      <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13 }}>
+        <input type="checkbox" checked={active} onChange={(e) => setActive(e.target.checked)} /> Thẻ active (uncheck = khóa thẻ)
+      </label>
+      <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 12 }}>
+        <button type="button" className="btn-secondary" onClick={onClose}>Hủy</button>
+        <button type="button" className="btn-primary" onClick={handleSubmit} disabled={!cardNumber.trim() || !name.trim()}>{initial ? 'Lưu' : 'Tạo thẻ'}</button>
+      </div>
+    </ModalShell>
+  );
+}
+
+function TopupModal({ card, onTopup, onClose }: { card: StudentCard; onTopup: (amount: number) => void; onClose: () => void }): JSX.Element {
+  const [amount, setAmount] = useState(100000);
+  return (
+    <ModalShell title={`💰 Nạp tiền vào thẻ ${card.cardNumber}`} onClose={onClose}>
+      <div style={{ padding: 12, background: 'var(--color-surface-row)', borderRadius: 8, marginBottom: 12, fontSize: 13 }}>
+        <div><strong>{card.name}</strong> · {card.cardNumber}</div>
+        <div style={{ color: 'var(--color-text-muted)', marginTop: 2 }}>Số dư hiện tại: <strong style={{ color: '#10B981' }}>{formatMoney(card.balance)}</strong></div>
+      </div>
+      <FormField label="Số tiền nạp (VND)">
+        <input className="input" type="number" value={amount} onChange={(e) => setAmount(Math.max(0, Number(e.target.value) || 0))} min={1000} step={50000} autoFocus />
+        <div style={{ display: 'flex', gap: 4, marginTop: 6, flexWrap: 'wrap' }}>
+          {[50000, 100000, 200000, 500000, 1000000].map((v) => (
+            <button key={v} type="button" onClick={() => setAmount(v)} className="btn-secondary" style={{ fontSize: 11, padding: '4px 10px' }}>{formatMoney(v)}</button>
+          ))}
+        </div>
+      </FormField>
+      <div style={{ padding: 10, background: 'rgba(16,185,129,0.08)', borderRadius: 8, fontSize: 12, marginBottom: 12 }}>
+        Sau nạp: <strong>{formatMoney(card.balance + amount)}</strong>
+      </div>
+      <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+        <button type="button" className="btn-secondary" onClick={onClose}>Hủy</button>
+        <button type="button" className="btn-primary" onClick={() => onTopup(amount)} disabled={amount <= 0}>💰 Nạp {formatMoney(amount)}</button>
+      </div>
+    </ModalShell>
   );
 }
 

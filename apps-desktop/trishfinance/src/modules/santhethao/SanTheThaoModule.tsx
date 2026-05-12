@@ -76,15 +76,46 @@ const PAYMENT_STATUS_LABEL: Record<PaymentStatus, { label: string; color: string
   cancelled: { label: '✕ Hủy', color: '#6B7280', bg: 'rgba(107,114,128,0.15)' },
 };
 
+/**
+ * Phase 40.14 — RecurringBooking: khách đặt cố định 1 khung giờ + 1 sân
+ * lặp lại mỗi tuần (vd 18h thứ 7 hàng tuần). Auto-generate booking khi mở app.
+ */
+interface RecurringBooking {
+  id: string;
+  courtId: string;
+  weekday: number; // 0=Sun, 1=Mon, ..., 6=Sat
+  startHour: number;
+  duration: number;
+  customerName: string;
+  customerPhone?: string;
+  /** Ngày bắt đầu áp dụng (YYYY-MM-DD) */
+  startDate: string;
+  /** Ngày kết thúc (optional — nếu trống là vô thời hạn) */
+  endDate?: string;
+  /** Mặc định payment status khi tự generate booking */
+  defaultStatus: PaymentStatus;
+  /** Mặc định paid (vd khách trả trước cả tháng) */
+  defaultPaid?: number;
+  note?: string;
+  active: boolean;
+  createdAt: number;
+  /** Ngày cuối cùng đã generate booking → tránh duplicate */
+  lastGeneratedDate?: string;
+}
+
 interface Db {
   version: string;
   courts: Court[];
   bookings: Booking[];
+  recurringBookings?: RecurringBooking[];
 }
 
 const DB_KEY = 'trishfinance:santhethao_db';
 const DB_VERSION = '1.0.0';
-const EMPTY_DB: Db = { version: DB_VERSION, courts: [], bookings: [] };
+const EMPTY_DB: Db = { version: DB_VERSION, courts: [], bookings: [], recurringBookings: [] };
+
+const WEEKDAY_LABEL = ['CN', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7'];
+const WEEKDAY_LABEL_FULL = ['Chủ nhật', 'Thứ 2', 'Thứ 3', 'Thứ 4', 'Thứ 5', 'Thứ 6', 'Thứ 7'];
 
 const COURT_TYPE_LABEL: Record<CourtType, string> = {
   pickleball: '🏓 Pickleball',
@@ -103,7 +134,29 @@ function loadDb(): Db {
     const raw = localStorage.getItem(DB_KEY);
     if (!raw) return { ...EMPTY_DB };
     const parsed = JSON.parse(raw) as Db;
-    return { ...EMPTY_DB, ...parsed };
+    const merged = { ...EMPTY_DB, ...parsed };
+
+    // Phase 40.15 — Migration data cũ: booking có `status` (booked/completed/cancelled)
+    // → đổi sang `paymentStatus` (unpaid/deposit/paid/debt/cancelled) + thêm `paid` field.
+    if (Array.isArray(merged.bookings)) {
+      merged.bookings = merged.bookings.map((b: any) => {
+        if (b.paymentStatus !== undefined) return b; // đã migrate rồi
+        // Schema cũ
+        const oldStatus = b.status as string | undefined;
+        const oldDeposit = typeof b.deposit === 'number' ? b.deposit : 0;
+        let paymentStatus: PaymentStatus = 'unpaid';
+        if (oldStatus === 'cancelled') paymentStatus = 'cancelled';
+        else if (oldStatus === 'completed' || oldDeposit >= (b.totalPrice ?? 0)) paymentStatus = 'paid';
+        else if (oldDeposit > 0) paymentStatus = 'deposit';
+        else paymentStatus = 'unpaid';
+        return {
+          ...b,
+          paymentStatus,
+          paid: oldDeposit,
+        };
+      });
+    }
+    return merged;
   } catch {
     return { ...EMPTY_DB };
   }
@@ -128,11 +181,83 @@ function todayStr(): string {
 // ============================================================
 // Main component
 // ============================================================
-type Tab = 'courts' | 'calendar' | 'revenue';
+type Tab = 'courts' | 'calendar' | 'recurring' | 'revenue';
 
 export function SanTheThaoModule(): JSX.Element {
   const [db, setDb] = useState<Db>(() => loadDb());
   const [tab, setTab] = useState<Tab>('calendar');
+
+  // Phase 40.14 — Auto-generate recurring bookings khi mở module (1 lần / session)
+  useEffect(() => {
+    const rules = db.recurringBookings ?? [];
+    if (rules.length === 0) return;
+
+    const newBookings: Booking[] = [];
+    const updatedRules: RecurringBooking[] = [];
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const horizonDays = 14; // generate 2 tuần tới
+
+    for (const rule of rules) {
+      if (!rule.active) { updatedRules.push(rule); continue; }
+      let lastGen = rule.lastGeneratedDate ? new Date(rule.lastGeneratedDate) : new Date(rule.startDate);
+      lastGen.setHours(0, 0, 0, 0);
+      const endDate = rule.endDate ? new Date(rule.endDate) : null;
+      const horizon = new Date(today.getTime() + horizonDays * 86_400_000);
+
+      // Loop từng ngày từ max(lastGen+1, startDate) → min(horizon, endDate)
+      const start = new Date(Math.max(lastGen.getTime() + 86_400_000, new Date(rule.startDate).getTime()));
+      start.setHours(0, 0, 0, 0);
+      const stop = endDate ? new Date(Math.min(horizon.getTime(), endDate.getTime())) : horizon;
+
+      let cursor = new Date(start);
+      let lastDate = rule.lastGeneratedDate;
+      while (cursor <= stop) {
+        if (cursor.getDay() === rule.weekday) {
+          const dateStr = cursor.toISOString().slice(0, 10);
+          // Check chưa có booking từ rule này cho ngày này (refId match)
+          const exists = (db.bookings || []).some(
+            (b) =>
+              b.date === dateStr &&
+              b.courtId === rule.courtId &&
+              b.startHour === rule.startHour &&
+              b.customerName === rule.customerName &&
+              b.paymentStatus !== 'cancelled',
+          );
+          if (!exists) {
+            const court = db.courts.find((c) => c.id === rule.courtId);
+            const totalPrice = (court?.pricePerHour ?? 0) * rule.duration;
+            newBookings.push({
+              id: makeId(),
+              courtId: rule.courtId,
+              date: dateStr,
+              startHour: rule.startHour,
+              endHour: rule.startHour + rule.duration,
+              customerName: rule.customerName,
+              customerPhone: rule.customerPhone,
+              totalPrice,
+              paid: rule.defaultPaid ?? 0,
+              paymentStatus: rule.defaultStatus,
+              note: rule.note ? `[Định kỳ] ${rule.note}` : '[Định kỳ tự tạo]',
+              createdAt: Date.now(),
+            });
+          }
+          lastDate = dateStr;
+        }
+        cursor = new Date(cursor.getTime() + 86_400_000);
+      }
+      updatedRules.push({ ...rule, lastGeneratedDate: lastDate });
+    }
+
+    if (newBookings.length > 0 || updatedRules.some((r, i) => r.lastGeneratedDate !== rules[i]?.lastGeneratedDate)) {
+      setDb({
+        ...db,
+        bookings: [...newBookings, ...db.bookings],
+        recurringBookings: updatedRules,
+      });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   useEffect(() => {
     saveDb(db);
@@ -161,11 +286,13 @@ export function SanTheThaoModule(): JSX.Element {
       <div style={{ display: 'flex', gap: 4, marginBottom: 16, borderBottom: '1px solid var(--color-border-subtle)' }}>
         <TabButton active={tab === 'calendar'} onClick={() => setTab('calendar')} icon={Calendar} label="Lịch đặt sân" />
         <TabButton active={tab === 'courts'} onClick={() => setTab('courts')} icon={Trophy} label="Quản lý sân" />
+        <TabButton active={tab === 'recurring'} onClick={() => setTab('recurring')} icon={Clock} label="Định kỳ" />
         <TabButton active={tab === 'revenue'} onClick={() => setTab('revenue')} icon={TrendingUp} label="Doanh thu" />
       </div>
 
       {tab === 'courts' && <CourtsTab db={db} setDb={setDb} />}
       {tab === 'calendar' && <CalendarTab db={db} setDb={setDb} />}
+      {tab === 'recurring' && <RecurringTab db={db} setDb={setDb} />}
       {tab === 'revenue' && <RevenueTab db={db} />}
     </div>
   );
@@ -524,7 +651,7 @@ function CalendarTab({ db, setDb }: { db: Db; setDb: (d: Db) => void }): JSX.Ele
                     const b = getBooking(court.id, h);
                     if (b) {
                       const isStart = h === b.startHour;
-                      const info = PAYMENT_STATUS_LABEL[b.paymentStatus];
+                      const info = PAYMENT_STATUS_LABEL[b.paymentStatus] ?? PAYMENT_STATUS_LABEL.unpaid;
                       return (
                         <td key={h} style={{ padding: 0, background: info.bg, border: '1px solid var(--color-border-subtle)' }}>
                           {isStart && (
@@ -589,8 +716,8 @@ function CalendarTab({ db, setDb }: { db: Db; setDb: (d: Db) => void }): JSX.Ele
 // Manage booking modal — update payment / cancel
 // ============================================================
 function ManageBookingModal({ booking, court, onUpdate, onCancel, onClose }: { booking: Booking; court: Court; onUpdate: (paid: number, status: PaymentStatus) => void; onCancel: () => void; onClose: () => void }): JSX.Element {
-  const [paid, setPaid] = useState(booking.paid);
-  const [status, setStatus] = useState<PaymentStatus>(booking.paymentStatus);
+  const [paid, setPaid] = useState(booking.paid ?? 0);
+  const [status, setStatus] = useState<PaymentStatus>(booking.paymentStatus ?? 'unpaid');
   const remaining = booking.totalPrice - paid;
 
   return (
@@ -846,6 +973,251 @@ function RevenueTab({ db }: { db: Db }): JSX.Element {
         </div>
       )}
     </div>
+  );
+}
+
+// ============================================================
+// Phase 40.14 — Recurring tab (đặt sân định kỳ hàng tuần)
+// ============================================================
+function RecurringTab({ db, setDb }: { db: Db; setDb: (d: Db) => void }): JSX.Element {
+  const rules = db.recurringBookings ?? [];
+  const [editing, setEditing] = useState<RecurringBooking | null>(null);
+  const [showForm, setShowForm] = useState(false);
+
+  function handleSave(r: RecurringBooking): void {
+    const next = editing
+      ? rules.map((x) => (x.id === r.id ? r : x))
+      : [r, ...rules];
+    setDb({ ...db, recurringBookings: next });
+    setShowForm(false);
+    setEditing(null);
+  }
+  function handleDelete(id: string): void {
+    setDb({ ...db, recurringBookings: rules.filter((r) => r.id !== id) });
+  }
+  function handleToggle(id: string): void {
+    setDb({
+      ...db,
+      recurringBookings: rules.map((r) => (r.id === id ? { ...r, active: !r.active } : r)),
+    });
+  }
+
+  return (
+    <div>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+        <div>
+          <h2 style={{ margin: 0, fontSize: 15, fontWeight: 700 }}>Đặt sân định kỳ ({rules.length})</h2>
+          <p style={{ margin: '4px 0 0', fontSize: 12, color: 'var(--color-text-muted)' }}>
+            Khách quen đặt cố định 1 khung giờ + sân lặp hàng tuần. Booking tự tạo trước 2 tuần khi mở app.
+          </p>
+        </div>
+        <button type="button" className="btn-primary" onClick={() => { setEditing(null); setShowForm(true); }} disabled={db.courts.length === 0}>
+          <Plus className="h-4 w-4" /> Thêm lịch định kỳ
+        </button>
+      </div>
+
+      {db.courts.length === 0 && (
+        <div className="card" style={{ padding: 18, background: 'rgba(245,158,11,0.08)', border: '1px solid rgba(245,158,11,0.3)', marginBottom: 12, color: '#92400E', fontSize: 13 }}>
+          ⚠ Chưa có sân — sang tab "Quản lý sân" để tạo trước
+        </div>
+      )}
+
+      {rules.length === 0 ? (
+        <div className="card" style={{ padding: 32, textAlign: 'center', color: 'var(--color-text-muted)' }}>
+          Chưa có lịch định kỳ nào — bấm "Thêm lịch định kỳ" để tạo
+        </div>
+      ) : (
+        <div className="card" style={{ padding: 0, overflow: 'auto' }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+            <thead>
+              <tr style={{ background: 'var(--color-surface-row)', fontSize: 11, textTransform: 'uppercase' }}>
+                <th style={{ padding: 10, textAlign: 'left' }}>Khách</th>
+                <th style={{ padding: 10, textAlign: 'left' }}>Sân</th>
+                <th style={{ padding: 10, textAlign: 'center' }}>Thứ</th>
+                <th style={{ padding: 10, textAlign: 'center' }}>Khung giờ</th>
+                <th style={{ padding: 10, textAlign: 'left' }}>Hiệu lực</th>
+                <th style={{ padding: 10, textAlign: 'center' }}>Active</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody>
+              {rules.map((r) => {
+                const court = db.courts.find((c) => c.id === r.courtId);
+                return (
+                  <tr key={r.id} style={{ borderTop: '1px solid var(--color-border-subtle)', opacity: r.active ? 1 : 0.5 }}>
+                    <td style={{ padding: 10 }}>
+                      <div style={{ fontWeight: 600 }}>{r.customerName}</div>
+                      {r.customerPhone && <div style={{ fontSize: 11, color: 'var(--color-text-muted)' }}>📱 {r.customerPhone}</div>}
+                    </td>
+                    <td style={{ padding: 10 }}>{court?.name ?? '(đã xóa)'}</td>
+                    <td style={{ padding: 10, textAlign: 'center', fontWeight: 700 }}>{WEEKDAY_LABEL[r.weekday]}</td>
+                    <td style={{ padding: 10, textAlign: 'center', fontVariantNumeric: 'tabular-nums' }}>
+                      {String(r.startHour).padStart(2, '0')}h → {String(r.startHour + r.duration).padStart(2, '0')}h
+                      <div style={{ fontSize: 10, color: 'var(--color-text-muted)' }}>{r.duration}h</div>
+                    </td>
+                    <td style={{ padding: 10, fontSize: 11 }}>
+                      <div>Từ: {r.startDate}</div>
+                      <div>{r.endDate ? `Đến: ${r.endDate}` : '∞ Vô thời hạn'}</div>
+                    </td>
+                    <td style={{ padding: 10, textAlign: 'center' }}>
+                      <button
+                        type="button"
+                        onClick={() => handleToggle(r.id)}
+                        style={{
+                          padding: '2px 10px',
+                          borderRadius: 4,
+                          fontSize: 10,
+                          fontWeight: 700,
+                          background: r.active ? 'rgba(16,185,129,0.15)' : 'rgba(156,163,175,0.2)',
+                          color: r.active ? '#065F46' : 'var(--color-text-muted)',
+                          border: 'none',
+                          cursor: 'pointer',
+                        }}
+                      >
+                        {r.active ? '✓ Bật' : '⊘ Tắt'}
+                      </button>
+                    </td>
+                    <td style={{ padding: 10, textAlign: 'right' }}>
+                      <button type="button" className="icon-btn" onClick={() => { setEditing(r); setShowForm(true); }} title="Sửa">
+                        <Edit2 style={{ width: 14, height: 14 }} />
+                      </button>
+                      <button type="button" className="icon-btn" onClick={() => handleDelete(r.id)} title="Xóa" style={{ color: '#DC2626' }}>
+                        <Trash2 style={{ width: 14, height: 14 }} />
+                      </button>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {showForm && <RecurringForm initial={editing} courts={db.courts.filter((c) => c.active)} onSave={handleSave} onClose={() => { setShowForm(false); setEditing(null); }} />}
+    </div>
+  );
+}
+
+function RecurringForm({ initial, courts, onSave, onClose }: { initial: RecurringBooking | null; courts: Court[]; onSave: (r: RecurringBooking) => void; onClose: () => void }): JSX.Element {
+  const [courtId, setCourtId] = useState(initial?.courtId ?? courts[0]?.id ?? '');
+  const [weekday, setWeekday] = useState(initial?.weekday ?? 6); // mặc định T7
+  const [startHour, setStartHour] = useState(initial?.startHour ?? 18);
+  const [duration, setDuration] = useState(initial?.duration ?? 1);
+  const [customerName, setCustomerName] = useState(initial?.customerName ?? '');
+  const [customerPhone, setCustomerPhone] = useState(initial?.customerPhone ?? '');
+  const [startDate, setStartDate] = useState(initial?.startDate ?? todayStr());
+  const [endDate, setEndDate] = useState(initial?.endDate ?? '');
+  const [defaultStatus, setDefaultStatus] = useState<PaymentStatus>(initial?.defaultStatus ?? 'unpaid');
+  const [defaultPaid, setDefaultPaid] = useState(initial?.defaultPaid ?? 0);
+  const [note, setNote] = useState(initial?.note ?? '');
+
+  function handleSubmit(): void {
+    if (!courtId || !customerName.trim()) return;
+    const rule: RecurringBooking = {
+      id: initial?.id ?? makeId(),
+      courtId,
+      weekday,
+      startHour,
+      duration,
+      customerName: customerName.trim(),
+      customerPhone: customerPhone.trim() || undefined,
+      startDate,
+      endDate: endDate || undefined,
+      defaultStatus,
+      defaultPaid: defaultPaid > 0 ? defaultPaid : undefined,
+      note: note.trim() || undefined,
+      active: initial?.active ?? true,
+      createdAt: initial?.createdAt ?? Date.now(),
+      lastGeneratedDate: initial?.lastGeneratedDate,
+    };
+    onSave(rule);
+  }
+
+  return (
+    <ModalShell title={initial ? 'Sửa lịch định kỳ' : 'Tạo lịch định kỳ'} onClose={onClose}>
+      <FormField label="Khách">
+        <input className="input" value={customerName} onChange={(e) => setCustomerName(e.target.value)} placeholder="VD: Anh A — đội pickleball T7" autoFocus />
+      </FormField>
+      <FormField label="SĐT (optional)">
+        <input className="input" type="tel" value={customerPhone} onChange={(e) => setCustomerPhone(e.target.value)} placeholder="09xx..." />
+      </FormField>
+      <FormField label="Sân">
+        <select className="input" value={courtId} onChange={(e) => setCourtId(e.target.value)}>
+          {courts.map((c) => <option key={c.id} value={c.id}>{c.name} — {COURT_TYPE_LABEL[c.type]}</option>)}
+        </select>
+      </FormField>
+      <FormField label="Thứ trong tuần">
+        <div style={{ display: 'flex', gap: 4 }}>
+          {WEEKDAY_LABEL_FULL.map((label, i) => (
+            <button
+              key={i}
+              type="button"
+              onClick={() => setWeekday(i)}
+              style={{
+                flex: 1,
+                padding: '8px 4px',
+                background: weekday === i ? 'var(--color-accent-primary)' : 'var(--color-surface-row)',
+                color: weekday === i ? '#FFF' : 'var(--color-text-primary)',
+                border: '1px solid var(--color-border-subtle)',
+                borderRadius: 6,
+                fontSize: 11,
+                fontWeight: 700,
+                cursor: 'pointer',
+              }}
+            >
+              {WEEKDAY_LABEL[i]}
+            </button>
+          ))}
+        </div>
+      </FormField>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+        <FormField label="Giờ bắt đầu">
+          <select className="input" value={startHour} onChange={(e) => setStartHour(Number(e.target.value))}>
+            {Array.from({ length: 18 }, (_, i) => i + 6).map((h) => (
+              <option key={h} value={h}>{String(h).padStart(2, '0')}:00</option>
+            ))}
+          </select>
+        </FormField>
+        <FormField label="Số giờ">
+          <select className="input" value={duration} onChange={(e) => setDuration(Number(e.target.value))}>
+            {[1, 1.5, 2, 2.5, 3, 4].map((d) => <option key={d} value={d}>{d}h</option>)}
+          </select>
+        </FormField>
+      </div>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+        <FormField label="Bắt đầu áp dụng từ">
+          <input className="input" type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} />
+        </FormField>
+        <FormField label="Đến ngày (trống = ∞)">
+          <input className="input" type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} />
+        </FormField>
+      </div>
+      <FormField label="Trạng thái mặc định khi auto tạo">
+        <select className="input" value={defaultStatus} onChange={(e) => setDefaultStatus(e.target.value as PaymentStatus)}>
+          <option value="unpaid">⚪ Chưa thu tiền</option>
+          <option value="paid">✅ Đã trả trước (vd khách trả cả tháng)</option>
+        </select>
+      </FormField>
+      {defaultStatus === 'paid' && (
+        <FormField label="Số tiền trả trước (VND)">
+          <input className="input" type="number" value={defaultPaid} onChange={(e) => setDefaultPaid(Number(e.target.value) || 0)} min={0} step={50000} />
+        </FormField>
+      )}
+      <FormField label="Ghi chú">
+        <input className="input" value={note} onChange={(e) => setNote(e.target.value)} placeholder="(optional)" />
+      </FormField>
+
+      <div style={{ padding: 10, background: 'var(--color-surface-row)', borderRadius: 8, fontSize: 11, color: 'var(--color-text-muted)', marginBottom: 12 }}>
+        💡 Booking sẽ tự tạo trước 2 tuần khi mở module. Nếu có booking thủ công trùng giờ, hệ thống không tạo trùng.
+      </div>
+
+      <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+        <button type="button" className="btn-secondary" onClick={onClose}>Hủy</button>
+        <button type="button" className="btn-primary" onClick={handleSubmit} disabled={!courtId || !customerName.trim()}>
+          {initial ? 'Lưu' : '✚ Tạo lịch định kỳ'}
+        </button>
+      </div>
+    </ModalShell>
   );
 }
 

@@ -13,7 +13,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { getAppVersion, openUrl } from './lib/platform';
 import { AuthProvider, useAuth } from '@trishteam/auth/react';
-import { Building2, Wallet, ShoppingCart, LogOut, Sun, Moon, Settings as SettingsIcon, Shield, ExternalLink, Bell, Menu, Trophy, Package, Printer, Home, Mic, Sparkles, Coffee, Dumbbell } from 'lucide-react';
+import { Building2, Wallet, ShoppingCart, LogOut, Sun, Moon, Settings as SettingsIcon, Shield, ExternalLink, Bell, Menu, Trophy, Package, Printer, Home, Mic, Sparkles, Coffee, Dumbbell, CreditCard } from 'lucide-react';
 import { LoginScreen } from './pages/LoginScreen';
 import { SettingsModal } from './pages/SettingsModal';
 import { NhaTroModule } from './modules/nhatro/NhaTroModule';
@@ -31,9 +31,11 @@ import { KaraokeModule } from './modules/karaoke/KaraokeModule';
 import { SpaModule } from './modules/spa/SpaModule';
 import { CafeModule } from './modules/cafe/CafeModule';
 import { GymModule } from './modules/gym/GymModule';
+import { BankImporter } from './modules/bank/BankImporter';
 
-// Phase 40.5 — Thêm 3 module mới (scaffold MVP): santhethao / khodientu / photocopy
+// Phase 40.5 — Thêm 3 module mới: santhethao / khodientu / photocopy
 // Phase 40.11 — Dashboard tổng hợp. Phase 40.12 — 4 module ngành mới.
+// Phase 40.13 — Bank CSV import.
 export type ModuleId =
   | 'dashboard'
   | 'taichinh'
@@ -45,7 +47,8 @@ export type ModuleId =
   | 'karaoke'
   | 'spa'
   | 'cafe'
-  | 'gym';
+  | 'gym'
+  | 'bank';
 
 export default function App(): JSX.Element {
   return (
@@ -196,6 +199,7 @@ function MainShell(): JSX.Element {
     { id: 'spa', icon: Sparkles, label: 'Spa / Salon', sub: 'Lịch hẹn · Liệu trình · Thẻ thành viên' },
     { id: 'cafe', icon: Coffee, label: 'Cafe / Bar', sub: 'Menu · Bàn · Order · Bill' },
     { id: 'gym', icon: Dumbbell, label: 'Gym / Fitness', sub: 'Thẻ tập · PT · Lịch lớp' },
+    { id: 'bank', icon: CreditCard, label: 'Import sao kê', sub: 'CSV VCB · TCB · MB Bank' },
   ];
 
   return (
@@ -333,6 +337,7 @@ function MainShell(): JSX.Element {
           {active === 'spa' && <SpaModule />}
           {active === 'cafe' && <CafeModule />}
           {active === 'gym' && <GymModule />}
+          {active === 'bank' && <BankImporter />}
         </div>
       </main>
 
