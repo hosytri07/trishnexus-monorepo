@@ -25,6 +25,7 @@ import {
   ArrowDownToLine,
 } from 'lucide-react';
 import { addLedgerEntry } from '../../lib/ledger-helper';
+import { PaymentModal, type PaymentResult } from '../../components/PaymentModal';
 
 // ============================================================
 type ServiceCategory = 'print_bw' | 'print_color' | 'copy' | 'scan' | 'binding' | 'other';
@@ -207,6 +208,7 @@ function CalcTab({ db, setDb }: { db: Db; setDb: (d: Db) => void }): JSX.Element
   const [studentCardId, setStudentCardId] = useState('');
   const [paymentMethod, setPaymentMethod] = useState<'cash' | 'card_balance'>('cash');
   const [paid, setPaid] = useState(0);
+  const [showPayment, setShowPayment] = useState(false);
 
   function addService(serviceId: string): void {
     const existing = items.find((it) => it.serviceId === serviceId);
@@ -411,13 +413,22 @@ function CalcTab({ db, setDb }: { db: Db; setDb: (d: Db) => void }): JSX.Element
             )}
 
             <div style={{ display: 'flex', gap: 6 }}>
-              <button type="button" className="btn-secondary" onClick={() => { setItems([]); setCustomerName(''); setStudentCard(''); setPaid(0); }} style={{ flex: 1 }}>
+              <button type="button" className="btn-secondary" onClick={() => { setItems([]); setCustomerName(''); setStudentCardId(''); setPaymentMethod('cash'); setPaid(0); }} style={{ flex: 1 }}>
                 Xóa
               </button>
-              <button type="button" className="btn-primary" onClick={handleCheckout} style={{ flex: 2 }}>
-                ✓ Thanh toán {formatMoney(total)}
+              <button type="button" className="btn-primary" onClick={() => useCardBalance ? handleCheckout() : setShowPayment(true)} style={{ flex: 2 }}>
+                💳 Thanh toán {formatMoney(total)}
               </button>
             </div>
+            {showPayment && (
+              <PaymentModal
+                total={total}
+                description={`Photocopy ${txItems.map((it) => it.serviceName).join(' ').slice(0, 30)}`}
+                customerName={customerName || selectedCard?.name}
+                onConfirm={(result) => { setPaid(result.paid); setShowPayment(false); setTimeout(() => handleCheckout(), 50); }}
+                onClose={() => setShowPayment(false)}
+              />
+            )}
           </>
         )}
       </div>

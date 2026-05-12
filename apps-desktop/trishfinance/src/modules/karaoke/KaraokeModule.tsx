@@ -7,6 +7,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Mic, Plus, Edit2, Trash2, X, Music, ShoppingBag, TrendingUp, DollarSign, Clock } from 'lucide-react';
 import { addLedgerEntry, removeLedgerEntriesByRef } from '../../lib/ledger-helper';
+import { PaymentModal, type PaymentResult } from '../../components/PaymentModal';
 
 type RoomType = 'vip' | 'small' | 'medium' | 'large' | 'family';
 
@@ -146,6 +147,7 @@ function PosTab({ db, setDb }: { db: Db; setDb: (d: Db) => void }): JSX.Element 
   const [customerName, setCustomerName] = useState('');
   const [drinkItems, setDrinkItems] = useState<Array<{ drinkId: string; qty: number }>>([]);
   const [paid, setPaid] = useState(0);
+  const [showPayment, setShowPayment] = useState(false);
 
   const room = db.rooms.find((r) => r.id === roomId);
   const roomCharge = (room?.pricePerHour ?? 0) * hours;
@@ -258,12 +260,18 @@ function PosTab({ db, setDb }: { db: Db; setDb: (d: Db) => void }): JSX.Element 
           <span style={{ fontSize: 11, color: 'var(--color-text-muted)', fontWeight: 600 }}>TỔNG</span>
           <span style={{ fontSize: 20, fontWeight: 800, color: 'var(--color-accent-primary)' }}>{formatMoney(total)}</span>
         </div>
-        <FormField label="Khách đưa">
-          <input className="input" type="number" value={paid} onChange={(e) => setPaid(Number(e.target.value) || 0)} placeholder={String(total)} />
-        </FormField>
-        <button type="button" className="btn-primary" onClick={handleCheckout} disabled={!room || !customerName.trim()} style={{ width: '100%', justifyContent: 'center', padding: 12, fontWeight: 700 }}>
-          ✓ Tính tiền {formatMoney(total)}
+        <button type="button" className="btn-primary" onClick={() => setShowPayment(true)} disabled={!room || !customerName.trim() || total <= 0} style={{ width: '100%', justifyContent: 'center', padding: 12, fontWeight: 700 }}>
+          💳 Thanh toán {formatMoney(total)}
         </button>
+        {showPayment && (
+          <PaymentModal
+            total={total}
+            description={`Karaoke ${room?.name ?? ''} ${hours}h`}
+            customerName={customerName}
+            onConfirm={(result) => { setPaid(result.paid); setShowPayment(false); setTimeout(() => handleCheckout(), 50); }}
+            onClose={() => setShowPayment(false)}
+          />
+        )}
       </div>
     </div>
   );

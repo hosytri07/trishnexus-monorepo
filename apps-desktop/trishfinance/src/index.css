@@ -297,6 +297,34 @@
 /* ==========================================================
  * Touch-friendly tap targets (≤768px)
  * ========================================================== */
+/* Phase 40.16 — Alias .input = .input-field cho các module mới đồng bộ với module cũ */
+.ts-app .input {
+  width: 100%;
+  background: var(--color-surface-row);
+  border: 1px solid var(--color-border-subtle);
+  color: var(--color-text-primary);
+  border-radius: 10px;
+  padding: 7px 13px;
+  font-size: 13px;
+  font-weight: 400;
+  outline: none;
+  transition: border-color 150ms, background 150ms, box-shadow 150ms;
+  font-family: inherit;
+}
+.ts-app .input:focus {
+  border-color: var(--color-border-focus, var(--color-accent-primary));
+  background: var(--color-surface-bg-elevated);
+  box-shadow: 0 0 0 3px var(--color-accent-soft);
+}
+.ts-app textarea.input {
+  resize: vertical;
+  min-height: 80px;
+  line-height: 1.5;
+}
+.ts-app select.input {
+  cursor: pointer;
+}
+
 @media (max-width: 768px) {
   button, .btn-primary, .btn-secondary, .icon-btn {
     min-height: 38px;

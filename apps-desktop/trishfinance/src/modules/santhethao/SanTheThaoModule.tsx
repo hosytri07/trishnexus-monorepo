@@ -24,6 +24,7 @@ import {
   Wallet,
 } from 'lucide-react';
 import { addLedgerEntry, removeLedgerEntriesByRef, getBankAccounts } from '../../lib/ledger-helper';
+import { PaymentModal, type PaymentResult } from '../../components/PaymentModal';
 
 // ============================================================
 // Types
@@ -718,7 +719,15 @@ function CalendarTab({ db, setDb }: { db: Db; setDb: (d: Db) => void }): JSX.Ele
 function ManageBookingModal({ booking, court, onUpdate, onCancel, onClose }: { booking: Booking; court: Court; onUpdate: (paid: number, status: PaymentStatus) => void; onCancel: () => void; onClose: () => void }): JSX.Element {
   const [paid, setPaid] = useState(booking.paid ?? 0);
   const [status, setStatus] = useState<PaymentStatus>(booking.paymentStatus ?? 'unpaid');
+  const [showPayment, setShowPayment] = useState(false);
   const remaining = booking.totalPrice - paid;
+
+  function handlePaymentConfirm(result: PaymentResult): void {
+    setPaid(booking.totalPrice);
+    setStatus('paid');
+    setShowPayment(false);
+    onUpdate(booking.totalPrice, 'paid');
+  }
 
   return (
     <ModalShell title={`Đơn: ${booking.customerName}`} onClose={onClose}>
@@ -746,9 +755,6 @@ function ManageBookingModal({ booking, court, onUpdate, onCancel, onClose }: { b
       </FormField>
 
       <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 10 }}>
-        <button type="button" className="btn-secondary" onClick={() => { setPaid(booking.totalPrice); setStatus('paid'); }} style={{ fontSize: 11, padding: '4px 8px' }}>
-          ⚡ Thu đủ ngay
-        </button>
         <button type="button" className="btn-secondary" onClick={() => { setPaid(booking.totalPrice / 2); setStatus('deposit'); }} style={{ fontSize: 11, padding: '4px 8px' }}>
           ⚡ Đặt cọc 50%
         </button>
@@ -756,6 +762,26 @@ function ManageBookingModal({ booking, court, onUpdate, onCancel, onClose }: { b
           ⚡ Ghi nợ
         </button>
       </div>
+
+      {/* Phase 40.16 — Thanh toán nhanh có QR */}
+      <button
+        type="button"
+        onClick={() => setShowPayment(true)}
+        className="btn-primary"
+        style={{ width: '100%', justifyContent: 'center', padding: 12, fontWeight: 700, fontSize: 14, marginBottom: 10 }}
+      >
+        💳 Thanh toán nhanh (QR / Tiền mặt)
+      </button>
+
+      {showPayment && (
+        <PaymentModal
+          total={booking.totalPrice - (booking.paid ?? 0)}
+          description={`San TT ${court.name} ${booking.date}`.slice(0, 50)}
+          customerName={booking.customerName}
+          onConfirm={handlePaymentConfirm}
+          onClose={() => setShowPayment(false)}
+        />
+      )}
 
       <div style={{ display: 'flex', gap: 8, justifyContent: 'space-between', marginTop: 16 }}>
         <button type="button" className="btn-secondary" onClick={onCancel} style={{ color: '#DC2626', borderColor: '#DC2626' }}>

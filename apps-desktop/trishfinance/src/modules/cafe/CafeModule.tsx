@@ -7,6 +7,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Coffee, Plus, Edit2, Trash2, X, Grid3x3, TrendingUp, DollarSign } from 'lucide-react';
 import { addLedgerEntry } from '../../lib/ledger-helper';
+import { PaymentModal, type PaymentResult } from '../../components/PaymentModal';
 
 type MenuCategory = 'coffee' | 'tea' | 'juice' | 'beer' | 'food' | 'dessert' | 'other';
 
@@ -91,6 +92,7 @@ function PosTab({ db, setDb }: { db: Db; setDb: (d: Db) => void }): JSX.Element 
   const [items, setItems] = useState<Array<{ itemId: string; qty: number }>>([]);
   const [tableId, setTableId] = useState('');
   const [paid, setPaid] = useState(0);
+  const [showPayment, setShowPayment] = useState(false);
 
   const orderItems = items.map((it) => { const m = db.menu.find((x) => x.id === it.itemId)!; return { itemId: it.itemId, name: m.name, qty: it.qty, price: m.price, subtotal: m.price * it.qty }; });
   const total = orderItems.reduce((s, x) => s + x.subtotal, 0);
@@ -141,8 +143,15 @@ function PosTab({ db, setDb }: { db: Db; setDb: (d: Db) => void }): JSX.Element 
           <span style={{ fontSize: 11, color: 'var(--color-text-muted)' }}>TỔNG</span>
           <span style={{ fontSize: 20, fontWeight: 800, color: 'var(--color-accent-primary)' }}>{fm(total)}</span>
         </div>
-        <FormField label="Khách trả"><input className="input" type="number" value={paid} onChange={(e) => setPaid(Number(e.target.value) || 0)} placeholder={String(total)} /></FormField>
-        <button type="button" className="btn-primary" onClick={checkout} disabled={items.length === 0} style={{ width: '100%', justifyContent: 'center', padding: 12, fontWeight: 700 }}>✓ Thanh toán {fm(total)}</button>
+        <button type="button" className="btn-primary" onClick={() => setShowPayment(true)} disabled={items.length === 0 || total <= 0} style={{ width: '100%', justifyContent: 'center', padding: 12, fontWeight: 700 }}>💳 Thanh toán {fm(total)}</button>
+        {showPayment && (
+          <PaymentModal
+            total={total}
+            description={`Cafe ${tableId ? db.tables.find((t) => t.id === tableId)?.name + ' ' : ''}${orderItems.map((it) => it.name).join(' ').slice(0, 30)}`}
+            onConfirm={(result) => { setPaid(result.paid); setShowPayment(false); setTimeout(() => checkout(), 50); }}
+            onClose={() => setShowPayment(false)}
+          />
+        )}
       </div>
     </div>
   );

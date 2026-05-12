@@ -7,6 +7,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Sparkles, Plus, Edit2, Trash2, X, User, Calendar, TrendingUp, DollarSign } from 'lucide-react';
 import { addLedgerEntry } from '../../lib/ledger-helper';
+import { PaymentModal, type PaymentResult } from '../../components/PaymentModal';
 
 type ServiceCategory = 'haircut' | 'wash' | 'dye' | 'massage' | 'nail' | 'facial' | 'other';
 
@@ -143,6 +144,7 @@ function PosTab({ db, setDb }: { db: Db; setDb: (d: Db) => void }): JSX.Element 
   const [memberId, setMemberId] = useState('');
   const [staffId, setStaffId] = useState('');
   const [paid, setPaid] = useState(0);
+  const [showPayment, setShowPayment] = useState(false);
 
   const services = items.map((id) => db.services.find((s) => s.id === id)!).filter(Boolean);
   const subtotal = services.reduce((s, x) => s + x.price, 0);
@@ -205,8 +207,16 @@ function PosTab({ db, setDb }: { db: Db; setDb: (d: Db) => void }): JSX.Element 
           {discount > 0 && <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, color: '#10B981' }}><span>Giảm {member?.discountPercent}%</span><span>−{fm(discount)}</span></div>}
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 4 }}><span style={{ fontSize: 11, color: 'var(--color-text-muted)' }}>TỔNG</span><span style={{ fontSize: 20, fontWeight: 800, color: 'var(--color-accent-primary)' }}>{fm(total)}</span></div>
         </div>
-        <FormField label="Khách trả"><input className="input" type="number" value={paid} onChange={(e) => setPaid(Number(e.target.value) || 0)} placeholder={String(total)} /></FormField>
-        <button type="button" className="btn-primary" onClick={handleCheckout} disabled={services.length === 0 || !customerName.trim()} style={{ width: '100%', justifyContent: 'center', padding: 12, fontWeight: 700 }}>✓ Thanh toán {fm(total)}</button>
+        <button type="button" className="btn-primary" onClick={() => setShowPayment(true)} disabled={services.length === 0 || !customerName.trim() || total <= 0} style={{ width: '100%', justifyContent: 'center', padding: 12, fontWeight: 700 }}>💳 Thanh toán {fm(total)}</button>
+        {showPayment && (
+          <PaymentModal
+            total={total}
+            description={`Spa ${services.map((s) => s.name).join(' ').slice(0, 30)}`}
+            customerName={customerName}
+            onConfirm={(result) => { setPaid(result.paid); setShowPayment(false); setTimeout(() => handleCheckout(), 50); }}
+            onClose={() => setShowPayment(false)}
+          />
+        )}
       </div>
     </div>
   );

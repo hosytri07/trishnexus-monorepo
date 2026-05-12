@@ -1133,6 +1133,7 @@ async fn download_social_media(
     output_dir: String,
     remove_watermark: bool,
     download_playlist: Option<bool>,
+    cookies_browser: Option<String>,
 ) -> Result<MediaDownloadResult, String> {
     let cmd_name = resolve_ytdlp_cmd(&app);
 
@@ -1149,7 +1150,19 @@ async fn download_social_media(
         output_template.clone(),
         "--newline".to_string(), // progress newline-delimited
         "--no-warnings".to_string(),
+        // Phase 40.16 — Custom progress template để parse % và bytes
+        "--progress-template".to_string(),
+        "download:[TRISH_PROGRESS]%(progress._percent_str)s|%(progress._downloaded_bytes_str)s|%(progress._total_bytes_str)s|%(progress._speed_str)s|%(progress._eta_str)s".to_string(),
     ];
+
+    // Phase 40.16 — Tải video private: dùng cookies từ trình duyệt
+    // cookies_browser: 'chrome' | 'firefox' | 'edge' | 'brave' | 'opera' | 'safari'
+    if let Some(browser) = cookies_browser.as_ref() {
+        if !browser.is_empty() && browser != "none" {
+            args.push("--cookies-from-browser".to_string());
+            args.push(browser.clone());
+        }
+    }
 
     // Default: no-playlist trừ khi user opt-in
     if !download_playlist.unwrap_or(false) {
@@ -1195,9 +1208,15 @@ async fn download_social_media(
         serde_json::json!({ "url": url, "status": "starting" }),
     );
 
-    let output = std::process::Command::new(&cmd_name)
+    // Phase 40.16 — Spawn + stream stdout để parse progress realtime
+    use std::io::BufRead;
+    use std::process::Stdio;
+
+    let mut child = std::process::Command::new(&cmd_name)
         .args(&args)
-        .output()
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
         .map_err(|e| {
             format!(
                 "Không chạy được yt-dlp ({}): {}\n\nBấm 'Cài yt-dlp tự động' bên dưới để tải về.",
@@ -1205,10 +1224,64 @@ async fn download_social_media(
             )
         })?;
 
-    let stdout = String::from_utf8_lossy(&output.stdout).to_string();
-    let stderr = String::from_utf8_lossy(&output.stderr).to_string();
+    let stdout_handle = child.stdout.take();
+    let stderr_handle = child.stderr.take();
 
-    if !output.status.success() {
+    let mut stdout_lines = String::new();
+    if let Some(out) = stdout_handle {
+        let reader = std::io::BufReader::new(out);
+        for line in reader.lines().flatten() {
+            stdout_lines.push_str(&line);
+            stdout_lines.push('\n');
+
+            // Phase 40.16 — Parse progress markers
+            if let Some(rest) = line.strip_prefix("[TRISH_PROGRESS]") {
+                // Format: %|bytes|total|speed|eta
+                let parts: Vec<&str> = rest.split('|').collect();
+                if parts.len() >= 5 {
+                    let _ = app.emit(
+                        "media-download:progress",
+                        serde_json::json!({
+                            "url": url,
+                            "status": "downloading",
+                            "percent": parts[0].trim(),
+                            "downloaded": parts[1].trim(),
+                            "total": parts[2].trim(),
+                            "speed": parts[3].trim(),
+                            "eta": parts[4].trim(),
+                        }),
+                    );
+                }
+                continue;
+            }
+
+            // Detect destination / merger output
+            if let Some(p) = line
+                .trim()
+                .strip_prefix("[download] Destination: ")
+                .or_else(|| line.trim().strip_prefix("[Merger] Merging formats into \""))
+            {
+                let path = p.trim_end_matches('"').to_string();
+                let _ = app.emit(
+                    "media-download:progress",
+                    serde_json::json!({ "url": url, "status": "saving", "path": path }),
+                );
+            }
+        }
+    }
+
+    let mut stderr_text = String::new();
+    if let Some(err) = stderr_handle {
+        use std::io::Read;
+        let mut reader = std::io::BufReader::new(err);
+        let _ = reader.read_to_string(&mut stderr_text);
+    }
+
+    let exit_status = child.wait().map_err(|e| format!("wait fail: {}", e))?;
+    let stdout = stdout_lines;
+    let stderr = stderr_text;
+
+    if !exit_status.success() {
         let _ = app.emit(
             "media-download:progress",
             serde_json::json!({ "url": url, "status": "error", "error": stderr.clone() }),

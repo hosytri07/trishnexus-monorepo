@@ -27,8 +27,10 @@ import {
   Loader2,
   ExternalLink,
   FolderOpen,
+  Lock,
 } from 'lucide-react';
 import { invoke } from '@tauri-apps/api/core';
+import { listen, type UnlistenFn } from '@tauri-apps/api/event';
 import { documentDir, join } from '@tauri-apps/api/path';
 import { openUrl } from '@tauri-apps/plugin-opener';
 
@@ -55,7 +57,12 @@ interface QueueItem {
   platform: PlatformId;
   status: 'pending' | 'analyzing' | 'downloading' | 'done' | 'error';
   title?: string;
-  progress?: number;
+  /** Phase 40.16 — Realtime progress */
+  percent?: string;
+  downloaded?: string;
+  total?: string;
+  speed?: string;
+  eta?: string;
   error?: string;
 }
 
@@ -72,11 +79,42 @@ export function MediaDownloadScreen(): JSX.Element {
   const [quality, setQuality] = useState<'best' | '1080p' | '720p' | '480p' | 'audio'>('best');
   const [removeWatermark, setRemoveWatermark] = useState(true);
   const [downloadPlaylist, setDownloadPlaylist] = useState(false);
+  const [cookiesBrowser, setCookiesBrowser] = useState<string>('none');
   const [queue, setQueue] = useState<QueueItem[]>([]);
   const [toast, setToast] = useState<{ msg: string; kind: 'ok' | 'err' } | null>(null);
   const [ytdlpAvailable, setYtdlpAvailable] = useState<boolean | null>(null);
   const [installing, setInstalling] = useState(false);
   const [outputDir, setOutputDir] = useState<string>('');
+
+  // Phase 40.16 — Listen progress events từ Rust
+  useEffect(() => {
+    let unlisten: UnlistenFn | null = null;
+    listen<{
+      url: string;
+      status: string;
+      percent?: string;
+      downloaded?: string;
+      total?: string;
+      speed?: string;
+      eta?: string;
+      path?: string;
+    }>('media-download:progress', (event) => {
+      const p = event.payload;
+      setQueue((q) =>
+        q.map((it) => {
+          if (it.url !== p.url) return it;
+          if (p.status === 'downloading') {
+            return { ...it, status: 'downloading', percent: p.percent, downloaded: p.downloaded, total: p.total, speed: p.speed, eta: p.eta };
+          }
+          if (p.status === 'saving' && p.path) {
+            return { ...it, title: p.path.split(/[\\/]/).pop() };
+          }
+          return it;
+        }),
+      );
+    }).then((fn) => { unlisten = fn; });
+    return () => { if (unlisten) unlisten(); };
+  }, []);
 
   // Parse multi-line URLs
   const parsedUrls = urls.split('\n').map((u) => u.trim()).filter((u) => u.length > 0);
@@ -167,6 +205,7 @@ export function MediaDownloadScreen(): JSX.Element {
             outputDir,
             removeWatermark,
             downloadPlaylist,
+            cookiesBrowser: cookiesBrowser === 'none' ? null : cookiesBrowser,
           },
         );
 
@@ -387,8 +426,8 @@ export function MediaDownloadScreen(): JSX.Element {
             paddingTop: 14,
             borderTop: '1px solid var(--color-border-subtle)',
             display: 'grid',
-            gridTemplateColumns: '1fr 1fr 1fr',
-            gap: 14,
+            gridTemplateColumns: '1fr 1fr 1fr 1fr',
+            gap: 12,
           }}
         >
           <div>
@@ -500,6 +539,45 @@ export function MediaDownloadScreen(): JSX.Element {
               Tải cả playlist
             </label>
           </div>
+          {/* Phase 40.16 — Private video qua cookies từ browser */}
+          <div>
+            <label
+              style={{
+                display: 'block',
+                fontSize: 11,
+                fontWeight: 600,
+                color: 'var(--color-text-muted)',
+                textTransform: 'uppercase',
+                letterSpacing: 0.4,
+                marginBottom: 6,
+              }}
+            >
+              <Lock style={{ width: 11, height: 11, display: 'inline', marginRight: 4 }} /> Video private
+            </label>
+            <select
+              value={cookiesBrowser}
+              onChange={(e) => setCookiesBrowser(e.target.value)}
+              title="Dùng cookies từ trình duyệt đã login để tải video private/login-required"
+              style={{
+                width: '100%',
+                padding: '7px 8px',
+                borderRadius: 8,
+                border: '1px solid var(--color-border-default)',
+                background: 'var(--color-surface-bg)',
+                color: 'var(--color-text-primary)',
+                fontSize: 12,
+                outline: 'none',
+                cursor: 'pointer',
+              }}
+            >
+              <option value="none">— Không (public only) —</option>
+              <option value="chrome">🟢 Chrome</option>
+              <option value="firefox">🔥 Firefox</option>
+              <option value="edge">📘 Edge</option>
+              <option value="brave">🦁 Brave</option>
+              <option value="opera">🔴 Opera</option>
+            </select>
+          </div>
         </div>
       </div>
 
@@ -555,6 +633,8 @@ export function MediaDownloadScreen(): JSX.Element {
           </div>
           {queue.map((item) => {
             const p = PLATFORMS.find((x) => x.id === item.platform);
+            // Parse percent string "12.5%" → 12.5
+            const pctNum = item.percent ? parseFloat(item.percent.replace('%', '').trim()) : 0;
             return (
               <div
                 key={item.id}
@@ -592,22 +672,49 @@ export function MediaDownloadScreen(): JSX.Element {
                       whiteSpace: 'nowrap',
                     }}
                   >
-                    {item.url}
+                    {item.title || item.url}
                   </div>
-                  <div style={{ fontSize: 11, color: 'var(--color-text-muted)', marginTop: 2 }}>
-                    {item.status === 'pending' && (
-                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
-                        <Loader2 className="animate-spin" style={{ width: 12, height: 12 }} />
-                        Đang chờ…
-                      </span>
-                    )}
-                    {item.status === 'error' && (
-                      <span style={{ color: '#DC2626' }}>⚠ {item.error}</span>
-                    )}
-                    {item.status === 'done' && (
-                      <span style={{ color: '#065F46' }}>✅ Hoàn thành</span>
-                    )}
-                  </div>
+                  {/* Progress bar khi đang downloading */}
+                  {item.status === 'downloading' && item.percent && (
+                    <div style={{ marginTop: 6 }}>
+                      <div style={{ height: 6, background: 'var(--color-surface-row)', borderRadius: 3, overflow: 'hidden' }}>
+                        <div
+                          style={{
+                            width: `${Math.max(0, Math.min(100, pctNum))}%`,
+                            height: '100%',
+                            background: 'linear-gradient(90deg, #10B981, #059669)',
+                            transition: 'width 0.2s',
+                          }}
+                        />
+                      </div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10, color: 'var(--color-text-muted)', marginTop: 3, fontFamily: 'monospace' }}>
+                        <span>
+                          <strong style={{ color: '#10B981' }}>{item.percent}</strong>
+                          {' · '}
+                          {item.downloaded ?? '—'} / {item.total ?? '—'}
+                        </span>
+                        <span>
+                          {item.speed ?? '—'} · ETA {item.eta ?? '—'}
+                        </span>
+                      </div>
+                    </div>
+                  )}
+                  {item.status !== 'downloading' && (
+                    <div style={{ fontSize: 11, color: 'var(--color-text-muted)', marginTop: 2 }}>
+                      {item.status === 'pending' && (
+                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                          <Loader2 className="animate-spin" style={{ width: 12, height: 12 }} />
+                          Đang chờ…
+                        </span>
+                      )}
+                      {item.status === 'error' && (
+                        <span style={{ color: '#DC2626' }}>⚠ {item.error}</span>
+                      )}
+                      {item.status === 'done' && (
+                        <span style={{ color: '#065F46' }}>✅ Hoàn thành — {item.title}</span>
+                      )}
+                    </div>
+                  )}
                 </div>
                 <button
                   type="button"
