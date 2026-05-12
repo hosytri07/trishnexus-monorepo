@@ -1048,6 +1048,184 @@ fn resolve_ytdlp_cmd(app: &tauri::AppHandle) -> String {
     fallback.to_string()
 }
 
+/// Path tới ffmpeg.exe (bundled local trong AppData/bin).
+fn ffmpeg_local_path(app: &tauri::AppHandle) -> Result<std::path::PathBuf, String> {
+    use tauri::Manager;
+    let app_data = app
+        .path()
+        .app_data_dir()
+        .map_err(|e| format!("Không lấy được AppData dir: {}", e))?;
+    let bin_dir = app_data.join("bin");
+    std::fs::create_dir_all(&bin_dir).map_err(|e| format!("Tạo bin dir fail: {}", e))?;
+    #[cfg(target_os = "windows")]
+    let exe = bin_dir.join("ffmpeg.exe");
+    #[cfg(not(target_os = "windows"))]
+    let exe = bin_dir.join("ffmpeg");
+    Ok(exe)
+}
+
+#[tauri::command]
+fn check_ffmpeg_available(app: tauri::AppHandle) -> Result<bool, String> {
+    if let Ok(local) = ffmpeg_local_path(&app) {
+        if local.exists() {
+            return Ok(true);
+        }
+    }
+    #[cfg(target_os = "windows")]
+    let cmd = "ffmpeg.exe";
+    #[cfg(not(target_os = "windows"))]
+    let cmd = "ffmpeg";
+    match std::process::Command::new(cmd).arg("-version").output() {
+        Ok(out) => Ok(out.status.success()),
+        Err(_) => Ok(false),
+    }
+}
+
+/// Auto-install ffmpeg: tải ffmpeg-release-essentials.zip từ gyan.dev,
+/// extract ffmpeg.exe + ffprobe.exe vào AppData/bin.
+#[tauri::command]
+async fn install_ffmpeg(app: tauri::AppHandle) -> Result<String, String> {
+    #[cfg(not(target_os = "windows"))]
+    {
+        return Err("Auto-install ffmpeg chỉ hỗ trợ Windows. macOS: brew install ffmpeg / Linux: apt install ffmpeg".to_string());
+    }
+
+    #[cfg(target_os = "windows")]
+    {
+        use tauri::Manager;
+        let app_data = app
+            .path()
+            .app_data_dir()
+            .map_err(|e| format!("AppData dir fail: {}", e))?;
+        let bin_dir = app_data.join("bin");
+        std::fs::create_dir_all(&bin_dir).map_err(|e| format!("Create bin fail: {}", e))?;
+        let zip_path = bin_dir.join("ffmpeg-release.zip");
+        let url = "https://www.gyan.dev/ffmpeg/builds/ffmpeg-release-essentials.zip";
+
+        let _ = app.emit(
+            "ffmpeg-install:progress",
+            serde_json::json!({ "status": "downloading", "msg": "Tải ffmpeg ~100MB từ gyan.dev..." }),
+        );
+
+        let client = reqwest::Client::builder()
+            .timeout(std::time::Duration::from_secs(600))
+            .user_agent(concat!("TrishDrive/", env!("CARGO_PKG_VERSION")))
+            .build()
+            .map_err(|e| format!("HTTP client fail: {}", e))?;
+
+        let resp = client
+            .get(url)
+            .send()
+            .await
+            .map_err(|e| format!("Download fail: {}", e))?;
+        if !resp.status().is_success() {
+            return Err(format!("HTTP {}", resp.status().as_u16()));
+        }
+
+        let bytes = resp
+            .bytes()
+            .await
+            .map_err(|e| format!("Read body fail: {}", e))?;
+
+        std::fs::write(&zip_path, &bytes).map_err(|e| format!("Write zip fail: {}", e))?;
+
+        let _ = app.emit(
+            "ffmpeg-install:progress",
+            serde_json::json!({ "status": "extracting", "msg": "Giải nén..." }),
+        );
+
+        // Dùng PowerShell Expand-Archive (built-in Windows 10+)
+        let extract_to = bin_dir.join("ffmpeg-tmp");
+        let _ = std::fs::remove_dir_all(&extract_to);
+        let out = std::process::Command::new("powershell")
+            .args([
+                "-NoProfile",
+                "-Command",
+                &format!(
+                    "Expand-Archive -Path '{}' -DestinationPath '{}' -Force",
+                    zip_path.display(),
+                    extract_to.display()
+                ),
+            ])
+            .output()
+            .map_err(|e| format!("Powershell extract fail: {}", e))?;
+        if !out.status.success() {
+            return Err(format!(
+                "Extract zip fail: {}",
+                String::from_utf8_lossy(&out.stderr)
+            ));
+        }
+
+        // Tìm ffmpeg.exe + ffprobe.exe trong extract dir (gyan zip có subfolder)
+        let mut found_ffmpeg: Option<std::path::PathBuf> = None;
+        let mut found_ffprobe: Option<std::path::PathBuf> = None;
+        for entry in walkdir_rs(&extract_to) {
+            let name = entry.file_name().to_string_lossy().to_lowercase();
+            if name == "ffmpeg.exe" {
+                found_ffmpeg = Some(entry.path().to_path_buf());
+            } else if name == "ffprobe.exe" {
+                found_ffprobe = Some(entry.path().to_path_buf());
+            }
+        }
+
+        let dest_ffmpeg = bin_dir.join("ffmpeg.exe");
+        let dest_ffprobe = bin_dir.join("ffprobe.exe");
+
+        if let Some(src) = found_ffmpeg {
+            std::fs::copy(&src, &dest_ffmpeg).map_err(|e| format!("Copy ffmpeg fail: {}", e))?;
+        } else {
+            return Err("Không tìm thấy ffmpeg.exe trong zip".to_string());
+        }
+        if let Some(src) = found_ffprobe {
+            std::fs::copy(&src, &dest_ffprobe).map_err(|e| format!("Copy ffprobe fail: {}", e))?;
+        }
+
+        // Cleanup
+        let _ = std::fs::remove_dir_all(&extract_to);
+        let _ = std::fs::remove_file(&zip_path);
+
+        let _ = app.emit(
+            "ffmpeg-install:progress",
+            serde_json::json!({ "status": "done", "path": dest_ffmpeg.to_string_lossy() }),
+        );
+
+        Ok(dest_ffmpeg.to_string_lossy().to_string())
+    }
+}
+
+/// Walkdir đệ quy đơn giản (tránh thêm dep walkdir cho 1 hàm).
+#[cfg(target_os = "windows")]
+fn walkdir_rs(root: &std::path::Path) -> Vec<std::fs::DirEntry> {
+    let mut result = Vec::new();
+    if let Ok(rd) = std::fs::read_dir(root) {
+        for entry in rd.flatten() {
+            let path = entry.path();
+            if path.is_dir() {
+                result.extend(walkdir_rs(&path));
+            } else {
+                result.push(entry);
+            }
+        }
+    }
+    result
+}
+
+/// Update yt-dlp local bundled (gọi `yt-dlp -U`).
+#[tauri::command]
+async fn update_ytdlp(app: tauri::AppHandle) -> Result<String, String> {
+    let cmd = resolve_ytdlp_cmd(&app);
+    let out = std::process::Command::new(&cmd)
+        .arg("-U")
+        .output()
+        .map_err(|e| format!("yt-dlp -U fail: {}", e))?;
+    let stdout = String::from_utf8_lossy(&out.stdout).to_string();
+    let stderr = String::from_utf8_lossy(&out.stderr).to_string();
+    if !out.status.success() {
+        return Err(format!("Update fail: {}\n{}", stderr, stdout));
+    }
+    Ok(stdout)
+}
+
 /// Check if yt-dlp binary is available (local bundled OR PATH).
 #[tauri::command]
 fn check_ytdlp_available(app: tauri::AppHandle) -> Result<bool, String> {
@@ -1157,6 +1335,14 @@ async fn download_social_media(
         "download:[TRISH_PROGRESS]%(progress._percent_str)s|%(progress._downloaded_bytes_str)s|%(progress._total_bytes_str)s|%(progress._speed_str)s|%(progress._eta_str)s".to_string(),
     ];
 
+    // Phase 40.18 — Pass ffmpeg location nếu đã cài local
+    if let Ok(ffmpeg) = ffmpeg_local_path(&app) {
+        if ffmpeg.exists() {
+            args.push("--ffmpeg-location".to_string());
+            args.push(ffmpeg.parent().unwrap_or(&ffmpeg).to_string_lossy().to_string());
+        }
+    }
+
     // Phase 40.16 — Tải video private: dùng cookies từ trình duyệt
     // cookies_browser: 'chrome' | 'firefox' | 'edge' | 'brave' | 'opera' | 'safari'
     if let Some(browser) = cookies_browser.as_ref() {
@@ -1199,7 +1385,8 @@ async fn download_social_media(
         args.push("--yes-playlist".to_string());
     }
 
-    // Quality / format
+    // Phase 40.18 — Quality / format với fallback bền hơn
+    // Pattern: thử format chính, nếu không có → fallback cuối là `b` (best available)
     match quality.as_str() {
         "audio" => {
             args.push("-x".to_string()); // extract audio
@@ -1208,15 +1395,15 @@ async fn download_social_media(
         }
         "1080p" => {
             args.push("-f".to_string());
-            args.push("bv*[height<=1080]+ba/b[height<=1080]".to_string());
+            args.push("bv*[height<=1080]+ba/bv*[height<=1080]/b[height<=1080]/bv*+ba/b".to_string());
         }
         "720p" => {
             args.push("-f".to_string());
-            args.push("bv*[height<=720]+ba/b[height<=720]".to_string());
+            args.push("bv*[height<=720]+ba/bv*[height<=720]/b[height<=720]/bv*+ba/b".to_string());
         }
         "480p" => {
             args.push("-f".to_string());
-            args.push("bv*[height<=480]+ba/b[height<=480]".to_string());
+            args.push("bv*[height<=480]+ba/bv*[height<=480]/b[height<=480]/bv*+ba/b".to_string());
         }
         _ => {
             // best (default)
@@ -1367,9 +1554,12 @@ pub fn run() {
         .manage(DownloadControl::default())
         .manage(WebDavServerState::default())
         .invoke_handler(tauri::generate_handler![
-            // Phase 40.6 + 40.10 — Social media downloader (yt-dlp)
+            // Phase 40.6 + 40.10 + 40.18 — Social media downloader (yt-dlp + ffmpeg)
             check_ytdlp_available,
             install_ytdlp,
+            update_ytdlp,
+            check_ffmpeg_available,
+            install_ffmpeg,
             download_social_media,
             app_version,
             ping,

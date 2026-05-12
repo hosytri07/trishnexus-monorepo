@@ -86,6 +86,9 @@ export function MediaDownloadScreen(): JSX.Element {
   const [toast, setToast] = useState<{ msg: string; kind: 'ok' | 'err' } | null>(null);
   const [ytdlpAvailable, setYtdlpAvailable] = useState<boolean | null>(null);
   const [installing, setInstalling] = useState(false);
+  const [ffmpegAvailable, setFfmpegAvailable] = useState<boolean | null>(null);
+  const [installingFfmpeg, setInstallingFfmpeg] = useState(false);
+  const [updatingYtdlp, setUpdatingYtdlp] = useState(false);
   const [outputDir, setOutputDir] = useState<string>('');
 
   // Phase 40.16 — Listen progress events từ Rust
@@ -124,16 +127,44 @@ export function MediaDownloadScreen(): JSX.Element {
   const platform = detectPlatform(firstUrl);
   const platformInfo = PLATFORMS.find((p) => p.id === platform);
 
-  // Phase 40.6 — Check yt-dlp + setup output dir
+  // Phase 40.6 + 40.18 — Check yt-dlp + ffmpeg + setup output dir
   useEffect(() => {
-    void invoke<boolean>('check_ytdlp_available')
-      .then(setYtdlpAvailable)
-      .catch(() => setYtdlpAvailable(false));
+    void invoke<boolean>('check_ytdlp_available').then(setYtdlpAvailable).catch(() => setYtdlpAvailable(false));
+    void invoke<boolean>('check_ffmpeg_available').then(setFfmpegAvailable).catch(() => setFfmpegAvailable(false));
     void documentDir()
       .then((d) => join(d, 'TrishDrive', 'MediaDownloads'))
       .then(setOutputDir)
       .catch(() => setOutputDir('Documents/TrishDrive/MediaDownloads'));
   }, []);
+
+  async function handleInstallFfmpeg(): Promise<void> {
+    if (installingFfmpeg) return;
+    setInstallingFfmpeg(true);
+    setToast({ msg: '⏳ Đang tải ffmpeg ~100MB từ gyan.dev (chậm hơn yt-dlp)...', kind: 'ok' });
+    try {
+      await invoke<string>('install_ffmpeg');
+      setFfmpegAvailable(true);
+      setToast({ msg: '✅ Đã cài ffmpeg — giờ tải MP3/MP4 OK', kind: 'ok' });
+    } catch (e) {
+      setToast({ msg: `⚠ Cài ffmpeg fail: ${e instanceof Error ? e.message : String(e)}`, kind: 'err' });
+    } finally {
+      setInstallingFfmpeg(false);
+    }
+  }
+
+  async function handleUpdateYtdlp(): Promise<void> {
+    if (updatingYtdlp) return;
+    setUpdatingYtdlp(true);
+    setToast({ msg: '⏳ Đang update yt-dlp...', kind: 'ok' });
+    try {
+      const out = await invoke<string>('update_ytdlp');
+      setToast({ msg: `✅ Update OK: ${out.slice(0, 100)}`, kind: 'ok' });
+    } catch (e) {
+      setToast({ msg: `⚠ Update fail: ${e instanceof Error ? e.message : String(e)}`, kind: 'err' });
+    } finally {
+      setUpdatingYtdlp(false);
+    }
+  }
 
   async function handleInstallYtdlp(): Promise<void> {
     if (installing) return;
@@ -882,20 +913,79 @@ winget install yt-dlp.yt-dlp
             justifyContent: 'space-between',
             alignItems: 'center',
             gap: 8,
+            flexWrap: 'wrap',
           }}
         >
           <div>
             <CheckCircle2 style={{ width: 14, height: 14, display: 'inline', verticalAlign: -2 }} />{' '}
-            yt-dlp đã sẵn sàng · Lưu tại: <code style={{ fontFamily: 'monospace', fontSize: 11 }}>{outputDir}</code>
+            yt-dlp sẵn sàng · {ffmpegAvailable ? '✅ ffmpeg OK' : '⚠ ffmpeg thiếu'}
           </div>
+          <div style={{ display: 'flex', gap: 6 }}>
+            <button
+              type="button"
+              onClick={() => void handleUpdateYtdlp()}
+              disabled={updatingYtdlp}
+              className="btn-secondary"
+              style={{ padding: '4px 10px', fontSize: 11 }}
+              title="Update yt-dlp (fix lỗi cookies/format mới)"
+            >
+              {updatingYtdlp ? <Loader2 className="animate-spin" style={{ width: 12, height: 12 }} /> : '🔄'} Update yt-dlp
+            </button>
+            <button
+              type="button"
+              onClick={() => void openUrl(outputDir)}
+              className="btn-secondary"
+              style={{ padding: '4px 10px', fontSize: 11 }}
+              title="Mở thư mục lưu"
+            >
+              <FolderOpen style={{ width: 12, height: 12 }} /> Mở thư mục
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Phase 40.18 — ffmpeg banner */}
+      {ytdlpAvailable === true && ffmpegAvailable === false && (
+        <div
+          style={{
+            marginTop: 8,
+            padding: 14,
+            borderRadius: 10,
+            background: 'rgba(245,158,11,0.08)',
+            border: '1px solid rgba(245,158,11,0.3)',
+            fontSize: 13,
+            color: '#92400E',
+            lineHeight: 1.6,
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+            <AlertCircle style={{ width: 18, height: 18 }} />
+            <strong>Cần cài ffmpeg để convert MP3/MP4/MKV + merge video+audio</strong>
+          </div>
+          <p style={{ fontSize: 12, margin: '0 0 8px' }}>
+            ffmpeg ~100MB, tải 1 lần dùng mãi. Không cài thì: chọn MP3/format khác sẽ fail · Video 1080p+ không có audio (vì YT tách stream).
+          </p>
           <button
             type="button"
-            onClick={() => void openUrl(outputDir)}
-            className="btn-secondary"
-            style={{ padding: '4px 10px', fontSize: 11 }}
-            title="Mở thư mục lưu"
+            onClick={() => void handleInstallFfmpeg()}
+            disabled={installingFfmpeg}
+            className="btn-primary"
+            style={{
+              width: '100%',
+              padding: '12px',
+              fontSize: 14,
+              fontWeight: 700,
+              justifyContent: 'center',
+              background: installingFfmpeg ? 'var(--color-border-default)' : '#F59E0B',
+            }}
           >
-            <FolderOpen style={{ width: 12, height: 12 }} /> Mở thư mục
+            {installingFfmpeg ? (
+              <>
+                <Loader2 className="animate-spin h-4 w-4" /> Đang tải ffmpeg (~100MB, có thể mất 1-3 phút)...
+              </>
+            ) : (
+              <>📥 Cài ffmpeg tự động (1 click)</>
+            )}
           </button>
         </div>
       )}
