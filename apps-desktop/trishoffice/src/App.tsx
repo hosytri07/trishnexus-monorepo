@@ -17,7 +17,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useAuth as useEcosystemAuth } from '@trishteam/auth/react';
 import { useAuth } from './auth/AuthContext';
-import { useCompanies } from './useCompanies';
+import { useCompanyContext } from './CompanyContext';
 import { canSeeModule } from './auth/permissions';
 import { ROLES } from './auth/types';
 import { LoginPage } from './auth/LoginPage';
@@ -159,7 +159,7 @@ const NAV: NavItem[] = [
 export function App(): JSX.Element {
   const auth = useAuth();
   const ecosystem = useEcosystemAuth();
-  const companies = useCompanies();
+  const companies = useCompanyContext();
   const [page, setPage] = useState<ModuleKey>('dashboard');
   const [logoutConfirm, setLogoutConfirm] = useState(false);
   const [companySwitcherOpen, setCompanySwitcherOpen] = useState(false);

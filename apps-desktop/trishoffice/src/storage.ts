@@ -13,6 +13,7 @@
 
 import { useEffect, useState, useRef } from 'react';
 import { useSync } from './sync/SyncContext';
+import { useActiveCompanyId } from './CompanyContext';
 import {
   loadCollection as fsLoadCollection,
   writeRecord as fsWriteRecord,
@@ -23,6 +24,51 @@ import {
 } from './sync/firestore-sync';
 
 const PREFIX = 'trishoffice:';
+
+/**
+ * Phase 40.3 — Collections NOT scoped per company.
+ * Reason:
+ *  - 'companies': the company list itself
+ *  - 'users': auth/login needs to find user across companies
+ *  - 'notifications': per-user notification feed
+ */
+const GLOBAL_COLLECTIONS = new Set<string>(['companies', 'users', 'notifications']);
+
+function isGlobal(collection: string): boolean {
+  return GLOBAL_COLLECTIONS.has(collection);
+}
+
+function scopedKey(collection: string, companyId: string | null): string {
+  if (!companyId || isGlobal(collection)) return collection;
+  return `co_${companyId}__${collection}`;
+}
+
+/**
+ * Phase 40.3 — One-time migration: copy plain `trishoffice:{collection}` data
+ * into the first company's scoped key, so old single-company data isn't lost.
+ *
+ * Marker key: `trishoffice:__migrated_v40_3_${companyId}` set after migration.
+ */
+function migrateToCompany(collection: string, companyId: string): void {
+  if (typeof window === 'undefined' || !companyId) return;
+  if (isGlobal(collection)) return;
+  const marker = `${PREFIX}__migrated_v40_3_${companyId}__${collection}`;
+  try {
+    if (window.localStorage.getItem(marker)) return; // already migrated
+    const plainKey = PREFIX + collection;
+    const scopedKeyName = PREFIX + scopedKey(collection, companyId);
+    if (plainKey === scopedKeyName) return;
+    const oldData = window.localStorage.getItem(plainKey);
+    const scopedExisting = window.localStorage.getItem(scopedKeyName);
+    if (oldData && !scopedExisting) {
+      window.localStorage.setItem(scopedKeyName, oldData);
+      // Don't delete the plain key — keep as backup until user confirms migration
+    }
+    window.localStorage.setItem(marker, Date.now().toString());
+  } catch {
+    /* ignore */
+  }
+}
 
 interface BaseEntity {
   id: string;
@@ -77,6 +123,9 @@ export function useCollection<T extends BaseEntity>(
 } {
   const [items, setItems] = useState<T[]>([]);
   const { ownerUid, enabled: syncEnabled } = useSync();
+  // Phase 40.3 — scope by active company (returns null if context not mounted yet)
+  const activeCompanyId = useActiveCompanyId();
+  const effectiveCollection = scopedKey(collection, activeCompanyId);
   const itemsRef = useRef<T[]>([]);
   itemsRef.current = items;
 
@@ -89,8 +138,13 @@ export function useCollection<T extends BaseEntity>(
   // Khi không có ownerUid → fallback localStorage-only behavior
   // ============================================================
   useEffect(() => {
+    // Phase 40.3 — Migrate old un-scoped data into active company scope (1 time per company × collection)
+    if (activeCompanyId && !isGlobal(collection)) {
+      migrateToCompany(collection, activeCompanyId);
+    }
+
     // Initial load: localStorage trước (instant) → Firestore sau (async merge)
-    const local = loadAll<T>(collection);
+    const local = loadAll<T>(effectiveCollection);
     setItems(local);
 
     if (!syncEnabled || !ownerUid) return;
@@ -98,35 +152,35 @@ export function useCollection<T extends BaseEntity>(
     // Pull remote 1 lần + merge upload local-only items lên Firestore
     let cancelled = false;
     void (async () => {
-      const remote = await fsLoadCollection<T>(ownerUid, collection);
+      const remote = await fsLoadCollection<T>(ownerUid, effectiveCollection);
       if (cancelled) return;
       const merged = mergeByUpdatedAt(local, remote);
       setItems(merged);
-      saveAll<T>(collection, merged);
+      saveAll<T>(effectiveCollection, merged);
       // Đẩy local-only items (chưa có trên remote) lên Firestore
       const remoteIds = new Set(remote.map((r) => r.id));
       const localOnly = merged.filter((m) => !remoteIds.has(m.id));
       if (localOnly.length > 0) {
-        void fsWriteBatch(ownerUid, collection, localOnly);
+        void fsWriteBatch(ownerUid, effectiveCollection, localOnly);
       }
     })();
 
     // Real-time subscribe
-    const unsub = fsSubscribeCollection<T>(ownerUid, collection, (remote) => {
+    const unsub = fsSubscribeCollection<T>(ownerUid, effectiveCollection, (remote) => {
       const merged = mergeByUpdatedAt(itemsRef.current, remote);
       setItems(merged);
-      saveAll<T>(collection, merged);
+      saveAll<T>(effectiveCollection, merged);
     });
 
     return () => {
       cancelled = true;
       unsub();
     };
-  }, [collection, ownerUid, syncEnabled]);
+  }, [effectiveCollection, ownerUid, syncEnabled]);
 
   function persist(next: T[]): void {
     setItems(next);
-    saveAll<T>(collection, next);
+    saveAll<T>(effectiveCollection, next);
   }
 
   function create(
@@ -142,7 +196,7 @@ export function useCollection<T extends BaseEntity>(
     persist([entity, ...items]);
     // Sync up
     if (syncEnabled && ownerUid) {
-      void fsWriteRecord(ownerUid, collection, entity);
+      void fsWriteRecord(ownerUid, effectiveCollection, entity);
     }
     return entity;
   }
@@ -160,27 +214,27 @@ export function useCollection<T extends BaseEntity>(
       }),
     );
     if (syncEnabled && ownerUid && updated) {
-      void fsWriteRecord(ownerUid, collection, updated);
+      void fsWriteRecord(ownerUid, effectiveCollection, updated);
     }
   }
 
   function remove(id: string): void {
     persist(items.filter((it) => it.id !== id));
     if (syncEnabled && ownerUid) {
-      void fsDeleteRecord(ownerUid, collection, id);
+      void fsDeleteRecord(ownerUid, effectiveCollection, id);
     }
   }
 
   function clear(): void {
     if (syncEnabled && ownerUid) {
       // Xóa từng item trên Firestore (deleteCollection ko có client SDK)
-      items.forEach((it) => void fsDeleteRecord(ownerUid, collection, it.id));
+      items.forEach((it) => void fsDeleteRecord(ownerUid, effectiveCollection, it.id));
     }
     persist([]);
   }
 
   function reload(): void {
-    setItems(loadAll<T>(collection));
+    setItems(loadAll<T>(effectiveCollection));
     // Re-trigger sync nếu enabled (call effect lại bằng cách thay đổi state ko cần)
   }
 

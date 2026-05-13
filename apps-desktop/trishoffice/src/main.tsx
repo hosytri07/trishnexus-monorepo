@@ -3,6 +3,7 @@ import { createRoot } from 'react-dom/client';
 import { AuthApp } from '@trishteam/auth/react';
 import { AuthProvider as OfficeAuthProvider } from './auth/AuthContext';
 import { SyncProvider } from './sync/SyncContext';
+import { CompanyProvider } from './CompanyContext';
 import { App } from './App';
 import logoUrl from './assets/logo.png';
 import '@trishteam/design-system';
@@ -25,10 +26,13 @@ createRoot(container).render(
       >
         {/* Layer 2: Sync context — provide ownerUid cho useCollection auto-sync */}
         <SyncProvider>
-          {/* Layer 3: Local user management (mỗi cty tự tạo account NV) */}
-          <OfficeAuthProvider>
-            <App />
-          </OfficeAuthProvider>
+          {/* Phase 40.3 — Multi-tenant: provide activeCompanyId xuống mọi nơi qua context */}
+          <CompanyProvider>
+            {/* Layer 3: Local user management (mỗi cty tự tạo account NV) */}
+            <OfficeAuthProvider>
+              <App />
+            </OfficeAuthProvider>
+          </CompanyProvider>
         </SyncProvider>
       </AuthApp>
     </div>
