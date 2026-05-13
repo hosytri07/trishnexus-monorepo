@@ -127,8 +127,7 @@ export function MediaDownloadScreen(): JSX.Element {
 
   // Parse multi-line URLs
   const parsedUrls = urls.split('\n').map((u) => u.trim()).filter((u) => u.length > 0);
-  const firstUrl = parsedUrls[0] ?? '';
-  const platform = detectPlatform(firstUrl);
+  // Phase 41 — không dùng firstUrl/platform vì hỗ trợ multi-link, mỗi URL tự detect
 
   // Phase 40.6 + 40.18 + 40.22 — Check yt-dlp + ffmpeg + Deno + setup output dir
   useEffect(() => {

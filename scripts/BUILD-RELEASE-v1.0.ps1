@@ -21,7 +21,7 @@ Set-Location $ROOT
 # rồi 3 app còn lại. SKIP TrishDesign.
 $APPS = @(
     @{ Name = "trishlauncher"; Tag = "trishlauncher-v1.0.0"; Public = $true;  Title = "TrishLauncher 1.0" },
-    @{ Name = "trishadmin";    Tag = "trishadmin-v1.0.0";    Public = $false; Title = "TrishAdmin 1.0 (internal)" },
+    @{ Name = "trishadmin";    Tag = "trishadmin-v1.0.0";    Public = $true; SkipRegistry = $true; Title = "TrishAdmin 1.0 (admin-only)" },
     @{ Name = "trishoffice";   Tag = "trishoffice-v1.0.0";   Public = $true;  Title = "TrishOffice 1.0" },
     @{ Name = "trishdrive";    Tag = "trishdrive-v1.0.0";    Public = $true;  Title = "TrishDrive 1.0" },
     @{ Name = "trishfinance";  Tag = "trishfinance-v1.0.0";  Public = $true;  Title = "TrishFinance 1.0" },
@@ -144,6 +144,10 @@ if (Test-Path $REGISTRY_PATH) {
     $registry = Get-Content $REGISTRY_PATH -Raw | ConvertFrom-Json
     foreach ($r in $BUILD_RESULTS) {
         if ($r.Status -ne "OK" -or -not $r.Public) { continue }
+        if ($r.SkipRegistry -eq $true) {
+            Write-Host "  - Skip $($r.Name) trong apps-registry.json (admin-only)" -ForegroundColor DarkGray
+            continue
+        }
         $appEntry = $registry.apps | Where-Object { $_.id -eq $r.Name }
         if ($null -ne $appEntry) {
             $fname = Split-Path $r.Path -Leaf

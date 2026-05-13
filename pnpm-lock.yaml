@@ -452,8 +452,8 @@ importers:
   apps-desktop/trishiso:
     dependencies:
       '@tauri-apps/api':
-        specifier: ^2.0.0
-        version: 2.10.1
+        specifier: ^2.11.0
+        version: 2.11.0
       '@tauri-apps/plugin-process':
         specifier: ^2.0.0
         version: 2.3.1

@@ -67,6 +67,8 @@ const NAV: NavItem[] = [
   { href: '/admin/trishiso', label: 'TrishISO data', icon: ClipboardList },
   { href: '/admin/trishfinance', label: 'TrishFinance data', icon: Wallet },
   { href: '/admin/trishdrive', label: 'TrishDrive admin', icon: Cloud },
+  // Phase 41 — TrishAdmin private download (admin-only)
+  { href: '/admin/trishadmin-download', label: '🛡 TrishAdmin Desktop', icon: Shield },
 ];
 
 export default function AdminLayout({ children }: { children: ReactNode }) {

@@ -1,60 +1,43 @@
-# TrishAdmin
+# TrishAdmin — Admin Tool cho Hệ Sinh Thái TrishTEAM
 
-**Phase 18.7.a — 2026-04-27**
+**Internal tool** — chỉ dành cho admin TrishTEAM (Trí + Anthropic team).
 
-App quản trị nội bộ cho hệ sinh thái TrishTEAM. Cho phép admin:
-- 📊 Dashboard tổng quan: số users / signups / keys / broadcasts
-- 👥 Quản lý users: list, đổi role (trial/user/admin), reset trial
-- 🔑 Sinh activation keys: batch generate, list, revoke, copy
-- 📢 Push broadcasts: thông báo tới user app (banner trong app)
-- 📦 Apps Registry: edit `apps-registry.json` + `min-specs.json` local
+## Cài đặt
 
-## ⚠ Tính riêng tư
+1. Tải `.exe` từ [trishteam.io.vn/admin/trishadmin-download](https://trishteam.io.vn/admin/trishadmin-download) (cần đăng nhập admin)
+2. Chạy NSIS installer → cài vào `Program Files`
+3. Đăng nhập bằng tài khoản admin Firebase (vd: trishteam.official@gmail.com)
 
-- App này **KHÔNG** phát hành public.
-- **KHÔNG** có entry trong `website/public/apps-registry.json`.
-- **KHÔNG** hiện trong TrishLauncher.
-- Chỉ admin email trong `src/lib/admin-emails.ts` được login. Email khác login → block + force sign out.
-- Admin tự build `pnpm tauri build` rồi cài tay file `.exe` từ `src-tauri/target/release/bundle/`.
+## Quyền cần thiết
 
-## Tech stack
+- Firebase Auth: role = 'admin' (set qua Firebase Console hoặc UsersPanel)
+- Firestore: full read/write các collection /users, /keys, /promo_codes, /apps_catalog, /audit, ...
+- Firebase Storage: full read TrishDrive bot uploads
 
-- Tauri 2 (Rust + React + TypeScript)
-- Firebase Auth + Firestore (qua `@trishteam/auth`)
-- Vite dev server port 1450
+## Panel chính
 
-## Phát triển
-
-```powershell
-cd apps-desktop\trishadmin
-pnpm install   # ở repo root để pnpm-workspace setup
-pnpm tauri dev
-```
+| Panel | Chức năng |
+|-------|----------|
+| Dashboard | KPI tổng (users, sessions, audit count) |
+| 👥 Users | List + role + delete + reset trial |
+| 🔑 Keys | Sinh + revoke key 16-char per-app |
+| 🎟 Promo Codes | TRIAL2026 và codes tùy chỉnh |
+| 📦 App Catalog | Firestore-backed apps_catalog (thêm app external) |
+| 🏢 Office Multi-tenant | Cross-company browser |
+| 📋 ISO Projects | Hồ sơ ISO 9001 cross-user |
+| 💵 Finance Telemetry | Key activations Finance |
+| ☁ TrishDrive | Shares + requests Cloud Telegram |
+| 📊 Vitals / 🐞 Errors / Audit | Observability |
 
 ## Build
 
 ```powershell
+cd apps-desktop/trishadmin
 pnpm tauri build
 ```
 
-Output: `src-tauri/target/release/bundle/nsis/TrishAdmin_1.0.0_x64-setup.exe`
+`.exe` output: `src-tauri/target/release/bundle/nsis/TrishAdmin_X.X.X_x64-setup.exe`
 
-## Firestore collections sử dụng
+## Phiên bản
 
-| Path | Mục đích |
-|---|---|
-| `users/{uid}` | TrishUser — quản lý role |
-| `keys/{keyId}` | ActivationKey — sinh + revoke |
-| `announcements/{id}` | Broadcast — push notification |
-
-## Admin emails
-
-Sửa `src/lib/admin-emails.ts` để add/remove admin. Cần rebuild + cài lại sau khi đổi.
-Hiện tại:
-- `trishteam.official@gmail.com`
-- `hosytri77@gmail.com`
-
-## Firestore Security Rules
-
-Cần đảm bảo rules cho phép admin (role === 'admin') read/write các collection trên.
-Xem `firestore.rules` ở repo root.
+- v1.0.0 (2026-05-13) — Phase 41: AppCatalog Firestore + Office/ISO/Finance panels
