@@ -9,7 +9,7 @@
  */
 import { useEffect, useState } from 'react';
 import { getFirebaseDb } from '@trishteam/auth';
-import { collection, getDocs, query, where, orderBy, limit } from 'firebase/firestore';
+import { collection, getDocs, query, where, limit } from 'firebase/firestore';
 
 interface UsageRow {
   uid: string;

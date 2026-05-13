@@ -109,6 +109,8 @@ export interface AttendanceEntry {
   /** Ai nhập (uid admin/HR) */
   created_by?: string;
   created_at: number;
+  /** Phase 41.3 — added for BaseEntity compat (auto-set by useCollection) */
+  updated_at?: number;
 }
 
 // ============================================================

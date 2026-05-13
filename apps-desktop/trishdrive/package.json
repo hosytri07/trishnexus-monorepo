@@ -20,7 +20,7 @@
     "@trishteam/data": "workspace:*",
     "@trishteam/telemetry": "workspace:*",
     "@trishteam/design-system": "workspace:*",
-    "@tauri-apps/api": "^2.0.0",
+    "@tauri-apps/api": "^2.11.0",
     "@tauri-apps/plugin-dialog": "^2.0.0",
     "@tauri-apps/plugin-opener": "^2.0.0",
     "@tauri-apps/plugin-updater": "^2.0.0",
