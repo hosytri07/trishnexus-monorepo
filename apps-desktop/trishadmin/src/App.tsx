@@ -36,6 +36,10 @@ import { StoragePanel } from './components/StoragePanel.js';
 import { ErrorsPanel } from './components/ErrorsPanel.js';
 import { VitalsPanel } from './components/VitalsPanel.js';
 import { TrishDrivePanel } from './components/drive/DriveContainer.js';
+import { AppCatalogPanel } from './components/AppCatalogPanel.js';
+import { OfficeAdminPanel } from './components/OfficeAdminPanel.js';
+import { ISOAdminPanel } from './components/ISOAdminPanel.js';
+import { FinanceAdminPanel } from './components/FinanceAdminPanel.js';
 import { getAppVersion } from './tauri-bridge.js';
 import logoUrl from './assets/logo.png';
 
@@ -62,6 +66,10 @@ type Panel =
   | 'drive'
   | 'api_keys'
   | 'lisp_library'
+  | 'app_catalog'
+  | 'office_admin'
+  | 'iso_admin'
+  | 'finance_admin'
   | 'settings';
 
 interface NavGroup {
@@ -112,6 +120,15 @@ const NAV_GROUPS: NavGroup[] = [
     label: 'Cloud',
     items: [
       { id: 'drive', label: '☁ Drive Cloud Telegram' },
+    ],
+  },
+  {
+    label: 'Apps quản lý',
+    items: [
+      { id: 'app_catalog', label: '📦 App Catalog (Firestore)' },
+      { id: 'office_admin', label: '🏢 Office Multi-tenant' },
+      { id: 'iso_admin', label: '📋 ISO Projects' },
+      { id: 'finance_admin', label: '💵 Finance Telemetry' },
     ],
   },
   {
@@ -272,6 +289,10 @@ export function App(): JSX.Element {
         {active === 'backup' && <BackupPanel />}
         {active === 'api_keys' && <ApiKeysPanel />}
         {active === 'lisp_library' && <LispLibraryPanel />}
+        {active === 'app_catalog' && <AppCatalogPanel />}
+        {active === 'office_admin' && <OfficeAdminPanel />}
+        {active === 'iso_admin' && <ISOAdminPanel />}
+        {active === 'finance_admin' && <FinanceAdminPanel />}
         {active === 'settings' && <SettingsPanel />}
       </main>
     </div>
