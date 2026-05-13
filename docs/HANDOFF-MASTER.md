@@ -9,7 +9,72 @@
 
 ---
 
-## 📍 PHIÊN HIỆN TẠI — 2026-05-10 (đọc TRƯỚC NHẤT, override mọi history phía dưới)
+## 📍 PHIÊN HIỆN TẠI — 2026-05-13 (đọc TRƯỚC NHẤT, override mọi history phía dưới)
+
+### Trạng thái Phase 40 + 41 (5 app SẴN SÀNG BUILD v1.0.0 wave 2)
+
+**5 app cần build + release:** TrishDrive, TrishFinance, TrishOffice, TrishLauncher, TrishAdmin (TrishAdmin build only, KHÔNG public release).
+
+✅ **Phase 40 — Drive yt-dlp pipeline + Finance modules + Office multi-tenant:**
+- TrishDrive: yt-dlp + ffmpeg + Deno auto-install, n-sig bypass (Phase 40.22), playlist range + skip duplicates + subtitle vi/en (Phase 40.23)
+- TrishFinance: 7 modules ngành mới (Sân TT/Karaoke/Spa/Cafe/Gym/Kho/Photocopy) + Dashboard + Bank CSV + Payment QR VietQR
+- TrishOffice: multi-tenant data scoping per-company (Phase 40.3) — switch company trong sidebar → data tách hoàn toàn. CompanyContext + storage.ts scope key thành `co_<companyId>__<collection>`. Auto-migrate data cũ vào company đầu tiên.
+
+✅ **Phase 41 — TrishAdmin 4 panel mới:**
+- 📦 **App Catalog (Firestore)** — `/apps_catalog/{appId}` source of truth mới, add app NGOÀI hệ sinh thái (Photoshop/AutoCAD/OBS) với logo + link tải
+- 🏢 **Office Multi-tenant** — cross-company browser cho admin debug
+- 📋 **ISO Projects** — browse `/HoSoTong` cross-user
+- 💵 **Finance Telemetry** — view key activations (Finance local-only nên không view được DB)
+
+✅ **Phase 41.1 — Wire:**
+- Firestore rules: `/apps_catalog/{appId}` public read + admin write
+- TrishLauncher `registry-loader.ts` fetch Firestore TRƯỚC, fallback static JSON
+- Fix collection names: `'users'` (không phải `'TrishUser'`), `/keys` filter `app_id`
+
+✅ **Phase 41.2 — Launcher external app support:**
+- `packages/core/types.ts`: thêm `category` (ecosystem/external/utility), `homepage_url`, `publisher` vào `AppRegistryEntry`
+- External app: badge **🔵 Đối tác**, nút **"🌐 Mở trang chủ"** → mở browser homepage thay vì cài đặt qua Tauri
+
+### 🚀 BƯỚC TIẾP — BUILD + RELEASE
+
+**Lệnh duy nhất:**
+```powershell
+cd C:\Users\ADMIN\Documents\Claude\Projects\TrishTEAM\trishnexus-monorepo
+if (Test-Path .git\index.lock) { Remove-Item .git\index.lock -Force }
+git add -A
+git commit -m "feat: Phase 40-41 wave 2 - 5 app v1.0.0 ready to ship"
+git push
+
+# Build + release tự động:
+.\scripts\BUILD-RELEASE-v1.0.ps1
+```
+
+Script `scripts/BUILD-RELEASE-v1.0.ps1`:
+1. Pre-flight: check pnpm + Rust + gh CLI
+2. `pnpm install` + build shared packages
+3. Build 5 app theo thứ tự: TrishLauncher → TrishAdmin → TrishOffice → TrishDrive → TrishFinance
+4. Tính SHA256 + size mỗi .exe
+5. GitHub Release 4 app public (skip TrishAdmin)
+6. In ra section apps-registry.json cần update
+
+**Sau khi script chạy xong:**
+1. Mở `apps/website/public/apps-registry.json`
+2. Update URL + SHA256 + size_bytes cho 5 app từ output script
+3. Commit + push → Vercel auto-deploy ~2 phút
+4. TrishLauncher tự detect update khi user mở app
+
+**Deploy Firestore rules (nếu chưa làm Phase 41.1):**
+```powershell
+firebase deploy --only firestore:rules
+```
+
+### ⏭ Phase 42 — TrishDesign v1.0 AutoCAD COM (sau khi wave 2 release xong)
+
+Deadline cũ 2026-05-07 đã trễ. Làm sau khi 5 app release.
+
+---
+
+## 📍 PHIÊN CŨ (ARCHIVE) — 2026-05-10 (đọc TRƯỚC NHẤT, override mọi history phía dưới)
 
 ### Trạng thái wave v1.0.0 (Phase 38 chính)
 
