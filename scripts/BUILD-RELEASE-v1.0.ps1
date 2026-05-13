@@ -58,6 +58,9 @@ pnpm -r --filter "./packages/*" build
 Write-Host "  (1 vài packages có thể fail TS - tiep tuc neu app build OK)" -ForegroundColor DarkGray
 
 # Build từng app
+$LOG_DIR = "$ROOT\scripts\build-logs"
+if (-not (Test-Path $LOG_DIR)) { New-Item -ItemType Directory -Path $LOG_DIR | Out-Null }
+
 foreach ($app in $APPS) {
     $name = $app.Name
     $title = $app.Title
@@ -65,10 +68,30 @@ foreach ($app in $APPS) {
     Write-Host "=== Build $title ===" -ForegroundColor Green
 
     Set-Location "$ROOT\apps-desktop\$name"
-    pnpm tauri build
+    # Phase 41 — Clear stale Vite cache trước build
+    if (Test-Path "node_modules\.vite") { Remove-Item "node_modules\.vite" -Recurse -Force -ErrorAction SilentlyContinue }
+    if (Test-Path "dist") { Remove-Item "dist" -Recurse -Force -ErrorAction SilentlyContinue }
+
+    # Capture full log để debug
+    $logFile = "$LOG_DIR\$name.log"
+    pnpm tauri build 2>&1 | Tee-Object -FilePath $logFile
     $exitCode = $LASTEXITCODE
+
+    # Retry với clean node_modules nếu fail lần đầu (xử lý stale deps sau khi bump version)
     if ($exitCode -ne 0) {
-        Write-Host "X Build $name FAILED (exit $exitCode) - tiep tuc..." -ForegroundColor Red
+        Write-Host "  ! Build fail (exit $exitCode) - retry voi clean install..." -ForegroundColor Yellow
+        Remove-Item "node_modules" -Recurse -Force -ErrorAction SilentlyContinue
+        pnpm install --no-frozen-lockfile 2>&1 | Out-Null
+        if (Test-Path "src-tauri\target\release\bundle") { Remove-Item "src-tauri\target\release\bundle" -Recurse -Force -ErrorAction SilentlyContinue }
+        pnpm tauri build 2>&1 | Tee-Object -FilePath "$logFile.retry"
+        $exitCode = $LASTEXITCODE
+    }
+
+    if ($exitCode -ne 0) {
+        Write-Host "X Build $name FAILED (exit $exitCode)" -ForegroundColor Red
+        Write-Host "  Log: $logFile" -ForegroundColor DarkGray
+        Write-Host "  Loi 20 dong cuoi:" -ForegroundColor DarkGray
+        Get-Content $logFile -Tail 20 | ForEach-Object { Write-Host "    $_" -ForegroundColor DarkRed }
         $BUILD_RESULTS += @{ Name = $name; Status = "FAIL"; Path = $null; SHA256 = $null; Tag = $app.Tag; Public = $app.Public; Title = $app.Title }
         Set-Location $ROOT
         continue
