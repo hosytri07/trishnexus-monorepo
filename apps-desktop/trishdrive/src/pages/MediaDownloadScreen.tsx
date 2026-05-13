@@ -25,7 +25,6 @@ import {
   CheckCircle2,
   AlertCircle,
   Loader2,
-  ExternalLink,
   FolderOpen,
   Lock,
 } from 'lucide-react';
@@ -130,7 +129,6 @@ export function MediaDownloadScreen(): JSX.Element {
   const parsedUrls = urls.split('\n').map((u) => u.trim()).filter((u) => u.length > 0);
   const firstUrl = parsedUrls[0] ?? '';
   const platform = detectPlatform(firstUrl);
-  const platformInfo = PLATFORMS.find((p) => p.id === platform);
 
   // Phase 40.6 + 40.18 + 40.22 — Check yt-dlp + ffmpeg + Deno + setup output dir
   useEffect(() => {

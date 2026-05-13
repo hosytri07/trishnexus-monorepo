@@ -24,7 +24,8 @@ $APPS = @(
     @{ Name = "trishadmin";    Tag = "trishadmin-v1.0.0";    Public = $false; Title = "TrishAdmin 1.0 (internal)" },
     @{ Name = "trishoffice";   Tag = "trishoffice-v1.0.0";   Public = $true;  Title = "TrishOffice 1.0" },
     @{ Name = "trishdrive";    Tag = "trishdrive-v1.0.0";    Public = $true;  Title = "TrishDrive 1.0" },
-    @{ Name = "trishfinance";  Tag = "trishfinance-v1.0.0";  Public = $true;  Title = "TrishFinance 1.0" }
+    @{ Name = "trishfinance";  Tag = "trishfinance-v1.0.0";  Public = $true;  Title = "TrishFinance 1.0" },
+    @{ Name = "trishiso";      Tag = "trishiso-v1.0.0";      Public = $true;  Title = "TrishISO 1.0" }
 )
 
 $BUILD_RESULTS = @()
@@ -133,7 +134,7 @@ if ($HAS_GH) {
 # Auto-update apps-registry.json + apps-seed.ts
 Write-Host ""
 Write-Host "=== Auto-update apps-registry.json + apps-seed.ts ===" -ForegroundColor Cyan
-$REGISTRY_PATH = "$ROOT\apps\website\public\apps-registry.json"
+$REGISTRY_PATH = "$ROOT\website\public\apps-registry.json"
 $SEED_PATH = "$ROOT\apps-desktop\trishlauncher\src\apps-seed.ts"
 $updateOk = 0
 $updateFail = @()
@@ -177,8 +178,8 @@ Write-Host ""
 Write-Host "=== Auto-commit + push registry ===" -ForegroundColor Cyan
 if (Test-Path "$ROOT\.git\index.lock") { Remove-Item "$ROOT\.git\index.lock" -Force }
 Set-Location $ROOT
-git add apps/website/public/apps-registry.json apps-desktop/trishlauncher/src/apps-seed.ts 2>&1 | Out-Null
-$gitStatus = git status --porcelain apps/website/public/apps-registry.json 2>&1
+git add website/public/apps-registry.json apps-desktop/trishlauncher/src/apps-seed.ts 2>&1 | Out-Null
+$gitStatus = git status --porcelain website/public/apps-registry.json 2>&1
 if ($gitStatus) {
     git commit -m "feat: release v1.0.0 wave 2 - $updateOk app updated" 2>&1
     git push 2>&1

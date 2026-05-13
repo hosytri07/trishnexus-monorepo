@@ -68,7 +68,7 @@ interface ProgressEvent {
   bytes_done: number;
   total_bytes: number;
   file_name: string;
-  phase: 'downloading' | 'decrypting' | 'verifying' | 'done' | 'error';
+  phase: 'downloading' | 'decrypting' | 'verifying' | 'done' | 'error' | 'paused';
 }
 
 interface QueueEvent {

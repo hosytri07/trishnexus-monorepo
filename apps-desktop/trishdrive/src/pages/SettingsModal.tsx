@@ -15,7 +15,6 @@ import {
   Info, Bell, Folder, Gauge, Download as DownloadIcon, RefreshCw, Clock,
 } from 'lucide-react';
 
-const KEY_THEME = 'trishdrive_theme';
 const KEY_CLOSE_BEHAVIOR = 'trishdrive_close_behavior';
 const KEY_CLEANUP_DAYS = 'trishdrive_cleanup_days';
 const KEY_SUBSCRIBED_FOLDERS = 'trishdrive_subscribed_folders';
@@ -543,12 +542,12 @@ export function SettingsModal({
             {syncProgress && (
               <div style={{ marginTop: 8, padding: '8px 10px', background: 'var(--color-accent-soft)', borderRadius: 6, fontSize: 11 }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
-                  <span>📥 [{syncProgress.current}/{syncProgress.total}] {syncProgress.name}</span>
-                  <span>{Math.round((syncProgress.current / syncProgress.total) * 100)}%</span>
+                  <span>📥 [{syncProgress!.current}/{syncProgress!.total}] {syncProgress!.name}</span>
+                  <span>{Math.round((syncProgress!.current / syncProgress!.total) * 100)}%</span>
                 </div>
                 <div style={{ height: 4, background: 'rgba(0,0,0,0.1)', borderRadius: 2, overflow: 'hidden' }}>
                   <div style={{
-                    width: `${(syncProgress.current / syncProgress.total) * 100}%`,
+                    width: `${(syncProgress!.current / syncProgress!.total) * 100}%`,
                     height: '100%',
                     background: 'var(--color-accent-primary)',
                     transition: 'width 200ms',
