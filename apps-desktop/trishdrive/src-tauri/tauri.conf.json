@@ -33,7 +33,6 @@
       "endpoints": [
         "https://trishteam.io.vn/api/updates/trishdrive/{{target}}/{{current_version}}"
       ],
-      "pubkey": "",
       "windows": {
         "installMode": "passive"
       }
@@ -41,8 +40,10 @@
   },
   "bundle": {
     "active": true,
-    "targets": ["nsis"],
-    "createUpdaterArtifacts": true,
+    "targets": [
+      "nsis"
+    ],
+    "createUpdaterArtifacts": false,
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",
@@ -59,7 +60,10 @@
     "windows": {
       "nsis": {
         "installMode": "perMachine",
-        "languages": ["English", "Vietnamese"],
+        "languages": [
+          "English",
+          "Vietnamese"
+        ],
         "displayLanguageSelector": true,
         "installerIcon": "icons/icon.ico"
       }

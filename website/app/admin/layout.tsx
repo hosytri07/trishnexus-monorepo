@@ -68,10 +68,6 @@ const NAV: NavItem[] = [
   { href: '/admin/trishiso', label: 'TrishISO data', icon: ClipboardList },
   { href: '/admin/trishfinance', label: 'TrishFinance data', icon: Wallet },
   { href: '/admin/trishdrive', label: 'TrishDrive admin', icon: Cloud },
-  // Phase 41 — TrishOffice multi-tenant browser
-  { href: '/admin/trishoffice', label: 'TrishOffice multi-tenant', icon: Building },
-  // Phase 41 — App Catalog Firestore-backed
-  { href: '/admin/apps-catalog', label: '📦 App Catalog', icon: Package },
   // Phase 41 — TrishAdmin private download (admin-only)
   { href: '/admin/trishadmin-download', label: '🛡 TrishAdmin Desktop', icon: Shield },
 ];
@@ -184,4 +180,12 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
                 </Link>
               );
             })}
-          <
+          </nav>
+        </aside>
+
+        {/* Main content */}
+        <section className="min-w-0">{children}</section>
+      </div>
+    </div>
+  );
+}
