@@ -82,6 +82,9 @@ export function MediaDownloadScreen(): JSX.Element {
   const [cookiesBrowser, setCookiesBrowser] = useState<string>('none');
   const [cookiesFile, setCookiesFile] = useState<string>('');
   const [outputFormat, setOutputFormat] = useState<string>('auto');
+  const [playlistItems, setPlaylistItems] = useState<string>('');
+  const [skipDuplicates, setSkipDuplicates] = useState<boolean>(true);
+  const [subtitles, setSubtitles] = useState<string>('none');
   const [queue, setQueue] = useState<QueueItem[]>([]);
   const [toast, setToast] = useState<{ msg: string; kind: 'ok' | 'err' } | null>(null);
   const [ytdlpAvailable, setYtdlpAvailable] = useState<boolean | null>(null);
@@ -259,6 +262,9 @@ export function MediaDownloadScreen(): JSX.Element {
             cookiesBrowser: cookiesBrowser === 'none' ? null : cookiesBrowser,
             cookiesFile: cookiesFile || null,
             outputFormat: outputFormat === 'auto' ? null : outputFormat,
+            playlistItems: playlistItems || null,
+            skipDuplicates,
+            subtitles: subtitles === 'none' ? null : subtitles,
           },
         );
 
@@ -674,6 +680,126 @@ export function MediaDownloadScreen(): JSX.Element {
                 <option value="opus">🎼 Opus (nhỏ nhất)</option>
                 <option value="flac">💎 FLAC (lossless)</option>
               </optgroup>
+            </select>
+          </div>
+        </div>
+
+        {/* Phase 40.23 — Playlist range + skip duplicates + subtitles */}
+        <div
+          style={{
+            marginTop: 12,
+            paddingTop: 12,
+            borderTop: '1px solid var(--color-border-subtle)',
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
+            gap: 12,
+          }}
+        >
+          {downloadPlaylist && (
+            <div>
+              <label
+                style={{
+                  display: 'block',
+                  fontSize: 11,
+                  fontWeight: 600,
+                  color: 'var(--color-text-muted)',
+                  textTransform: 'uppercase',
+                  letterSpacing: 0.4,
+                  marginBottom: 6,
+                }}
+              >
+                🎯 Chỉ tải video số…
+              </label>
+              <input
+                type="text"
+                value={playlistItems}
+                onChange={(e) => setPlaylistItems(e.target.value)}
+                placeholder="VD: 1-10 hoặc 1,3,5,7"
+                title="Bỏ trống = tải cả playlist. Hỗ trợ: 1-10, 1,3,5, 5-, -10"
+                style={{
+                  width: '100%',
+                  padding: '7px 10px',
+                  borderRadius: 8,
+                  border: '1px solid var(--color-border-default)',
+                  background: 'var(--color-surface-bg)',
+                  color: 'var(--color-text-primary)',
+                  fontSize: 12,
+                  outline: 'none',
+                  fontFamily: 'monospace',
+                }}
+              />
+            </div>
+          )}
+          <div>
+            <label
+              style={{
+                display: 'block',
+                fontSize: 11,
+                fontWeight: 600,
+                color: 'var(--color-text-muted)',
+                textTransform: 'uppercase',
+                letterSpacing: 0.4,
+                marginBottom: 6,
+              }}
+            >
+              🔁 Bỏ qua video đã tải
+            </label>
+            <label
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 6,
+                padding: '7px 10px',
+                borderRadius: 8,
+                border: '1px solid var(--color-border-default)',
+                background: 'var(--color-surface-bg)',
+                cursor: 'pointer',
+                fontSize: 12,
+                color: 'var(--color-text-primary)',
+              }}
+            >
+              <input
+                type="checkbox"
+                checked={skipDuplicates}
+                onChange={(e) => setSkipDuplicates(e.target.checked)}
+                style={{ accentColor: 'var(--color-accent-primary)' }}
+              />
+              Skip duplicate (resume OK)
+            </label>
+          </div>
+          <div>
+            <label
+              style={{
+                display: 'block',
+                fontSize: 11,
+                fontWeight: 600,
+                color: 'var(--color-text-muted)',
+                textTransform: 'uppercase',
+                letterSpacing: 0.4,
+                marginBottom: 6,
+              }}
+            >
+              📝 Subtitle (vi/en)
+            </label>
+            <select
+              value={subtitles}
+              onChange={(e) => setSubtitles(e.target.value)}
+              title="Tải kèm phụ đề SRT cùng tên file video"
+              style={{
+                width: '100%',
+                padding: '7px 8px',
+                borderRadius: 8,
+                border: '1px solid var(--color-border-default)',
+                background: 'var(--color-surface-bg)',
+                color: 'var(--color-text-primary)',
+                fontSize: 12,
+                outline: 'none',
+                cursor: 'pointer',
+              }}
+            >
+              <option value="none">— Không tải sub —</option>
+              <option value="manual">📋 Sub gốc (chuẩn xác)</option>
+              <option value="auto">🤖 Sub auto-gen (nếu video không có sub gốc)</option>
             </select>
           </div>
         </div>

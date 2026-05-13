@@ -1436,6 +1436,9 @@ async fn download_social_media(
     cookies_browser: Option<String>,
     cookies_file: Option<String>,
     output_format: Option<String>,
+    playlist_items: Option<String>,
+    skip_duplicates: Option<bool>,
+    subtitles: Option<String>,
 ) -> Result<MediaDownloadResult, String> {
     let cmd_name = resolve_ytdlp_cmd(&app);
 
@@ -1516,6 +1519,37 @@ async fn download_social_media(
         args.push("--no-playlist".to_string());
     } else {
         args.push("--yes-playlist".to_string());
+    }
+
+    // Phase 40.23 — Range playlist (vd "1-10" hoặc "1,3,5")
+    if let Some(items) = playlist_items.as_ref() {
+        if !items.is_empty() {
+            args.push("--playlist-items".to_string());
+            args.push(items.clone());
+        }
+    }
+
+    // Phase 40.23 — Skip video đã tải (lưu archive trong output_dir)
+    if skip_duplicates.unwrap_or(false) {
+        args.push("--download-archive".to_string());
+        args.push(format!("{}/.trishdrive_archive.txt", output_dir));
+    }
+
+    // Phase 40.23 — Subtitle: "none" / "auto" (auto-gen) / "manual" (sub gốc)
+    if let Some(sub) = subtitles.as_ref() {
+        if sub == "manual" {
+            args.push("--write-subs".to_string());
+            args.push("--sub-langs".to_string());
+            args.push("vi,en".to_string());
+            args.push("--convert-subs".to_string());
+            args.push("srt".to_string());
+        } else if sub == "auto" {
+            args.push("--write-auto-subs".to_string());
+            args.push("--sub-langs".to_string());
+            args.push("vi,en".to_string());
+            args.push("--convert-subs".to_string());
+            args.push("srt".to_string());
+        }
     }
 
     // Phase 40.20 — Quality / format với fallback CỰC bền:
