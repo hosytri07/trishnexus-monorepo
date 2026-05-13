@@ -49,8 +49,8 @@ export function OfficeAdminPanel(): JSX.Element {
     setLoadingUsers(true);
     try {
       const db = getFirebaseDb();
-      // List Firebase users từ TrishUser collection (top 100)
-      const snap = await getDocs(query(collection(db, 'TrishUser'), orderBy('updated_at', 'desc'), limit(100)));
+      // List Firebase users từ /users collection (top 100)
+      const snap = await getDocs(query(collection(db, 'users'), limit(200)));
       const list: UserMeta[] = snap.docs.map((d) => {
         const data = d.data() as { email?: string; display_name?: string; role?: string };
         return { uid: d.id, email: data.email, display_name: data.display_name, role: data.role };

@@ -22,6 +22,8 @@
 import type { AppRegistry } from '@trishteam/core/apps';
 import { SEED_REGISTRY } from './apps-seed.js';
 import { fetchRegistryText } from './tauri-bridge.js';
+import { getFirebaseDb } from '@trishteam/auth';
+import { collection as fsCollection, getDocs as fsGetDocs } from 'firebase/firestore';
 
 /**
  * URL chính thức cho registry — production launcher fetch luôn từ đây
@@ -101,6 +103,90 @@ async function fetchRemote(url: string): Promise<AppRegistry> {
 }
 
 /**
+ * Phase 41 — Fetch Firestore /apps_catalog (admin-managed catalog).
+ *
+ * Source of truth mới, cho phép add app NGOÀI hệ sinh thái (Photoshop, AutoCAD, etc.).
+ * Shape khác với AppRegistry → cần convert tại đây.
+ *
+ * Throw nếu fail/empty — caller fallback sang static JSON.
+ */
+interface CatalogDoc {
+  id: string;
+  name: string;
+  tagline: string;
+  description?: string;
+  category: 'ecosystem' | 'external' | 'utility';
+  logo_url: string;
+  version: string;
+  status: 'draft' | 'released' | 'deprecated';
+  release_at?: string;
+  publisher?: string;
+  homepage_url?: string;
+  download_url_windows?: string;
+  download_url_macos?: string;
+  download_url_linux?: string;
+  changelog_url?: string;
+  size_mb?: number;
+  login_required?: 'none' | 'trishteam' | 'key';
+  display_order?: number;
+}
+
+async function fetchFirestoreCatalog(): Promise<AppRegistry> {
+  const db = getFirebaseDb();
+  const snap = await fsGetDocs(fsCollection(db, 'apps_catalog'));
+  const docs: CatalogDoc[] = snap.docs.map((d) => d.data() as CatalogDoc);
+  if (docs.length === 0) {
+    throw new Error('apps_catalog empty (chưa seed)');
+  }
+  // Chỉ hiển thị app status=released
+  const released = docs
+    .filter((d) => d.status === 'released')
+    .sort((a, b) => (a.display_order ?? 99) - (b.display_order ?? 99));
+
+  // Convert sang AppRegistry shape
+  const apps = released.map((d) => {
+    const dl: Record<string, { url: string; sha256: string; installer_args: string[] }> = {};
+    if (d.download_url_windows) dl.windows_x64 = { url: d.download_url_windows, sha256: '', installer_args: [] };
+    if (d.download_url_macos) dl.macos_arm64 = { url: d.download_url_macos, sha256: '', installer_args: [] };
+    if (d.download_url_linux) dl.linux_x64 = { url: d.download_url_linux, sha256: '', installer_args: [] };
+    const platforms: ('windows_x64' | 'macos_arm64' | 'linux_x64')[] = [];
+    if (d.download_url_windows) platforms.push('windows_x64');
+    if (d.download_url_macos) platforms.push('macos_arm64');
+    if (d.download_url_linux) platforms.push('linux_x64');
+    // login_required: TrishTEAM convention 'user' = paid; 'none' = anyone; cẩn thận map
+    const login = d.login_required === 'trishteam' ? 'user' : d.login_required === 'key' ? 'user' : 'none';
+    return {
+      id: d.id,
+      name: d.name,
+      tagline: d.tagline,
+      logo_url: d.logo_url,
+      version: d.version,
+      size_bytes: d.size_mb ? Math.round(d.size_mb * 1024 * 1024) : 0,
+      status: d.status,
+      release_at: d.release_at ?? '2026-05-07T09:00:00+07:00',
+      login_required: login,
+      platforms: platforms.length > 0 ? platforms : ['windows_x64'],
+      screenshots: [],
+      changelog_url: d.changelog_url ?? '',
+      download: dl,
+    };
+  });
+
+  return {
+    schema_version: 6,
+    updated_at: new Date().toISOString(),
+    ecosystem: {
+      name: 'TrishTEAM',
+      tagline: 'Hệ sinh thái năng suất cá nhân',
+      logo_url: 'https://trishteam.io.vn/logo.svg',
+      website: 'https://trishteam.io.vn',
+    },
+    release_at_default: '2026-05-07T09:00:00+07:00',
+    apps: apps as unknown as AppRegistry['apps'],
+  };
+}
+
+/**
  * Load registry. URL override (admin) > DEFAULT_REGISTRY_URL > seed nếu fail.
  *
  * @param overrideUrl Nếu set + non-empty, dùng URL này thay default.
@@ -113,7 +199,27 @@ export async function loadRegistry(
   const url =
     overrideUrl && overrideUrl.trim() ? overrideUrl.trim() : DEFAULT_REGISTRY_URL;
 
-  // 1. Thử endpoint live (API Firestore)
+  // Phase 41 — Thử Firestore /apps_catalog TRƯỚC (TrishAdmin source of truth mới).
+  // Cho phép Trí add app NGOÀI hệ sinh thái mà không cần redeploy Vercel.
+  // Skip Firestore nếu có overrideUrl (admin debug mode).
+  if (!overrideUrl || !overrideUrl.trim()) {
+    try {
+      const fsReg = await fetchFirestoreCatalog();
+      return {
+        registry: fsReg,
+        source: 'remote',
+        fetchedAt: Date.now(),
+        error: null,
+      };
+    } catch (errFs) {
+      console.warn(
+        '[trishlauncher] Firestore /apps_catalog empty/fail → fallback static JSON:',
+        errFs instanceof Error ? errFs.message : String(errFs),
+      );
+    }
+  }
+
+  // 1. Thử static apps-registry.json
   try {
     const remote = await fetchRemote(url);
     return {

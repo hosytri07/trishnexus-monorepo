@@ -315,6 +315,19 @@ service cloud.firestore {
       allow create, update, delete: if isAdmin();
     }
 
+    // --- Phase 41 — /apps_catalog/{appId} (TrishAdmin Firestore-backed app catalog) ---
+    // Source of truth mới cho TrishLauncher app list (replace static apps-registry.json).
+    // Khác với /apps_meta (dùng cho website /downloads) — /apps_catalog là dataset
+    // riêng cho Launcher fetch, cho phép admin add app NGOÀI hệ sinh thái
+    // (Photoshop, AutoCAD, OBS, VLC, etc.) với logo + link tải.
+    //
+    // Public read (Launcher fetch không cần signed-in để render catalog).
+    // Admin write only.
+    match /apps_catalog/{appId} {
+      allow read: if true;
+      allow create, update, delete: if isAdmin();
+    }
+
     // --- Phase 19.22 — Database collections (admin CRUD, public read) ---
     // standards (QCVN/TCVN/Thông tư...) · dinh_muc (định mức) · vat_lieu · roads_vn
     match /standards/{id} {

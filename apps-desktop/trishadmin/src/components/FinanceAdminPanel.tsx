@@ -30,18 +30,34 @@ export function FinanceAdminPanel(): JSX.Element {
     setLoading(true);
     try {
       const db = getFirebaseDb();
-      // Recent Finance sessions (Phase 18 ActiveSessions có app field)
-      const sessSnap = await getDocs(query(collection(db, 'TrishSession'), where('app', '==', 'trishfinance'), orderBy('last_seen', 'desc'), limit(100)));
-      const sessRows: UsageRow[] = sessSnap.docs.map((d) => {
-        const data = d.data() as { uid?: string; email?: string; display_name?: string; last_seen?: number };
-        return { uid: data.uid ?? d.id, email: data.email, display_name: data.display_name, last_seen: data.last_seen };
+      // Phase 41.1 — Schema thực tế: /keys/{keyId} với fields { app_id, status, bound_uid, recipient, ... }
+      // Lấy users đã activate key TrishFinance (status='used' nghĩa là đã consumed)
+      const usedSnap = await getDocs(query(
+        collection(db, 'keys'),
+        where('app_id', '==', 'trishfinance'),
+        where('status', '==', 'used'),
+        limit(200),
+      ));
+      const sessRows: UsageRow[] = usedSnap.docs.map((d) => {
+        const data = d.data() as { bound_uid?: string; recipient?: string; activated_at?: number; used_at?: number };
+        return {
+          uid: data.bound_uid ?? d.id,
+          email: data.recipient,
+          last_seen: data.activated_at ?? data.used_at,
+          key_active: true,
+        };
       });
 
-      // Active keys
+      // Active keys (chưa kích hoạt — đang chờ user nhập)
       let activeKeysCount = 0;
       try {
-        const keySnap = await getDocs(query(collection(db, 'TrishKey'), where('app_id', '==', 'trishfinance'), where('status', '==', 'active'), limit(500)));
-        activeKeysCount = keySnap.size;
+        const activeSnap = await getDocs(query(
+          collection(db, 'keys'),
+          where('app_id', '==', 'trishfinance'),
+          where('status', '==', 'active'),
+          limit(500),
+        ));
+        activeKeysCount = activeSnap.size;
       } catch { /* ignore */ }
 
       setRows(sessRows);
@@ -65,22 +81,22 @@ export function FinanceAdminPanel(): JSX.Element {
       </p>
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 14, marginBottom: 20 }}>
-        <StatCard label="User mở Finance gần đây" value={stats.totalUsers.toString()} hint="100 session gần nhất" />
+        <StatCard label="User mở Finance gần đây" value={stats.totalUsers.toString()} hint="200 key đã activate" />
         <StatCard label="Key Finance đang active" value={stats.activeKeys.toString()} hint="status=active" />
-        <StatCard label="Total sessions ghi nhận" value={stats.recentSessions.toString()} hint="100 mới nhất" />
+        <StatCard label="Total keys activated" value={stats.recentSessions.toString()} hint="100 mới nhất" />
       </div>
 
       <div style={{ background: 'var(--color-surface-card)', border: '1px solid var(--color-border-subtle)', borderRadius: 10, padding: 14 }}>
-        <h2 style={{ fontSize: 14, fontWeight: 700, margin: '0 0 10px' }}>👥 Sessions Finance gần đây</h2>
+        <h2 style={{ fontSize: 14, fontWeight: 700, margin: '0 0 10px' }}>👥 Users đã activate key Finance</h2>
         {loading && <div style={{ fontSize: 12, color: 'var(--color-text-muted)' }}>⏳</div>}
-        {!loading && rows.length === 0 && <div style={{ fontSize: 12, color: 'var(--color-text-muted)' }}>Chưa có session Finance nào</div>}
+        {!loading && rows.length === 0 && <div style={{ fontSize: 12, color: 'var(--color-text-muted)' }}>Chưa có user nào activate key Finance</div>}
         <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
           <thead>
             <tr style={{ borderBottom: '1px solid var(--color-border-default)' }}>
               <th style={th}>Display name</th>
               <th style={th}>Email</th>
               <th style={th}>UID</th>
-              <th style={th}>Last seen</th>
+              <th style={th}>Activated at</th>
             </tr>
           </thead>
           <tbody>
