@@ -354,6 +354,16 @@ export function App(): JSX.Element {
     const target = app.download[platform];
     if (!target?.url) return;
 
+    // Phase 41.2 — External app: mở trang chủ trong browser thay vì install qua Tauri.
+    // Adobe/Autodesk/OBS… không có installer mình control được.
+    if (app.category === 'external') {
+      const homepage = app.homepage_url ?? target.url;
+      setToast(`🌐 Mở ${app.name} trên trình duyệt...`);
+      void openExternal(homepage);
+      setTimeout(() => setToast(null), 3000);
+      return;
+    }
+
     // Phase 39.5 — Auto-download + auto-spawn installer
     // Đang tải rồi thì bỏ qua click thứ 2
     if (downloadStates.has(app.id)) {
@@ -676,6 +686,17 @@ function AppCard({
               <span className={`badge badge-${app.status}`}>
                 {statusLabel(app.status)}
               </span>
+              {/* Phase 41.2 — Category badge (external/utility chỉ; ecosystem ko cần) */}
+              {app.category === 'external' && (
+                <span className="badge badge-login badge-login-blue" title={app.publisher ? `Bên ngoài · ${app.publisher}` : 'App đối tác / bên ngoài'}>
+                  🔵 Đối tác
+                </span>
+              )}
+              {app.category === 'utility' && (
+                <span className="badge badge-login badge-login-yellow" title="Tiện ích nhỏ">
+                  🟡 Tiện ích
+                </span>
+              )}
               {(() => {
                 // Phase 39.4 — Nếu app yêu cầu key → KHÔNG hiển thị badge "Miễn phí"
                 // (vì user phải xin key admin, không phải hoàn toàn free).

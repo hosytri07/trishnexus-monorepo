@@ -83,6 +83,22 @@ export type AppRegistryEntry = {
    * - undefined nếu requires_key = false
    */
   key_type?: 'account' | 'standalone';
+
+  // Phase 41 — App catalog category (TrishAdmin Firestore-backed catalog)
+  /**
+   * Phân loại app trong Launcher catalog:
+   * - 'ecosystem': app TrishTEAM (install qua NSIS .exe)
+   * - 'external':  app bên ngoài (Photoshop, AutoCAD, OBS) — click "Mở trang chủ" thay vì install
+   * - 'utility':   tiện ích nhỏ
+   * - undefined:   default = ecosystem
+   */
+  category?: 'ecosystem' | 'external' | 'utility';
+
+  /** Phase 41 — Trang chủ/sản phẩm chính thức (external apps dùng để mở khi click "Tải") */
+  homepage_url?: string;
+
+  /** Phase 41 — Nhà phát hành (Adobe Inc., Autodesk, TrishTEAM…) */
+  publisher?: string;
 };
 
 /**

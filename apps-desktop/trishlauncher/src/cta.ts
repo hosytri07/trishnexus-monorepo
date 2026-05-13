@@ -91,5 +91,12 @@ export function resolveCta(
   if (!hasDownload) {
     return { label: 'Chưa hỗ trợ máy này', disabled: true };
   }
+  // Phase 41.2 — External apps (đối tác/3rd party) — click → mở trang chủ trong browser
+  if (app.category === 'external') {
+    return { label: '🌐 Mở trang chủ', disabled: false };
+  }
+  if (app.category === 'utility') {
+    return { label: '⬇ Tải tiện ích', disabled: false };
+  }
   return { label: 'Tải về', disabled: false };
 }

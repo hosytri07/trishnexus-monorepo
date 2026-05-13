@@ -153,6 +153,12 @@ async function fetchFirestoreCatalog(): Promise<AppRegistry> {
     if (d.download_url_windows) platforms.push('windows_x64');
     if (d.download_url_macos) platforms.push('macos_arm64');
     if (d.download_url_linux) platforms.push('linux_x64');
+    // Phase 41.2 — External app: nếu không có download URL, fake windows_x64 với homepage_url
+    // để CTA "Mở trang chủ" hiển thị + nút không bị disabled "Chưa hỗ trợ máy này"
+    if (d.category === 'external' && platforms.length === 0 && d.homepage_url) {
+      dl.windows_x64 = { url: d.homepage_url, sha256: '', installer_args: [] };
+      platforms.push('windows_x64');
+    }
     // login_required: TrishTEAM convention 'user' = paid; 'none' = anyone; cẩn thận map
     const login = d.login_required === 'trishteam' ? 'user' : d.login_required === 'key' ? 'user' : 'none';
     return {
@@ -169,6 +175,10 @@ async function fetchFirestoreCatalog(): Promise<AppRegistry> {
       screenshots: [],
       changelog_url: d.changelog_url ?? '',
       download: dl,
+      // Phase 41 — category/homepage/publisher từ catalog
+      category: d.category,
+      homepage_url: d.homepage_url,
+      publisher: d.publisher,
     };
   });
 
