@@ -1,6 +1,6 @@
 {
   "schema_version": 6,
-  "updated_at": "2026-05-14T00:59:09+07:00",
+  "updated_at": "2026-05-14T21:42:02+07:00",
   "ecosystem": {
     "name": "TrishTEAM",
     "tagline": "Hệ sinh thái phần mềm + tri thức + công cụ cho kỹ sư xây dựng / giao thông Việt Nam",
@@ -16,7 +16,7 @@
       "tagline": "Hub trung tâm — cài đặt + cập nhật + chạy 11 app TrishTEAM trong 1 nơi",
       "logo_url": "https://trishteam.io.vn/logos/trishlauncher.png",
       "version": "1.0.0",
-      "size_bytes": 5036811,
+      "size_bytes": 5037440,
       "status": "released",
       "login_required": "none",
       "platforms": [
@@ -26,9 +26,9 @@
       "changelog_url": "https://github.com/hosytri07/trishnexus-monorepo/releases/tag/trishlauncher-v1.0.0",
       "download": {
         "windows_x64": {
-          "sha256": "491b58b606cdc9271dfa1630ecdfdce779a7a00689142fe3b7c8ce356838241b",
-          "installer_args": [],
-          "url": "https://github.com/hosytri07/trishnexus-monorepo/releases/download/trishlauncher-v1.0.0/TrishLauncher_1.0.0_x64-setup.exe"
+          "url": "https://github.com/hosytri07/trishnexus-monorepo/releases/download/trishlauncher-v1.0.0/TrishLauncher_1.0.0_x64-setup.exe",
+          "sha256": "e3ea6bec0de0eb0eaaeb75b690c5f0f08868644e695edbe9310b2a8a0b8a8e57",
+          "installer_args": []
         }
       }
     },
@@ -148,7 +148,7 @@
       "tagline": "Cloud storage cá nhân qua Telegram Bot — encrypt AES-256 + share link + sync 2-way",
       "logo_url": "https://trishteam.io.vn/logos/trishdrive.png",
       "version": "1.0.0",
-      "size_bytes": 3709421,
+      "size_bytes": 3709470,
       "status": "released",
       "release_at": "2026-05-07T09:00:00+07:00",
       "login_required": "user",
@@ -159,9 +159,9 @@
       "changelog_url": "https://github.com/hosytri07/trishnexus-monorepo/releases/tag/trishdrive-v1.0.0",
       "download": {
         "windows_x64": {
-          "sha256": "d5424a89612c30b52dd5da0ccc53d628af45a0afb3455501cd532593b0b9ecab",
-          "installer_args": [],
-          "url": "https://github.com/hosytri07/trishnexus-monorepo/releases/download/trishdrive-v1.0.0/TrishDrive_1.0.0_x64-setup.exe"
+          "url": "https://github.com/hosytri07/trishnexus-monorepo/releases/download/trishdrive-v1.0.0/TrishDrive_1.0.0_x64-setup.exe",
+          "sha256": "f9df00bee76821ca49bcf206f5a44055e31c61a104ba57721233ee5055991149",
+          "installer_args": []
         }
       }
     },
@@ -171,7 +171,7 @@
       "tagline": "Quản lý nhà trọ + tài chính cá nhân + POS bán hàng — chạy desktop + PWA web (finance.trishteam.io.vn)",
       "logo_url": "https://trishteam.io.vn/logos/trishfinance.png",
       "version": "1.0.0",
-      "size_bytes": 3212666,
+      "size_bytes": 3212432,
       "status": "released",
       "release_at": "2026-05-07T09:00:00+07:00",
       "login_required": "user",
@@ -188,9 +188,9 @@
           "installer_args": []
         },
         "windows_x64": {
-          "sha256": "1140b19b2f06a468571fbae61798d1ce44f4d579932d494a0fd8edacc346a99f",
-          "installer_args": [],
-          "url": "https://github.com/hosytri07/trishnexus-monorepo/releases/download/trishfinance-v1.0.0/TrishFinance_1.0.0_x64-setup.exe"
+          "url": "https://github.com/hosytri07/trishnexus-monorepo/releases/download/trishfinance-v1.0.0/TrishFinance_1.0.0_x64-setup.exe",
+          "sha256": "e6723399f1870fbfcbcd1d392f0cb1e55dbe6c2218da12174aae83f4ff068fb8",
+          "installer_args": []
         }
       }
     },
@@ -200,7 +200,7 @@
       "tagline": "Quản lý hồ sơ ISO + lịch bảo trì thiết bị + notification deadline 1 lần/ngày",
       "logo_url": "https://trishteam.io.vn/logos/trishiso.png",
       "version": "1.0.0",
-      "size_bytes": 1923306,
+      "size_bytes": 1923456,
       "status": "released",
       "release_at": "2026-05-07T09:00:00+07:00",
       "login_required": "user",
@@ -211,9 +211,9 @@
       "changelog_url": "https://github.com/hosytri07/trishnexus-monorepo/releases/tag/trishiso-v1.0.0",
       "download": {
         "windows_x64": {
-          "sha256": "f3145996b5f28c5c276efa7097593d0677b6cea8f92b7d0916c7c90179a92054",
-          "installer_args": [],
-          "url": "https://github.com/hosytri07/trishnexus-monorepo/releases/download/trishiso-v1.0.0/TrishISO_1.0.0_x64-setup.exe"
+          "url": "https://github.com/hosytri07/trishnexus-monorepo/releases/download/trishiso-v1.0.0/TrishISO_1.0.0_x64-setup.exe",
+          "sha256": "0faefbe95d0b655f0d0e1f3dd6646d5beb58144b6df7785963c80446c706c991",
+          "installer_args": []
         }
       }
     },
@@ -246,7 +246,7 @@
       "tagline": "HRM/ERP-light quản lý công ty: nhân sự · chấm công · tài sản · quy trình duyệt · tài liệu nội bộ · kế toán (sắp ra mắt Phase 38)",
       "logo_url": "https://trishteam.io.vn/logos/TrishOffice.png",
       "version": "1.0.0",
-      "size_bytes": 2815565,
+      "size_bytes": 2814914,
       "status": "released",
       "login_required": "user",
       "platforms": [
@@ -256,9 +256,9 @@
       "changelog_url": "",
       "download": {
         "windows_x64": {
-          "sha256": "1b40af5aab25c09ff8ad68e9735ab370185bf61a19c10a913e253f44557be638",
-          "installer_args": [],
-          "url": "https://github.com/hosytri07/trishnexus-monorepo/releases/download/trishoffice-v1.0.0/TrishOffice_1.0.0_x64-setup.exe"
+          "url": "https://github.com/hosytri07/trishnexus-monorepo/releases/download/trishoffice-v1.0.0/TrishOffice_1.0.0_x64-setup.exe",
+          "sha256": "18316e59b58089d1d241906780874864b599f1d2b7aba9db105c12b5e65d528f",
+          "installer_args": []
         }
       }
     }
