@@ -37,6 +37,7 @@ import {
   Wallet,
   Cloud,
   Building,
+  MapPin,
   Ticket,
 } from 'lucide-react';
 import { useAuth } from '@/lib/auth-context';
@@ -68,6 +69,8 @@ const NAV: NavItem[] = [
   { href: '/admin/trishiso', label: 'TrishISO data', icon: ClipboardList },
   { href: '/admin/trishfinance', label: 'TrishFinance data', icon: Wallet },
   { href: '/admin/trishdrive', label: 'TrishDrive admin', icon: Cloud },
+  // Phase 42 — GIS Markers (mốc tọa độ TrishDesign)
+  { href: '/admin/gis-markers', label: '📍 GIS Markers', icon: MapPin },
   // Phase 41 — TrishAdmin private download (admin-only)
   { href: '/admin/trishadmin-download', label: '🛡 TrishAdmin Desktop', icon: Shield },
 ];

@@ -328,6 +328,15 @@ service cloud.firestore {
       allow create, update, delete: if isAdmin();
     }
 
+    // --- Phase 42 — /gis_markers/{markerId} (GIS markers TrishDesign) ---
+    // Admin cung cấp danh mục tọa độ: mốc đường chuyền các cấp, mốc giả định,
+    // biển báo, cọc H... theo Tỉnh / QL / Lý trình.
+    // Public read (TrishDesign user fetch). Admin write.
+    match /gis_markers/{markerId} {
+      allow read: if true;
+      allow create, update, delete: if isAdmin();
+    }
+
     // --- Phase 19.22 — Database collections (admin CRUD, public read) ---
     // standards (QCVN/TCVN/Thông tư...) · dinh_muc (định mức) · vat_lieu · roads_vn
     match /standards/{id} {

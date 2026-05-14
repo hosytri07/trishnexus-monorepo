@@ -36,6 +36,21 @@ import {
   statusLabel,
 } from './atgt-types.js';
 
+/**
+ * Phase 42 — Helper: chỉ tạo leader khi item có nội dung Hiện trạng (notes) hoặc status khác 'good'.
+ * Trả về text hiển thị trên leader, hoặc null nếu KHÔNG cần leader.
+ */
+export function leaderTextFor(item: { status: string; notes?: string }): string | null {
+  const n = (item.notes ?? '').trim();
+  if (n.length > 0) return n;          // ưu tiên text Trí nhập tay
+  if (item.status === 'good') return null;  // tốt → không cần leader
+  // các trạng thái khác hiển thị label mặc định
+  const m: Record<string, string> = {
+    damaged: 'Hư hỏng', missing: 'Mất', new: 'Mới',
+  };
+  return m[item.status] ?? null;
+}
+
 const SCALE_X = 0.1;     // 1m lý trình → 0.1 đv vẽ
 const SCALE_Y = 1.0;     // 1m ngang → 1 đv
 

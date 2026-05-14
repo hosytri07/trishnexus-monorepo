@@ -48,7 +48,7 @@ interface NavItem {
 
 const NAV_ITEMS: NavItem[] = [
   { id: 'dashboard',     icon: '🏠', label: 'Dashboard & Dự án' },
-  { id: 'documents',     icon: '📂', label: 'Danh mục hồ sơ' },
+  { id: 'documents',     icon: '📂', label: 'Mẫu hồ sơ' },
   // 4 module CadPlugin (port từ S-RETC WPF) — TOP-LEVEL
   { id: 'roaddamage',    icon: '🛣', label: 'Vẽ hư hỏng mặt đường' },
   { id: 'atgt',          icon: '🚸', label: 'Vẽ hiện trạng ATGT' },
@@ -123,9 +123,8 @@ export function App(): JSX.Element {
     switch (active) {
       case 'dashboard': return <DashboardPanel />;
       case 'documents':
-        return isAdmin
-          ? <DocumentsPanel />
-          : <LockedPanel feature="📂 Danh mục hồ sơ" icon="📂" description="Hệ thống templates văn bản nghiệm thu / thanh toán / hoàn công cho dự án giao thông VN. Đang được biên soạn bởi admin." />;
+        // Phase 42 — Theo yêu cầu Trí: rename "Danh mục hồ sơ" → "Mẫu hồ sơ", giữ Locked cho mọi user (kể cả admin tạm thời), banner "Đang phát triển"
+        return <LockedPanel feature="📂 Mẫu hồ sơ" icon="📂" description="🚧 Đang phát triển — Hệ thống templates văn bản nghiệm thu / thanh toán / hoàn công + tự fill biến cho dự án giao thông VN. Sẽ ra mắt ở phiên bản sau." />;
       case 'roaddamage': return <RoadDamageModule />;
       case 'atgt': return <AtgtModule />;
       case 'cross_section': return <CrossSectionModule />;

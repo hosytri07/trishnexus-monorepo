@@ -51,9 +51,9 @@ computing gzip size...
 - Using dynamic import() to code-split the application
 - Use build.rollupOptions.output.manualChunks to improve chunking: https://rollupjs.org/configuration-options/#output-manualchunks
 - Adjust chunk size limit for this warning via build.chunkSizeWarningLimit.
-[32mΓ£ô built in 5.06s[39m
+[32mΓ£ô built in 5.10s[39m
    Compiling trishfinance v1.0.0 (C:\Users\ADMIN\Documents\Claude\Projects\TrishTEAM\trishnexus-monorepo\apps-desktop\trishfinance\src-tauri)
-    Finished `release` profile [optimized] target(s) in 1m 15s
+    Finished `release` profile [optimized] target(s) in 1m 26s
        Built application at: C:\Users\ADMIN\Documents\Claude\Projects\TrishTEAM\trishnexus-monorepo\apps-desktop\trishfinance\src-tauri\target\release\trishfinance.exe
         Info Patching C:\Users\ADMIN\Documents\Claude\Projects\TrishTEAM\trishnexus-monorepo\apps-desktop\trishfinance\src-tauri\target\release\trishfinance.exe with bundle type information: nsis
         Info Target: x64

@@ -43,14 +43,14 @@ computing gzip size...
 [2mdist/[22m[32massets/plus-jakarta-sans-latin-500-normal-DYtqi0QS.woff        [39m[1m[2m   16.12 kB[22m[1m[22m
 [2mdist/[22m[32massets/plus-jakarta-sans-latin-700-normal-DqEcQeE5.woff        [39m[1m[2m   16.14 kB[22m[1m[22m
 [2mdist/[22m[35massets/index-C3oLGgQ_.css                                      [39m[1m[2m   65.23 kB[22m[1m[22m[2m Γöé gzip:  18.93 kB[22m
-[2mdist/[22m[36massets/event-BPn5ZG4c.js                                       [39m[1m[2m    1.31 kB[22m[1m[22m[2m Γöé gzip:   0.64 kB[22m
-[2mdist/[22m[36massets/index-BtSX7iLJ.js                                       [39m[1m[33m1,426.90 kB[39m[22m[2m Γöé gzip: 370.11 kB[22m
 
 (!) Some chunks are larger than 500 kB after minification. Consider:
 - Using dynamic import() to code-split the application
 - Use build.rollupOptions.output.manualChunks to improve chunking: https://rollupjs.org/configuration-options/#output-manualchunks
 - Adjust chunk size limit for this warning via build.chunkSizeWarningLimit.
-[32mΓ£ô built in 4.06s[39m
+[2mdist/[22m[36massets/event-BPn5ZG4c.js                                       [39m[1m[2m    1.31 kB[22m[1m[22m[2m Γöé gzip:   0.64 kB[22m
+[2mdist/[22m[36massets/index-BtSX7iLJ.js                                       [39m[1m[33m1,426.90 kB[39m[22m[2m Γöé gzip: 370.11 kB[22m
+[32mΓ£ô built in 4.45s[39m
    Compiling trishadmin v1.0.0 (C:\Users\ADMIN\Documents\Claude\Projects\TrishTEAM\trishnexus-monorepo\apps-desktop\trishadmin\src-tauri)
 warning: function `upload_bytes_to_channel` is never used
    --> src\mtproto.rs:678:14
@@ -67,7 +67,7 @@ warning: struct `UploadQuery` is never constructed
    |            ^^^^^^^^^^^
 
 warning: `trishadmin` (lib) generated 2 warnings
-    Finished `release` profile [optimized] target(s) in 2m 20s
+    Finished `release` profile [optimized] target(s) in 2m 22s
        Built application at: C:\Users\ADMIN\Documents\Claude\Projects\TrishTEAM\trishnexus-monorepo\apps-desktop\trishadmin\src-tauri\target\release\trishadmin.exe
         Info Patching C:\Users\ADMIN\Documents\Claude\Projects\TrishTEAM\trishnexus-monorepo\apps-desktop\trishadmin\src-tauri\target\release\trishadmin.exe with bundle type information: nsis
         Info Target: x64

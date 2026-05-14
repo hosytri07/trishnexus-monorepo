@@ -1291,6 +1291,18 @@ function HuHongRightSide({
         <button type="button" className="acad-tb-btn acad-tb-blue" onClick={handleAdd}>➕ Thêm</button>
         <button type="button" className="acad-tb-btn acad-tb-cyan" onClick={handlePasteClipboard} title="Dán dữ liệu từ Excel/clipboard (TSV)">📋 Dán</button>
         <button type="button" className="acad-tb-btn acad-tb-amber" onClick={handlePreview} disabled={segment.damagePieces.length === 0}>🔍 Xem</button>
+        {/* Phase 42 — Clear bảng nhập (theo yêu cầu Trí) */}
+        <button
+          type="button"
+          className="acad-tb-btn"
+          style={{ background: '#fee2e2', color: '#991b1b' }}
+          disabled={segment.damagePieces.length === 0}
+          onClick={async () => {
+            if (!await dialog.confirm(`Xóa hết ${segment.damagePieces.length} miếng đã nhập trong bảng? (KHÔNG xóa entities đã vẽ trong AutoCAD)`)) return;
+            designDb.updateSegment(project.id, segment.id, { damagePieces: [] });
+          }}
+          title="Xóa toàn bộ bảng thống kê đang nhập (không ảnh hưởng AutoCAD)"
+        >🧹 Xóa bảng</button>
 
         <div style={{ flex: 1 }} />
         <span className="acad-acad-state">

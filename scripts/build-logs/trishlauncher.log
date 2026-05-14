@@ -62,9 +62,9 @@ computing gzip size...
 - Using dynamic import() to code-split the application
 - Use build.rollupOptions.output.manualChunks to improve chunking: https://rollupjs.org/configuration-options/#output-manualchunks
 - Adjust chunk size limit for this warning via build.chunkSizeWarningLimit.
-[32mΓ£ô built in 1.67s[39m
+[32mΓ£ô built in 1.61s[39m
    Compiling trishlauncher v1.0.0 (C:\Users\ADMIN\Documents\Claude\Projects\TrishTEAM\trishnexus-monorepo\apps-desktop\trishlauncher\src-tauri)
-    Finished `release` profile [optimized] target(s) in 39.44s
+    Finished `release` profile [optimized] target(s) in 38.35s
        Built application at: C:\Users\ADMIN\Documents\Claude\Projects\TrishTEAM\trishnexus-monorepo\apps-desktop\trishlauncher\src-tauri\target\release\trishlauncher.exe
         Info Patching C:\Users\ADMIN\Documents\Claude\Projects\TrishTEAM\trishnexus-monorepo\apps-desktop\trishlauncher\src-tauri\target\release\trishlauncher.exe with bundle type information: nsis
         Info Target: x64

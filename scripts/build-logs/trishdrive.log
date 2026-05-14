@@ -51,7 +51,7 @@ computing gzip size...
 - Using dynamic import() to code-split the application
 - Use build.rollupOptions.output.manualChunks to improve chunking: https://rollupjs.org/configuration-options/#output-manualchunks
 - Adjust chunk size limit for this warning via build.chunkSizeWarningLimit.
-[32mΓ£ô built in 2.36s[39m
+[32mΓ£ô built in 2.42s[39m
    Compiling trishdrive v1.0.0 (C:\Users\ADMIN\Documents\Claude\Projects\TrishTEAM\trishnexus-monorepo\apps-desktop\trishdrive\src-tauri)
 warning: function `encrypt` is never used
   --> src\crypto.rs:14:8
@@ -68,7 +68,7 @@ warning: constant `DEFAULT_CACHE_CAP_BYTES` is never used
    |           ^^^^^^^^^^^^^^^^^^^^^^^
 
 warning: `trishdrive` (lib) generated 2 warnings
-    Finished `release` profile [optimized] target(s) in 2m 13s
+    Finished `release` profile [optimized] target(s) in 2m 17s
        Built application at: C:\Users\ADMIN\Documents\Claude\Projects\TrishTEAM\trishnexus-monorepo\apps-desktop\trishdrive\src-tauri\target\release\trishdrive.exe
         Info Patching C:\Users\ADMIN\Documents\Claude\Projects\TrishTEAM\trishnexus-monorepo\apps-desktop\trishdrive\src-tauri\target\release\trishdrive.exe with bundle type information: nsis
         Info Target: x64
