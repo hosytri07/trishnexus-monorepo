@@ -68,6 +68,21 @@ const SCALE_Y = 1.0;     // 1m ngang → 1 đv
  *
  * Trả về [] nếu chưa setup folder hoặc thiếu code.
  */
+/**
+ * Phase 42 — Lấy default folder block ATGT.
+ *   1. User config qua Settings → localStorage 'trishdesign:atgt-blocks-folder'
+ *   2. Fallback: %APPDATA%\\vn.trishteam.design\\blocks\\ATGT (cài kèm hoặc tự tải về)
+ */
+export function getAtgtBlocksFolder(): string {
+  if (typeof window === 'undefined') return '';
+  const cfg = (window.localStorage.getItem('trishdesign:atgt-blocks-folder') ?? '').trim();
+  if (cfg) return cfg;
+  // Fallback APPDATA default (Windows)
+  const appdata = (window as { __APPDATA__?: string }).__APPDATA__;
+  if (appdata) return `${appdata}\\vn.trishteam.design\\blocks\\ATGT`;
+  return '';
+}
+
 export function generateBlockInsertCmd(opts: {
   code: string;
   x: number;
@@ -77,7 +92,7 @@ export function generateBlockInsertCmd(opts: {
   attributes?: Record<string, string>;
 }): string[] {
   if (typeof window === 'undefined') return [];
-  const folder = (window.localStorage.getItem('trishdesign:atgt-blocks-folder') ?? '').trim();
+  const folder = getAtgtBlocksFolder();
   if (!folder || !opts.code) return [];
   const sep = folder.endsWith('\\') || folder.endsWith('/') ? '' : '\\';
   const blockPath = `${folder}${sep}${opts.code}.dwg`;
@@ -95,6 +110,45 @@ export function generateBlockInsertCmd(opts: {
   cmds.push(cmd);
   return cmds;
 }
+
+/**
+ * Phase 42 — Chèn block biển báo + block ghi chú lý trình GHICHUBIENBAO.
+ *
+ * GHICHUBIENBAO là block Trí cấp sẵn, có 1 attribute:
+ *   - Tag: KM, Value: "KM1824+555"
+ *
+ * Workflow trong AutoCAD:
+ *   1. _-INSERT <folder>/<bienBaoCode>.dwg <x>,<y> 1 1 0
+ *   2. _-INSERT GHICHUBIENBAO <x>,<y+offsetY> 1 1 0 "KM1824+555"
+ *
+ * Yêu cầu: folder block ATGT phải có file GHICHUBIENBAO.dwg
+ */
+export function insertBienBaoWithStation(opts: {
+  bienBaoCode: string;          // VD "GC.31a"
+  x: number;
+  y: number;                    // Tâm biển báo
+  stationLabel: string;         // VD "KM1824+555"
+  rotation?: number;
+  offsetYGhiChu?: number;       // Y offset cho block GHICHUBIENBAO, default 1.5m
+}): string[] {
+  const cmds: string[] = [];
+  const folder = getAtgtBlocksFolder();
+  if (!folder) return cmds;
+  const sep = folder.endsWith('\\') || folder.endsWith('/') ? '' : '\\';
+
+  // 1. Insert biển báo block
+  const bienBaoPath = `${folder}${sep}${opts.bienBaoCode}.dwg`;
+  cmds.push(`._-INSERT\n${bienBaoPath}\n${opts.x},${opts.y}\n1\n1\n${opts.rotation ?? 0}\n`);
+
+  // 2. Insert GHICHUBIENBAO với attribute KM
+  const offsetY = opts.offsetYGhiChu ?? 1.5;
+  const ghiChuPath = `${folder}${sep}GHICHUBIENBAO.dwg`;
+  // _-INSERT prompts: name → point → x → y → rotation → attribute KM
+  cmds.push(`._-INSERT\n${ghiChuPath}\n${opts.x},${opts.y + offsetY}\n1\n1\n0\n${opts.stationLabel}\n`);
+
+  return cmds;
+}
+
 
 export function generateAtgtCommands(project: AtgtProject): string[] {
   const cmds: string[] = [];

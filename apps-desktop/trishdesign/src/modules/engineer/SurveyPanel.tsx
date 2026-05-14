@@ -70,7 +70,7 @@ function defaultSession(): OcrSession {
   return {
     imageBase64: null, imageName: '',
     ocrText: '', parsedRows: [], parsedHeader: [],
-    aiPrompt: \`Bạn là AI chuẩn hóa kết quả OCR khảo sát hư hỏng mặt đường tiếng Việt.
+    aiPrompt: `Bạn là AI chuẩn hóa kết quả OCR khảo sát hư hỏng mặt đường tiếng Việt.
 
 NHIỆM VỤ:
 1. Đọc text OCR (có thể lỗi font, dòng lệch)
@@ -91,7 +91,7 @@ QUAN TRỌNG:
 - Nếu 1 dòng OCR lẫn nhiều trường, tự PHÂN TÁCH chính xác (không gộp)
 - Nếu OCR sai font "Sỡ" thay "Số", "lý trĩnh" thay "lý trình" → tự sửa
 - Nếu thiếu cột → để trống ô đó (không bỏ row)
-- KHÔNG thêm dòng tiêu đề lặp, KHÔNG comment, CHỈ output bảng TSV.\`,
+- KHÔNG thêm dòng tiêu đề lặp, KHÔNG comment, CHỈ output bảng TSV.`,
     aiResult: '',
     multiSheet: emptyMultiSheet(),
   };

@@ -45,12 +45,28 @@ interface BaoLuSection {
   createdAt: number;
 }
 
+/**
+ * Phase 42 — Điểm sụt trượt (Slide Event). 1 hồ sơ có nhiều điểm sụt, mỗi điểm có nhiều mặt cắt.
+ * File thống kê cuối cùng = list các điểm sụt với tổng khối lượng từng điểm (Simpson).
+ */
+export interface BaoLuSlideEvent {
+  id: string;
+  name: string;          // VD "Vụ sụt Km10+020 → Km10+080 taluy âm"
+  stationFrom?: string;  // Lý trình bắt đầu vùng sụt
+  stationTo?: string;    // Lý trình kết thúc
+  sectionIds: string[];  // Reference tới BaoLuSection.id thuộc về event này
+  note?: string;
+  createdAt: number;
+}
+
 interface BaoLuProject {
   id: string;
   name: string;
   diaDiem?: string;
   ngayKhaoSat?: string;
   sections: BaoLuSection[];
+  /** Phase 42 — List điểm sụt (mỗi điểm chứa nhiều sectionIds). Optional cho data cũ. */
+  slideEvents?: BaoLuSlideEvent[];
   createdAt: number;
   updatedAt: number;
 }
@@ -105,6 +121,16 @@ function computeVolume(s: BaoLuSection, k: number): { vTuNhien: number; vVanChuy
  *
  * Sections phải đã sort theo station_m tăng dần.
  */
+/**
+ * Phase 42 — Tính khối lượng 1 SlideEvent (điểm sụt). Lấy các sections theo sectionIds → Simpson.
+ */
+export function computeSlideEventVolume(event: BaoLuSlideEvent, allSections: BaoLuSection[], k: number) {
+  const sections = event.sectionIds
+    .map((id) => allSections.find((s) => s.id === id))
+    .filter((s): s is BaoLuSection => !!s);
+  return computeGroupVolumeSimpson(sections, k);
+}
+
 export function computeGroupVolumeSimpson(sections: BaoLuSection[], k: number): {
   vTuNhien: number;
   vVanChuyen: number;
