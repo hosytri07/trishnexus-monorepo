@@ -40,8 +40,8 @@ import {
  * Phase 42 — Helper: chỉ tạo leader khi item có nội dung Hiện trạng (notes) hoặc status khác 'good'.
  * Trả về text hiển thị trên leader, hoặc null nếu KHÔNG cần leader.
  */
-export function leaderTextFor(item: { status: string; notes?: string }): string | null {
-  const n = (item.notes ?? '').trim();
+export function leaderTextFor(item: { status: string; note?: string }): string | null {
+  const n = (item.note ?? '').trim();
   if (n.length > 0) return n;          // ưu tiên text Trí nhập tay
   if (item.status === 'good') return null;  // tốt → không cần leader
   // các trạng thái khác hiển thị label mặc định
@@ -53,6 +53,48 @@ export function leaderTextFor(item: { status: string; notes?: string }): string 
 
 const SCALE_X = 0.1;     // 1m lý trình → 0.1 đv vẽ
 const SCALE_Y = 1.0;     // 1m ngang → 1 đv
+
+
+/**
+ * Phase 42 — Generate AutoCAD _-INSERT command cho 1 ATGT item.
+ *
+ * Tên block = item.code (vd "GC.31a" → file "GC.31a.dwg")
+ * Path = trishdesign:atgt-blocks-folder localStorage (admin/user set trong Settings)
+ *
+ * Cấu trúc command:
+ *   _-INSERT  <path>\<code>.dwg  <x>,<y>  1 1 0
+ *
+ * Biển báo: thêm attribute STATION = lý trình "Km1+500" (block .dwg phải có attdef STATION).
+ *
+ * Trả về [] nếu chưa setup folder hoặc thiếu code.
+ */
+export function generateBlockInsertCmd(opts: {
+  code: string;
+  x: number;
+  y: number;
+  rotation?: number;
+  scale?: number;
+  attributes?: Record<string, string>;
+}): string[] {
+  if (typeof window === 'undefined') return [];
+  const folder = (window.localStorage.getItem('trishdesign:atgt-blocks-folder') ?? '').trim();
+  if (!folder || !opts.code) return [];
+  const sep = folder.endsWith('\\') || folder.endsWith('/') ? '' : '\\';
+  const blockPath = `${folder}${sep}${opts.code}.dwg`;
+  const scale = opts.scale ?? 1;
+  const rot = opts.rotation ?? 0;
+  const cmds: string[] = [];
+  // _-INSERT prompt: name → insertion point → x scale → y scale → rotation → [attribute prompts...]
+  let cmd = `._-INSERT\n${blockPath}\n${opts.x},${opts.y}\n${scale}\n${scale}\n${rot}\n`;
+  // Attribute values (nếu có): AutoCAD prompt từng attribute theo thứ tự định nghĩa trong block
+  if (opts.attributes) {
+    for (const v of Object.values(opts.attributes)) {
+      cmd += `${v}\n`;
+    }
+  }
+  cmds.push(cmd);
+  return cmds;
+}
 
 export function generateAtgtCommands(project: AtgtProject): string[] {
   const cmds: string[] = [];

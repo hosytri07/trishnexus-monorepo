@@ -70,7 +70,28 @@ function defaultSession(): OcrSession {
   return {
     imageBase64: null, imageName: '',
     ocrText: '', parsedRows: [], parsedHeader: [],
-    aiPrompt: 'Hãy chuẩn hóa text OCR thành bảng có các cột: STT, Lý trình, Loại HH, Dài, Rộng, Mã HH. Phân tách bằng tab.',
+    aiPrompt: \`Bạn là AI chuẩn hóa kết quả OCR khảo sát hư hỏng mặt đường tiếng Việt.
+
+NHIỆM VỤ:
+1. Đọc text OCR (có thể lỗi font, dòng lệch)
+2. Phân biệt CHÍNH XÁC các trường sau theo nội dung từng cell:
+   - STT: số thứ tự (1, 2, 3...)
+   - Lý trình: dạng số nguyên hoặc "Km1+500"
+   - Loại HH: ô gà, nứt rạn, vệt lún, lún nứt, vá đắp, bong tróc, bóc lớp mặt...
+   - Dài (m): số thập phân ≥ 0
+   - Rộng (m): số thập phân ≥ 0
+   - Mã HH: viết tắt 2-3 ký tự (vd "OG", "VG", "VL", "10", "20")
+
+3. Output: BẢNG TSV (tab-separated) chuẩn:
+STT\tLý trình\tLoại HH\tDài\tRộng\tMã HH
+1\t100\tỔ gà\t2.5\t1.8\tOG
+...
+
+QUAN TRỌNG:
+- Nếu 1 dòng OCR lẫn nhiều trường, tự PHÂN TÁCH chính xác (không gộp)
+- Nếu OCR sai font "Sỡ" thay "Số", "lý trĩnh" thay "lý trình" → tự sửa
+- Nếu thiếu cột → để trống ô đó (không bỏ row)
+- KHÔNG thêm dòng tiêu đề lặp, KHÔNG comment, CHỈ output bảng TSV.\`,
     aiResult: '',
     multiSheet: emptyMultiSheet(),
   };

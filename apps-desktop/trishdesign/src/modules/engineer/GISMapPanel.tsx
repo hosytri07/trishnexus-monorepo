@@ -13,6 +13,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { save, open } from '@tauri-apps/plugin-dialog';
 import { invoke, convertFileSrc } from '@tauri-apps/api/core';
+import { GisMarkersTab } from './GisMarkersTab.js';
 import {
   type LatLng,
   type GisDb,
@@ -943,6 +944,11 @@ function Vn2000Table({ features, provinceCode, onChangeProvince, flash }: {
           </tbody>
         </table>
       )}
+
+      {/* Phase 42 — Mốc tọa độ TrishTEAM (admin curated, fetch Firestore /gis_markers) */}
+      <div style={{ marginTop: 24 }}>
+        <GisMarkersTab />
+      </div>
     </div>
   );
 }

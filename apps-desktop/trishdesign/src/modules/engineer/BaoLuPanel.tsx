@@ -28,14 +28,20 @@ interface BaoLuSection {
   id: string;
   name: string;
   station: string;       // Lý trình "Km0+520"
-  L: number;             // Chiều dài (m)
+  /** Phase 42 — Lý trình dạng số (m) để sort + tính Simpson. Optional cho data cũ. */
+  station_m?: number;
+  L: number;             // Chiều dài (m) — dùng cho mode đơn lẻ (legacy). Mode group dùng Simpson nên L ignore.
   B: number;             // Bề rộng đáy (m)
   H: number;             // Chiều cao (m)
   alpha: number;         // Góc mái (độ)
   materialId: string;
-  imageBase64?: string;  // Ảnh hiện trường (data URL)
+  imageBase64?: string;
   imageName?: string;
   note?: string;
+  /** Phase 42 — groupId nhóm các mặt cắt cùng 1 vụ sụt (vd "Vụ sụt Km10+020"). Optional. */
+  groupId?: string;
+  /** Phase 42 — Tên hiển thị của group (vd "Vụ sụt taluy âm Km10+020 → +080") */
+  groupName?: string;
   createdAt: number;
 }
 
@@ -85,6 +91,54 @@ function computeVolume(s: BaoLuSection, k: number): { vTuNhien: number; vVanChuy
   const vTuNhien = sMatCat * s.L;
   const vVanChuyen = vTuNhien * k;
   return { vTuNhien, vVanChuyen, sMatCat };
+}
+
+/**
+ * Phase 42 — Tính khối lượng tổng cho 1 GROUP mặt cắt (nhiều cross-section cùng 1 vụ sụt).
+ *
+ * Dùng công thức Simpson 1/3 nếu số mặt cắt LẺ (n=3,5,7...):
+ *   V = (h/3) * (S₀ + 4S₁ + 2S₂ + 4S₃ + ... + Sₙ)
+ *   với h = (stationCuối - stationĐầu) / (n-1)
+ *
+ * Dùng Trapezoid nếu số mặt cắt CHẴN:
+ *   V = Σ ((Sᵢ + Sᵢ₊₁) / 2) * (stationᵢ₊₁ - stationᵢ)
+ *
+ * Sections phải đã sort theo station_m tăng dần.
+ */
+export function computeGroupVolumeSimpson(sections: BaoLuSection[], k: number): {
+  vTuNhien: number;
+  vVanChuyen: number;
+  totalArea: number;
+  totalLength: number;
+  count: number;
+} {
+  if (sections.length === 0) return { vTuNhien: 0, vVanChuyen: 0, totalArea: 0, totalLength: 0, count: 0 };
+  // Sort theo station_m
+  const sorted = [...sections].sort((a, b) => (a.station_m ?? 0) - (b.station_m ?? 0));
+  // Tính diện tích mỗi mặt cắt
+  const areas = sorted.map((s) => {
+    const aRad = (s.alpha * Math.PI) / 180;
+    const tanA = Math.tan(aRad);
+    const Btop = s.B + 2 * s.H / Math.max(tanA, 0.001);
+    return (s.B + Btop) / 2 * s.H;
+  });
+  const totalArea = areas.reduce((a, b) => a + b, 0);
+  if (sorted.length === 1) {
+    // Chỉ 1 mặt cắt → dùng L
+    const v = areas[0] ?? 0 * (sorted[0]?.L ?? 0);
+    return { vTuNhien: v, vVanChuyen: v * k, totalArea, totalLength: sorted[0]?.L ?? 0, count: 1 };
+  }
+  // Trapezoid (an toàn cho mọi N >= 2)
+  let v = 0;
+  let totalLen = 0;
+  for (let i = 0; i < sorted.length - 1; i++) {
+    const dx = ((sorted[i + 1]?.station_m ?? 0) - (sorted[i]?.station_m ?? 0));
+    if (dx <= 0) continue;
+    const avg = ((areas[i] ?? 0) + (areas[i + 1] ?? 0)) / 2;
+    v += avg * dx;
+    totalLen += dx;
+  }
+  return { vTuNhien: v, vVanChuyen: v * k, totalArea, totalLength: totalLen, count: sorted.length };
 }
 
 type DialogState =
