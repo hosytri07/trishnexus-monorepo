@@ -42,6 +42,33 @@ function writeLs(key: string, value: string): void {
 }
 
 export function SettingsPanel(): JSX.Element {
+  // Phase 42 — Block ATGT folder
+  const [atgtBlocksFolder, setAtgtBlocksFolder] = useState<string>(() => readLs('trishdesign:atgt-blocks-folder', ''));
+  const [downloadingBlocks, setDownloadingBlocks] = useState(false);
+
+  function handleSaveAtgtFolder(): void {
+    writeLs('trishdesign:atgt-blocks-folder', atgtBlocksFolder.trim());
+    window.alert('✓ Đã lưu đường dẫn folder block ATGT');
+  }
+
+  async function handleDownloadBlocks(): Promise<void> {
+    if (downloadingBlocks) return;
+    setDownloadingBlocks(true);
+    try {
+      // Tải zip block từ GitHub Release (admin sẽ upload trishdesign-blocks-atgt.zip)
+      // Phase 42 placeholder: hiển thị hướng dẫn manual
+      window.alert(
+        '📥 Đang phát triển auto-download.\n\nTạm thời tải tay:\n' +
+        '1. Vào https://github.com/hosytri07/trishnexus-monorepo/releases/tag/trishdesign-blocks-atgt-v1.0.0\n' +
+        '2. Tải file trishdesign-blocks-atgt.zip\n' +
+        '3. Giải nén vào %APPDATA%\\vn.trishteam.design\\blocks\\ATGT\n' +
+        '4. Quay lại đây, dán path vào ô trên + Lưu'
+      );
+    } finally {
+      setDownloadingBlocks(false);
+    }
+  }
+
   const { role, profile } = useAuth();
   const isAdmin = role === 'admin';
 
@@ -234,6 +261,36 @@ export function SettingsPanel(): JSX.Element {
             <button type="button" className="btn btn-ghost">📂 Mở thư mục data</button>
             <button type="button" className="btn btn-ghost" onClick={handleResetDefaults}>🔄 Reset về mặc định</button>
           </div>
+        </div>
+      </section>
+
+      {/* Phase 42 — Block ATGT folder */}
+      <section className="td-section">
+        <h2 className="td-section-title">📦 Thư mục Block ATGT</h2>
+        <div className="td-section-body">
+          <p className="muted small" style={{ marginBottom: 10 }}>
+            Folder chứa block AutoCAD ATGT (biển báo, cọc tiêu, cống...). Tên file <code>.dwg</code> = tên block = mã tài sản (vd <code>GC.31a.dwg</code>, <code>GHICHUBIENBAO.dwg</code>).
+          </p>
+          <div className="td-form-row">
+            <label className="td-field" style={{ flex: 3 }}>
+              <span className="td-field-label">Đường dẫn folder block</span>
+              <input
+                className="td-input"
+                placeholder="C:\\Users\\ADMIN\\AppData\\Roaming\\vn.trishteam.design\\blocks\\ATGT"
+                value={atgtBlocksFolder}
+                onChange={(e) => setAtgtBlocksFolder(e.target.value)}
+              />
+            </label>
+            <div style={{ display: 'flex', gap: 6, alignItems: 'flex-end', paddingBottom: 2 }}>
+              <button type="button" className="btn btn-primary" onClick={handleSaveAtgtFolder}>💾 Lưu</button>
+              <button type="button" className="btn btn-ghost" onClick={handleDownloadBlocks} disabled={downloadingBlocks}>
+                {downloadingBlocks ? '⏳ Đang tải...' : '📥 Tải block ATGT'}
+              </button>
+            </div>
+          </div>
+          <span className="muted small" style={{ fontSize: 11 }}>
+            💡 Bấm "Tải block" để app tự download bộ block ATGT (~5MB) về <code>%APPDATA%\\vn.trishteam.design\\blocks\\ATGT</code>. Bộ block do admin TrishTEAM cung cấp.
+          </span>
         </div>
       </section>
 

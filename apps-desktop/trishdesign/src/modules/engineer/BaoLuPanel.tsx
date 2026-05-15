@@ -11,6 +11,7 @@ import * as XLSX from 'xlsx';
 import { save, open } from '@tauri-apps/plugin-dialog';
 import { invoke, convertFileSrc } from '@tauri-apps/api/core';
 import { autoCadStatus, autoCadSendCommands, autoCadEnsureDocument } from '../../lib/autocad.js';
+import { generateSlideEventCommands } from '../../lib/baolu-script.js';
 
 const LS_KEY = 'trishdesign:baolu-db';
 
@@ -24,26 +25,68 @@ const MATERIALS = [
   { id: 'hon_hop',  name: 'Hỗn hợp đất + đá',     k: 1.40 },
 ];
 
+type CrossType = 'nua_dao_nua_dap' | 'taluy_dao_2ben' | 'taluy_dap_2ben';
+
 interface BaoLuSection {
   id: string;
-  name: string;
-  station: string;       // Lý trình "Km0+520"
-  /** Phase 42 — Lý trình dạng số (m) để sort + tính Simpson. Optional cho data cũ. */
-  station_m?: number;
-  L: number;             // Chiều dài (m) — dùng cho mode đơn lẻ (legacy). Mode group dùng Simpson nên L ignore.
-  B: number;             // Bề rộng đáy (m)
-  H: number;             // Chiều cao (m)
-  alpha: number;         // Góc mái (độ)
+  station: string;       // Lý trình "Km10+020"
+  /** Lý trình dạng số (m) — bắt buộc để sort + tính Simpson */
+  station_m: number;
+
+  /** Phase 42 — Loại mặt cắt đường */
+  crossType: CrossType;
+
+  /** Bề rộng mặt đường (m) — default 7m */
+  matDuongWidth: number;
+  /** Bề rộng lề bên trái (m) — default 0.5m */
+  leWidthLeft: number;
+  /** Bề rộng lề bên phải (m) — default 0.5m */
+  leWidthRight: number;
+  /** Bề rộng rãnh (m, 0 nếu không có) */
+  ranhWidth: number;
+  /** Chiều sâu rãnh (m) */
+  ranhDepth: number;
+  /** Hệ số taluy đào 1:n (vd 1.0 = 1:1) */
+  taluyDaoSlope: number;
+  /** Hệ số taluy đắp 1:n (vd 1.5 = 1:1.5) */
+  taluyDapSlope: number;
+
+  /**
+   * Phase 42 — Diện tích đất sụt nhập TAY (m²).
+   * Đất sụt là hình thù phức tạp, KHÔNG tính bằng công thức hình học đơn giản.
+   * User đo trực tiếp từ ảnh hiện trường hoặc dùng AI Vision đo.
+   */
+  areaDatSut: number;
+
+  /** Vật liệu */
   materialId: string;
+
+  /** Phase 42 — groupId nhóm các mặt cắt cùng 1 điểm sụt. */
+  groupId?: string;
+
+  /** Ảnh hiện trường + ghi chú */
   imageBase64?: string;
   imageName?: string;
   note?: string;
-  /** Phase 42 — groupId nhóm các mặt cắt cùng 1 vụ sụt (vd "Vụ sụt Km10+020"). Optional. */
-  groupId?: string;
-  /** Phase 42 — Tên hiển thị của group (vd "Vụ sụt taluy âm Km10+020 → +080") */
-  groupName?: string;
+
+  // ─── Deprecated (giữ tương thích, KHÔNG dùng nữa) ───
+  /** @deprecated Phase 42 — không cần tên mặt cắt */
+  name?: string;
+  /** @deprecated Phase 42 — L = chiều dài TỔNG của SlideEvent, không phải từng mặt cắt */
+  L?: number;
+  /** @deprecated Phase 42 — diện tích đất sụt nhập tay thay vì tính từ B/H/α */
+  B?: number;
+  H?: number;
+  alpha?: number;
+
   createdAt: number;
 }
+
+const CROSS_TYPE_LABEL: Record<CrossType, string> = {
+  nua_dao_nua_dap: 'Nửa đào nửa đắp',
+  taluy_dao_2ben:  'Taluy đào 2 bên',
+  taluy_dap_2ben:  'Taluy đắp 2 bên',
+};
 
 /**
  * Phase 42 — Điểm sụt trượt (Slide Event). 1 hồ sơ có nhiều điểm sụt, mỗi điểm có nhiều mặt cắt.
@@ -77,6 +120,27 @@ interface BaoLuDb {
 }
 
 function emptyDb(): BaoLuDb { return { projects: [], activeProjectId: null }; }
+/**
+ * Phase 42 — Default values cho mặt cắt mới (theo spec hốt sạt).
+ */
+function defaultBaoLuSection(): Omit<BaoLuSection, 'id' | 'createdAt'> {
+  return {
+    station: '',
+    station_m: 0,
+    crossType: 'nua_dao_nua_dap',
+    matDuongWidth: 7,
+    leWidthLeft: 0.5,
+    leWidthRight: 0.5,
+    ranhWidth: 0,
+    ranhDepth: 0.3,
+    taluyDaoSlope: 1.0,
+    taluyDapSlope: 1.5,
+    areaDatSut: 0,
+    materialId: 'dat',
+    note: '',
+  };
+}
+
 function newId(prefix: string): string { return `${prefix}_${Date.now().toString(36)}_${Math.floor(Math.random() * 1000).toString(36)}`; }
 
 function loadDb(): BaoLuDb {
@@ -98,13 +162,27 @@ function saveDb(db: BaoLuDb): void {
 }
 
 // Tính khối lượng — hình thang đáy mở rộng do mái dốc
+/**
+ * Phase 42 — Tính khối lượng 1 mặt cắt riêng lẻ (KHÔNG nhân với L vì L là chiều dài
+ * tổng của điểm sụt). Trả về diện tích đất sụt + hệ số nở rời tham khảo.
+ *
+ * Khối lượng tổng cho 1 điểm sụt = computeSlideEventVolume() (Simpson tích phân
+ * giữa các mặt cắt).
+ */
 function computeVolume(s: BaoLuSection, k: number): { vTuNhien: number; vVanChuyen: number; sMatCat: number } {
-  // Diện tích mặt cắt = trapezoid: (B + B + 2*H/tan(α)) / 2 * H = (B + H/tan(α)) * H
-  const alphaRad = (s.alpha * Math.PI) / 180;
-  const tanA = Math.tan(alphaRad);
-  const Btop = s.B + 2 * s.H / Math.max(tanA, 0.001);
-  const sMatCat = (s.B + Btop) / 2 * s.H;
-  const vTuNhien = sMatCat * s.L;
+  // Phase 42 — Diện tích đất sụt nhập tay (hình phức tạp, không tính được công thức)
+  // Fallback compute từ B×H×α cho data cũ (deprecated)
+  let sMatCat = s.areaDatSut ?? 0;
+  if (!sMatCat && s.B && s.H && s.alpha) {
+    // Legacy compute từ schema cũ
+    const aRad = (s.alpha * Math.PI) / 180;
+    const tanA = Math.tan(aRad);
+    const Btop = s.B + 2 * s.H / Math.max(tanA, 0.001);
+    sMatCat = (s.B + Btop) / 2 * s.H;
+  }
+  // KHÔNG nhân L — vì 1 mặt cắt độc lập KHÔNG có chiều dài, chỉ có diện tích
+  // Volume tham khảo = area × 1m (đơn vị nhất quán)
+  const vTuNhien = sMatCat;
   const vVanChuyen = vTuNhien * k;
   return { vTuNhien, vVanChuyen, sMatCat };
 }
@@ -141,18 +219,24 @@ export function computeGroupVolumeSimpson(sections: BaoLuSection[], k: number): 
   if (sections.length === 0) return { vTuNhien: 0, vVanChuyen: 0, totalArea: 0, totalLength: 0, count: 0 };
   // Sort theo station_m
   const sorted = [...sections].sort((a, b) => (a.station_m ?? 0) - (b.station_m ?? 0));
-  // Tính diện tích mỗi mặt cắt
+  // Phase 42 — Tính diện tích mỗi mặt cắt từ areaDatSut nhập tay
   const areas = sorted.map((s) => {
-    const aRad = (s.alpha * Math.PI) / 180;
-    const tanA = Math.tan(aRad);
-    const Btop = s.B + 2 * s.H / Math.max(tanA, 0.001);
-    return (s.B + Btop) / 2 * s.H;
+    if (s.areaDatSut && s.areaDatSut > 0) return s.areaDatSut;
+    // Fallback legacy compute cho data cũ
+    if (s.B && s.H && s.alpha) {
+      const aRad = (s.alpha * Math.PI) / 180;
+      const tanA = Math.tan(aRad);
+      const Btop = s.B + 2 * s.H / Math.max(tanA, 0.001);
+      return (s.B + Btop) / 2 * s.H;
+    }
+    return 0;
   });
   const totalArea = areas.reduce((a, b) => a + b, 0);
   if (sorted.length === 1) {
-    // Chỉ 1 mặt cắt → dùng L
-    const v = areas[0] ?? 0 * (sorted[0]?.L ?? 0);
-    return { vTuNhien: v, vVanChuyen: v * k, totalArea, totalLength: sorted[0]?.L ?? 0, count: 1 };
+    // Phase 42 — Chỉ 1 mặt cắt → KHÔNG đủ thông tin tính khối lượng (cần ít nhất 2 mặt cắt
+    // để có khoảng cách). Trả về diện tích × 1m làm placeholder.
+    const v = (areas[0] ?? 0) * 1;
+    return { vTuNhien: v, vVanChuyen: v * k, totalArea, totalLength: 0, count: 1 };
   }
   // Trapezoid (an toàn cho mọi N >= 2)
   let v = 0;
@@ -391,6 +475,45 @@ Quy tắc: Nếu không ước được giá trị nào, để 0 nhưng vẫn tr
     }
   }
 
+  /**
+   * Phase 42 — Vẽ A3 cho 1 điểm sụt: bố trí các mặt cắt trong khung A3 scale 0.2 + bảng thống kê.
+   */
+  async function handleDrawSlideEventA3(eventId?: string): Promise<void> {
+    if (!activeProject || activeProject.sections.length === 0) {
+      flash('Không có mặt cắt để vẽ');
+      return;
+    }
+    if (!acadRunning) {
+      flash('Chưa kết nối AutoCAD. Mở AutoCAD trống trước.');
+      return;
+    }
+    try {
+      await autoCadEnsureDocument();
+      // Tìm SlideEvent — nếu không có thì tạo virtual event chứa tất cả sections
+      const events = activeProject.slideEvents ?? [];
+      const ev = eventId ? events.find((e) => e.id === eventId) : events[0];
+      const virtualEvent = ev ?? {
+        id: 'virtual_all',
+        name: activeProject.name || 'Tất cả mặt cắt',
+        sectionIds: activeProject.sections.map((s) => s.id),
+      };
+      const sections = virtualEvent.sectionIds
+        .map((id) => activeProject.sections.find((s) => s.id === id))
+        .filter((s): s is BaoLuSection => !!s)
+        .sort((a, b) => (a.station_m ?? 0) - (b.station_m ?? 0));
+      if (sections.length === 0) {
+        flash('Không có mặt cắt trong điểm sụt');
+        return;
+      }
+      const mat = MATERIALS.find((m) => m.id === sections[0]?.materialId) ?? MATERIALS[0]!;
+      const cmds = generateSlideEventCommands(virtualEvent, sections, mat.k);
+      const sent = await autoCadSendCommands(cmds);
+      flash(`✓ Đã vẽ A3 khung scale 0.2 với ${sections.length} mặt cắt + bảng thống kê (${sent} lệnh).`);
+    } catch (e) {
+      flash(`✗ Lỗi vẽ A3: ${String(e).slice(0, 100)}`);
+    }
+  }
+
   async function handleDrawAcad(): Promise<void> {
     if (!activeProject || activeProject.sections.length === 0) {
       flash('Không có mặt cắt để vẽ');
@@ -559,6 +682,7 @@ Quy tắc: Nếu không ước được giá trị nào, để 0 nhưng vẫn tr
           <div style={{ flex: 1 }} />
           <button type="button" className="btn btn-primary" onClick={() => void handleDrawAcad()}
             disabled={!acadRunning || activeProject.sections.length === 0}>📐 Vẽ AutoCAD</button>
+              <button type="button" className="btn btn-primary" onClick={() => void handleDrawSlideEventA3()} title="Phase 42 — Vẽ khung A3 scale 0.2 với tất cả mặt cắt + bảng thống kê khối lượng" style={{ marginLeft: 6 }}>🖨 Vẽ A3 + bảng</button>
           <button type="button" className="btn btn-ghost" onClick={() => void handleExportExcel()}
             disabled={activeProject.sections.length === 0}>📊 Xuất Excel</button>
         </div>
@@ -612,28 +736,55 @@ function SectionEditor({ section, onUpdate, pickImage, aiMeasure }: {
 
   return (
     <section className="td-section">
-      <h2 className="td-section-title">📐 Mặt cắt: {section.name}</h2>
+      <h2 className="td-section-title">📐 Mặt cắt: {section.station || '(chưa nhập lý trình)'}</h2>
       <div className="td-section-body">
+        {/* Phase 42 — Lý trình + Vật liệu + Loại mặt cắt */}
         <div className="td-form-row">
-          <label className="td-field"><span className="td-field-label">Tên</span>
-            <input className="td-input" value={section.name} onChange={(e) => set('name', e.target.value)} /></label>
           <label className="td-field"><span className="td-field-label">Lý trình</span>
-            <input className="td-input" value={section.station} onChange={(e) => set('station', e.target.value)} /></label>
+            <input className="td-input" placeholder="Km10+020" value={section.station} onChange={(e) => set('station', e.target.value)} /></label>
+          <label className="td-field"><span className="td-field-label">Lý trình (m)</span>
+            <input type="number" className="td-input" placeholder="10020" value={section.station_m ?? 0} onChange={(e) => set('station_m', Number(e.target.value) || 0)} /></label>
+          <label className="td-field"><span className="td-field-label">Loại mặt cắt</span>
+            <select className="td-select" value={section.crossType ?? 'nua_dao_nua_dap'} onChange={(e) => set('crossType', e.target.value as 'nua_dao_nua_dap' | 'taluy_dao_2ben' | 'taluy_dap_2ben')}>
+              <option value="nua_dao_nua_dap">Nửa đào nửa đắp</option>
+              <option value="taluy_dao_2ben">Taluy đào 2 bên</option>
+              <option value="taluy_dap_2ben">Taluy đắp 2 bên</option>
+            </select></label>
           <label className="td-field"><span className="td-field-label">Vật liệu</span>
             <select className="td-select" value={section.materialId} onChange={(e) => set('materialId', e.target.value)}>
               {MATERIALS.map((m) => <option key={m.id} value={m.id}>{m.name} (k={m.k})</option>)}
             </select></label>
         </div>
-        <div className="td-form-row" style={{ marginTop: 12 }}>
-          <label className="td-field"><span className="td-field-label">L — chiều dài (m)</span>
-            <input type="number" step={0.5} className="td-input" value={section.L} onChange={(e) => set('L', Number(e.target.value) || 0)} /></label>
-          <label className="td-field"><span className="td-field-label">B — bề rộng đáy (m)</span>
-            <input type="number" step={0.5} className="td-input" value={section.B} onChange={(e) => set('B', Number(e.target.value) || 0)} /></label>
-          <label className="td-field"><span className="td-field-label">H — chiều cao (m)</span>
-            <input type="number" step={0.1} className="td-input" value={section.H} onChange={(e) => set('H', Number(e.target.value) || 0)} /></label>
-          <label className="td-field"><span className="td-field-label">α — góc mái (°)</span>
-            <input type="number" step={1} className="td-input" value={section.alpha} onChange={(e) => set('alpha', Number(e.target.value) || 0)} /></label>
+
+        {/* Phase 42 — Diện tích đất sụt nhập tay (m²) — CHÍNH */}
+        <div className="td-form-row" style={{ marginTop: 12, padding: 12, background: 'rgba(220, 38, 38, 0.08)', borderRadius: 8, border: '1px solid rgba(220, 38, 38, 0.3)' }}>
+          <label className="td-field" style={{ flex: 2 }}>
+            <span className="td-field-label" style={{ color: '#dc2626' }}>🔴 Diện tích đất sụt (m²) — đo từ ảnh hiện trường</span>
+            <input type="number" step={0.01} className="td-input" placeholder="VD: 12.5" value={section.areaDatSut ?? 0} onChange={(e) => set('areaDatSut', Number(e.target.value) || 0)} />
+            <span className="muted small">💡 Đất sụt là hình phức tạp — đo trực tiếp hoặc dùng AI Vision</span>
+          </label>
         </div>
+
+        {/* Phase 42 — Road geometry: mặt đường + lề + rãnh + taluy */}
+        <div className="td-form-row" style={{ marginTop: 12 }}>
+          <label className="td-field"><span className="td-field-label">Bề rộng mặt đường (m)</span>
+            <input type="number" step={0.1} className="td-input" value={section.matDuongWidth ?? 7} onChange={(e) => set('matDuongWidth', Number(e.target.value) || 0)} /></label>
+          <label className="td-field"><span className="td-field-label">Lề trái (m)</span>
+            <input type="number" step={0.1} className="td-input" value={section.leWidthLeft ?? 0.5} onChange={(e) => set('leWidthLeft', Number(e.target.value) || 0)} /></label>
+          <label className="td-field"><span className="td-field-label">Lề phải (m)</span>
+            <input type="number" step={0.1} className="td-input" value={section.leWidthRight ?? 0.5} onChange={(e) => set('leWidthRight', Number(e.target.value) || 0)} /></label>
+        </div>
+        <div className="td-form-row" style={{ marginTop: 12 }}>
+          <label className="td-field"><span className="td-field-label">Bề rộng rãnh (m, 0 = không có)</span>
+            <input type="number" step={0.1} className="td-input" value={section.ranhWidth ?? 0} onChange={(e) => set('ranhWidth', Number(e.target.value) || 0)} /></label>
+          <label className="td-field"><span className="td-field-label">Sâu rãnh (m)</span>
+            <input type="number" step={0.1} className="td-input" value={section.ranhDepth ?? 0.3} onChange={(e) => set('ranhDepth', Number(e.target.value) || 0)} /></label>
+          <label className="td-field"><span className="td-field-label">Taluy đào 1:n (vd 1.0)</span>
+            <input type="number" step={0.1} className="td-input" value={section.taluyDaoSlope ?? 1.0} onChange={(e) => set('taluyDaoSlope', Number(e.target.value) || 0)} /></label>
+          <label className="td-field"><span className="td-field-label">Taluy đắp 1:n (vd 1.5)</span>
+            <input type="number" step={0.1} className="td-input" value={section.taluyDapSlope ?? 1.5} onChange={(e) => set('taluyDapSlope', Number(e.target.value) || 0)} /></label>
+        </div>
+
         <div className="td-form-row" style={{ marginTop: 12 }}>
           <label className="td-field" style={{ flex: 2 }}><span className="td-field-label">Ghi chú</span>
             <input className="td-input" value={section.note ?? ''} onChange={(e) => set('note', e.target.value)} /></label>
