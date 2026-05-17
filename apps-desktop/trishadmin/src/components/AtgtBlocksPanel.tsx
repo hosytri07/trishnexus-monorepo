@@ -1,16 +1,6 @@
 /**
  * TrishAdmin Phase 43 wave 13 — Merged ATGT Blocks Panel.
- *
- * 1 panel duy nhất quản lý:
- *   1. Database 415 block ATGT (Firestore /atgt_blocks) — CRUD + bulk import
- *   2. ZIP file (GitHub Release) — upload + auto-check entries vs database
- *
- * Workflow:
- *   - Admin upload zip → Rust github_upload_release_asset → Rust read_zip_entries
- *     → save zipEntries vào Firestore /system_config/atgt_blocks_zip.zipEntries
- *   - Database table mỗi row hiện ✓ (có file zip) hoặc ⚠ (chưa có)
- *
- * Dark theme đồng bộ TrishAdmin (dùng ts-app class + var(--*) tokens).
+ * Wave 13.4 — Bỏ browser popup, dùng inline modal textarea + confirm dialog.
  */
 
 import { useEffect, useMemo, useState } from 'react';
@@ -66,7 +56,6 @@ const REPO_NAME = 'trishnexus-monorepo';
 const PAT_KEY = 'trishadmin:github-pat';
 
 export function AtgtBlocksPanel(): JSX.Element {
-  // Database state
   const [items, setItems] = useState<AtgtBlock[]>([]);
   const [loading, setLoading] = useState(true);
   const [filterCategory, setFilterCategory] = useState<string>('all');
@@ -76,10 +65,13 @@ export function AtgtBlocksPanel(): JSX.Element {
   const [showAdd, setShowAdd] = useState(false);
   const [toast, setToast] = useState<string>('');
   const [importing, setImporting] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState<AtgtBlock | null>(null);
 
-  // ZIP config state
   const [zipConfig, setZipConfig] = useState<ZipConfig | null>(null);
   const [zipUploadExpanded, setZipUploadExpanded] = useState(false);
+  const [bulkImportOpen, setBulkImportOpen] = useState(false);
+  const [bulkImportText, setBulkImportText] = useState('');
+
   const [token, setToken] = useState<string>(() => {
     try { return localStorage.getItem(PAT_KEY) ?? ''; } catch { return ''; }
   });
@@ -103,77 +95,105 @@ export function AtgtBlocksPanel(): JSX.Element {
       setItems(snapBlocks.docs.map((d) => d.data() as AtgtBlock));
       setZipConfig(snapZip.exists() ? (snapZip.data() as ZipConfig) : null);
     } catch (err) {
-      setToast(`✗ Load fail: ${err instanceof Error ? err.message : String(err)}`);
+      setToast(`X Load fail: ${err instanceof Error ? err.message : String(err)}`);
     }
     setLoading(false);
   }
 
-  // Compute zip entries set (lowercase for case-insensitive match)
   const zipEntriesSet = useMemo(() => {
     const set = new Set<string>();
     (zipConfig?.zipEntries ?? []).forEach((e) => set.add(e.toLowerCase()));
     return set;
   }, [zipConfig]);
 
-  function hasZipFile(fileName: string): boolean {
-    if (!fileName) return false;
-    return zipEntriesSet.has(fileName.toLowerCase());
+  function hasZipFile(fn: string): boolean {
+    if (!fn) return false;
+    return zipEntriesSet.has(fn.toLowerCase());
   }
 
   async function handleSave(b: AtgtBlock): Promise<void> {
     if (!b.id || !b.label || !b.fileName) {
-      setToast('✗ ID + Label + Tên file bắt buộc');
+      setToast('X ID + Label + Tên file bắt buộc');
       return;
     }
     try {
       const db = getFirebaseDb();
       await setDoc(doc(db, 'atgt_blocks', b.id), { ...b, updated_at: Date.now() }, { merge: true });
-      setToast(`✅ Lưu ${b.label}`);
+      setToast(`OK Lưu ${b.label}`);
       setEditing(null); setShowAdd(false);
       await reload();
     } catch (err) {
-      setToast(`✗ Lưu fail: ${err instanceof Error ? err.message : String(err)}`);
+      setToast(`X Lưu fail: ${err instanceof Error ? err.message : String(err)}`);
     }
   }
 
-  async function handleDelete(b: AtgtBlock): Promise<void> {
-    if (!window.confirm(`Xóa "${b.label}" (${b.fileName})?`)) return;
+  function handleDelete(b: AtgtBlock): void {
+    setConfirmDelete(b);
+  }
+
+  async function actuallyDelete(b: AtgtBlock): Promise<void> {
     try {
       const db = getFirebaseDb();
       await deleteDoc(doc(db, 'atgt_blocks', b.id));
-      setToast(`🗑 Đã xóa ${b.label}`);
+      setToast(`Đã xóa ${b.label}`);
       await reload();
     } catch (err) {
-      setToast(`✗ Xóa fail: ${err instanceof Error ? err.message : String(err)}`);
+      setToast(`X Xóa fail: ${err instanceof Error ? err.message : String(err)}`);
     }
+    setConfirmDelete(null);
   }
 
-  async function handleBulkImport(): Promise<void> {
-    const text = window.prompt(
-      'Paste TSV/CSV từ sheet "Database" của Excel database-c41a296c.xlsx\n\nCột: STT | Tên file | Dạng địa vật | Tên địa vật | Ý nghĩa | Hướng | Loại tài sản | Ghi chú',
-    );
-    if (!text || !text.trim()) return;
+  function openBulkImport(): void {
+    setBulkImportText('');
+    setBulkImportOpen(true);
+  }
+
+  async function handleBulkImportSubmit(): Promise<void> {
+    const raw = bulkImportText;
+    if (!raw || !raw.trim()) { setToast('X Chưa nhập dữ liệu'); return; }
     setImporting(true);
+    setBulkImportOpen(false);
     try {
-      const lines = text.split(/\r?\n/).filter((ln) => ln.trim().length > 0);
+      const text = raw.replace(/^﻿/, '');
+      const lines = text.split(/\r?\n/).map((ln) => ln.trimEnd()).filter((ln) => ln.trim().length > 0);
+      if (lines.length === 0) {
+        setToast('X Không có dòng dữ liệu nào');
+        setImporting(false);
+        return;
+      }
+      const firstLine = lines[0]!;
+      const sep = firstLine.includes('\t') ? '\t' : ',';
+      const splitRow = (ln: string): string[] => ln.split(sep).map((p) => p.trim().replace(/^"|"$/g, ''));
+      const headerCells = splitRow(firstLine);
+      const hasHeader = headerCells.some((c) => /^STT$|^Tên\s*file$|^Dạng/i.test(c));
+      let dataRows = lines.slice(hasHeader ? 1 : 0).map(splitRow);
+      dataRows = dataRows.filter((r) => r.some((c) => c && c.length > 0));
+
+      let offset = 0;
+      if (dataRows.length > 0) {
+        const c0 = dataRows[0]![0] ?? '';
+        if (c0 && !/^\d+$/.test(c0)) offset = -1;
+      }
+
       const parsed: AtgtBlock[] = [];
-      for (const ln of lines) {
-        const parts = ln.split(/\t|,/).map((p) => p.trim());
-        if (/STT|stt|Tên file/.test(parts.slice(0, 2).join(' '))) continue;
-        const tenFile = parts[1] ?? '';
+      for (let r = 0; r < dataRows.length; r++) {
+        const cells = dataRows[r]!;
+        const get = (i: number): string => cells[i + 1 + offset] ?? '';
+        const tenFile = get(0);
         if (!tenFile) continue;
+        if (/^STT$|Tên\s*file/i.test(tenFile)) continue;
         const id = tenFile.toLowerCase().replace(/[^a-z0-9._-]+/g, '_').replace(/_+/g, '_').replace(/^_|_$/g, '');
         if (!id) continue;
-        const dang = parts[2] ?? '';
-        const tenDiaVat = parts[3] ?? '';
-        const yNghia = parts[4] ?? '';
-        const huong = parts[5] ?? '';
-        const loai = parts[6] ?? 'Khác';
-        const ghiChu = parts[7] ?? '';
+        const dang = get(1);
+        const tenDiaVat = get(2);
+        const yNghia = get(3);
+        const huong = get(4);
+        const loai = get(5) || 'Khác';
+        const ghiChu = get(6);
         parsed.push({
           id,
           fileName: tenFile.toLowerCase().endsWith('.dwg') ? tenFile : `${tenFile}.dwg`,
-          label: tenDiaVat,
+          label: tenDiaVat || tenFile,
           meaning: yNghia,
           shapeKind: /linetype/i.test(dang) ? 'linetype' : 'block',
           orientation: /song/i.test(huong) ? 'parallel' : 'perpendicular',
@@ -183,15 +203,15 @@ export function AtgtBlocksPanel(): JSX.Element {
           defaultScale: 1,
         });
       }
+
       if (parsed.length === 0) {
-        setToast('✗ Không parse được dòng nào');
+        const sepName = sep === '\t' ? 'TAB' : 'COMMA';
+        const sampleStr = JSON.stringify(dataRows[0] ?? []);
+        setToast(`X Không parse được. ${dataRows.length} dòng raw, sep=${sepName}, hasHeader=${hasHeader}, offset=${offset}, sample=${sampleStr}`);
         setImporting(false);
         return;
       }
-      if (!window.confirm(`Import ${parsed.length} block vào Firestore (overwrite nếu trùng ID)?`)) {
-        setImporting(false);
-        return;
-      }
+
       const db = getFirebaseDb();
       let written = 0;
       for (let i = 0; i < parsed.length; i += 400) {
@@ -202,12 +222,12 @@ export function AtgtBlocksPanel(): JSX.Element {
         }
         await batch.commit();
         written += chunk.length;
-        setToast(`⏳ Đã import ${written}/${parsed.length}...`);
+        setToast(`Đã import ${written}/${parsed.length}...`);
       }
-      setToast(`✅ Import xong ${written} block`);
+      setToast(`OK Import xong ${written} block`);
       await reload();
     } catch (err) {
-      setToast(`✗ Import fail: ${err instanceof Error ? err.message : String(err)}`);
+      setToast(`X Import fail: ${err instanceof Error ? err.message : String(err)}`);
     }
     setImporting(false);
   }
@@ -230,47 +250,39 @@ export function AtgtBlocksPanel(): JSX.Element {
         setFileName(nm);
       }
     } catch (e) {
-      setToast(`✗ Pick file: ${e instanceof Error ? e.message : String(e)}`);
+      setToast(`X Pick file: ${e instanceof Error ? e.message : String(e)}`);
     }
   }
 
   async function handleUpload(): Promise<void> {
-    if (!token.trim()) { setToast('✗ Thiếu GitHub PAT'); return; }
-    if (!filePath) { setToast('✗ Chưa chọn file .zip'); return; }
-    if (!tag.trim()) { setToast('✗ Thiếu tag'); return; }
+    if (!token.trim()) { setToast('X Thiếu GitHub PAT'); return; }
+    if (!filePath) { setToast('X Chưa chọn file .zip'); return; }
+    if (!tag.trim()) { setToast('X Thiếu tag'); return; }
     setUploading(true);
-    setToast('⏳ Đang đọc danh sách file trong zip...');
+    setToast('Đang đọc list file trong zip...');
     try {
-      // Step 1: Read zip entries TRƯỚC khi upload (cho biết có file gì)
       let zipEntries: string[] = [];
       try {
         zipEntries = await invoke<string[]>('read_zip_entries', { filePath });
       } catch (e) {
         console.warn('read_zip_entries fail:', e);
       }
-
-      // Step 2: Upload lên GitHub Release
-      setToast(`⏳ Upload ${zipEntries.length} file lên GitHub Release...`);
+      setToast(`Upload ${zipEntries.length} file lên GitHub Release...`);
       const result = await invoke<{ releaseId: number; assetId: number; assetName: string; downloadUrl: string; sizeBytes: number }>(
         'github_upload_release_asset',
         {
           token: token.trim(),
-          owner: REPO_OWNER,
-          repo: REPO_NAME,
+          owner: REPO_OWNER, repo: REPO_NAME,
           tag: tag.trim(),
           releaseName: releaseName.trim() || tag.trim(),
-          filePath,
-          fileName,
+          filePath, fileName,
         },
       );
-
-      // Step 3: Cập nhật Firestore config (kèm zipEntries)
       const db = getFirebaseDb();
       const versionMatch = tag.match(/v?(\d+\.\d+\.\d+)/);
       const version = versionMatch ? versionMatch[1]! : tag;
       const cfg: ZipConfig = {
-        version,
-        url: result.downloadUrl,
+        version, url: result.downloadUrl,
         fileName: result.assetName,
         size: result.sizeBytes,
         uploaded_at: Date.now(),
@@ -278,10 +290,10 @@ export function AtgtBlocksPanel(): JSX.Element {
         zipEntries,
       };
       await setDoc(doc(db, 'system_config', 'atgt_blocks_zip'), cfg);
-      setToast(`✅ Upload ${zipEntries.length} file (${(result.sizeBytes / 1024 / 1024).toFixed(2)} MB) + cập nhật database status`);
+      setToast(`OK Upload ${zipEntries.length} file (${(result.sizeBytes / 1024 / 1024).toFixed(2)} MB) + cập nhật DB status`);
       await reload();
     } catch (e) {
-      setToast(`✗ Upload fail: ${e instanceof Error ? e.message : String(e)}`);
+      setToast(`X Upload fail: ${e instanceof Error ? e.message : String(e)}`);
     } finally {
       setUploading(false);
     }
@@ -293,7 +305,6 @@ export function AtgtBlocksPanel(): JSX.Element {
     return Array.from(set);
   }, [items]);
 
-  // Stats: bao nhiêu block có/chưa có file zip
   const stats = useMemo(() => {
     let has = 0, missing = 0;
     for (const it of items) {
@@ -323,28 +334,26 @@ export function AtgtBlocksPanel(): JSX.Element {
 
   useEffect(() => {
     if (!toast) return;
-    const t = setTimeout(() => setToast(''), 3500);
+    const t = setTimeout(() => setToast(''), 5000);
     return () => clearTimeout(t);
   }, [toast]);
 
   return (
     <div className="ts-app" style={{ padding: 20, height: '100%', overflow: 'auto', display: 'flex', flexDirection: 'column', gap: 14 }}>
-      {/* ============= Header ============= */}
       <header style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-        <h1 style={{ margin: 0, fontSize: 20, fontWeight: 700 }}>🚸 ATGT Blocks — Database + ZIP</h1>
+        <h1 style={{ margin: 0, fontSize: 20, fontWeight: 700 }}>ATGT Blocks — Database + ZIP</h1>
         <span style={{ flex: 1 }} />
         <button type="button" onClick={() => setZipUploadExpanded((v) => !v)} style={btnGhost}>
-          {zipUploadExpanded ? '▲ Đóng upload' : '📦 Upload ZIP mới'}
+          {zipUploadExpanded ? 'Đóng upload' : 'Upload ZIP mới'}
         </button>
         <button type="button" onClick={() => { setEditing({ ...EMPTY }); setShowAdd(true); }} style={btnPrimary}>+ Thêm block</button>
-        <button type="button" onClick={() => void handleBulkImport()} style={btnGhost} disabled={importing}>📥 Bulk import</button>
-        <button type="button" onClick={() => void reload()} style={btnGhost} disabled={loading}>🔄</button>
+        <button type="button" onClick={openBulkImport} style={btnGhost} disabled={importing}>Bulk import</button>
+        <button type="button" onClick={() => void reload()} style={btnGhost} disabled={loading}>Reload</button>
       </header>
 
-      {/* ============= ZIP Config + Upload (top) ============= */}
       <section style={card}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 13 }}>
-          <span style={{ fontWeight: 700, color: 'var(--ts-text-1)' }}>📦 ZIP hiện tại:</span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 13, flexWrap: 'wrap' }}>
+          <span style={{ fontWeight: 700 }}>ZIP hiện tại:</span>
           {zipConfig ? (
             <>
               <span style={badgeOk}>v{zipConfig.version}</span>
@@ -354,20 +363,20 @@ export function AtgtBlocksPanel(): JSX.Element {
               <span style={{ color: 'var(--ts-text-2)' }}>· {new Date(zipConfig.uploaded_at).toLocaleString('vi-VN')}</span>
             </>
           ) : (
-            <span style={{ color: 'var(--ts-text-2)' }}>⚠ Chưa có ZIP nào</span>
+            <span style={{ color: 'var(--ts-text-2)' }}>Chưa có ZIP nào</span>
           )}
           <span style={{ flex: 1 }} />
           {items.length > 0 && (
             <>
-              <span style={badgeOk}>✓ Có file: {stats.has}</span>
-              <span style={badgeWarn}>⚠ Chưa có: {stats.missing}</span>
+              <span style={badgeOk}>Có file: {stats.has}</span>
+              <span style={badgeWarn}>Chưa có: {stats.missing}</span>
             </>
           )}
         </div>
 
         {zipUploadExpanded && (
           <div style={{ marginTop: 12, paddingTop: 12, borderTop: '1px solid var(--ts-border)' }}>
-            <Field label="GitHub PAT (scope `repo`)" hint="Lấy ở github.com/settings/tokens → Tokens (classic) → Generate. Lưu localStorage.">
+            <Field label="GitHub PAT (scope `repo`)" hint="Lấy ở github.com/settings/tokens">
               <input type="password" style={input} value={token}
                 onChange={(e) => saveToken(e.target.value)}
                 placeholder="ghp_xxxxxxxxxxxxxxxxxxxx" />
@@ -385,34 +394,33 @@ export function AtgtBlocksPanel(): JSX.Element {
             </div>
             <Field label="File ZIP local">
               <div style={{ display: 'flex', gap: 8 }}>
-                <button type="button" onClick={() => void handlePickFile()} style={btnGhost}>📂 Chọn file...</button>
+                <button type="button" onClick={() => void handlePickFile()} style={btnGhost}>Chọn file...</button>
                 <input style={{ ...input, flex: 1 }} value={filePath} readOnly placeholder="Chưa chọn file" />
               </div>
             </Field>
             <div style={{ marginTop: 10 }}>
               <button type="button" onClick={() => void handleUpload()} disabled={uploading || !filePath || !token.trim()}
                 style={{ ...btnPrimary, opacity: uploading || !filePath || !token.trim() ? 0.5 : 1 }}>
-                {uploading ? '⏳ Đang upload...' : '🚀 Upload + Auto-check database'}
+                {uploading ? 'Đang upload...' : 'Upload + Auto-check database'}
               </button>
             </div>
           </div>
         )}
       </section>
 
-      {/* ============= Database filters + table ============= */}
       <section style={{ ...card, flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
         <div style={{ display: 'flex', gap: 8, marginBottom: 10, alignItems: 'center', flexWrap: 'wrap' }}>
-          <span style={{ fontSize: 13, fontWeight: 700 }}>📋 Database ({items.length}):</span>
+          <span style={{ fontSize: 13, fontWeight: 700 }}>Database ({items.length}):</span>
           <select value={filterCategory} onChange={(e) => setFilterCategory(e.target.value)} style={input}>
             <option value="all">Tất cả nhóm</option>
             {categories.map((c) => <option key={c} value={c}>{c}</option>)}
           </select>
           <select value={zipFilter} onChange={(e) => setZipFilter(e.target.value as 'all' | 'has' | 'missing')} style={input}>
             <option value="all">Tất cả ZIP status</option>
-            <option value="has">✓ Có trong ZIP</option>
-            <option value="missing">⚠ Chưa có ZIP</option>
+            <option value="has">Có trong ZIP</option>
+            <option value="missing">Chưa có ZIP</option>
           </select>
-          <input type="text" placeholder="🔎 Tìm tên / file / ý nghĩa..."
+          <input type="text" placeholder="Tìm tên / file / ý nghĩa..."
             value={searchText} onChange={(e) => setSearchText(e.target.value)}
             style={{ ...input, minWidth: 240, flex: 1 }} />
           <span style={{ fontSize: 12, color: 'var(--ts-text-2)' }}>Hiển thị: <strong>{filtered.length}</strong></span>
@@ -421,7 +429,7 @@ export function AtgtBlocksPanel(): JSX.Element {
         {loading ? <p style={{ color: 'var(--ts-text-2)' }}>Đang tải...</p>
           : items.length === 0 ? (
             <div style={{ background: 'rgba(245,158,11,0.12)', border: '1px solid rgba(245,158,11,0.4)', padding: 16, borderRadius: 8 }}>
-              <p style={{ margin: 0, fontSize: 13 }}>⚠ Database rỗng. Bấm "📥 Bulk import" để load 415 block từ Excel database-c41a296c.xlsx.</p>
+              <p style={{ margin: 0, fontSize: 13 }}>Database rỗng. Bấm "Bulk import" để load 415 block từ Excel database-c41a296c.xlsx.</p>
             </div>
           ) : (
             <div style={{ overflow: 'auto', flex: 1, borderRadius: 6, border: '1px solid var(--ts-border)' }}>
@@ -445,8 +453,8 @@ export function AtgtBlocksPanel(): JSX.Element {
                       <tr key={b.id}>
                         <td style={tdStyle}>
                           {inZip
-                            ? <span style={iconOk} title="✓ File có trong ZIP">✓</span>
-                            : <span style={iconWarn} title="⚠ File CHƯA có trong ZIP">⚠</span>}
+                            ? <span style={iconOk} title="Có trong ZIP">v</span>
+                            : <span style={iconWarn} title="Chưa có trong ZIP">!</span>}
                         </td>
                         <td style={tdStyle}><code style={code}>{b.id}</code></td>
                         <td style={tdStyle}><strong>{b.label}</strong></td>
@@ -454,11 +462,11 @@ export function AtgtBlocksPanel(): JSX.Element {
                         <td style={tdStyle}>{b.category}</td>
                         <td style={{ ...tdStyle, fontSize: 12, color: 'var(--ts-text-2)' }}>{b.meaning ?? '—'}</td>
                         <td style={tdStyle}>
-                          {b.shapeKind === 'linetype' ? '〰' : '⬜'} {b.orientation === 'parallel' ? '↔' : '⊥'}
+                          {b.shapeKind === 'linetype' ? 'LT' : 'Block'} / {b.orientation === 'parallel' ? '||' : '⊥'}
                         </td>
                         <td style={{ ...tdStyle, whiteSpace: 'nowrap' }}>
-                          <button type="button" onClick={() => setEditing(b)} style={btnMini}>✏</button>
-                          <button type="button" onClick={() => void handleDelete(b)} style={{ ...btnMini, color: '#dc2626' }}>🗑</button>
+                          <button type="button" onClick={() => setEditing(b)} style={btnMini}>Sửa</button>
+                          <button type="button" onClick={() => handleDelete(b)} style={{ ...btnMini, color: '#dc2626' }}>Xóa</button>
                         </td>
                       </tr>
                     );
@@ -480,15 +488,33 @@ export function AtgtBlocksPanel(): JSX.Element {
         />
       )}
 
+      {bulkImportOpen && (
+        <BulkImportDialog
+          value={bulkImportText}
+          onChange={setBulkImportText}
+          onSubmit={() => void handleBulkImportSubmit()}
+          onCancel={() => setBulkImportOpen(false)}
+        />
+      )}
+
+      {confirmDelete && (
+        <ConfirmDialog
+          title="Xóa block"
+          message={`Xóa "${confirmDelete.label}" (${confirmDelete.fileName})?`}
+          danger
+          onConfirm={() => void actuallyDelete(confirmDelete)}
+          onCancel={() => setConfirmDelete(null)}
+        />
+      )}
+
       {toast && (
         <div style={{
           position: 'fixed', bottom: 20, right: 20,
           padding: '10px 16px', borderRadius: 8,
-          background: toast.startsWith('✗') ? '#dc2626' : toast.startsWith('⏳') ? '#f59e0b' : '#10b981',
+          background: toast.startsWith('X') ? '#dc2626' : '#10b981',
           color: '#fff', fontWeight: 600, fontSize: 13,
           boxShadow: '0 4px 12px rgba(0,0,0,0.3)',
-          maxWidth: 600,
-          zIndex: 9999,
+          maxWidth: 600, zIndex: 9999,
         }}>{toast}</div>
       )}
     </div>
@@ -502,17 +528,9 @@ function EditDialog({ value, isNew, categories, onSave, onCancel }: {
   const [v, setV] = useState<AtgtBlock>(value);
   function patch(p: Partial<AtgtBlock>): void { setV((cur) => ({ ...cur, ...p })); }
   return (
-    <div style={{
-      position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)',
-      display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000,
-    }} onClick={onCancel}>
-      <div onClick={(e) => e.stopPropagation()} style={{
-        background: 'var(--ts-bg-1)', padding: 24, borderRadius: 12,
-        minWidth: 560, maxWidth: 720, maxHeight: '90vh', overflowY: 'auto',
-        border: '1px solid var(--ts-border)',
-        boxShadow: '0 20px 50px rgba(0,0,0,0.4)',
-      }}>
-        <h2 style={{ marginTop: 0, marginBottom: 16, fontSize: 16 }}>{isNew ? '➕ Thêm block' : `✏ Sửa: ${value.label}`}</h2>
+    <div style={modalBackdrop} onClick={onCancel}>
+      <div onClick={(e) => e.stopPropagation()} style={modalContent}>
+        <h2 style={modalTitle}>{isNew ? 'Thêm block' : `Sửa: ${value.label}`}</h2>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
           <Field label="ID (slug)">
             <input style={input} value={v.id} disabled={!isNew}
@@ -535,15 +553,15 @@ function EditDialog({ value, isNew, categories, onSave, onCancel }: {
           <Field label="Dạng">
             <select style={input} value={v.shapeKind ?? 'block'}
               onChange={(e) => patch({ shapeKind: e.target.value as 'block' | 'linetype' })}>
-              <option value="block">⬜ Block (INSERT)</option>
-              <option value="linetype">〰 Linetype (PLINE)</option>
+              <option value="block">Block (INSERT)</option>
+              <option value="linetype">Linetype (PLINE)</option>
             </select>
           </Field>
           <Field label="Hướng">
             <select style={input} value={v.orientation ?? 'perpendicular'}
               onChange={(e) => patch({ orientation: e.target.value as 'perpendicular' | 'parallel' })}>
-              <option value="perpendicular">⊥ Vuông góc</option>
-              <option value="parallel">↔ Song song</option>
+              <option value="perpendicular">Vuông góc</option>
+              <option value="parallel">Song song</option>
             </select>
           </Field>
           <Field label="Ý nghĩa">
@@ -557,7 +575,68 @@ function EditDialog({ value, isNew, categories, onSave, onCancel }: {
         </div>
         <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 20 }}>
           <button type="button" onClick={onCancel} style={btnGhost}>Hủy</button>
-          <button type="button" onClick={() => onSave(v)} style={btnPrimary}>💾 Lưu</button>
+          <button type="button" onClick={() => onSave(v)} style={btnPrimary}>Lưu</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function BulkImportDialog({ value, onChange, onSubmit, onCancel }: {
+  value: string; onChange: (v: string) => void; onSubmit: () => void; onCancel: () => void;
+}): JSX.Element {
+  return (
+    <div style={modalBackdrop} onClick={onCancel}>
+      <div onClick={(e) => e.stopPropagation()} style={{
+        ...modalContent, minWidth: 760, maxWidth: 900,
+      }}>
+        <h2 style={modalTitle}>Bulk import database từ Excel</h2>
+        <p style={{ fontSize: 12, color: 'var(--ts-text-2)', margin: '0 0 4px' }}>
+          Mở Excel database-c41a296c.xlsx → sheet "Database" → Ctrl+A → Ctrl+C → Paste vào ô bên dưới.
+        </p>
+        <p style={{ fontSize: 11, color: 'var(--ts-text-2)', margin: '0 0 8px' }}>
+          Cột: STT | Tên file | Dạng địa vật | Tên địa vật | Ý nghĩa | Hướng | Loại tài sản | Ghi chú
+        </p>
+        <textarea autoFocus value={value} onChange={(e) => onChange(e.target.value)}
+          placeholder="Paste content TSV/CSV ở đây..."
+          style={{
+            width: '100%', minHeight: 320,
+            padding: '10px 12px',
+            border: '1px solid var(--ts-border)', borderRadius: 6,
+            background: 'var(--ts-bg-0)', color: 'var(--ts-text-1)',
+            fontFamily: 'monospace', fontSize: 12,
+            outline: 'none', resize: 'vertical',
+            boxSizing: 'border-box',
+          }} />
+        <p style={{ fontSize: 11, color: 'var(--ts-text-2)', margin: '8px 0' }}>
+          {value ? `${value.split(/\r?\n/).filter((l) => l.trim()).length} dòng` : '0 dòng'}
+        </p>
+        <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 12 }}>
+          <button type="button" onClick={onCancel} style={btnGhost}>Hủy</button>
+          <button type="button" onClick={onSubmit} disabled={!value.trim()}
+            style={{ ...btnPrimary, opacity: !value.trim() ? 0.5 : 1 }}>Import</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ConfirmDialog({ title, message, danger, onConfirm, onCancel }: {
+  title: string; message: string; danger?: boolean; onConfirm: () => void; onCancel: () => void;
+}): JSX.Element {
+  return (
+    <div style={modalBackdrop} onClick={onCancel}>
+      <div onClick={(e) => e.stopPropagation()} style={{
+        ...modalContent, minWidth: 400, maxWidth: 500,
+      }}>
+        <h2 style={modalTitle}>{title}</h2>
+        <p style={{ fontSize: 13, color: 'var(--ts-text-2)', margin: '0 0 16px' }}>{message}</p>
+        <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+          <button type="button" onClick={onCancel} style={btnGhost}>Hủy</button>
+          <button type="button" onClick={onConfirm}
+            style={{ ...btnPrimary, background: danger ? '#dc2626' : 'var(--ts-accent)' }}>
+            {danger ? 'Xóa' : 'OK'}
+          </button>
         </div>
       </div>
     </div>
@@ -574,111 +653,19 @@ function Field({ label, hint, children }: { label: string; hint?: string; childr
   );
 }
 
-// =============== Dark theme styles đồng bộ TrishAdmin ===============
-
-const card: React.CSSProperties = {
-  background: 'var(--ts-bg-1)',
-  border: '1px solid var(--ts-border)',
-  borderRadius: 8,
-  padding: 12,
-};
-
-const input: React.CSSProperties = {
-  padding: '5px 10px',
-  border: '1px solid var(--ts-border)',
-  borderRadius: 5,
-  fontSize: 12,
-  outline: 'none',
-  background: 'var(--ts-bg-0)',
-  color: 'var(--ts-text-1)',
-  width: '100%',
-  boxSizing: 'border-box',
-};
-
-const btnPrimary: React.CSSProperties = {
-  padding: '6px 12px',
-  background: 'var(--ts-accent)',
-  color: '#fff',
-  border: 'none',
-  borderRadius: 5,
-  fontSize: 12,
-  fontWeight: 600,
-  cursor: 'pointer',
-};
-
-const btnGhost: React.CSSProperties = {
-  padding: '5px 10px',
-  background: 'transparent',
-  color: 'var(--ts-text-1)',
-  border: '1px solid var(--ts-border)',
-  borderRadius: 5,
-  fontSize: 12,
-  cursor: 'pointer',
-};
-
-const btnMini: React.CSSProperties = {
-  padding: '2px 7px',
-  background: 'transparent',
-  color: 'var(--ts-text-1)',
-  border: '1px solid var(--ts-border)',
-  borderRadius: 3,
-  fontSize: 11,
-  cursor: 'pointer',
-  marginLeft: 3,
-};
-
-const badgeOk: React.CSSProperties = {
-  padding: '2px 8px',
-  background: 'rgba(16,185,129,0.18)',
-  color: '#10b981',
-  border: '1px solid rgba(16,185,129,0.4)',
-  borderRadius: 12,
-  fontSize: 11,
-  fontWeight: 600,
-};
-
-const badgeWarn: React.CSSProperties = {
-  padding: '2px 8px',
-  background: 'rgba(245,158,11,0.18)',
-  color: '#f59e0b',
-  border: '1px solid rgba(245,158,11,0.4)',
-  borderRadius: 12,
-  fontSize: 11,
-  fontWeight: 600,
-};
-
-const iconOk: React.CSSProperties = {
-  display: 'inline-block',
-  color: '#10b981',
-  fontWeight: 700,
-  fontSize: 14,
-};
-
-const iconWarn: React.CSSProperties = {
-  display: 'inline-block',
-  color: '#f59e0b',
-  fontWeight: 700,
-  fontSize: 14,
-};
-
-const code: React.CSSProperties = {
-  fontSize: 11,
-  color: 'var(--ts-text-2)',
-};
-
+const card: React.CSSProperties = { background: 'var(--ts-bg-1)', border: '1px solid var(--ts-border)', borderRadius: 8, padding: 12 };
+const input: React.CSSProperties = { padding: '5px 10px', border: '1px solid var(--ts-border)', borderRadius: 5, fontSize: 12, outline: 'none', background: 'var(--ts-bg-0)', color: 'var(--ts-text-1)', width: '100%', boxSizing: 'border-box' };
+const btnPrimary: React.CSSProperties = { padding: '6px 12px', background: 'var(--ts-accent)', color: '#fff', border: 'none', borderRadius: 5, fontSize: 12, fontWeight: 600, cursor: 'pointer' };
+const btnGhost: React.CSSProperties = { padding: '5px 10px', background: 'transparent', color: 'var(--ts-text-1)', border: '1px solid var(--ts-border)', borderRadius: 5, fontSize: 12, cursor: 'pointer' };
+const btnMini: React.CSSProperties = { padding: '2px 7px', background: 'transparent', color: 'var(--ts-text-1)', border: '1px solid var(--ts-border)', borderRadius: 3, fontSize: 11, cursor: 'pointer', marginLeft: 3 };
+const badgeOk: React.CSSProperties = { padding: '2px 8px', background: 'rgba(16,185,129,0.18)', color: '#10b981', border: '1px solid rgba(16,185,129,0.4)', borderRadius: 12, fontSize: 11, fontWeight: 600 };
+const badgeWarn: React.CSSProperties = { padding: '2px 8px', background: 'rgba(245,158,11,0.18)', color: '#f59e0b', border: '1px solid rgba(245,158,11,0.4)', borderRadius: 12, fontSize: 11, fontWeight: 600 };
+const iconOk: React.CSSProperties = { display: 'inline-block', color: '#10b981', fontWeight: 700, fontSize: 14 };
+const iconWarn: React.CSSProperties = { display: 'inline-block', color: '#f59e0b', fontWeight: 700, fontSize: 14 };
+const code: React.CSSProperties = { fontSize: 11, color: 'var(--ts-text-2)' };
 const tableStyle: React.CSSProperties = { width: '100%', borderCollapse: 'collapse', fontSize: 12 };
-
-const thStyle: React.CSSProperties = {
-  textAlign: 'left',
-  padding: '7px 10px',
-  borderBottom: '1px solid var(--ts-border)',
-  fontWeight: 600,
-  fontSize: 11,
-  color: 'var(--ts-text-2)',
-};
-
-const tdStyle: React.CSSProperties = {
-  padding: '5px 10px',
-  borderBottom: '1px solid var(--ts-border)',
-  color: 'var(--ts-text-1)',
-};
+const thStyle: React.CSSProperties = { textAlign: 'left', padding: '7px 10px', borderBottom: '1px solid var(--ts-border)', fontWeight: 600, fontSize: 11, color: 'var(--ts-text-2)' };
+const tdStyle: React.CSSProperties = { padding: '5px 10px', borderBottom: '1px solid var(--ts-border)', color: 'var(--ts-text-1)' };
+const modalBackdrop: React.CSSProperties = { position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 };
+const modalContent: React.CSSProperties = { background: 'var(--ts-bg-1)', padding: 20, borderRadius: 12, minWidth: 560, maxWidth: 720, maxHeight: '90vh', overflowY: 'auto', border: '1px solid var(--ts-border)', boxShadow: '0 20px 50px rgba(0,0,0,0.4)' };
+const modalTitle: React.CSSProperties = { marginTop: 0, marginBottom: 16, fontSize: 16, color: 'var(--ts-text-1)' };
