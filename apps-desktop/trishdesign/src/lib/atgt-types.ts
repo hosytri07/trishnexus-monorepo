@@ -318,30 +318,3 @@ export function sideLabel(side: RoadSide): string {
 export function statusLabel(s: AtgtItemBase['status']): string {
   return { good: 'Tốt', damaged: 'Hư hỏng', missing: 'Mất', new: 'Mới' }[s];
 }
-
-      return { ...base, category: 'TIEUPQ', spacing: 10, count: 10, color: 'yellow' };
-    case 'GUONGCAU':
-      return { ...base, category: 'GUONGCAU', diameter: 0.6, poleHeight: 4 };
-  }
-}
-
-export function formatStationKm(m: number): string {
-  const km = Math.floor(m / 1000);
-  const rest = m - km * 1000;
-  return `Km${km}+${rest.toString().padStart(3, '0')}`;
-}
-
-/** Tên đoạn auto từ start/end */
-export function autoAtgtSegmentName(start: number, end: number): string {
-  return `${formatStationKm(start)} - ${formatStationKm(end)}`;
-}
-
-export function sideLabel(side: RoadSide): string {
-  if (side === 'left') return 'Trái (T)';
-  if (side === 'right') return 'Phải (P)';
-  return 'Tim';
-}
-
-export function statusLabel(s: AtgtItemBase['status']): string {
-  return { good: 'Tốt', damaged: 'Hư hỏng', missing: 'Mất', new: 'Mới' }[s];
-}
