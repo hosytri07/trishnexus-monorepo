@@ -644,7 +644,7 @@ function HuHongPanel(): JSX.Element {
           />
 
           {/* Phase 42 wave 8 — Lỗ khoan + Hố đào (đa lớp) */}
-          <BoreHolePitSection project={activeProject} segment={activeSegment} />
+          <BoreHolePitSection project={activeProject} segment={activeSegment} designDb={designDb} />
         </div>
       </div>
 
