@@ -211,6 +211,7 @@ function BlockSelector({
         placeholder={placeholder}
         onChange={(e) => onChange(e.target.value)}
       />
+      <BlockStatusBadge blocks={blocks} label={value} />
       <datalist id={id}>
         {blocks.map((b) => (
           <option key={b.id} value={b.label}>{b.meaning ?? ''}</option>
@@ -218,6 +219,28 @@ function BlockSelector({
       </datalist>
     </>
   );
+}
+
+/**
+ * Phase 43 wave 12.2 — Hook helper: tìm AtgtBlock theo label exact match.
+ * Trả về block nếu khớp exact (case-insensitive) hoặc undefined.
+ */
+function findBlockByLabel(blocks: AtgtBlock[], label: string): AtgtBlock | undefined {
+  if (!label) return undefined;
+  const lower = label.toLowerCase().trim();
+  return blocks.find((b) => b.label.toLowerCase() === lower);
+}
+
+/**
+ * Phase 43 wave 12.2 — Component hiển thị status block: ✓ có / ⚠ chưa có.
+ */
+function BlockStatusBadge({ blocks, label }: { blocks: AtgtBlock[]; label: string }): JSX.Element {
+  if (!label || !label.trim()) return <></>;
+  const b = findBlockByLabel(blocks, label);
+  if (b) {
+    return <span title={`✓ ${b.fileName} — ${b.meaning ?? ''}`} style={{ color: '#10b981', fontSize: 10, marginLeft: 2 }}>✓</span>;
+  }
+  return <span title={`⚠ Block "${label}" chưa có trong database`} style={{ color: '#f59e0b', fontSize: 10, marginLeft: 2 }}>⚠</span>;
 }
 
 function SideSelect({ value, onChange }: { value: RoadSide; onChange: (v: RoadSide) => void }): JSX.Element {
@@ -263,7 +286,8 @@ function BienBaoTable({
   }
   // auto-fill yNghia khi đổi tenBienBao
   function onBlockChange(id: string, label: string): void {
-    const blk = blocks.find((b) => b.label === label);
+    // Phase 43 wave 12.2 — Auto-fill yNghia từ database (case-insensitive lookup)
+    const blk = findBlockByLabel(blocks, label);
     patch(id, { tenBienBao: label, yNghia: blk?.meaning });
   }
   return (
@@ -322,7 +346,7 @@ function VachSonTable({ items, blocks, segment, onChange }: { items: VachSonItem
     } catch (e) { console.warn(e); }
   }
   function onBlockChange(id: string, label: string): void {
-    const blk = blocks.find((b) => b.label === label);
+    const blk = findBlockByLabel(blocks, label);
     patch(id, { loaiVachSon: label, yNghia: blk?.meaning });
   }
   return (

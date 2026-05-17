@@ -74,8 +74,7 @@ const NAV: NavItem[] = [
   { href: '/admin/gis-markers', label: '📍 GIS Markers', icon: MapPin },
   // Phase 42 wave 8.3 — ATGT Blocks (danh mục block .dwg cho TrishDesign Vẽ hiện trạng ATGT)
   { href: '/admin/atgt-blocks', label: '🚸 ATGT Blocks', icon: Shapes },
-  // Phase 43 wave 10.5 — Upload zip block ATGT lên Firebase Storage
-  { href: '/admin/atgt-blocks-zip', label: '📦 ATGT Zip Upload', icon: Shapes },
+  // Phase 43 wave 12.3 — Upload zip ATGT giờ chỉ qua TrishAdmin desktop (GitHub Release). Web upload đã bỏ.
   // Phase 41 — TrishAdmin private download (admin-only)
   { href: '/admin/trishadmin-download', label: '🛡 TrishAdmin Desktop', icon: Shield },
 ];
