@@ -466,26 +466,26 @@ export function AtgtBlocksPanel(): JSX.Element {
               <table style={tableStyle}>
                 <thead style={{ position: 'sticky', top: 0, background: 'var(--ts-bg-2)', zIndex: 1 }}>
                   <tr>
-                    <th style={{ ...thStyle, width: 56, cursor: 'pointer' }} onClick={() => handleSort('zip')} title="Block file đã có trong ZIP chưa?">ZIP{sortIndicator('zip')}</th>
-                    <th style={{ ...thStyle, cursor: 'pointer' }} onClick={() => handleSort('id')} title="Slug Firestore docId">ID{sortIndicator('id')}</th>
-                    <th style={{ ...thStyle, cursor: 'pointer' }} onClick={() => handleSort('label')} title="Tên hiển thị (vd P.101)">Label{sortIndicator('label')}</th>
-                    <th style={{ ...thStyle, cursor: 'pointer' }} onClick={() => handleSort('fileName')} title="Tên file .dwg">File .dwg{sortIndicator('fileName')}</th>
-                    <th style={{ ...thStyle, cursor: 'pointer' }} onClick={() => handleSort('category')} title="Loại tài sản">Nhóm{sortIndicator('category')}</th>
+                    <th style={{ ...thStyle, width: 76, cursor: 'pointer' }} onClick={() => handleSort('zip')} title="Block file đã có trong ZIP chưa?">ZIP{sortIndicator('zip')}</th>
+                    <th style={{ ...thStyle, width: 120, cursor: 'pointer' }} onClick={() => handleSort('id')} title="Slug Firestore docId">ID{sortIndicator('id')}</th>
+                    <th style={{ ...thStyle, width: 110, cursor: 'pointer' }} onClick={() => handleSort('label')} title="Tên hiển thị (vd P.101)">Label{sortIndicator('label')}</th>
+                    <th style={{ ...thStyle, width: 130, cursor: 'pointer' }} onClick={() => handleSort('fileName')} title="Tên file .dwg">File .dwg{sortIndicator('fileName')}</th>
+                    <th style={{ ...thStyle, width: 120, cursor: 'pointer' }} onClick={() => handleSort('category')} title="Loại tài sản">Nhóm{sortIndicator('category')}</th>
                     <th style={{ ...thStyle, cursor: 'pointer' }} onClick={() => handleSort('meaning')} title="Diễn giải ý nghĩa">Ý nghĩa{sortIndicator('meaning')}</th>
-                    <th style={{ ...thStyle, cursor: 'pointer' }} onClick={() => handleSort('shapeKind')} title="Block / Linetype · Vuông góc / Song song">Dạng/Hướng{sortIndicator('shapeKind')}</th>
-                    <th style={{ ...thStyle, width: 90 }}></th>
+                    <th style={{ ...thStyle, width: 110, cursor: 'pointer' }} onClick={() => handleSort('shapeKind')} title="Block / Linetype · Vuông góc / Song song">Dạng/Hướng{sortIndicator('shapeKind')}</th>
+                    <th style={{ ...thStyle, width: 100 }}>Thao tác</th>
                   </tr>
                 </thead>
                 <tbody>
                   {filtered.map((b) => {
                     const inZip = hasZipFile(b.fileName);
                     return (
-                      <tr key={b.id} style={zipConfig && !inZip ? { background: 'rgba(245,158,11,0.04)' } : undefined}>
-                        <td style={tdStyle}>
+                      <tr key={b.id} style={zipConfig && !inZip ? { background: 'rgba(245,158,11,0.05)' } : undefined}>
+                        <td style={{ ...tdStyle, textAlign: 'center' }}>
                           {zipConfig
                             ? (inZip
-                                ? <span style={pillOk} title={`File ${b.fileName} đã có trong ZIP v${zipConfig.version}`}>✓ Có</span>
-                                : <span style={pillWarn} title={`File ${b.fileName} CHƯA có trong ZIP`}>✗ Thiếu</span>)
+                                ? <span style={pillOk} title={`File ${b.fileName} đã có trong ZIP v${zipConfig.version}`}>✓</span>
+                                : <span style={pillWarn} title={`File ${b.fileName} CHƯA có trong ZIP`}>✗</span>)
                             : <span style={pillNeutral} title="Chưa có ZIP nào upload">—</span>}
                         </td>
                         <td style={tdStyle}><code style={code}>{b.id}</code></td>
@@ -496,9 +496,19 @@ export function AtgtBlocksPanel(): JSX.Element {
                         <td style={tdStyle}>
                           {b.shapeKind === 'linetype' ? 'LT' : 'Block'} / {b.orientation === 'parallel' ? '||' : '⊥'}
                         </td>
-                        <td style={{ ...tdStyle, whiteSpace: 'nowrap' }}>
-                          <button type="button" onClick={() => setEditing(b)} style={btnMini}>Sửa</button>
-                          <button type="button" onClick={() => handleDelete(b)} style={{ ...btnMini, color: '#dc2626' }}>Xóa</button>
+                        <td style={{ ...tdStyle, whiteSpace: 'nowrap', textAlign: 'right' }}>
+                          <button
+                            type="button"
+                            onClick={(e) => { e.stopPropagation(); setEditing(b); }}
+                            style={btnAction}
+                            title={`Sửa ${b.label}`}
+                          >✏ Sửa</button>
+                          <button
+                            type="button"
+                            onClick={(e) => { e.stopPropagation(); handleDelete(b); }}
+                            style={{ ...btnAction, color: '#dc2626', borderColor: 'rgba(220,38,38,0.4)' }}
+                            title={`Xóa ${b.label}`}
+                          >🗑 Xóa</button>
                         </td>
                       </tr>
                     );
@@ -690,17 +700,92 @@ const input: React.CSSProperties = { padding: '5px 10px', border: '1px solid var
 const btnPrimary: React.CSSProperties = { padding: '6px 12px', background: 'var(--ts-accent)', color: '#fff', border: 'none', borderRadius: 5, fontSize: 12, fontWeight: 600, cursor: 'pointer' };
 const btnGhost: React.CSSProperties = { padding: '5px 10px', background: 'transparent', color: 'var(--ts-text-1)', border: '1px solid var(--ts-border)', borderRadius: 5, fontSize: 12, cursor: 'pointer' };
 const btnMini: React.CSSProperties = { padding: '2px 7px', background: 'transparent', color: 'var(--ts-text-1)', border: '1px solid var(--ts-border)', borderRadius: 3, fontSize: 11, cursor: 'pointer', marginLeft: 3 };
+const btnAction: React.CSSProperties = {
+  padding: '4px 10px',
+  background: 'var(--ts-bg-0)',
+  color: 'var(--ts-text-1)',
+  border: '1px solid var(--ts-border)',
+  borderRadius: 4,
+  fontSize: 11,
+  fontWeight: 600,
+  cursor: 'pointer',
+  marginLeft: 4,
+  whiteSpace: 'nowrap',
+  display: 'inline-block',
+};
 const badgeOk: React.CSSProperties = { padding: '2px 8px', background: 'rgba(16,185,129,0.18)', color: '#10b981', border: '1px solid rgba(16,185,129,0.4)', borderRadius: 12, fontSize: 11, fontWeight: 600 };
 const badgeWarn: React.CSSProperties = { padding: '2px 8px', background: 'rgba(245,158,11,0.18)', color: '#f59e0b', border: '1px solid rgba(245,158,11,0.4)', borderRadius: 12, fontSize: 11, fontWeight: 600 };
 const iconOk: React.CSSProperties = { display: 'inline-block', color: '#10b981', fontWeight: 700, fontSize: 14 };
 const iconWarn: React.CSSProperties = { display: 'inline-block', color: '#f59e0b', fontWeight: 700, fontSize: 14 };
-const pillOk: React.CSSProperties = { padding: '1px 7px', background: 'rgba(16,185,129,0.18)', color: '#10b981', border: '1px solid rgba(16,185,129,0.4)', borderRadius: 10, fontSize: 10, fontWeight: 700, whiteSpace: 'nowrap' };
-const pillWarn: React.CSSProperties = { padding: '1px 7px', background: 'rgba(245,158,11,0.18)', color: '#f59e0b', border: '1px solid rgba(245,158,11,0.4)', borderRadius: 10, fontSize: 10, fontWeight: 700, whiteSpace: 'nowrap' };
-const pillNeutral: React.CSSProperties = { padding: '1px 7px', background: 'transparent', color: 'var(--ts-text-2)', border: '1px solid var(--ts-border)', borderRadius: 10, fontSize: 10, fontWeight: 600 };
+const pillOk: React.CSSProperties = {
+  display: 'inline-block',
+  width: 24, height: 18, lineHeight: '18px',
+  background: 'rgba(16,185,129,0.18)',
+  color: '#10b981',
+  border: '1px solid rgba(16,185,129,0.4)',
+  borderRadius: 4,
+  fontSize: 12, fontWeight: 700, textAlign: 'center',
+};
+const pillWarn: React.CSSProperties = {
+  display: 'inline-block',
+  width: 24, height: 18, lineHeight: '18px',
+  background: 'rgba(245,158,11,0.18)',
+  color: '#f59e0b',
+  border: '1px solid rgba(245,158,11,0.4)',
+  borderRadius: 4,
+  fontSize: 12, fontWeight: 700, textAlign: 'center',
+};
+const pillNeutral: React.CSSProperties = {
+  display: 'inline-block',
+  width: 24, height: 18, lineHeight: '18px',
+  background: 'transparent',
+  color: 'var(--ts-text-2)',
+  border: '1px solid var(--ts-border)',
+  borderRadius: 4,
+  fontSize: 12, fontWeight: 600, textAlign: 'center',
+};
+
 const code: React.CSSProperties = { fontSize: 11, color: 'var(--ts-text-2)' };
-const tableStyle: React.CSSProperties = { width: '100%', borderCollapse: 'collapse', fontSize: 12 };
-const thStyle: React.CSSProperties = { textAlign: 'left', padding: '7px 10px', borderBottom: '1px solid var(--ts-border)', fontWeight: 600, fontSize: 11, color: 'var(--ts-text-2)' };
-const tdStyle: React.CSSProperties = { padding: '5px 10px', borderBottom: '1px solid var(--ts-border)', color: 'var(--ts-text-1)' };
-const modalBackdrop: React.CSSProperties = { position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 };
-const modalContent: React.CSSProperties = { background: 'var(--ts-bg-1)', padding: 20, borderRadius: 12, minWidth: 560, maxWidth: 720, maxHeight: '90vh', overflowY: 'auto', border: '1px solid var(--ts-border)', boxShadow: '0 20px 50px rgba(0,0,0,0.4)' };
-const modalTitle: React.CSSProperties = { marginTop: 0, marginBottom: 16, fontSize: 16, color: 'var(--ts-text-1)' };
+const tableStyle: React.CSSProperties = {
+  width: '100%',
+  borderCollapse: 'collapse',
+  fontSize: 12,
+  tableLayout: 'fixed',
+};
+const thStyle: React.CSSProperties = {
+  textAlign: 'left',
+  padding: '7px 10px',
+  borderBottom: '1px solid var(--ts-border)',
+  fontWeight: 600,
+  fontSize: 11,
+  color: 'var(--ts-text-2)',
+  whiteSpace: 'nowrap',
+  overflow: 'hidden',
+  textOverflow: 'ellipsis',
+  userSelect: 'none',
+};
+const tdStyle: React.CSSProperties = {
+  padding: '5px 10px',
+  borderBottom: '1px solid var(--ts-border)',
+  color: 'var(--ts-text-1)',
+  whiteSpace: 'nowrap',
+  overflow: 'hidden',
+  textOverflow: 'ellipsis',
+};
+const modalBackdrop: React.CSSProperties = {
+  position: 'fixed', inset: 0,
+  background: 'rgba(0,0,0,0.5)',
+  display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000,
+};
+const modalContent: React.CSSProperties = {
+  background: 'var(--ts-bg-1)',
+  padding: 20, borderRadius: 12,
+  minWidth: 560, maxWidth: 720,
+  maxHeight: '90vh', overflowY: 'auto',
+  border: '1px solid var(--ts-border)',
+  boxShadow: '0 20px 50px rgba(0,0,0,0.4)',
+};
+const modalTitle: React.CSSProperties = {
+  marginTop: 0, marginBottom: 16,
+  fontSize: 16, color: 'var(--ts-text-1)',
+};
