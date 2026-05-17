@@ -151,6 +151,9 @@ function setupCommands(damageCodes: DamageCode[], prefs: DrawingPrefs): string[]
   for (const dc of damageCodes) {
     cmds.push(cmdLayerMake(dc.layerName, dc.colorIndex));
   }
+  // Phase 42 wave 9 — Layer cho lỗ khoan + hố đào (khảo sát)
+  cmds.push(cmdLayerMake('KS_LOKHOAN', 8));
+  cmds.push(cmdLayerMake('KS_HODAO', 8));
   return cmds;
 }
 
@@ -443,6 +446,74 @@ function drawSegmentChunk(
       cmds.push(cmdLayerSet(prefs.layers.TEXT.name));
       const stationStr = `+${(piece.startStation % 1000).toString().padStart(3, '0')}`;
       cmds.push(cmdText(X(xStart), Y(halfWidth + 1.2), prefs.stationTextHeight, 90, stationStr));
+    }
+  }
+
+  // ===========================================================
+  // 5. Hố đào (Phase 42 wave 9) — hình VUÔNG cạnh 0.6m + hatch SOLID color 8
+  // ===========================================================
+  const pits = segment.excavationPits ?? [];
+  const PIT_SIZE = 0.6;
+  const PIT_HALF = PIT_SIZE / 2;
+  for (const pit of pits) {
+    const pitAbs = pit.startStation - segment.startStation;
+    if (pitAbs < startM || pitAbs > endM) continue;
+    const xLocal = pitAbs - startM;
+    const cachTim = pit.cachTim ?? 0;
+    const mode = segment.cachTimMode ?? 'tim';
+    // Tâm Y (vẫn áp dụng quy tắc tim/mep + dual DPC giống damagePieces)
+    let yCenter: number;
+    if (pit.side === 'center') {
+      yCenter = 0;
+    } else if (segment.roadType === 'dual' && halfDpc > 0) {
+      yCenter = pit.side === 'left' ? (halfDpc + cachTim) : -(halfDpc + cachTim);
+    } else if (mode === 'mep') {
+      yCenter = pit.side === 'left' ? (halfWidth - cachTim) : -(halfWidth - cachTim);
+    } else {
+      yCenter = pit.side === 'left' ? cachTim : -cachTim;
+    }
+    // Vẽ RECTANG vuông 0.6×0.6 quanh tâm
+    cmds.push(cmdLayerSet('KS_HODAO'));
+    cmds.push(`._RECTANG ${X(xLocal - PIT_HALF)},${Y(yCenter - PIT_HALF)} ${X(xLocal + PIT_HALF)},${Y(yCenter + PIT_HALF)}`);
+    // Hatch SOLID select last
+    cmds.push(cmdHatchSelectLast('SOLID', 1, 0));
+    // Text label số hiệu
+    if (pit.pieceNumber) {
+      cmds.push(cmdLayerSet(prefs.layers.TEXT.name));
+      cmds.push(cmdTextCenter(X(xLocal), Y(yCenter + PIT_HALF + 0.4), prefs.pieceLabelTextHeight, 0, pit.pieceNumber));
+    }
+  }
+
+  // ===========================================================
+  // 6. Lỗ khoan (Phase 42 wave 9) — hình TRÒN bán kính 0.3m + hatch SOLID color 8
+  // ===========================================================
+  const boreHoles = segment.boreHoles ?? [];
+  const BH_RADIUS = 0.3;
+  for (const bh of boreHoles) {
+    const bhAbs = bh.startStation - segment.startStation;
+    if (bhAbs < startM || bhAbs > endM) continue;
+    const xLocal = bhAbs - startM;
+    const cachTim = bh.cachTim ?? 0;
+    const mode = segment.cachTimMode ?? 'tim';
+    let yCenter: number;
+    if (bh.side === 'center') {
+      yCenter = 0;
+    } else if (segment.roadType === 'dual' && halfDpc > 0) {
+      yCenter = bh.side === 'left' ? (halfDpc + cachTim) : -(halfDpc + cachTim);
+    } else if (mode === 'mep') {
+      yCenter = bh.side === 'left' ? (halfWidth - cachTim) : -(halfWidth - cachTim);
+    } else {
+      yCenter = bh.side === 'left' ? cachTim : -cachTim;
+    }
+    // Vẽ CIRCLE
+    cmds.push(cmdLayerSet('KS_LOKHOAN'));
+    cmds.push(`._CIRCLE ${X(xLocal)},${Y(yCenter)} ${BH_RADIUS}`);
+    // Hatch SOLID select last
+    cmds.push(cmdHatchSelectLast('SOLID', 1, 0));
+    // Text label số hiệu
+    if (bh.pieceNumber) {
+      cmds.push(cmdLayerSet(prefs.layers.TEXT.name));
+      cmds.push(cmdTextCenter(X(xLocal), Y(yCenter + BH_RADIUS + 0.4), prefs.pieceLabelTextHeight, 0, bh.pieceNumber));
     }
   }
 
