@@ -66,6 +66,7 @@ import {
 import { AtgtPanel } from './AtgtPanel.js';
 import { BaoLuPanel as BaoLuPanelV2 } from './BaoLuPanel.js';
 import { CadChatbotPanel } from './CadChatbotPanel.js';
+import { BoreHolePitSection } from './BoreHolePitSection.js';
 import { serializeProject, parseProjectFile, suggestExportFilename } from '../../lib/project-io.js';
 import { saveProjectJson, pickAndLoadProjectJson, revealFile } from '../../tauri-bridge.js';
 
@@ -641,6 +642,9 @@ function HuHongPanel(): JSX.Element {
             drawingPrefs={db.drawingPrefs}
             designDb={designDb}
           />
+
+          {/* Phase 42 wave 8 — Lỗ khoan + Hố đào (đa lớp) */}
+          <BoreHolePitSection project={activeProject} segment={activeSegment} />
         </div>
       </div>
 

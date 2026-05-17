@@ -62,6 +62,10 @@ export interface RoadSegment {
   stakes: RoadStake[];
   /** Miếng hư hỏng */
   damagePieces: DamagePiece[];
+  /** Phase 42 wave 8 — Lỗ khoan khảo sát (hình tròn hatch) */
+  boreHoles?: BoreHole[];
+  /** Phase 42 wave 8 — Hố đào khảo sát (hình vuông hatch) */
+  excavationPits?: ExcavationPit[];
   /** Drawing layout settings */
   drawing: DrawingSettings;
   notes?: string;
@@ -99,6 +103,66 @@ export interface DamagePiece {
   length: number;
   /** Mã hư hỏng — reference tới DamageCode.code */
   damageCode: number;
+  notes?: string;
+}
+
+// ============================================================
+// Phase 42 wave 8 — Lỗ khoan + Hố đào (đa lớp)
+// ============================================================
+
+/**
+ * 1 lớp trong lỗ khoan / hố đào.
+ * VD: "Bê tông nhựa C12.5 — dày 5cm", "Cấp phối đá dăm gia cố xi măng — dày 20cm".
+ */
+export interface BorePitLayer {
+  id: string;
+  /** Thứ tự lớp tính từ mặt (1 = lớp trên cùng) */
+  order: number;
+  /** Tên / mô tả lớp (vd "Bê tông nhựa C12.5", "Đất sét xám") */
+  name: string;
+  /** Chiều dày lớp (m) */
+  depth: number;
+  /** Ghi chú thêm — tùy chọn */
+  notes?: string;
+}
+
+/**
+ * Lỗ khoan khảo sát — vẽ hình TRÒN + hatch trong AutoCAD.
+ * Đường kính mặc định 0.1m (10cm) trong drawing settings.
+ */
+export interface BoreHole {
+  id: string;
+  segmentId: string;
+  /** Số hiệu lỗ khoan — user nhập (vd "LK1", "LK2", "LK-3A") */
+  pieceNumber: string;
+  /** Lý trình (m, tính từ đầu đoạn) */
+  startStation: number;
+  /** Vị trí: trái / phải / tim đường */
+  side: DamageSide;
+  /** Khoảng cách từ tim (hoặc mép, theo cachTimMode của segment) — mét */
+  cachTim?: number;
+  /** Danh sách các lớp địa chất / mặt đường */
+  layers: BorePitLayer[];
+  notes?: string;
+}
+
+/**
+ * Hố đào khảo sát — vẽ hình VUÔNG + hatch trong AutoCAD.
+ * Cạnh mặc định 1.5m trong drawing settings.
+ */
+export interface ExcavationPit {
+  id: string;
+  segmentId: string;
+  /** Số hiệu hố đào — user nhập (vd "HĐ1", "HĐ2") */
+  pieceNumber: string;
+  /** Lý trình (m, tính từ đầu đoạn) */
+  startStation: number;
+  /** Vị trí: trái / phải / tim đường */
+  side: DamageSide;
+  /** Khoảng cách từ tim (hoặc mép, theo cachTimMode của segment) — mét */
+  cachTim?: number;
+  /** Danh sách các lớp */
+  layers: BorePitLayer[];
   notes?: string;
 }
 

@@ -18,6 +18,8 @@ import {
   type DrawingPrefs,
   type DrawingSettings,
   type RoadStake,
+  type BoreHole,
+  type ExcavationPit,
   emptyDb,
   newId,
   defaultDamageCodes,
@@ -437,6 +439,208 @@ export function useDesignDb() {
   }, []);
 
   // --------------------------------------------------------
+  // Phase 42 wave 8 — BoreHole CRUD (lỗ khoan)
+  // --------------------------------------------------------
+  const addBoreHole = useCallback((projectId: string, segmentId: string, init: Partial<BoreHole> = {}): string => {
+    const id = newId('bh');
+    const now = Date.now();
+    const item: BoreHole = {
+      id,
+      segmentId,
+      pieceNumber: init.pieceNumber ?? '',
+      startStation: init.startStation ?? 0,
+      side: init.side ?? 'right',
+      cachTim: init.cachTim,
+      layers: init.layers ?? [],
+      notes: init.notes,
+    };
+    setDb((d) => ({
+      ...d,
+      projects: d.projects.map((p) =>
+        p.id === projectId
+          ? {
+              ...p,
+              segments: p.segments.map((s) =>
+                s.id === segmentId
+                  ? { ...s, boreHoles: [...(s.boreHoles ?? []), item], updatedAt: now }
+                  : s,
+              ),
+              updatedAt: now,
+            }
+          : p,
+      ),
+      updatedAt: now,
+    }));
+    return id;
+  }, []);
+
+  const updateBoreHole = useCallback((projectId: string, segmentId: string, holeId: string, patch: Partial<BoreHole>): void => {
+    const now = Date.now();
+    setDb((d) => ({
+      ...d,
+      projects: d.projects.map((p) =>
+        p.id === projectId
+          ? {
+              ...p,
+              segments: p.segments.map((s) =>
+                s.id === segmentId
+                  ? {
+                      ...s,
+                      boreHoles: (s.boreHoles ?? []).map((h) => (h.id === holeId ? { ...h, ...patch } : h)),
+                      updatedAt: now,
+                    }
+                  : s,
+              ),
+              updatedAt: now,
+            }
+          : p,
+      ),
+      updatedAt: now,
+    }));
+  }, []);
+
+  const deleteBoreHole = useCallback((projectId: string, segmentId: string, holeId: string): void => {
+    const now = Date.now();
+    setDb((d) => ({
+      ...d,
+      projects: d.projects.map((p) =>
+        p.id === projectId
+          ? {
+              ...p,
+              segments: p.segments.map((s) =>
+                s.id === segmentId
+                  ? { ...s, boreHoles: (s.boreHoles ?? []).filter((h) => h.id !== holeId), updatedAt: now }
+                  : s,
+              ),
+              updatedAt: now,
+            }
+          : p,
+      ),
+      updatedAt: now,
+    }));
+  }, []);
+
+  // --------------------------------------------------------
+  // Phase 42 wave 8 — ExcavationPit CRUD (hố đào)
+  // --------------------------------------------------------
+  const addExcavationPit = useCallback((projectId: string, segmentId: string, init: Partial<ExcavationPit> = {}): string => {
+    const id = newId('pit');
+    const now = Date.now();
+    const item: ExcavationPit = {
+      id,
+      segmentId,
+      pieceNumber: init.pieceNumber ?? '',
+      startStation: init.startStation ?? 0,
+      side: init.side ?? 'right',
+      cachTim: init.cachTim,
+      layers: init.layers ?? [],
+      notes: init.notes,
+    };
+    setDb((d) => ({
+      ...d,
+      projects: d.projects.map((p) =>
+        p.id === projectId
+          ? {
+              ...p,
+              segments: p.segments.map((s) =>
+                s.id === segmentId
+                  ? { ...s, excavationPits: [...(s.excavationPits ?? []), item], updatedAt: now }
+                  : s,
+              ),
+              updatedAt: now,
+            }
+          : p,
+      ),
+      updatedAt: now,
+    }));
+    return id;
+  }, []);
+
+  const updateExcavationPit = useCallback((projectId: string, segmentId: string, pitId: string, patch: Partial<ExcavationPit>): void => {
+    const now = Date.now();
+    setDb((d) => ({
+      ...d,
+      projects: d.projects.map((p) =>
+        p.id === projectId
+          ? {
+              ...p,
+              segments: p.segments.map((s) =>
+                s.id === segmentId
+                  ? {
+                      ...s,
+                      excavationPits: (s.excavationPits ?? []).map((h) => (h.id === pitId ? { ...h, ...patch } : h)),
+                      updatedAt: now,
+                    }
+                  : s,
+              ),
+              updatedAt: now,
+            }
+          : p,
+      ),
+      updatedAt: now,
+    }));
+  }, []);
+
+  const deleteExcavationPit = useCallback((projectId: string, segmentId: string, pitId: string): void => {
+    const now = Date.now();
+    setDb((d) => ({
+      ...d,
+      projects: d.projects.map((p) =>
+        p.id === projectId
+          ? {
+              ...p,
+              segments: p.segments.map((s) =>
+                s.id === segmentId
+                  ? { ...s, excavationPits: (s.excavationPits ?? []).filter((h) => h.id !== pitId), updatedAt: now }
+                  : s,
+              ),
+              updatedAt: now,
+            }
+          : p,
+      ),
+      updatedAt: now,
+    }));
+  }, []);
+
+  /**
+   * Replace toàn bộ array boreHoles / excavationPits / layers cho 1 segment.
+   * Tiện cho thao tác paste/import nhiều dòng cùng lúc.
+   */
+  const setBoreHoles = useCallback((projectId: string, segmentId: string, holes: BoreHole[]): void => {
+    const now = Date.now();
+    setDb((d) => ({
+      ...d,
+      projects: d.projects.map((p) =>
+        p.id === projectId
+          ? {
+              ...p,
+              segments: p.segments.map((s) => (s.id === segmentId ? { ...s, boreHoles: holes, updatedAt: now } : s)),
+              updatedAt: now,
+            }
+          : p,
+      ),
+      updatedAt: now,
+    }));
+  }, []);
+
+  const setExcavationPits = useCallback((projectId: string, segmentId: string, pits: ExcavationPit[]): void => {
+    const now = Date.now();
+    setDb((d) => ({
+      ...d,
+      projects: d.projects.map((p) =>
+        p.id === projectId
+          ? {
+              ...p,
+              segments: p.segments.map((s) => (s.id === segmentId ? { ...s, excavationPits: pits, updatedAt: now } : s)),
+              updatedAt: now,
+            }
+          : p,
+      ),
+      updatedAt: now,
+    }));
+  }, []);
+
+  // --------------------------------------------------------
   // Sync replace (Firestore down)
   // --------------------------------------------------------
   const replaceDb = useCallback((next: DesignDb): void => {
@@ -461,6 +665,15 @@ export function useDesignDb() {
     addDamagePiece,
     updateDamagePiece,
     deleteDamagePiece,
+    // Phase 42 wave 8 — bore holes + excavation pits
+    addBoreHole,
+    updateBoreHole,
+    deleteBoreHole,
+    setBoreHoles,
+    addExcavationPit,
+    updateExcavationPit,
+    deleteExcavationPit,
+    setExcavationPits,
     // stakes
     addStake,
     deleteStake,
