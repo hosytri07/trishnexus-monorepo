@@ -296,6 +296,15 @@ function segmentBodyCommands(
   cmds.push(...generateRatioTable(stats, tableTopY, prefs, 37));
   cmds.push(...generateHatchLegend(stats, damageCodes, tableTopY, prefs, 74));
 
+  // Phase 42 wave 9 — Bảng 4 + 5: Lỗ khoan + Hố đào với các lớp (chỉ vẽ nếu có dữ liệu)
+  const borePitTopY = tableTopY - 14;  // dưới 3 bảng cũ
+  if ((segment.boreHoles ?? []).length > 0) {
+    cmds.push(...generateBorePitTable(segment.boreHoles ?? [], 'Lỗ khoan', borePitTopY, prefs, 0));
+  }
+  if ((segment.excavationPits ?? []).length > 0) {
+    cmds.push(...generateBorePitTable(segment.excavationPits ?? [], 'Hố đào', borePitTopY, prefs, 60));
+  }
+
   return cmds;
 }
 
@@ -511,9 +520,8 @@ function drawSegmentChunk(
     const cx = xLocal * scaleX;
     const cy = yCenter * scaleY + chunkOriginY;
     cmds.push(cmdLayerSet('KS_LOKHOAN'));
-    cmds.push(`._CIRCLE ${cx.toFixed(3)},${cy.toFixed(3)} ${BH_RADIUS} `);
-    // Hatch SOLID select last
-    cmds.push(cmdHatchSelectLast('SOLID', 1, 0));
+    // Phase 42 wave 9 fix — Dùng DONUT (đỉa đặc) inner=0 outer=2*r → 1 hình tròn ĐẶC, không cần hatch
+    cmds.push(`._DONUT\n0\n${(BH_RADIUS * 2).toFixed(3)}\n${cx.toFixed(3)},${cy.toFixed(3)}\n\n`);
     // Text label số hiệu
     if (bh.pieceNumber) {
       cmds.push(cmdLayerSet(prefs.layers.TEXT.name));
@@ -599,6 +607,115 @@ function generateHatchLegend(
       prefs.dimTextHeight, 0, item.name,
     ));
   }
+  return cmds;
+}
+
+
+// ============================================================
+// Phase 42 wave 9 — Bảng Lỗ khoan / Hố đào (flatten theo lớp)
+// items: array BoreHole | ExcavationPit
+// kind: 'Lỗ khoan' hoặc 'Hố đào'
+// ============================================================
+function generateBorePitTable(
+  items: Array<{ pieceNumber: string; startStation: number; side: 'left' | 'right' | 'center'; cachTim?: number; layers: Array<{ order: number; name: string; depth: number; notes?: string }> }>,
+  kind: string,
+  topY: number,
+  prefs: DrawingPrefs,
+  x0: number,
+): string[] {
+  const cmds: string[] = [];
+  if (items.length === 0) return cmds;
+
+  // Cột: STT(3) | Số hiệu(8) | Lý trình(10) | Vị trí(8) | Cách tim(8) | Lớp#(5) | Tên lớp(20) | Dày(6)
+  const colW = [3, 8, 10, 8, 8, 5, 20, 6];
+  const totalW = colW.reduce((a, b) => a + b, 0);
+  const rowH = 1.2;
+
+  // Flatten: mỗi lớp = 1 row
+  type Row = { stt: number; pieceNumber: string; station: number; side: string; cachTim: number; layerNum: string; layerName: string; depth: string };
+  const rows: Row[] = [];
+  let stt = 0;
+  for (const it of items) {
+    const sideStr = it.side === 'left' ? 'Trái' : it.side === 'right' ? 'Phải' : 'Tim';
+    if (it.layers.length === 0) {
+      stt += 1;
+      rows.push({ stt, pieceNumber: it.pieceNumber || '?', station: it.startStation, side: sideStr, cachTim: it.cachTim ?? 0, layerNum: '—', layerName: '(không có lớp)', depth: '—' });
+    } else {
+      for (const l of it.layers) {
+        stt += 1;
+        rows.push({ stt, pieceNumber: it.pieceNumber || '?', station: it.startStation, side: sideStr, cachTim: it.cachTim ?? 0, layerNum: String(l.order), layerName: l.name || '—', depth: l.depth.toFixed(2) });
+      }
+    }
+  }
+
+  const nRows = rows.length + 2; // title + header + data
+  const tableHeight = nRows * rowH;
+  const yTop = topY;
+  const yBottom = yTop - tableHeight;
+
+  // Khung ngoài
+  cmds.push(cmdLayerSet(prefs.layers.THONGKE.name));
+  cmds.push(`._RECTANG ${x0.toFixed(2)},${yTop.toFixed(2)} ${(x0 + totalW).toFixed(2)},${yBottom.toFixed(2)} `);
+
+  // Đường ngang
+  for (let r = 1; r < nRows; r++) {
+    const yLine = yTop - r * rowH;
+    cmds.push(`._LINE ${x0.toFixed(2)},${yLine.toFixed(2)} ${(x0 + totalW).toFixed(2)},${yLine.toFixed(2)} `);
+  }
+  // Đường dọc (skip phần title)
+  let xCursor = x0;
+  for (let c = 0; c < colW.length - 1; c++) {
+    xCursor += colW[c]!;
+    cmds.push(`._LINE ${xCursor.toFixed(2)},${(yTop - rowH).toFixed(2)} ${xCursor.toFixed(2)},${yBottom.toFixed(2)} `);
+  }
+
+  // Title row
+  cmds.push(cmdLayerSet(prefs.layers.TEXT.name));
+  cmds.push(cmdTextCenter(
+    (x0 + totalW / 2).toFixed(2),
+    (yTop - rowH / 2).toFixed(2),
+    0.5, 0, `BẢNG: ${kind.toUpperCase()} (theo từng lớp)`,
+  ));
+
+  // Header
+  const headers = ['STT', 'Số hiệu', 'Lý trình', 'Vị trí', 'Cách tim', 'Lớp #', 'Tên lớp', 'Dày (m)'];
+  let xH = x0;
+  for (let c = 0; c < colW.length; c++) {
+    cmds.push(cmdTextCenter(
+      (xH + colW[c]! / 2).toFixed(2),
+      (yTop - rowH * 1.5).toFixed(2),
+      0.35, 0, headers[c]!,
+    ));
+    xH += colW[c]!;
+  }
+
+  // Data rows
+  for (let r = 0; r < rows.length; r++) {
+    const row = rows[r]!;
+    const rowIdx = r + 2;
+    const yMid = yTop - rowIdx * rowH - rowH / 2;
+    const stationStr = `Km${Math.floor(row.station / 1000)}+${(row.station % 1000).toString().padStart(3, '0')}`;
+    const values = [
+      String(row.stt),
+      row.pieceNumber,
+      stationStr,
+      row.side,
+      row.cachTim.toFixed(1),
+      row.layerNum,
+      row.layerName,
+      row.depth,
+    ];
+    let xVal = x0;
+    for (let c = 0; c < colW.length; c++) {
+      cmds.push(cmdTextCenter(
+        (xVal + colW[c]! / 2).toFixed(2),
+        yMid.toFixed(2),
+        prefs.dimTextHeight, 0, values[c]!,
+      ));
+      xVal += colW[c]!;
+    }
+  }
+
   return cmds;
 }
 
