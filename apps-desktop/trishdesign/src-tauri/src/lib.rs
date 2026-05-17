@@ -972,6 +972,97 @@ async fn claude_chat(req: ClaudeChatRequest) -> Result<String, String> {
 use tauri::Manager;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
+
+// ============================================================
+// Phase 42 — Auto-download + extract block ATGT từ GitHub Release
+// ============================================================
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DownloadBlocksResult {
+    pub dest_folder: String,
+    pub files_count: usize,
+    pub bytes: u64,
+}
+
+/// Download zip block ATGT từ URL, giải nén vào %APPDATA%\vn.trishteam.design\blocks\ATGT.
+/// Trả về DownloadBlocksResult với dest_folder để frontend lưu vào localStorage.
+#[tauri::command]
+async fn download_extract_blocks_atgt(url: String) -> Result<DownloadBlocksResult, String> {
+    // 1. Resolve dest folder = %APPDATA%\vn.trishteam.design\blocks\ATGT
+    let appdata = dirs::config_dir().ok_or("Không lấy được %APPDATA%".to_string())?;
+    let dest_folder = appdata
+        .join("vn.trishteam.design")
+        .join("blocks")
+        .join("ATGT");
+    std::fs::create_dir_all(&dest_folder).map_err(|e| format!("mkdir: {}", e))?;
+
+    // 2. Download zip vào temp
+    let tmp_zip = std::env::temp_dir().join("trishdesign-blocks-atgt.zip");
+    let resp = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(300))
+        .user_agent(concat!("TrishDesign/", env!("CARGO_PKG_VERSION")))
+        .build()
+        .map_err(|e| format!("HTTP client: {}", e))?
+        .get(&url)
+        .send()
+        .await
+        .map_err(|e| format!("DL: {}", e))?;
+    if !resp.status().is_success() {
+        return Err(format!("HTTP {}", resp.status().as_u16()));
+    }
+    let bytes = resp.bytes().await.map_err(|e| format!("Body: {}", e))?;
+    let total_bytes = bytes.len() as u64;
+    std::fs::write(&tmp_zip, &bytes).map_err(|e| format!("Write: {}", e))?;
+
+    // 3. Extract bằng PowerShell Expand-Archive (Windows built-in, không cần thêm crate)
+    #[cfg(target_os = "windows")]
+    {
+        let out = std::process::Command::new("powershell")
+            .args([
+                "-NoProfile",
+                "-Command",
+                &format!(
+                    "Expand-Archive -Path '{}' -DestinationPath '{}' -Force",
+                    tmp_zip.display(),
+                    dest_folder.display()
+                ),
+            ])
+            .output()
+            .map_err(|e| format!("Extract: {}", e))?;
+        if !out.status.success() {
+            return Err(format!(
+                "Extract fail: {}",
+                String::from_utf8_lossy(&out.stderr)
+            ));
+        }
+    }
+    #[cfg(not(target_os = "windows"))]
+    {
+        return Err("Auto-extract chỉ hỗ trợ Windows".to_string());
+    }
+
+    // 4. Cleanup zip
+    let _ = std::fs::remove_file(&tmp_zip);
+
+    // 5. Đếm số file .dwg đã extract
+    let mut files_count: usize = 0;
+    if let Ok(entries) = std::fs::read_dir(&dest_folder) {
+        for entry in entries.flatten() {
+            if let Some(ext) = entry.path().extension() {
+                if ext.to_string_lossy().to_lowercase() == "dwg" {
+                    files_count += 1;
+                }
+            }
+        }
+    }
+
+    Ok(DownloadBlocksResult {
+        dest_folder: dest_folder.to_string_lossy().to_string(),
+        files_count,
+        bytes: total_bytes,
+    })
+}
+
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
@@ -1012,6 +1103,8 @@ pub fn run() {
             // Phase 28.14 — Telegram getFile + download (LISP library)
             tg_get_file_path,
             tg_download_file,
+            // Phase 42 — Block ATGT auto-download
+            download_extract_blocks_atgt,
         ])
         .run(tauri::generate_context!())
         .expect("error while running TrishDesign");

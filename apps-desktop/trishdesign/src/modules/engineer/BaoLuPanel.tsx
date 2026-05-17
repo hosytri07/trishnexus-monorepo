@@ -332,8 +332,10 @@ export function BaoLuPanel(): JSX.Element {
   function handleNewSection(): void {
     if (!activeProject) return;
     const sec: BaoLuSection = {
-      id: newId('sec'), name: `Mặt cắt ${activeProject.sections.length + 1}`,
-      station: 'Km0+000', L: 20, B: 5, H: 2, alpha: 45, materialId: 'dat',
+      ...defaultBaoLuSection(),
+      id: newId('sec'),
+      station: `Km0+${(activeProject.sections.length * 50).toString().padStart(3, '0')}`,
+      station_m: activeProject.sections.length * 50,
       createdAt: Date.now(),
     };
     updateActiveProject((p) => ({ ...p, sections: [...p.sections, sec] }));
@@ -734,10 +736,46 @@ function SectionEditor({ section, onUpdate, pickImage, aiMeasure }: {
     onUpdate((s) => ({ ...s, [k]: val }));
   }
 
+  // Phase 42 — Tab Số liệu vs AI Vision (rõ ràng hơn cho user)
+  const [editorTab, setEditorTab] = useState<'data' | 'vision'>('data');
+
   return (
     <section className="td-section">
       <h2 className="td-section-title">📐 Mặt cắt: {section.station || '(chưa nhập lý trình)'}</h2>
-      <div className="td-section-body">
+
+      {/* Phase 42 — Tab switcher */}
+      <div style={{ display: 'flex', gap: 4, padding: '8px 16px 0', borderBottom: '1px solid var(--color-border-subtle)' }}>
+        <button
+          type="button"
+          onClick={() => setEditorTab('data')}
+          style={{
+            padding: '8px 16px',
+            background: editorTab === 'data' ? 'var(--color-accent-soft)' : 'transparent',
+            border: 'none',
+            borderBottom: editorTab === 'data' ? '2px solid var(--color-accent-primary)' : '2px solid transparent',
+            color: editorTab === 'data' ? 'var(--color-accent-primary)' : 'var(--color-text-muted)',
+            fontSize: 13,
+            fontWeight: 600,
+            cursor: 'pointer',
+          }}
+        >📝 Nhập số liệu</button>
+        <button
+          type="button"
+          onClick={() => setEditorTab('vision')}
+          style={{
+            padding: '8px 16px',
+            background: editorTab === 'vision' ? 'var(--color-accent-soft)' : 'transparent',
+            border: 'none',
+            borderBottom: editorTab === 'vision' ? '2px solid var(--color-accent-primary)' : '2px solid transparent',
+            color: editorTab === 'vision' ? 'var(--color-accent-primary)' : 'var(--color-text-muted)',
+            fontSize: 13,
+            fontWeight: 600,
+            cursor: 'pointer',
+          }}
+        >🤖 AI Vision đo ảnh</button>
+      </div>
+
+      <div className="td-section-body" style={{ display: editorTab === 'data' ? 'block' : 'none' }}>
         {/* Phase 42 — Lý trình + Vật liệu + Loại mặt cắt */}
         <div className="td-form-row">
           <label className="td-field"><span className="td-field-label">Lý trình</span>
@@ -790,12 +828,28 @@ function SectionEditor({ section, onUpdate, pickImage, aiMeasure }: {
             <input className="td-input" value={section.note ?? ''} onChange={(e) => set('note', e.target.value)} /></label>
         </div>
 
+      </div>{/* end tab data */}
+
+      <div className="td-section-body" style={{ display: editorTab === 'vision' ? 'block' : 'none' }}>
+        {/* Phase 42 — Tab AI Vision: upload ảnh + AI tự đo diện tích đất sụt */}
+        <div style={{ padding: '12px 0 16px', borderBottom: '1px solid var(--color-border-subtle)', marginBottom: 16 }}>
+          <p className="muted small" style={{ marginBottom: 8 }}>
+            🤖 <strong>AI Vision đo diện tích đất sụt từ ảnh hiện trường.</strong> Upload ảnh chụp mặt cắt thực tế →
+            AI (Gemini Vision / Groq Llama Vision) sẽ phân tích đường viền đất sụt và tự fill <strong>Diện tích (m²)</strong>
+            qua tab "Nhập số liệu".
+          </p>
+          <p className="muted" style={{ fontSize: 11 }}>
+            ⚠ Khuyến nghị: ảnh có thước đo / cọc tiêu để AI ước lượng tỉ lệ chính xác hơn.
+            Đối với hình phức tạp, AI chỉ ước lượng — Trí có thể chỉnh tay ở tab Số liệu.
+          </p>
+        </div>
+
         {/* Image + result */}
-        <div className="bl-grid" style={{ marginTop: 16 }}>
+        <div className="bl-grid">
           <div>
             <div className="dos-action-bar" style={{ paddingBottom: 0, borderBottom: 'none' }}>
               <button type="button" className="btn btn-primary" onClick={() => void pickImage()}>📷 Tải ảnh hiện trường</button>
-              <button type="button" className="btn btn-ghost" onClick={aiMeasure} disabled={!section.imageBase64}>🤖 AI đo kích thước</button>
+              <button type="button" className="btn btn-ghost" onClick={aiMeasure} disabled={!section.imageBase64}>🤖 AI đo diện tích đất sụt</button>
             </div>
             {section.imageBase64 && section.imageBase64 !== '__cached__' ? (
               <div className="ocr-image-wrap" style={{ marginTop: 8 }}>
@@ -824,7 +878,7 @@ function SectionEditor({ section, onUpdate, pickImage, aiMeasure }: {
             </p>
           </div>
         </div>
-      </div>
+      </div>{/* end tab vision */}
     </section>
   );
 }

@@ -55,15 +55,14 @@ export function SettingsPanel(): JSX.Element {
     if (downloadingBlocks) return;
     setDownloadingBlocks(true);
     try {
-      // Tải zip block từ GitHub Release (admin sẽ upload trishdesign-blocks-atgt.zip)
-      // Phase 42 placeholder: hiển thị hướng dẫn manual
-      window.alert(
-        '📥 Đang phát triển auto-download.\n\nTạm thời tải tay:\n' +
-        '1. Vào https://github.com/hosytri07/trishnexus-monorepo/releases/tag/trishdesign-blocks-atgt-v1.0.0\n' +
-        '2. Tải file trishdesign-blocks-atgt.zip\n' +
-        '3. Giải nén vào %APPDATA%\\vn.trishteam.design\\blocks\\ATGT\n' +
-        '4. Quay lại đây, dán path vào ô trên + Lưu'
-      );
+      const url = 'https://github.com/hosytri07/trishnexus-monorepo/releases/download/trishdesign-blocks-atgt-v1.0.0/trishdesign-blocks-atgt.zip';
+      const result = await invoke<{ destFolder: string; filesCount: number; bytes: number }>('download_extract_blocks_atgt', { url });
+      // Auto-set folder vào localStorage
+      writeLs('trishdesign:atgt-blocks-folder', result.destFolder);
+      setAtgtBlocksFolder(result.destFolder);
+      window.alert(`✅ Đã tải + giải nén ${result.filesCount} block .dwg (${(result.bytes / 1024 / 1024).toFixed(1)} MB).\n\nFolder: ${result.destFolder}\n\nĐã tự lưu đường dẫn — sẵn sàng vẽ ATGT.`);
+    } catch (e) {
+      window.alert(`✗ Tải block fail: ${e instanceof Error ? e.message : String(e)}\n\nKiểm tra: 1) Có internet, 2) GitHub Release tồn tại, 3) Windows (lệnh PowerShell Expand-Archive).`);
     } finally {
       setDownloadingBlocks(false);
     }
