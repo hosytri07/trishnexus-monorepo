@@ -472,15 +472,17 @@ function drawSegmentChunk(
     } else {
       yCenter = pit.side === 'left' ? cachTim : -cachTim;
     }
-    // Vẽ RECTANG vuông 0.6×0.6 quanh tâm
+    // Phase 42 wave 9 fix — TÂM theo scale (lý trình bình đồ), KÍCH THƯỚC giữ nguyên 0.6m
+    const cx = xLocal * scaleX;
+    const cy = yCenter * scaleY + chunkOriginY;
     cmds.push(cmdLayerSet('KS_HODAO'));
-    cmds.push(`._RECTANG ${X(xLocal - PIT_HALF)},${Y(yCenter - PIT_HALF)} ${X(xLocal + PIT_HALF)},${Y(yCenter + PIT_HALF)}`);
+    cmds.push(`._RECTANG ${(cx - PIT_HALF).toFixed(3)},${(cy - PIT_HALF).toFixed(3)} ${(cx + PIT_HALF).toFixed(3)},${(cy + PIT_HALF).toFixed(3)} `);
     // Hatch SOLID select last
     cmds.push(cmdHatchSelectLast('SOLID', 1, 0));
-    // Text label số hiệu
+    // Text label số hiệu (đặt phía trên hố)
     if (pit.pieceNumber) {
       cmds.push(cmdLayerSet(prefs.layers.TEXT.name));
-      cmds.push(cmdTextCenter(X(xLocal), Y(yCenter + PIT_HALF + 0.4), prefs.pieceLabelTextHeight, 0, pit.pieceNumber));
+      cmds.push(cmdTextCenter(cx.toFixed(3), (cy + PIT_HALF + 0.3).toFixed(3), prefs.pieceLabelTextHeight, 0, pit.pieceNumber));
     }
   }
 
@@ -505,15 +507,17 @@ function drawSegmentChunk(
     } else {
       yCenter = bh.side === 'left' ? cachTim : -cachTim;
     }
-    // Vẽ CIRCLE
+    // Phase 42 wave 9 fix — TÂM theo scale, RADIUS giữ nguyên 0.3m
+    const cx = xLocal * scaleX;
+    const cy = yCenter * scaleY + chunkOriginY;
     cmds.push(cmdLayerSet('KS_LOKHOAN'));
-    cmds.push(`._CIRCLE ${X(xLocal)},${Y(yCenter)} ${BH_RADIUS}`);
+    cmds.push(`._CIRCLE ${cx.toFixed(3)},${cy.toFixed(3)} ${BH_RADIUS} `);
     // Hatch SOLID select last
     cmds.push(cmdHatchSelectLast('SOLID', 1, 0));
     // Text label số hiệu
     if (bh.pieceNumber) {
       cmds.push(cmdLayerSet(prefs.layers.TEXT.name));
-      cmds.push(cmdTextCenter(X(xLocal), Y(yCenter + BH_RADIUS + 0.4), prefs.pieceLabelTextHeight, 0, bh.pieceNumber));
+      cmds.push(cmdTextCenter(cx.toFixed(3), (cy + BH_RADIUS + 0.3).toFixed(3), prefs.pieceLabelTextHeight, 0, bh.pieceNumber));
     }
   }
 
