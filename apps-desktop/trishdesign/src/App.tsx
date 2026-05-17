@@ -123,8 +123,10 @@ export function App(): JSX.Element {
     switch (active) {
       case 'dashboard': return <DashboardPanel />;
       case 'documents':
-        // Phase 42 — Theo yêu cầu Trí: rename "Danh mục hồ sơ" → "Mẫu hồ sơ", giữ Locked cho mọi user (kể cả admin tạm thời), banner "Đang phát triển"
-        return <LockedPanel feature="📂 Mẫu hồ sơ" icon="📂" description="🚧 Đang phát triển — Hệ thống templates văn bản nghiệm thu / thanh toán / hoàn công + tự fill biến cho dự án giao thông VN. Sẽ ra mắt ở phiên bản sau." />;
+        // Phase 42 wave 8 — Admin (Trí) thấy được DocumentsPanel để dev/preview, user thường vẫn Locked
+        return isAdmin
+          ? <DocumentsPanel />
+          : <LockedPanel feature="📂 Mẫu hồ sơ" icon="📂" description="🚧 Đang phát triển — Hệ thống templates văn bản nghiệm thu / thanh toán / hoàn công + tự fill biến cho dự án giao thông VN. Sẽ ra mắt ở phiên bản sau." />;
       case 'roaddamage': return <RoadDamageModule />;
       case 'atgt': return <AtgtModule />;
       case 'cross_section': return <CrossSectionModule />;

@@ -52,11 +52,24 @@ interface BaoLuSection {
   taluyDapSlope: number;
 
   /**
-   * Phase 42 — Diện tích đất sụt nhập TAY (m²).
-   * Đất sụt là hình thù phức tạp, KHÔNG tính bằng công thức hình học đơn giản.
-   * User đo trực tiếp từ ảnh hiện trường hoặc dùng AI Vision đo.
+   * Phase 42 — Diện tích đất sụt (m²). Nguồn gốc xác định bởi areaSource.
    */
   areaDatSut: number;
+
+  /**
+   * Phase 42 wave 8 — Nguồn gốc diện tích đất sụt:
+   *  - 'vision'  : AI Vision đo từ ảnh hiện trường (auto-fill khi đo xong)
+   *  - 'polygon' : Pick polygon từ AutoCAD (Rust command đọc area)
+   *  - 'geometry': Tính từ công thức hình học road geometry + depthSut
+   *  - 'manual'  : User nhập tay
+   */
+  areaSource?: 'vision' | 'polygon' | 'geometry' | 'manual';
+
+  /**
+   * Phase 42 wave 8 — Chiều sâu đất sụt trung bình (m), dùng cho mode 'geometry'.
+   * Tính areaDatSut = (matDuongWidth + leTrai + leFai + extra) × depthSut.
+   */
+  depthSut?: number;
 
   /** Vật liệu */
   materialId: string;
@@ -136,9 +149,58 @@ function defaultBaoLuSection(): Omit<BaoLuSection, 'id' | 'createdAt'> {
     taluyDaoSlope: 1.0,
     taluyDapSlope: 1.5,
     areaDatSut: 0,
+    areaSource: 'vision',  // Phase 42 wave 8 — default dùng AI Vision
+    depthSut: 1.0,         // Phase 42 wave 8 — chiều sâu sụt trung bình
     materialId: 'dat',
     note: '',
   };
+}
+
+/**
+ * Phase 42 wave 8 — Tính diện tích đất sụt theo công thức hình học từ road geometry.
+ *
+ * - Nửa đào nửa đắp: 1 nửa mặt đường + lề bị sụt với chiều sâu trung bình depthSut.
+ *   A = (matDuongWidth/2 + leTrai) × depthSut + chân taluy đắp (depthSut × taluyDapSlope × depthSut / 2)
+ *
+ * - Taluy đào 2 bên: cả mặt đường + 2 lề + 2 chân taluy đào.
+ *   A = (matDuongWidth + leTrai + leFai + 2 × depthSut × taluyDaoSlope) × depthSut
+ *
+ * - Taluy đắp 2 bên: cả mặt đường + 2 lề + 2 chân taluy đắp.
+ *   A = (matDuongWidth + leTrai + leFai + 2 × depthSut × taluyDapSlope) × depthSut
+ */
+export function computeAreaFromGeometry(s: BaoLuSection): number {
+  const d = Math.max(s.depthSut ?? 0, 0);
+  if (d <= 0) return 0;
+  const W = (s.matDuongWidth ?? 7) + (s.leWidthLeft ?? 0) + (s.leWidthRight ?? 0);
+  switch (s.crossType) {
+    case 'nua_dao_nua_dap': {
+      // 1 nửa đường bị sụt + 1 chân taluy đắp 2 phía
+      const half = (s.matDuongWidth ?? 7) / 2 + (s.leWidthLeft ?? 0);
+      const chanTaluy = d * (s.taluyDapSlope ?? 1.5);
+      return half * d + 0.5 * chanTaluy * d;
+    }
+    case 'taluy_dao_2ben': {
+      const extra = 2 * d * (s.taluyDaoSlope ?? 1.0);
+      return (W + extra) * d;
+    }
+    case 'taluy_dap_2ben': {
+      const extra = 2 * d * (s.taluyDapSlope ?? 1.5);
+      return (W + extra) * d;
+    }
+    default:
+      return W * d;
+  }
+}
+
+/**
+ * Phase 42 wave 8 — Resolve diện tích đất sụt cuối cùng theo areaSource.
+ * 'geometry' → compute từ road geometry. Còn lại → dùng areaDatSut đã save sẵn.
+ */
+export function resolveAreaDatSut(s: BaoLuSection): number {
+  if ((s.areaSource ?? 'manual') === 'geometry') {
+    return computeAreaFromGeometry(s);
+  }
+  return s.areaDatSut ?? 0;
 }
 
 function newId(prefix: string): string { return `${prefix}_${Date.now().toString(36)}_${Math.floor(Math.random() * 1000).toString(36)}`; }
@@ -170,11 +232,10 @@ function saveDb(db: BaoLuDb): void {
  * giữa các mặt cắt).
  */
 function computeVolume(s: BaoLuSection, k: number): { vTuNhien: number; vVanChuyen: number; sMatCat: number } {
-  // Phase 42 — Diện tích đất sụt nhập tay (hình phức tạp, không tính được công thức)
-  // Fallback compute từ B×H×α cho data cũ (deprecated)
-  let sMatCat = s.areaDatSut ?? 0;
+  // Phase 42 wave 8 — Dùng resolveAreaDatSut để hỗ trợ 4 nguồn (vision/polygon/geometry/manual)
+  let sMatCat = resolveAreaDatSut(s);
   if (!sMatCat && s.B && s.H && s.alpha) {
-    // Legacy compute từ schema cũ
+    // Legacy compute từ schema cũ (data Phase 28.5)
     const aRad = (s.alpha * Math.PI) / 180;
     const tanA = Math.tan(aRad);
     const Btop = s.B + 2 * s.H / Math.max(tanA, 0.001);
@@ -219,9 +280,10 @@ export function computeGroupVolumeSimpson(sections: BaoLuSection[], k: number): 
   if (sections.length === 0) return { vTuNhien: 0, vVanChuyen: 0, totalArea: 0, totalLength: 0, count: 0 };
   // Sort theo station_m
   const sorted = [...sections].sort((a, b) => (a.station_m ?? 0) - (b.station_m ?? 0));
-  // Phase 42 — Tính diện tích mỗi mặt cắt từ areaDatSut nhập tay
+  // Phase 42 wave 8 — Tính diện tích mỗi mặt cắt qua resolveAreaDatSut (4 nguồn)
   const areas = sorted.map((s) => {
-    if (s.areaDatSut && s.areaDatSut > 0) return s.areaDatSut;
+    const area = resolveAreaDatSut(s);
+    if (area > 0) return area;
     // Fallback legacy compute cho data cũ
     if (s.B && s.H && s.alpha) {
       const aRad = (s.alpha * Math.PI) / 180;
@@ -345,7 +407,7 @@ export function BaoLuPanel(): JSX.Element {
     if (!activeSection) return;
     setDialog({
       kind: 'confirm', title: 'Xóa mặt cắt', danger: true,
-      message: `Xóa "${activeSection.name}"?`,
+      message: `Xóa mặt cắt "${activeSection.station || '(chưa nhập)'}"?`,
       onConfirm: () => updateActiveProject((p) => ({ ...p, sections: p.sections.filter((s) => s.id !== activeSection.id) })),
     });
   }
@@ -386,16 +448,15 @@ export function BaoLuPanel(): JSX.Element {
       return;
     }
 
-    const systemPrompt = `Bạn là kỹ sư cầu đường VN. Phân tích ảnh hiện trường mặt cắt sạt lở / hốt sạt → ước tính kích thước.
+    // Phase 42 wave 8 — Prompt mới: AI ước lượng DIỆN TÍCH đất sụt (m²) trực tiếp
+    const systemPrompt = `Bạn là kỹ sư cầu đường VN. Phân tích ảnh hiện trường mặt cắt sạt lở / hốt sạt → ước tính diện tích vùng đất sụt.
 Trả ra JSON object DUY NHẤT (không markdown):
 {
-  "station": "Km0+520",     // lý trình ước đoán nếu thấy biển hoặc null
-  "B": 3.5,                  // bề rộng đáy (m), số thực
-  "H": 2.0,                  // chiều cao mái (m)
-  "alpha": 45,               // góc mái (độ)
-  "L": 10,                   // chiều dài đoạn sạt (m)
+  "station": "Km0+520",     // lý trình ước đoán nếu thấy biển/cọc; null nếu không thấy
+  "areaDatSut": 12.5,        // DIỆN TÍCH ĐẤT SỤT (m²) — trace đường viền vùng sụt, tỷ lệ ước bằng vật mốc trong ảnh
+  "depthSut": 1.5,           // chiều sâu sụt trung bình (m), tham khảo
   "materialId": "dat",       // 1 trong: dat, dat_set, da_dam, da_lon, cuoi_soi, hon_hop
-  "note": "Ghi chú nhận xét bằng tiếng Việt — vd loại đất, mức độ sạt, ảnh hưởng giao thông"
+  "note": "Ghi chú tiếng Việt — vd loại đất, mức độ sạt, ảnh hưởng giao thông"
 }
 Quy tắc: Nếu không ước được giá trị nào, để 0 nhưng vẫn trả đủ keys. JSON only.`;
 
@@ -420,17 +481,19 @@ Quy tắc: Nếu không ước được giá trị nào, để 0 nhưng vẫn tr
           const jm = reply.match(/\{[\s\S]*\}/);
           if (jm) {
             const parsed = JSON.parse(jm[0]);
+            // Phase 42 wave 8 — Parse schema mới (areaDatSut + depthSut)
+            const area = Number(parsed.areaDatSut) > 0 ? Number(parsed.areaDatSut) : 0;
+            const depth = Number(parsed.depthSut) > 0 ? Number(parsed.depthSut) : undefined;
             updateActiveSection((s) => ({
               ...s,
               station: typeof parsed.station === 'string' ? parsed.station : s.station,
-              B: Number(parsed.B) > 0 ? Number(parsed.B) : s.B,
-              H: Number(parsed.H) > 0 ? Number(parsed.H) : s.H,
-              alpha: Number(parsed.alpha) > 0 ? Number(parsed.alpha) : s.alpha,
-              L: Number(parsed.L) > 0 ? Number(parsed.L) : s.L,
+              areaDatSut: area > 0 ? area : (s.areaDatSut ?? 0),
+              areaSource: area > 0 ? 'vision' : s.areaSource,
+              depthSut: depth ?? s.depthSut,
               materialId: typeof parsed.materialId === 'string' && MATERIALS.some((mat) => mat.id === parsed.materialId) ? parsed.materialId : s.materialId,
               note: typeof parsed.note === 'string' ? parsed.note : s.note,
             }));
-            flash(`✓ Gemini đã đo: B=${parsed.B}m H=${parsed.H}m α=${parsed.alpha}° L=${parsed.L}m`);
+            flash(`✓ Gemini đã đo: S = ${area.toFixed(2)} m² · d ≈ ${depth ?? '—'} m`);
             return;
           }
           flash('⚠ Gemini không trả JSON, thử Groq...');
@@ -457,17 +520,19 @@ Quy tắc: Nếu không ước được giá trị nào, để 0 nhưng vẫn tr
         const jm = reply.match(/\{[\s\S]*\}/);
         if (jm) {
           const parsed = JSON.parse(jm[0]);
+          // Phase 42 wave 8 — Parse schema mới (areaDatSut + depthSut)
+          const area = Number(parsed.areaDatSut) > 0 ? Number(parsed.areaDatSut) : 0;
+          const depth = Number(parsed.depthSut) > 0 ? Number(parsed.depthSut) : undefined;
           updateActiveSection((s) => ({
             ...s,
             station: typeof parsed.station === 'string' ? parsed.station : s.station,
-            B: Number(parsed.B) > 0 ? Number(parsed.B) : s.B,
-            H: Number(parsed.H) > 0 ? Number(parsed.H) : s.H,
-            alpha: Number(parsed.alpha) > 0 ? Number(parsed.alpha) : s.alpha,
-            L: Number(parsed.L) > 0 ? Number(parsed.L) : s.L,
+            areaDatSut: area > 0 ? area : (s.areaDatSut ?? 0),
+            areaSource: area > 0 ? 'vision' : s.areaSource,
+            depthSut: depth ?? s.depthSut,
             materialId: typeof parsed.materialId === 'string' && MATERIALS.some((mat) => mat.id === parsed.materialId) ? parsed.materialId : s.materialId,
             note: typeof parsed.note === 'string' ? parsed.note : s.note,
           }));
-          flash(`✓ Groq đã đo: B=${parsed.B}m H=${parsed.H}m`);
+          flash(`✓ Groq đã đo: S = ${area.toFixed(2)} m² · d ≈ ${depth ?? '—'} m`);
           return;
         }
       }
@@ -516,61 +581,20 @@ Quy tắc: Nếu không ước được giá trị nào, để 0 nhưng vẫn tr
     }
   }
 
-  async function handleDrawAcad(): Promise<void> {
-    if (!activeProject || activeProject.sections.length === 0) {
-      flash('Không có mặt cắt để vẽ');
-      return;
-    }
-    if (!acadRunning) {
-      flash('Chưa kết nối AutoCAD. Mở AutoCAD trống trước.');
-      return;
-    }
-    try {
-      await autoCadEnsureDocument();
-      const cmds: string[] = [];
-      cmds.push('._FILEDIA\n0\n');
-      cmds.push('._-STYLE\nBL_TEXT\narial.ttf\n0\n0.7\n0\nN\nN\n');
-      cmds.push('._-LAYER\nM\nBAOLU_DAT\nC\n8\nBAOLU_DAT\n\n');
-      cmds.push('._-LAYER\nM\nBAOLU_TEXT\nC\n7\nBAOLU_TEXT\n\n');
-
-      let yOff = 0;
-      for (const sec of activeProject.sections) {
-        const mat = MATERIALS.find((m) => m.id === sec.materialId) ?? MATERIALS[0]!;
-        const v = computeVolume(sec, mat.k);
-        // Vẽ mặt cắt: trapezoid (B đáy → B + 2*H/tan(α) đỉnh)
-        const Btop = sec.B + 2 * sec.H / Math.max(Math.tan((sec.alpha * Math.PI) / 180), 0.001);
-        const halfBot = sec.B / 2; const halfTop = Btop / 2;
-        // 4 corners
-        const x0 = -halfBot, x1 = halfBot, x2 = halfTop, x3 = -halfTop;
-        const y0 = 0, y1 = sec.H;
-        cmds.push('._-LAYER\nS\nBAOLU_DAT\n\n');
-        // Polyline 4 đỉnh + close
-        cmds.push(`._PLINE ${x0.toFixed(2)},${(y0 + yOff).toFixed(2)} ${x1.toFixed(2)},${(y0 + yOff).toFixed(2)} ${x2.toFixed(2)},${(y1 + yOff).toFixed(2)} ${x3.toFixed(2)},${(y1 + yOff).toFixed(2)} C\n`);
-        // Text label trên đỉnh
-        cmds.push('._-LAYER\nS\nBAOLU_TEXT\n\n');
-        cmds.push(`._-TEXT\nJ\nMC\n0,${(y1 + 1.2 + yOff).toFixed(2)}\n0.5\n0\n${sec.name} (${sec.station}) — V=${v.vTuNhien.toFixed(1)}m³\n`);
-        // Dim text dưới đáy
-        cmds.push(`._-TEXT\nJ\nMC\n0,${(y0 - 0.5 + yOff).toFixed(2)}\n0.4\n0\nB=${sec.B}m · H=${sec.H}m · α=${sec.alpha}° · L=${sec.L}m\n`);
-        yOff += sec.H + 5;
-      }
-      cmds.push('._ZOOM\nE\n');
-      cmds.push('._FILEDIA\n1\n');
-      const sent = await autoCadSendCommands(cmds);
-      flash(`✓ Đã gửi ${sent} lệnh vẽ ${activeProject.sections.length} mặt cắt vào AutoCAD`);
-    } catch (e) { flash(`✗ ${String(e)}`); }
-  }
+  // Phase 42 wave 8 — Bỏ handleDrawAcad legacy (schema cũ B/H/α). Dùng handleDrawSlideEventA3 thay thế.
 
   async function handleExportExcel(): Promise<void> {
     if (!activeProject || activeProject.sections.length === 0) {
       flash('Không có dữ liệu để xuất'); return;
     }
     const wb = XLSX.utils.book_new();
+    // Phase 42 wave 8 — Excel theo schema mới (đất sụt areaDatSut + road geometry)
     const rows: (string | number)[][] = [
       [`BÁO CÁO KHỐI LƯỢNG SỤT LỞ: ${activeProject.name}`],
       [`Địa điểm: ${activeProject.diaDiem ?? ''}`],
       [`Ngày khảo sát: ${activeProject.ngayKhaoSat ?? ''}`],
       [],
-      ['STT', 'Tên mặt cắt', 'Lý trình', 'L (m)', 'B (m)', 'H (m)', 'α (°)', 'Vật liệu', 'k', 'S mặt cắt (m²)', 'V tự nhiên (m³)', 'V vận chuyển (m³)', 'Ghi chú'],
+      ['STT', 'Lý trình', 'Lý trình (m)', 'Loại mặt cắt', 'B đường (m)', 'Lề trái (m)', 'Lề phải (m)', 'Nguồn S', 'S đất sụt (m²)', 'Vật liệu', 'k', 'V tự nhiên (m³)', 'V vận chuyển (m³)', 'Ghi chú'],
     ];
     let totalVTN = 0, totalVVC = 0;
     activeProject.sections.forEach((sec, i) => {
@@ -578,21 +602,30 @@ Quy tắc: Nếu không ước được giá trị nào, để 0 nhưng vẫn tr
       const v = computeVolume(sec, mat.k);
       totalVTN += v.vTuNhien; totalVVC += v.vVanChuyen;
       rows.push([
-        i + 1, sec.name, sec.station,
-        sec.L, sec.B, sec.H, sec.alpha,
-        mat.name, mat.k,
+        i + 1,
+        sec.station,
+        sec.station_m ?? 0,
+        CROSS_TYPE_LABEL[sec.crossType] ?? '—',
+        sec.matDuongWidth ?? 7,
+        sec.leWidthLeft ?? 0,
+        sec.leWidthRight ?? 0,
+        sec.areaSource === 'vision' ? 'AI Vision'
+          : sec.areaSource === 'polygon' ? 'AutoCAD'
+          : sec.areaSource === 'geometry' ? 'Hình học'
+          : 'Nhập tay',
         Number(v.sMatCat.toFixed(2)),
+        mat.name, mat.k,
         Number(v.vTuNhien.toFixed(2)),
         Number(v.vVanChuyen.toFixed(2)),
         sec.note ?? '',
       ]);
     });
     rows.push([]);
-    rows.push(['', '', 'TỔNG', '', '', '', '', '', '', '', Number(totalVTN.toFixed(2)), Number(totalVVC.toFixed(2)), '']);
+    rows.push(['', '', '', 'TỔNG', '', '', '', '', '', '', '', Number(totalVTN.toFixed(2)), Number(totalVVC.toFixed(2)), '']);
     const ws = XLSX.utils.aoa_to_sheet(rows);
     ws['!cols'] = [
-      { wch: 5 }, { wch: 18 }, { wch: 12 }, { wch: 8 }, { wch: 8 }, { wch: 8 }, { wch: 8 },
-      { wch: 22 }, { wch: 6 }, { wch: 14 }, { wch: 16 }, { wch: 16 }, { wch: 20 },
+      { wch: 5 }, { wch: 14 }, { wch: 12 }, { wch: 20 }, { wch: 10 }, { wch: 9 }, { wch: 9 },
+      { wch: 11 }, { wch: 14 }, { wch: 22 }, { wch: 6 }, { wch: 16 }, { wch: 16 }, { wch: 24 },
     ];
     XLSX.utils.book_append_sheet(wb, ws, 'Khối lượng');
     const dateStr = new Date().toISOString().slice(0, 10);
@@ -677,14 +710,15 @@ Quy tắc: Nếu không ước được giá trị nào, để 0 nhưng vẫn tr
             value={activeSectionId ?? ''}
             onChange={(e) => setActiveSectionId(e.target.value || null)}>
             <option value="">— Mặt cắt —</option>
-            {activeProject.sections.map((s) => <option key={s.id} value={s.id}>📐 {s.name} ({s.station})</option>)}
+            {activeProject.sections.map((s, i) => <option key={s.id} value={s.id}>📐 MC-{i + 1} ({s.station || '?'})</option>)}
           </select>
           <button type="button" className="btn btn-ghost" onClick={handleNewSection}>➕</button>
           {activeSection && <button type="button" className="btn btn-ghost" onClick={handleDeleteSection}>🗑</button>}
           <div style={{ flex: 1 }} />
-          <button type="button" className="btn btn-primary" onClick={() => void handleDrawAcad()}
-            disabled={!acadRunning || activeProject.sections.length === 0}>📐 Vẽ AutoCAD</button>
-              <button type="button" className="btn btn-primary" onClick={() => void handleDrawSlideEventA3()} title="Phase 42 — Vẽ khung A3 scale 0.2 với tất cả mặt cắt + bảng thống kê khối lượng" style={{ marginLeft: 6 }}>🖨 Vẽ A3 + bảng</button>
+          {/* Phase 42 wave 8 — Gộp 2 nút "Vẽ AutoCAD" + "Vẽ A3 + bảng" thành 1 nút duy nhất */}
+          <button type="button" className="btn btn-primary" onClick={() => void handleDrawSlideEventA3()}
+            disabled={!acadRunning || activeProject.sections.length === 0}
+            title="Vẽ khung A3 scale 0.2 với tất cả mặt cắt + bảng thống kê khối lượng">📐 Vẽ AutoCAD</button>
           <button type="button" className="btn btn-ghost" onClick={() => void handleExportExcel()}
             disabled={activeProject.sections.length === 0}>📊 Xuất Excel</button>
         </div>
@@ -794,14 +828,9 @@ function SectionEditor({ section, onUpdate, pickImage, aiMeasure }: {
             </select></label>
         </div>
 
-        {/* Phase 42 — Diện tích đất sụt nhập tay (m²) — CHÍNH */}
-        <div className="td-form-row" style={{ marginTop: 12, padding: 12, background: 'rgba(220, 38, 38, 0.08)', borderRadius: 8, border: '1px solid rgba(220, 38, 38, 0.3)' }}>
-          <label className="td-field" style={{ flex: 2 }}>
-            <span className="td-field-label" style={{ color: '#dc2626' }}>🔴 Diện tích đất sụt (m²) — đo từ ảnh hiện trường</span>
-            <input type="number" step={0.01} className="td-input" placeholder="VD: 12.5" value={section.areaDatSut ?? 0} onChange={(e) => set('areaDatSut', Number(e.target.value) || 0)} />
-            <span className="muted small">💡 Đất sụt là hình phức tạp — đo trực tiếp hoặc dùng AI Vision</span>
-          </label>
-        </div>
+        {/* Phase 42 wave 8 — Diện tích đất sụt: 4 nguồn (AI Vision / AutoCAD / Hình học / Nhập tay) */}
+        <AreaSourceEditor section={section} onUpdate={onUpdate} />
+
 
         {/* Phase 42 — Road geometry: mặt đường + lề + rãnh + taluy */}
         <div className="td-form-row" style={{ marginTop: 12 }}>
@@ -883,6 +912,105 @@ function SectionEditor({ section, onUpdate, pickImage, aiMeasure }: {
   );
 }
 
+/**
+ * Phase 42 wave 8 — Editor diện tích đất sụt với 4 nguồn:
+ *  - vision  : đọc từ AI (tab AI Vision đo ảnh)
+ *  - polygon : pick từ AutoCAD (gửi _AREA O, user click polygon, copy area vào ô)
+ *  - geometry: tính từ road geometry + depthSut (auto, readonly)
+ *  - manual  : user nhập tay
+ */
+function AreaSourceEditor({ section, onUpdate }: {
+  section: BaoLuSection;
+  onUpdate: (u: (s: BaoLuSection) => BaoLuSection) => void;
+}): JSX.Element {
+  const source = section.areaSource ?? 'manual';
+  const isReadOnly = source === 'geometry' || source === 'vision';
+  const displayArea = source === 'geometry' ? computeAreaFromGeometry(section) : (section.areaDatSut ?? 0);
+
+  async function handlePickFromAcad(): Promise<void> {
+    try {
+      // Gửi lệnh AutoCAD AREA Object — user pick polyline/region trong CAD, AREA hiện trên command line
+      await autoCadEnsureDocument();
+      await autoCadSendCommands(['._AREA\nO\n']);
+      // AREA giá trị hiện trên CAD command line — không thể đọc trực tiếp (1-way bridge),
+      // user copy paste vào ô bên dưới. Tạm thời cứ để vậy, Wave sau thêm Rust read.
+    } catch (e) {
+      console.warn('AutoCAD AREA pick:', e);
+    }
+  }
+
+  return (
+    <div style={{ marginTop: 12, padding: 12, background: 'rgba(220, 38, 38, 0.08)', borderRadius: 8, border: '1px solid rgba(220, 38, 38, 0.3)' }}>
+      <div className="td-form-row" style={{ alignItems: 'flex-end' }}>
+        <label className="td-field" style={{ flex: 1 }}>
+          <span className="td-field-label" style={{ color: '#dc2626' }}>📥 Nguồn diện tích đất sụt</span>
+          <select
+            className="td-select"
+            value={source}
+            onChange={(e) => onUpdate((s) => ({ ...s, areaSource: e.target.value as BaoLuSection['areaSource'] }))}
+          >
+            <option value="vision">🤖 AI Vision đo ảnh (auto-fill khi AI đo xong)</option>
+            <option value="polygon">📐 Polygon AutoCAD (pick từ CAD rồi copy area)</option>
+            <option value="geometry">📏 Công thức hình học (auto tính từ B + lề + chiều sâu sụt)</option>
+            <option value="manual">✏ Nhập tay</option>
+          </select>
+        </label>
+        <label className="td-field" style={{ flex: 1 }}>
+          <span className="td-field-label" style={{ color: '#dc2626' }}>🔴 Diện tích đất sụt (m²)</span>
+          <input
+            type="number"
+            step={0.01}
+            className="td-input"
+            placeholder="VD: 12.5"
+            value={displayArea ? displayArea.toFixed(2) : 0}
+            readOnly={isReadOnly}
+            onChange={(e) => onUpdate((s) => ({ ...s, areaDatSut: Number(e.target.value) || 0 }))}
+          />
+        </label>
+      </div>
+
+      {source === 'geometry' && (
+        <div className="td-form-row" style={{ marginTop: 10 }}>
+          <label className="td-field" style={{ flex: 1, maxWidth: 320 }}>
+            <span className="td-field-label">📏 Chiều sâu đất sụt trung bình (m)</span>
+            <input
+              type="number"
+              step={0.1}
+              className="td-input"
+              value={section.depthSut ?? 1.0}
+              onChange={(e) => onUpdate((s) => ({ ...s, depthSut: Number(e.target.value) || 0 }))}
+            />
+            <span className="muted small">Diện tích tự tính = (B + lề + ext) × chiều sâu</span>
+          </label>
+        </div>
+      )}
+
+      {source === 'polygon' && (
+        <div className="td-form-row" style={{ marginTop: 10 }}>
+          <button type="button" className="btn btn-ghost" onClick={() => void handlePickFromAcad()}>
+            📐 Mở lệnh AREA trong AutoCAD
+          </button>
+          <span className="muted small" style={{ flex: 1 }}>
+            ① Sẽ tự gọi <code>_AREA O</code> trong AutoCAD → ② Trí click polyline đóng / region của vùng đất sụt → ③ Copy số area từ command line CAD → ④ Paste vào ô diện tích bên trên.
+          </span>
+        </div>
+      )}
+
+      {source === 'vision' && (
+        <p className="muted small" style={{ marginTop: 8 }}>
+          💡 Chuyển sang tab <strong>🤖 AI Vision đo ảnh</strong> → upload ảnh hiện trường → bấm <strong>AI đo</strong>. Diện tích sẽ tự fill vào đây khi AI đo xong.
+        </p>
+      )}
+
+      {source === 'manual' && (
+        <p className="muted small" style={{ marginTop: 8 }}>
+          ✏ Nhập trực tiếp diện tích đo được vào ô bên trên (đơn vị: m²).
+        </p>
+      )}
+    </div>
+  );
+}
+
 function SectionsSummary({ project }: { project: BaoLuProject }): JSX.Element {
   if (project.sections.length === 0) return <></>;
   const totals = useMemo(() => {
@@ -895,6 +1023,7 @@ function SectionsSummary({ project }: { project: BaoLuProject }): JSX.Element {
     return { vtn, vvc };
   }, [project.sections]);
 
+  // Phase 42 wave 8 — Schema mới: Loại mặt cắt + B đường + S đất sụt (bỏ L/B/H legacy)
   return (
     <section className="td-section">
       <h2 className="td-section-title">📊 Tổng hợp ({project.sections.length} mặt cắt)</h2>
@@ -904,11 +1033,10 @@ function SectionsSummary({ project }: { project: BaoLuProject }): JSX.Element {
             <thead>
               <tr>
                 <th style={{ width: 50 }}>STT</th>
-                <th>Tên</th>
                 <th style={{ width: 110 }}>Lý trình</th>
-                <th style={{ width: 70 }}>L (m)</th>
-                <th style={{ width: 70 }}>B (m)</th>
-                <th style={{ width: 70 }}>H (m)</th>
+                <th>Loại mặt cắt</th>
+                <th style={{ width: 90 }}>B đường (m)</th>
+                <th style={{ width: 110 }}>S đất sụt (m²)</th>
                 <th>Vật liệu</th>
                 <th style={{ width: 130 }}>V tự nhiên</th>
                 <th style={{ width: 130 }}>V vận chuyển</th>
@@ -921,11 +1049,10 @@ function SectionsSummary({ project }: { project: BaoLuProject }): JSX.Element {
                 return (
                   <tr key={s.id}>
                     <td>{i + 1}</td>
-                    <td>{s.name}</td>
                     <td>{s.station}</td>
-                    <td>{s.L}</td>
-                    <td>{s.B}</td>
-                    <td>{s.H}</td>
+                    <td className="muted small">{CROSS_TYPE_LABEL[s.crossType] ?? '—'}</td>
+                    <td>{s.matDuongWidth ?? 7}</td>
+                    <td><b>{v.sMatCat.toFixed(2)}</b></td>
                     <td className="muted small">{mat.name}</td>
                     <td style={{ textAlign: 'right' }}><b>{v.vTuNhien.toFixed(2)}</b> m³</td>
                     <td style={{ textAlign: 'right', color: 'var(--color-accent-primary)' }}><b>{v.vVanChuyen.toFixed(2)}</b> m³</td>
@@ -933,7 +1060,7 @@ function SectionsSummary({ project }: { project: BaoLuProject }): JSX.Element {
                 );
               })}
               <tr>
-                <td colSpan={7} style={{ textAlign: 'right' }}><b>TỔNG:</b></td>
+                <td colSpan={6} style={{ textAlign: 'right' }}><b>TỔNG:</b></td>
                 <td style={{ textAlign: 'right' }}><b>{totals.vtn.toFixed(2)} m³</b></td>
                 <td style={{ textAlign: 'right', color: 'var(--color-accent-primary)' }}><b>{totals.vvc.toFixed(2)} m³</b></td>
               </tr>
