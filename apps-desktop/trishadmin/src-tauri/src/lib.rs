@@ -1818,6 +1818,106 @@ fn http_api_status(state: tauri::State<'_, HttpServerState>) -> Result<Option<u1
 }
 
 // ============================================================
+// Phase 43 wave 11.1 — GitHub Release Upload (ATGT blocks zip)
+// ============================================================
+
+#[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct GithubReleaseUploadResult {
+    pub release_id: i64,
+    pub asset_id: i64,
+    pub asset_name: String,
+    pub download_url: String,
+    pub size_bytes: u64,
+}
+
+#[tauri::command]
+async fn github_upload_release_asset(
+    token: String,
+    owner: String,
+    repo: String,
+    tag: String,
+    release_name: String,
+    file_path: String,
+    file_name: String,
+) -> Result<GithubReleaseUploadResult, String> {
+    use std::fs;
+    let bytes = fs::read(&file_path).map_err(|e| format!("Doc file loi: {}", e))?;
+    let size = bytes.len() as u64;
+    let client = reqwest::Client::builder()
+        .user_agent("TrishAdmin/1.0")
+        .build()
+        .map_err(|e| format!("Init client: {}", e))?;
+
+    let lookup_url = format!("https://api.github.com/repos/{}/{}/releases/tags/{}", owner, repo, tag);
+    let resp = client.get(&lookup_url)
+        .header("Authorization", format!("Bearer {}", token))
+        .header("Accept", "application/vnd.github+json")
+        .send().await
+        .map_err(|e| format!("Lookup release: {}", e))?;
+    let release_id: i64;
+    let upload_url_template: String;
+    if resp.status().is_success() {
+        let v: serde_json::Value = resp.json().await.map_err(|e| format!("Parse lookup: {}", e))?;
+        release_id = v.get("id").and_then(|x| x.as_i64()).ok_or("No release id")?;
+        upload_url_template = v.get("upload_url").and_then(|x| x.as_str()).unwrap_or("").to_string();
+    } else if resp.status().as_u16() == 404 {
+        let create_url = format!("https://api.github.com/repos/{}/{}/releases", owner, repo);
+        let body = serde_json::json!({
+            "tag_name": tag,
+            "name": release_name,
+            "body": format!("ATGT Blocks ZIP - auto-upload tu TrishAdmin\n\nTag: {}", tag),
+            "draft": false,
+            "prerelease": false,
+        });
+        let cr = client.post(&create_url)
+            .header("Authorization", format!("Bearer {}", token))
+            .header("Accept", "application/vnd.github+json")
+            .json(&body)
+            .send().await
+            .map_err(|e| format!("Create release: {}", e))?;
+        if !cr.status().is_success() {
+            let err_txt = cr.text().await.unwrap_or_default();
+            return Err(format!("GitHub create release fail: {}", err_txt));
+        }
+        let v: serde_json::Value = cr.json().await.map_err(|e| format!("Parse create: {}", e))?;
+        release_id = v.get("id").and_then(|x| x.as_i64()).ok_or("No release id sau create")?;
+        upload_url_template = v.get("upload_url").and_then(|x| x.as_str()).unwrap_or("").to_string();
+    } else {
+        let err_txt = resp.text().await.unwrap_or_default();
+        return Err(format!("GitHub lookup release fail: {}", err_txt));
+    }
+
+    let upload_url = upload_url_template.split("{").next().unwrap_or(&upload_url_template);
+    let upload_url_full = format!("{}?name={}", upload_url, file_name);
+
+    let up = client.post(&upload_url_full)
+        .header("Authorization", format!("Bearer {}", token))
+        .header("Content-Type", "application/zip")
+        .header("Accept", "application/vnd.github+json")
+        .body(bytes)
+        .send().await
+        .map_err(|e| format!("Upload asset: {}", e))?;
+    if !up.status().is_success() {
+        let err_txt = up.text().await.unwrap_or_default();
+        return Err(format!("GitHub upload asset fail: {}", err_txt));
+    }
+    let asset_v: serde_json::Value = up.json().await.map_err(|e| format!("Parse asset: {}", e))?;
+    let asset_id = asset_v.get("id").and_then(|x| x.as_i64()).ok_or("No asset id")?;
+    let asset_name = asset_v.get("name").and_then(|x| x.as_str()).unwrap_or(&file_name).to_string();
+    let download_url = asset_v.get("browser_download_url").and_then(|x| x.as_str()).unwrap_or("").to_string();
+
+    Ok(GithubReleaseUploadResult {
+        release_id,
+        asset_id,
+        asset_name,
+        download_url,
+        size_bytes: size,
+    })
+}
+
+
+// ============================================================
 // Tauri builder + run
 // ============================================================
 
@@ -1887,6 +1987,8 @@ pub fn run() {
             file_upload_mtproto,
             file_download_mtproto,
             file_purge_mtproto,
+            // Phase 43 wave 11.1 — ATGT blocks zip upload qua GitHub Release
+            github_upload_release_asset,
         ])
         .setup(|app| {
             // Init SQLite DB lúc app start (silent fail nếu lỗi — sẽ retry khi gọi command).

@@ -194,16 +194,29 @@ function Toolbar({
   );
 }
 
+/**
+ * Phase 43 wave 11.3 — Input + datalist (tự gõ, autocomplete từ Firestore).
+ * User có thể TỰ GÕ tên (vd "P.101") kể cả khi Firestore chưa load.
+ */
 function BlockSelector({
-  value, blocks, onChange, placeholder,
-}: { value: string; blocks: AtgtBlock[]; onChange: (label: string) => void; placeholder: string }): JSX.Element {
+  value, blocks, onChange, placeholder, listId,
+}: { value: string; blocks: AtgtBlock[]; onChange: (label: string) => void; placeholder: string; listId?: string }): JSX.Element {
+  const id = listId ?? `atgt-bl-${Math.random().toString(36).slice(2, 7)}`;
   return (
-    <select className="atgt-tbl-input" value={value} onChange={(e) => onChange(e.target.value)}>
-      <option value="">{placeholder}</option>
-      {blocks.map((b) => (
-        <option key={b.id} value={b.label}>{b.label}{b.meaning ? ` — ${b.meaning}` : ''}</option>
-      ))}
-    </select>
+    <>
+      <input
+        list={id}
+        className="atgt-tbl-input"
+        value={value}
+        placeholder={placeholder}
+        onChange={(e) => onChange(e.target.value)}
+      />
+      <datalist id={id}>
+        {blocks.map((b) => (
+          <option key={b.id} value={b.label}>{b.meaning ?? ''}</option>
+        ))}
+      </datalist>
+    </>
   );
 }
 

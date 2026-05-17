@@ -47,6 +47,9 @@ import { AtgtItemsTabs } from './AtgtItemsTabs.js';
 import type { AtgtSegmentItemsV2 } from '../../lib/atgt-items-types.js';
 import { generateAtgtSegmentCommands as generateAtgtSegmentCommandsV2 } from '../../lib/atgt-draw-script.js';
 import { exportAtgtItemsToExcel } from '../../lib/atgt-excel-export.js';
+import { invoke } from '@tauri-apps/api/core';
+import { getFirebaseDb } from '@trishteam/auth';
+import { doc as fsDoc, getDoc } from 'firebase/firestore';
 
 const LS_KEY = 'trishdesign:atgt-db';
 
@@ -122,6 +125,39 @@ export function AtgtPanel(): JSX.Element {
 
   const [acadRunning, setAcadRunning] = useState(false);
   const [statusMsg, setStatusMsg] = useState<string>('');
+  const [downloadingBlocks, setDownloadingBlocks] = useState(false);
+
+  async function handleDownloadBlocks(): Promise<void> {
+    if (downloadingBlocks) return;
+    setDownloadingBlocks(true);
+    setStatusMsg('⏳ Đang fetch URL từ Firestore...');
+    try {
+      let url = '';
+      let version = '';
+      try {
+        const db = getFirebaseDb();
+        const snap = await getDoc(fsDoc(db, 'system_config', 'atgt_blocks_zip'));
+        if (snap.exists()) {
+          const cfg = snap.data() as { url?: string; version?: string };
+          url = cfg.url ?? '';
+          version = cfg.version ?? '';
+        }
+      } catch (e) {
+        console.warn('Firestore fetch:', e);
+      }
+      if (!url) {
+        url = 'https://github.com/hosytri07/trishnexus-monorepo/releases/download/trishdesign-blocks-atgt-v1.0.0/trishdesign-blocks-atgt.zip';
+      }
+      setStatusMsg(`⏳ Đang tải zip${version ? ` v${version}` : ''}...`);
+      const result = await invoke<{ destFolder: string; filesCount: number; bytes: number }>('download_extract_blocks_atgt', { url });
+      try { window.localStorage.setItem('trishdesign:atgt-blocks-folder', result.destFolder); } catch { /* ignore */ }
+      setStatusMsg(`✅ Đã tải ${result.filesCount} block (${(result.bytes / 1024 / 1024).toFixed(1)} MB)${version ? ` — v${version}` : ''}`);
+    } catch (e) {
+      setStatusMsg(`✗ Tải block fail: ${e instanceof Error ? e.message : String(e)}`);
+    } finally {
+      setDownloadingBlocks(false);
+    }
+  }
 
   // Inline dialog state — không dùng window.prompt/confirm native
   type DialogState =
@@ -448,6 +484,12 @@ export function AtgtPanel(): JSX.Element {
           <AtgtSidebar segment={activeSegment} onUpdate={updateActiveSegment} />
           <div className="atgt-main-col">
             <div className="atgt-action-bar atgt-action-bar-top">
+              <button type="button" className="btn btn-ghost"
+                onClick={() => void handleDownloadBlocks()}
+                disabled={downloadingBlocks}
+                title="Tải zip block ATGT từ GitHub Release + giải nén vào folder local">
+                {downloadingBlocks ? '⏳ Đang tải...' : '📥 Tải block ATGT'}
+              </button>
               <button type="button" className="btn btn-primary"
                 onClick={() => void handleDrawAcad()}
                 disabled={!acadRunning}
