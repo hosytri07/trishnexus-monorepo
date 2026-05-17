@@ -1063,6 +1063,106 @@ async fn download_extract_blocks_atgt(url: String) -> Result<DownloadBlocksResul
     })
 }
 
+
+// ============================================================
+// Phase 43 wave 15.4 — Per-file sync commands
+// ============================================================
+
+#[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LocalAtgtFile {
+    pub name: String,
+    pub size: u64,
+    pub mtime_ms: u64,
+}
+
+/// List file .dwg trong folder local ATGT.
+/// Trả về danh sách { name, size, mtime } để frontend compare với Firestore.
+#[tauri::command]
+async fn list_local_atgt_files(folder: String) -> Result<Vec<LocalAtgtFile>, String> {
+    let p = std::path::PathBuf::from(&folder);
+    if !p.exists() {
+        return Ok(Vec::new());
+    }
+    let entries = std::fs::read_dir(&p).map_err(|e| format!("read_dir: {}", e))?;
+    let mut out: Vec<LocalAtgtFile> = Vec::new();
+    for entry in entries {
+        let entry = match entry {
+            Ok(e) => e,
+            Err(_) => continue,
+        };
+        let path = entry.path();
+        if !path.is_file() {
+            continue;
+        }
+        let name = match path.file_name().and_then(|n| n.to_str()) {
+            Some(n) => n.to_string(),
+            None => continue,
+        };
+        if !name.to_lowercase().ends_with(".dwg") {
+            continue;
+        }
+        let meta = match entry.metadata() {
+            Ok(m) => m,
+            Err(_) => continue,
+        };
+        let size = meta.len();
+        let mtime_ms = meta
+            .modified()
+            .ok()
+            .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
+            .map(|d| d.as_millis() as u64)
+            .unwrap_or(0);
+        out.push(LocalAtgtFile { name, size, mtime_ms });
+    }
+    Ok(out)
+}
+
+#[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DownloadFileResult {
+    pub dest_path: String,
+    pub bytes: u64,
+}
+
+/// Download 1 file từ URL về folder local.
+/// Tự tạo folder nếu chưa có.
+#[tauri::command]
+async fn download_atgt_file(url: String, folder: String, file_name: String) -> Result<DownloadFileResult, String> {
+    let folder_path = std::path::PathBuf::from(&folder);
+    std::fs::create_dir_all(&folder_path).map_err(|e| format!("create_dir_all: {}", e))?;
+    let dest = folder_path.join(&file_name);
+    let resp = reqwest::Client::builder()
+        .user_agent("TrishDesign/1.0")
+        .build()
+        .map_err(|e| format!("Init client: {}", e))?
+        .get(&url)
+        .send()
+        .await
+        .map_err(|e| format!("HTTP GET: {}", e))?;
+    if !resp.status().is_success() {
+        return Err(format!("HTTP {}", resp.status()));
+    }
+    let bytes = resp.bytes().await.map_err(|e| format!("Read body: {}", e))?;
+    std::fs::write(&dest, &bytes).map_err(|e| format!("Write file: {}", e))?;
+    Ok(DownloadFileResult {
+        dest_path: dest.to_string_lossy().to_string(),
+        bytes: bytes.len() as u64,
+    })
+}
+
+/// Default ATGT blocks folder = %APPDATA%/vn.trishteam.design/blocks/ATGT
+#[tauri::command]
+fn default_atgt_blocks_folder() -> Result<String, String> {
+    let base = dirs::data_local_dir()
+        .or_else(dirs::config_dir)
+        .ok_or_else(|| "Không lấy được app data dir".to_string())?;
+    let dir = base.join("vn.trishteam.design").join("blocks").join("ATGT");
+    std::fs::create_dir_all(&dir).map_err(|e| format!("create_dir_all: {}", e))?;
+    Ok(dir.to_string_lossy().to_string())
+}
+
+
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
@@ -1103,8 +1203,12 @@ pub fn run() {
             // Phase 28.14 — Telegram getFile + download (LISP library)
             tg_get_file_path,
             tg_download_file,
-            // Phase 42 — Block ATGT auto-download
+            // Phase 42 — Block ATGT auto-download (legacy zip)
             download_extract_blocks_atgt,
+            // Phase 43 wave 15.4 — Per-file ATGT sync
+            list_local_atgt_files,
+            download_atgt_file,
+            default_atgt_blocks_folder,
         ])
         .run(tauri::generate_context!())
         .expect("error while running TrishDesign");

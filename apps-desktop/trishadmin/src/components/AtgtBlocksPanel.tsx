@@ -34,6 +34,17 @@ interface ZipConfig {
   zipEntries?: string[];
 }
 
+/** Phase 43 wave 15.2 — Per-file metadata Firestore /atgt_files */
+interface AtgtFile {
+  fileName: string;     // "0.LT.dwg" (giữ nguyên case)
+  url: string;
+  size: number;
+  uploaded_at: number;
+  uploaded_by?: string;
+  version?: string;
+  asset_id?: number;
+}
+
 const CATEGORY_OPTIONS = [
   'Biển báo', 'Vạch sơn', 'Đèn tín hiệu', 'Hộ lan mềm', 'Cọc tiêu',
   'Rãnh dọc', 'Cống ngang', 'Tiêu phản quang', 'Gương cầu lồi', 'Lí trình', 'Khác',
@@ -70,6 +81,7 @@ export function AtgtBlocksPanel(): JSX.Element {
   const [confirmDelete, setConfirmDelete] = useState<AtgtBlock | null>(null);
 
   const [zipConfig, setZipConfig] = useState<ZipConfig | null>(null);
+  const [atgtFiles, setAtgtFiles] = useState<AtgtFile[]>([]);
   const [zipUploadExpanded, setZipUploadExpanded] = useState(false);
   const [bulkImportOpen, setBulkImportOpen] = useState(false);
   const [bulkImportText, setBulkImportText] = useState('');
@@ -90,23 +102,39 @@ export function AtgtBlocksPanel(): JSX.Element {
     setLoading(true);
     try {
       const db = getFirebaseDb();
-      const [snapBlocks, snapZip] = await Promise.all([
+      const [snapBlocks, snapZip, snapFiles] = await Promise.all([
         getDocs(query(collection(db, 'atgt_blocks'), orderBy('label'), limit(1000))),
         getDoc(doc(db, 'system_config', 'atgt_blocks_zip')),
+        getDocs(query(collection(db, 'atgt_files'), limit(2000))),
       ]);
       setItems(snapBlocks.docs.map((d) => d.data() as AtgtBlock));
       setZipConfig(snapZip.exists() ? (snapZip.data() as ZipConfig) : null);
+      setAtgtFiles(snapFiles.docs.map((d) => d.data() as AtgtFile));
     } catch (err) {
       setToast(`X Load fail: ${err instanceof Error ? err.message : String(err)}`);
     }
     setLoading(false);
   }
 
+  // Phase 43 wave 15.2 — Map fileName lowercase → AtgtFile metadata (uploaded_at, size, url)
+  const atgtFilesMap = useMemo(() => {
+    const m = new Map<string, AtgtFile>();
+    atgtFiles.forEach((f) => m.set(f.fileName.toLowerCase(), f));
+    return m;
+  }, [atgtFiles]);
+
+  // Legacy: zipEntries từ system_config (giữ tương thích)
   const zipEntriesSet = useMemo(() => {
     const set = new Set<string>();
     (zipConfig?.zipEntries ?? []).forEach((e) => set.add(e.toLowerCase()));
+    atgtFiles.forEach((f) => set.add(f.fileName.toLowerCase()));
     return set;
-  }, [zipConfig]);
+  }, [zipConfig, atgtFiles]);
+
+  function getFileMeta(fn: string): AtgtFile | undefined {
+    if (!fn) return undefined;
+    return atgtFilesMap.get(fn.toLowerCase());
+  }
 
   function hasZipFile(fn: string): boolean {
     if (!fn) return false;
@@ -237,6 +265,65 @@ export function AtgtBlocksPanel(): JSX.Element {
   function saveToken(v: string): void {
     setToken(v);
     try { localStorage.setItem(PAT_KEY, v); } catch { /* ignore */ }
+  }
+
+  /**
+   * Phase 43 wave 15.2 — Upload MULTI file .dwg lần lượt lên GitHub Release.
+   * Mỗi file 1 asset, mỗi file 1 doc Firestore /atgt_files/{fileNameNormalized}.
+   */
+  async function handleUploadMultipleDwg(): Promise<void> {
+    if (!token.trim()) { setToast('X Thiếu GitHub PAT'); return; }
+    if (!tag.trim()) { setToast('X Thiếu tag (vd trishdesign-blocks-atgt-v1.0.0)'); return; }
+    try {
+      const selected = await openDialog({
+        title: 'Chọn nhiều file .dwg để upload',
+        filters: [{ name: 'AutoCAD DWG', extensions: ['dwg'] }],
+        multiple: true,
+      });
+      if (!selected) return;
+      const files = Array.isArray(selected) ? selected : [selected];
+      if (files.length === 0) return;
+      setUploading(true);
+      let done = 0, failed = 0;
+      const db = getFirebaseDb();
+      for (const fp of files) {
+        const nm = String(fp).split(/[\/]/).pop() ?? 'unknown.dwg';
+        setToast(`⏳ Upload ${done + 1}/${files.length}: ${nm}...`);
+        try {
+          const result = await invoke<{ releaseId: number; assetId: number; assetName: string; downloadUrl: string; sizeBytes: number }>(
+            'github_upload_release_asset',
+            {
+              token: token.trim(),
+              owner: REPO_OWNER, repo: REPO_NAME,
+              tag: tag.trim(),
+              releaseName: releaseName.trim() || tag.trim(),
+              filePath: String(fp), fileName: nm,
+            },
+          );
+          // Save Firestore /atgt_files/{slug}
+          const slug = nm.toLowerCase().replace(/[^a-z0-9._-]+/g, '_');
+          const meta: AtgtFile = {
+            fileName: nm,
+            url: result.downloadUrl,
+            size: result.sizeBytes,
+            uploaded_at: Date.now(),
+            version: tag.trim(),
+            asset_id: result.assetId,
+          };
+          await setDoc(doc(db, 'atgt_files', slug), meta, { merge: true });
+          done++;
+        } catch (e) {
+          failed++;
+          console.warn(`Upload fail ${nm}:`, e);
+        }
+      }
+      setToast(`OK Upload ${done}/${files.length}${failed > 0 ? ` (${failed} fail)` : ''}`);
+      await reload();
+    } catch (e) {
+      setToast(`X Upload lỗi: ${e instanceof Error ? e.message : String(e)}`);
+    } finally {
+      setUploading(false);
+    }
   }
 
   async function handlePickFile(): Promise<void> {
@@ -374,7 +461,11 @@ export function AtgtBlocksPanel(): JSX.Element {
         <h1 style={{ margin: 0, fontSize: 20, fontWeight: 700 }}>ATGT Blocks — Database + ZIP</h1>
         <span style={{ flex: 1 }} />
         <button type="button" onClick={() => setZipUploadExpanded((v) => !v)} style={btnGhost}>
-          {zipUploadExpanded ? 'Đóng upload' : 'Upload ZIP mới'}
+          {zipUploadExpanded ? 'Đóng upload' : 'Upload ZIP/files'}
+        </button>
+        <button type="button" onClick={() => void handleUploadMultipleDwg()} style={btnPrimary} disabled={uploading || !token.trim() || !tag.trim()}
+          title="Chọn nhiều file .dwg local → upload từng file lên GitHub Release + lưu metadata Firestore">
+          📁 Upload .dwg
         </button>
         <button type="button" onClick={() => { setEditing({ ...EMPTY }); setShowAdd(true); }} style={btnPrimary}>+ Thêm block</button>
         <button type="button" onClick={openBulkImport} style={btnGhost} disabled={importing}>Bulk import</button>
@@ -477,10 +568,14 @@ export function AtgtBlocksPanel(): JSX.Element {
                   </tr>
                 </thead>
                 <tbody>
-                  {filtered.map((b) => {
+                  {filtered.map((b, i) => {
                     const inZip = hasZipFile(b.fileName);
                     return (
-                      <tr key={b.id} style={zipConfig && !inZip ? { background: 'rgba(245,158,11,0.05)' } : undefined}>
+                      <tr key={b.id} style={{
+                        background: zipConfig && !inZip
+                          ? 'rgba(245,158,11,0.08)'
+                          : (i % 2 === 0 ? '#1a1a20' : '#1f1f25'),
+                      }}>
                         <td style={{ ...tdStyle, textAlign: 'center' }}>
                           {zipConfig
                             ? (inZip
@@ -745,38 +840,54 @@ const pillNeutral: React.CSSProperties = {
   fontSize: 12, fontWeight: 600, textAlign: 'center',
 };
 
-const code: React.CSSProperties = { fontSize: 11, color: 'var(--ts-text-2)' };
+const code: React.CSSProperties = {
+  fontSize: 11,
+  color: '#94a3b8',
+  background: '#0f0f14',
+  padding: '2px 6px',
+  borderRadius: 3,
+  border: '1px solid #2a2a35',
+  fontFamily: 'ui-monospace, monospace',
+};
 const tableStyle: React.CSSProperties = {
   width: '100%',
   borderCollapse: 'collapse',
   fontSize: 12,
   tableLayout: 'fixed',
+  background: '#1f1f24',
+  color: '#e5e7eb',
 };
 const thStyle: React.CSSProperties = {
   textAlign: 'left',
-  padding: '7px 10px',
-  borderBottom: '1px solid var(--ts-border)',
-  fontWeight: 600,
+  padding: '10px 12px',
+  borderBottom: '2px solid #3a3a45',
+  borderRight: '1px solid #2a2a35',
+  fontWeight: 700,
   fontSize: 11,
-  color: 'var(--ts-text-2)',
+  color: '#cbd5e1',
   whiteSpace: 'nowrap',
   overflow: 'hidden',
   textOverflow: 'ellipsis',
   userSelect: 'none',
+  textTransform: 'uppercase',
+  letterSpacing: '0.5px',
 };
-// Wave 14.4 — BỎ sticky (gây overlap row data) — header scroll cùng table. Đơn giản, đúng.
+// Wave 15.1 — Header darker bg + text sáng để contrast với row
 const thStyleSticky: React.CSSProperties = {
   ...thStyle,
-  background: '#1c1c22',  // opaque solid để chắc không transparent (visual distinct)
-  borderBottom: '2px solid var(--ts-border)',
+  background: '#0f0f14',
+  color: '#f3f4f6',
+  borderBottom: '2px solid #4a4a55',
 };
 const tdStyle: React.CSSProperties = {
-  padding: '5px 10px',
-  borderBottom: '1px solid var(--ts-border)',
-  color: 'var(--ts-text-1)',
+  padding: '8px 12px',
+  borderBottom: '1px solid #2a2a35',
+  borderRight: '1px solid #2a2a35',
+  color: '#e5e7eb',
   whiteSpace: 'nowrap',
   overflow: 'hidden',
   textOverflow: 'ellipsis',
+  fontSize: 12,
 };
 const modalBackdrop: React.CSSProperties = {
   position: 'fixed', inset: 0,

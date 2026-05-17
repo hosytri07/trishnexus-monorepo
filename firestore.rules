@@ -351,6 +351,13 @@ service cloud.firestore {
       allow create, update, delete: if isAdmin();
     }
 
+    // --- Phase 43 wave 15.2 — /atgt_files/{fileNameId} (per-file metadata) ---
+    // Admin upload từng file .dwg → 1 doc. TrishDesign user fetch list để incremental sync.
+    match /atgt_files/{fileId} {
+      allow read: if true;
+      allow create, update, delete: if isAdmin();
+    }
+
     // --- Phase 19.22 — Database collections (admin CRUD, public read) ---
     // standards (QCVN/TCVN/Thông tư...) · dinh_muc (định mức) · vat_lieu · roads_vn
     match /standards/{id} {
