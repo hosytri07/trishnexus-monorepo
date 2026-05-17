@@ -185,8 +185,13 @@ export interface AtgtSegment {
   /** Phase 42 wave 9 — Chiều dài polyline đã pick (m) khi mode 'polyline' */
   polylineLength?: number;
   items: AtgtItem[];
-  /** Phase 42 wave 8.3 — Bảng đa năng nhập block ATGT động (block .dwg từ Firestore) */
+  /** Phase 42 wave 8.3 — Bảng đa năng nhập block ATGT động (block .dwg từ Firestore) — DEPRECATED Wave 10 */
   blockPlacements?: AtgtBlockPlacement[];
+  /**
+   * Phase 43 wave 10 — 9 bảng tài sản theo schema database-c41a296c.xlsx.
+   * Mỗi loại có cột riêng. Thay thế blockPlacements cũ.
+   */
+  itemsV2?: import('./atgt-items-types.js').AtgtSegmentItemsV2;
 }
 
 /**

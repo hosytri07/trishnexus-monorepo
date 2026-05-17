@@ -345,6 +345,12 @@ service cloud.firestore {
       allow create, update, delete: if isAdmin();
     }
 
+    // --- Phase 43 wave 10.5 — /system_config/{doc} (config khoá-giá trị toàn hệ thống) ---
+    match /system_config/{doc} {
+      allow read: if true;
+      allow create, update, delete: if isAdmin();
+    }
+
     // --- Phase 19.22 — Database collections (admin CRUD, public read) ---
     // standards (QCVN/TCVN/Thông tư...) · dinh_muc (định mức) · vat_lieu · roads_vn
     match /standards/{id} {

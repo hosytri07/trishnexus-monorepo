@@ -11,6 +11,8 @@
 
 import { useState, useEffect } from 'react';
 import { useAuth } from '@trishteam/auth/react';
+import { getFirebaseDb } from '@trishteam/auth';
+import { doc, getDoc } from 'firebase/firestore';
 import {
   type ThemeMode,
   type FontSize,
@@ -55,14 +57,30 @@ export function SettingsPanel(): JSX.Element {
     if (downloadingBlocks) return;
     setDownloadingBlocks(true);
     try {
-      const url = 'https://github.com/hosytri07/trishnexus-monorepo/releases/download/trishdesign-blocks-atgt-v1.0.0/trishdesign-blocks-atgt.zip';
+      // Phase 43 wave 10.5 — Fetch URL từ Firestore /system_config/atgt_blocks_zip (admin upload qua web)
+      let url = '';
+      let version = '';
+      try {
+        const db = getFirebaseDb();
+        const snap = await getDoc(doc(db, 'system_config', 'atgt_blocks_zip'));
+        if (snap.exists()) {
+          const cfg = snap.data() as { url?: string; version?: string };
+          url = cfg.url ?? '';
+          version = cfg.version ?? '';
+        }
+      } catch (e) {
+        console.warn('Firestore fetch ATGT zip config fail:', e);
+      }
+      if (!url) {
+        url = 'https://github.com/hosytri07/trishnexus-monorepo/releases/download/trishdesign-blocks-atgt-v1.0.0/trishdesign-blocks-atgt.zip';
+        window.alert('⚠ Firestore chưa có config ZIP. Dùng fallback GitHub Release.\n\nAdmin Trí: vào trishteam.io.vn/admin/atgt-blocks-zip để upload zip mới.');
+      }
       const result = await invoke<{ destFolder: string; filesCount: number; bytes: number }>('download_extract_blocks_atgt', { url });
-      // Auto-set folder vào localStorage
       writeLs('trishdesign:atgt-blocks-folder', result.destFolder);
       setAtgtBlocksFolder(result.destFolder);
-      window.alert(`✅ Đã tải + giải nén ${result.filesCount} block .dwg (${(result.bytes / 1024 / 1024).toFixed(1)} MB).\n\nFolder: ${result.destFolder}\n\nĐã tự lưu đường dẫn — sẵn sàng vẽ ATGT.`);
+      window.alert(`✅ Đã tải + giải nén ${result.filesCount} block .dwg (${(result.bytes / 1024 / 1024).toFixed(1)} MB)${version ? ` — v${version}` : ''}.\n\nFolder: ${result.destFolder}\n\nĐã tự lưu đường dẫn — sẵn sàng vẽ ATGT.`);
     } catch (e) {
-      window.alert(`✗ Tải block fail: ${e instanceof Error ? e.message : String(e)}\n\nKiểm tra: 1) Có internet, 2) GitHub Release tồn tại, 3) Windows (lệnh PowerShell Expand-Archive).`);
+      window.alert(`✗ Tải block fail: ${e instanceof Error ? e.message : String(e)}\n\nKiểm tra: 1) Có internet, 2) Admin đã upload zip lên /admin/atgt-blocks-zip, 3) Windows (lệnh PowerShell Expand-Archive).`);
     } finally {
       setDownloadingBlocks(false);
     }

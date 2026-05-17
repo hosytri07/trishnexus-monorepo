@@ -42,6 +42,11 @@ import {
   getCategoryInfo,
 } from '../../lib/atgt-types.js';
 import { AtgtBlockTable } from './AtgtBlockTable.js';
+import { AtgtSidebar } from './AtgtSidebar.js';
+import { AtgtItemsTabs } from './AtgtItemsTabs.js';
+import type { AtgtSegmentItemsV2 } from '../../lib/atgt-items-types.js';
+import { generateAtgtSegmentCommands as generateAtgtSegmentCommandsV2 } from '../../lib/atgt-draw-script.js';
+import { exportAtgtItemsToExcel } from '../../lib/atgt-excel-export.js';
 
 const LS_KEY = 'trishdesign:atgt-db';
 
@@ -321,21 +326,34 @@ export function AtgtPanel(): JSX.Element {
   // AutoCAD draw
   // -------------------------------------------------------------------
   async function handleDrawAcad(): Promise<void> {
-    if (!activeProject) return;
+    if (!activeProject || !activeSegment) return;
     if (!acadRunning) {
       await dialog.message('Chưa kết nối AutoCAD. Mở AutoCAD với 1 bản vẽ trống trước.', { kind: 'warning' });
       return;
     }
-    if (activeProject.segments.every((s) => s.items.length === 0)) {
+    // Phase 43 wave 10.3 — Ưu tiên schema V2 (9 loại tài sản)
+    const items = activeSegment.itemsV2 ?? {};
+    const totalNew = (items.bienBao?.length ?? 0) + (items.vachSon?.length ?? 0) + (items.denTinHieu?.length ?? 0)
+      + (items.hoLanMem?.length ?? 0) + (items.cocTieu?.length ?? 0) + (items.ranhDoc?.length ?? 0)
+      + (items.congNgang?.length ?? 0) + (items.tieuPhanQuang?.length ?? 0) + (items.guongCauLoi?.length ?? 0);
+    if (totalNew === 0 && activeSegment.items.length === 0) {
       setStatusMsg('Không có dữ liệu để vẽ.');
       return;
     }
     try {
       setStatusMsg('⏳ Đang gửi lệnh tới AutoCAD...');
       await autoCadEnsureDocument();
-      const cmds = generateAtgtCommands(activeProject);
-      const sent = await autoCadSendCommands(cmds);
-      setStatusMsg(`✓ Đã gửi ${sent} lệnh ATGT vào AutoCAD.`);
+      if (totalNew > 0) {
+        const cacheRaw = typeof window !== 'undefined' ? window.localStorage.getItem('trishdesign:atgt-blocks-cache') : null;
+        const blocks = cacheRaw ? JSON.parse(cacheRaw) : [];
+        const cmds = generateAtgtSegmentCommandsV2(activeSegment, blocks);
+        const sent = await autoCadSendCommands(cmds);
+        setStatusMsg(`✓ Đã gửi ${sent} lệnh vẽ ${totalNew} tài sản ATGT vào AutoCAD.`);
+      } else {
+        const cmds = generateAtgtCommands(activeProject);
+        const sent = await autoCadSendCommands(cmds);
+        setStatusMsg(`✓ Đã gửi ${sent} lệnh ATGT (legacy) vào AutoCAD.`);
+      }
     } catch (e) {
       setStatusMsg(`✗ Lỗi: ${String(e)}`);
     }
@@ -426,45 +444,41 @@ export function AtgtPanel(): JSX.Element {
       </div>
 
       {activeSegment ? (
-        <>
-          <SegmentEditor segment={activeSegment} onUpdate={updateActiveSegment} />
-
-          {/* Phase 42 wave 8.3 — Bảng đa năng nhập block ATGT động (Firestore catalog) */}
-          <AtgtBlockTable
-            segment={activeSegment}
-            onChange={(next: AtgtBlockPlacement[]) => updateActiveSegment((s) => ({ ...s, blockPlacements: next }))}
-          />
-
-          <ItemForm
-            onAdd={(item) => handleAddItem(item)}
-            defaultStation={activeSegment.startStation}
-          />
-          <ItemTable
-            items={activeSegment.items}
-            onDelete={handleDeleteItem}
-          />
-          <StatsPanel segment={activeSegment} />
-
-          <div className="atgt-action-bar">
-            <button
-              type="button"
-              className="btn btn-primary"
-              onClick={() => void handleDrawAcad()}
-              disabled={!acadRunning}
-            >
-              📐 Vẽ AutoCAD
-            </button>
-            <button
-              type="button"
-              className="btn btn-ghost"
-              onClick={() => void handlePasteTsv()}
-              title="Paste danh sách từ Excel/clipboard. Format mỗi dòng: CATEGORY⇥station⇥side⇥cachTim⇥extra..."
-            >
-              📋 Paste TSV
-            </button>
-            <span className="atgt-status-msg">{statusMsg}</span>
+        <div className="atgt-2col-layout">
+          <AtgtSidebar segment={activeSegment} onUpdate={updateActiveSegment} />
+          <div className="atgt-main-col">
+            <div className="atgt-action-bar atgt-action-bar-top">
+              <button type="button" className="btn btn-primary"
+                onClick={() => void handleDrawAcad()}
+                disabled={!acadRunning}
+                title="Phase 43 wave 10.3 — Vẽ AutoCAD theo 9 loại tài sản">📐 Vẽ AutoCAD</button>
+              <button type="button" className="btn btn-ghost"
+                onClick={async () => {
+                  if (!activeSegment) return;
+                  try {
+                    const r = await exportAtgtItemsToExcel(activeSegment);
+                    if (r) setStatusMsg(`✓ Đã xuất Excel: ${r.path}`);
+                  } catch (e) {
+                    setStatusMsg(`✗ Excel lỗi: ${String(e)}`);
+                  }
+                }}
+                title="Xuất Excel 9 sheet (BienBao, VachSon, ...)">📊 Xuất Excel</button>
+              <button type="button" className="btn btn-ghost"
+                onClick={() => void handlePasteTsv()}
+                title="Paste TSV legacy 9-category">📋 Paste TSV (cũ)</button>
+              <span className="atgt-status-msg">{statusMsg}</span>
+            </div>
+            <AtgtItemsTabs
+              segment={activeSegment}
+              onChange={(next: AtgtSegmentItemsV2) => updateActiveSegment((s) => ({ ...s, itemsV2: next }))}
+            />
           </div>
-        </>
+          <style>{`
+            .atgt-2col-layout { display: flex; flex: 1; min-height: 0; height: calc(100vh - 200px); }
+            .atgt-main-col { flex: 1; display: flex; flex-direction: column; min-width: 0; }
+            .atgt-action-bar-top { padding: 6px 12px; border-bottom: 1px solid var(--color-border-subtle); }
+          `}</style>
+        </div>
       ) : (
         <div className="atgt-no-segment">
           <p>Chưa có đoạn nào.</p>
@@ -472,6 +486,17 @@ export function AtgtPanel(): JSX.Element {
             ➕ Thêm đoạn đầu tiên
           </button>
         </div>
+      )}
+
+      {/* Legacy components — sẽ xoá Wave 10.6 sau khi confirm 9-tab UI mới ổn định */}
+      {false && activeSegment && (
+        <>
+          <SegmentEditor segment={activeSegment} onUpdate={updateActiveSegment} />
+          <AtgtBlockTable segment={activeSegment} onChange={(next: AtgtBlockPlacement[]) => updateActiveSegment((s) => ({ ...s, blockPlacements: next }))} />
+          <ItemForm onAdd={(item) => handleAddItem(item)} defaultStation={activeSegment.startStation} />
+          <ItemTable items={activeSegment.items} onDelete={handleDeleteItem} />
+          <StatsPanel segment={activeSegment} />
+        </>
       )}
 
       <InlineDialog state={dialog} onClose={() => setDialog(null)} />

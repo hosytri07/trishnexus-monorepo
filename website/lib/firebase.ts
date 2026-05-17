@@ -22,6 +22,7 @@
 import { getApp, getApps, initializeApp, type FirebaseApp } from 'firebase/app';
 import { getAuth, type Auth } from 'firebase/auth';
 import { getFirestore, type Firestore } from 'firebase/firestore';
+import { getStorage, type FirebaseStorage } from 'firebase/storage';
 
 const config = {
   apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
@@ -48,16 +49,19 @@ export const firebaseReady = Boolean(
 let _app: FirebaseApp | null = null;
 let _auth: Auth | null = null;
 let _db: Firestore | null = null;
+let _storage: FirebaseStorage | null = null;
 
 if (firebaseReady) {
   _app = getApps().length ? getApp() : initializeApp(config);
   _auth = getAuth(_app);
   _db = getFirestore(_app);
+  _storage = getStorage(_app);
 }
 
 export const app: FirebaseApp | null = _app;
 export const auth: Auth | null = _auth;
 export const db: Firestore | null = _db;
+export const storage: FirebaseStorage | null = _storage;
 
 /** Narrow-type helper: throw nếu gọi auth mà firebaseReady=false. */
 export function requireAuth(): Auth {
@@ -76,4 +80,14 @@ export function requireDb(): Firestore {
     );
   }
   return _db;
+}
+
+/** Phase 43 wave 10.5 — Firebase Storage cho upload zip ATGT blocks */
+export function requireStorage(): FirebaseStorage {
+  if (!_storage) {
+    throw new Error(
+      'Firebase Storage chưa cấu hình. Thêm NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET vào .env.local, restart dev.',
+    );
+  }
+  return _storage;
 }

@@ -55,6 +55,13 @@ service firebase.storage {
         && (request.method != 'create' || (isImage() && maxSize(10)));
     }
 
+    // ─ Phase 43 wave 10.5 — ATGT blocks ZIP ─
+    match /atgt-blocks/{filename} {
+      allow read: if true;
+      allow write: if isAdmin() && maxSize(200);
+      allow delete: if isAdmin();
+    }
+
     // ─ Default deny ─
     match /{allPaths=**} {
       allow read, write: if false;
