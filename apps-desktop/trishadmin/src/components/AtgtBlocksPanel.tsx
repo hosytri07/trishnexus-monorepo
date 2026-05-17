@@ -61,6 +61,8 @@ export function AtgtBlocksPanel(): JSX.Element {
   const [filterCategory, setFilterCategory] = useState<string>('all');
   const [zipFilter, setZipFilter] = useState<'all' | 'has' | 'missing'>('all');
   const [searchText, setSearchText] = useState('');
+  const [sortBy, setSortBy] = useState<'zip' | 'id' | 'label' | 'fileName' | 'category' | 'meaning' | 'shapeKind'>('label');
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
   const [editing, setEditing] = useState<AtgtBlock | null>(null);
   const [showAdd, setShowAdd] = useState(false);
   const [toast, setToast] = useState<string>('');
@@ -315,7 +317,7 @@ export function AtgtBlocksPanel(): JSX.Element {
   }, [items, zipEntriesSet]);
 
   const filtered = useMemo(() => {
-    return items.filter((it) => {
+    const list = items.filter((it) => {
       if (filterCategory !== 'all' && it.category !== filterCategory) return false;
       if (zipFilter === 'has' && !hasZipFile(it.fileName)) return false;
       if (zipFilter === 'missing' && hasZipFile(it.fileName)) return false;
@@ -330,7 +332,35 @@ export function AtgtBlocksPanel(): JSX.Element {
       }
       return true;
     });
-  }, [items, filterCategory, zipFilter, searchText, zipEntriesSet]);
+    list.sort((a, b) => {
+      let av: string | number = '';
+      let bv: string | number = '';
+      switch (sortBy) {
+        case 'zip': av = hasZipFile(a.fileName) ? 1 : 0; bv = hasZipFile(b.fileName) ? 1 : 0; break;
+        case 'id': av = a.id; bv = b.id; break;
+        case 'label': av = a.label; bv = b.label; break;
+        case 'fileName': av = a.fileName; bv = b.fileName; break;
+        case 'category': av = a.category; bv = b.category; break;
+        case 'meaning': av = a.meaning ?? ''; bv = b.meaning ?? ''; break;
+        case 'shapeKind': av = `${a.shapeKind ?? ''}-${a.orientation ?? ''}`; bv = `${b.shapeKind ?? ''}-${b.orientation ?? ''}`; break;
+      }
+      if (typeof av === 'number' && typeof bv === 'number') {
+        return sortDir === 'asc' ? av - bv : bv - av;
+      }
+      const cmp = String(av).localeCompare(String(bv), 'vi', { numeric: true });
+      return sortDir === 'asc' ? cmp : -cmp;
+    });
+    return list;
+  }, [items, filterCategory, zipFilter, searchText, zipEntriesSet, sortBy, sortDir]);
+
+  function handleSort(col: typeof sortBy): void {
+    if (sortBy === col) setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'));
+    else { setSortBy(col); setSortDir('asc'); }
+  }
+  function sortIndicator(col: typeof sortBy): string {
+    if (sortBy !== col) return ' ↕';
+    return sortDir === 'asc' ? ' ▲' : ' ▼';
+  }
 
   useEffect(() => {
     if (!toast) return;
@@ -436,25 +466,27 @@ export function AtgtBlocksPanel(): JSX.Element {
               <table style={tableStyle}>
                 <thead style={{ position: 'sticky', top: 0, background: 'var(--ts-bg-2)', zIndex: 1 }}>
                   <tr>
-                    <th style={{ ...thStyle, width: 36 }}>ZIP</th>
-                    <th style={thStyle}>ID</th>
-                    <th style={thStyle}>Label</th>
-                    <th style={thStyle}>File .dwg</th>
-                    <th style={thStyle}>Nhóm</th>
-                    <th style={thStyle}>Ý nghĩa</th>
-                    <th style={thStyle}>Dạng/Hướng</th>
-                    <th style={{ ...thStyle, width: 70 }}></th>
+                    <th style={{ ...thStyle, width: 56, cursor: 'pointer' }} onClick={() => handleSort('zip')} title="Block file đã có trong ZIP chưa?">ZIP{sortIndicator('zip')}</th>
+                    <th style={{ ...thStyle, cursor: 'pointer' }} onClick={() => handleSort('id')} title="Slug Firestore docId">ID{sortIndicator('id')}</th>
+                    <th style={{ ...thStyle, cursor: 'pointer' }} onClick={() => handleSort('label')} title="Tên hiển thị (vd P.101)">Label{sortIndicator('label')}</th>
+                    <th style={{ ...thStyle, cursor: 'pointer' }} onClick={() => handleSort('fileName')} title="Tên file .dwg">File .dwg{sortIndicator('fileName')}</th>
+                    <th style={{ ...thStyle, cursor: 'pointer' }} onClick={() => handleSort('category')} title="Loại tài sản">Nhóm{sortIndicator('category')}</th>
+                    <th style={{ ...thStyle, cursor: 'pointer' }} onClick={() => handleSort('meaning')} title="Diễn giải ý nghĩa">Ý nghĩa{sortIndicator('meaning')}</th>
+                    <th style={{ ...thStyle, cursor: 'pointer' }} onClick={() => handleSort('shapeKind')} title="Block / Linetype · Vuông góc / Song song">Dạng/Hướng{sortIndicator('shapeKind')}</th>
+                    <th style={{ ...thStyle, width: 90 }}></th>
                   </tr>
                 </thead>
                 <tbody>
                   {filtered.map((b) => {
                     const inZip = hasZipFile(b.fileName);
                     return (
-                      <tr key={b.id}>
+                      <tr key={b.id} style={zipConfig && !inZip ? { background: 'rgba(245,158,11,0.04)' } : undefined}>
                         <td style={tdStyle}>
-                          {inZip
-                            ? <span style={iconOk} title="Có trong ZIP">v</span>
-                            : <span style={iconWarn} title="Chưa có trong ZIP">!</span>}
+                          {zipConfig
+                            ? (inZip
+                                ? <span style={pillOk} title={`File ${b.fileName} đã có trong ZIP v${zipConfig.version}`}>✓ Có</span>
+                                : <span style={pillWarn} title={`File ${b.fileName} CHƯA có trong ZIP`}>✗ Thiếu</span>)
+                            : <span style={pillNeutral} title="Chưa có ZIP nào upload">—</span>}
                         </td>
                         <td style={tdStyle}><code style={code}>{b.id}</code></td>
                         <td style={tdStyle}><strong>{b.label}</strong></td>
@@ -662,6 +694,9 @@ const badgeOk: React.CSSProperties = { padding: '2px 8px', background: 'rgba(16,
 const badgeWarn: React.CSSProperties = { padding: '2px 8px', background: 'rgba(245,158,11,0.18)', color: '#f59e0b', border: '1px solid rgba(245,158,11,0.4)', borderRadius: 12, fontSize: 11, fontWeight: 600 };
 const iconOk: React.CSSProperties = { display: 'inline-block', color: '#10b981', fontWeight: 700, fontSize: 14 };
 const iconWarn: React.CSSProperties = { display: 'inline-block', color: '#f59e0b', fontWeight: 700, fontSize: 14 };
+const pillOk: React.CSSProperties = { padding: '1px 7px', background: 'rgba(16,185,129,0.18)', color: '#10b981', border: '1px solid rgba(16,185,129,0.4)', borderRadius: 10, fontSize: 10, fontWeight: 700, whiteSpace: 'nowrap' };
+const pillWarn: React.CSSProperties = { padding: '1px 7px', background: 'rgba(245,158,11,0.18)', color: '#f59e0b', border: '1px solid rgba(245,158,11,0.4)', borderRadius: 10, fontSize: 10, fontWeight: 700, whiteSpace: 'nowrap' };
+const pillNeutral: React.CSSProperties = { padding: '1px 7px', background: 'transparent', color: 'var(--ts-text-2)', border: '1px solid var(--ts-border)', borderRadius: 10, fontSize: 10, fontWeight: 600 };
 const code: React.CSSProperties = { fontSize: 11, color: 'var(--ts-text-2)' };
 const tableStyle: React.CSSProperties = { width: '100%', borderCollapse: 'collapse', fontSize: 12 };
 const thStyle: React.CSSProperties = { textAlign: 'left', padding: '7px 10px', borderBottom: '1px solid var(--ts-border)', fontWeight: 600, fontSize: 11, color: 'var(--ts-text-2)' };
