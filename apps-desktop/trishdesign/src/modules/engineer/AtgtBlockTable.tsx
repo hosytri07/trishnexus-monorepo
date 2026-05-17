@@ -17,9 +17,14 @@
  */
 
 import { useMemo, useState } from 'react';
+import * as XLSX from 'xlsx';
+import { save } from '@tauri-apps/plugin-dialog';
+import { invoke } from '@tauri-apps/api/core';
 import type { AtgtBlockPlacement, AtgtItemBase, AtgtSegment, RoadSide } from '../../lib/atgt-types.js';
-import { newAtgtId } from '../../lib/atgt-types.js';
+import { newAtgtId, formatStationKm, sideLabel, statusLabel } from '../../lib/atgt-types.js';
 import { useAtgtBlocks, type AtgtBlock } from '../../lib/atgt-blocks-fetch.js';
+import { autoCadStatus, autoCadEnsureDocument, autoCadSendCommands } from '../../lib/autocad.js';
+import { generateAtgtCommandsStraight } from '../../lib/atgt-placement-script.js';
 
 interface Props {
   segment: AtgtSegment;
@@ -95,6 +100,122 @@ export function AtgtBlockTable({ segment, onChange }: Props): JSX.Element {
     }
   }
 
+  async function handleExportExcel(seg: AtgtSegment, bm: Map<string, AtgtBlock>): Promise<void> {
+    if (placements.length === 0) { alert('Chưa có dữ liệu để xuất'); return; }
+    try {
+      const wb = XLSX.utils.book_new();
+
+      // Sheet 1: Bảng kê tất cả block placements
+      const headerAll: string[] = ['STT', 'Lý trình (m)', 'Lý trình Km', 'Block ID', 'Tên file', 'Tên hiển thị', 'Ý nghĩa', 'Nhóm', 'Dạng', 'Hướng', 'Vị trí', 'Cách tim (m)', 'Tình trạng', 'Ghi chú'];
+      const rowsAll: (string | number)[][] = [headerAll];
+      placements.forEach((pl, i) => {
+        const b = pl.blockId ? bm.get(pl.blockId) : undefined;
+        rowsAll.push([
+          i + 1,
+          pl.station,
+          formatStationKm(pl.station),
+          pl.blockId ?? '',
+          b?.fileName ?? '',
+          b?.label ?? pl.blockLabel ?? '',
+          b?.meaning ?? '',
+          b?.category ?? '',
+          b?.shapeKind === 'linetype' ? 'Linetype' : 'Block',
+          b?.orientation === 'parallel' ? 'Song song' : 'Vuông góc',
+          sideLabel(pl.side),
+          pl.cachTim ?? 0,
+          statusLabel(pl.status ?? 'good'),
+          pl.notes ?? '',
+        ]);
+      });
+      const wsAll = XLSX.utils.aoa_to_sheet(rowsAll);
+      wsAll['!cols'] = [
+        { wch: 5 }, { wch: 12 }, { wch: 14 }, { wch: 14 }, { wch: 18 }, { wch: 28 }, { wch: 30 },
+        { wch: 16 }, { wch: 12 }, { wch: 12 }, { wch: 12 }, { wch: 12 }, { wch: 12 }, { wch: 22 },
+      ];
+      XLSX.utils.book_append_sheet(wb, wsAll, 'Tất cả block');
+
+      // Sheet 2: Thống kê theo Loại tài sản
+      const groups = new Map<string, { count: number; subtypes: Map<string, number> }>();
+      for (const pl of placements) {
+        const b = pl.blockId ? bm.get(pl.blockId) : undefined;
+        const cat = b?.category ?? '(Chưa chọn)';
+        const sub = b?.label ?? pl.blockLabel ?? '(Free-form)';
+        if (!groups.has(cat)) groups.set(cat, { count: 0, subtypes: new Map() });
+        const g = groups.get(cat)!;
+        g.count += 1;
+        g.subtypes.set(sub, (g.subtypes.get(sub) ?? 0) + 1);
+      }
+      const rowsStat: (string | number)[][] = [['Nhóm tài sản', 'Loại block', 'Số lượng']];
+      let total = 0;
+      for (const [cat, g] of groups.entries()) {
+        rowsStat.push([cat, '— Tổng nhóm —', g.count]);
+        for (const [sub, n] of g.subtypes.entries()) {
+          rowsStat.push(['', sub, n]);
+        }
+        total += g.count;
+      }
+      rowsStat.push([]);
+      rowsStat.push(['TỔNG', '', total]);
+      const wsStat = XLSX.utils.aoa_to_sheet(rowsStat);
+      wsStat['!cols'] = [{ wch: 18 }, { wch: 36 }, { wch: 10 }];
+      XLSX.utils.book_append_sheet(wb, wsStat, 'Thống kê');
+
+      // Sheet 3: Thông tin đoạn
+      const rowsSeg: (string | number)[][] = [
+        ['Thông số', 'Giá trị'],
+        ['Tên đoạn', seg.name],
+        ['Lý trình bắt đầu (m)', seg.startStation],
+        ['Lý trình kết thúc (m)', seg.endStation],
+        ['Bề rộng đường (m)', seg.roadWidth],
+        ['Loại đường', seg.roadType === 'dual' ? 'Đường đôi (có DPC)' : 'Đường đơn'],
+        ['Số làn', seg.laneCount ?? '—'],
+        ['Bề rộng DPC (m)', seg.medianWidth ?? '—'],
+        ['Cách nhập vị trí', seg.cachTimMode === 'mep' ? 'Cách mép' : 'Cách tim'],
+        ['Chế độ vẽ', seg.drawMode === 'polyline' ? 'Theo polyline AutoCAD' : 'Bình đồ duỗi thẳng'],
+        ['Chiều dài polyline (m)', seg.polylineLength ?? '—'],
+      ];
+      const wsSeg = XLSX.utils.aoa_to_sheet(rowsSeg);
+      wsSeg['!cols'] = [{ wch: 26 }, { wch: 32 }];
+      XLSX.utils.book_append_sheet(wb, wsSeg, 'Thông tin đoạn');
+
+      const safe = seg.name.replace(/[^a-zA-Z0-9_-]+/g, '_').slice(0, 40);
+      const dateStr = new Date().toISOString().slice(0, 10);
+      const pathOut = await save({
+        title: 'Lưu báo cáo ATGT',
+        defaultPath: `ATGT_${safe}_${dateStr}.xlsx`,
+        filters: [{ name: 'Excel', extensions: ['xlsx'] }],
+      });
+      if (!pathOut) return;
+      const buf = XLSX.write(wb, { type: 'array', bookType: 'xlsx' }) as ArrayBuffer;
+      const bytes = Array.from(new Uint8Array(buf));
+      await invoke<number>('save_file_bytes', { path: pathOut, bytes });
+      alert(`✅ Đã xuất Excel: ${pathOut}`);
+    } catch (e) {
+      alert(`✗ Xuất Excel lỗi: ${e instanceof Error ? e.message : String(e)}`);
+    }
+  }
+
+  async function handleDrawAcadStraight(seg: AtgtSegment, bm: Map<string, AtgtBlock>): Promise<void> {
+    const mode = seg.drawMode ?? 'duoithang';
+    try {
+      const status = await autoCadStatus();
+      if (!status.running) {
+        alert('Chưa kết nối AutoCAD. Mở 1 file AutoCAD trống trước rồi bấm Vẽ.');
+        return;
+      }
+      await autoCadEnsureDocument();
+      if (mode === 'duoithang') {
+        const cmds = generateAtgtCommandsStraight(seg, bm);
+        const sent = await autoCadSendCommands(cmds);
+        alert(`✅ Đã gửi ${sent} lệnh vẽ ${placements.length} block (bình đồ duỗi thẳng).`);
+      } else {
+        alert('⏳ Chế độ "Theo polyline" cần Rust command pick polyline — sẽ ra Wave 9.3b. Tạm thời chuyển sang chế độ "Bình đồ duỗi thẳng" để vẽ.');
+      }
+    } catch (e) {
+      alert(`✗ Vẽ AutoCAD lỗi: ${e instanceof Error ? e.message : String(e)}`);
+    }
+  }
+
   async function handleImportFile(): Promise<void> {
     try {
       const inp = document.createElement('input');
@@ -140,6 +261,22 @@ export function AtgtBlockTable({ segment, onChange }: Props): JSX.Element {
         <button type="button" className="atgt-block-btn" onClick={() => void handleImportFile()} title="Import file CSV/TSV">📥 Import file</button>
         <button type="button" className="atgt-block-btn" disabled={selectedIds.size === 0} onClick={deleteSelected}>🗑 Xóa ({selectedIds.size})</button>
         <button type="button" className="atgt-block-btn" disabled={placements.length === 0} onClick={clearAll}>♻ Xóa bảng</button>
+        <span style={{ flex: 1 }} />
+        <button
+          type="button"
+          className="atgt-block-btn"
+          disabled={placements.length === 0}
+          onClick={() => void handleExportExcel(segment, blockMap)}
+          title="Xuất bảng kê + thống kê ra Excel"
+        >📊 Xuất Excel</button>
+        <button
+          type="button"
+          className="atgt-block-btn"
+          style={{ background: 'var(--color-accent-primary, #10b981)', color: '#fff', borderColor: 'transparent' }}
+          disabled={placements.length === 0}
+          onClick={() => void handleDrawAcadStraight(segment, blockMap)}
+          title="Phase 42 wave 9 — Vẽ AutoCAD theo chế độ đã chọn (duỗi thẳng / polyline)"
+        >🎨 Vẽ AutoCAD</button>
       </div>
 
       {placements.length === 0 ? (

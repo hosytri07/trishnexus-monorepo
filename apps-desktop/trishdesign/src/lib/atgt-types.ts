@@ -163,14 +163,27 @@ export type AtgtItem =
 
 export type DrawMode = 'duoithang' | 'polyline';
 
+/** Phase 42 wave 9 — Khuôn đường (giống HHMĐ RoadSegment) */
+export type AtgtRoadType = 'single' | 'dual';
+
 export interface AtgtSegment {
   id: string;
   name: string;
   startStation: number;        // m
   endStation: number;          // m
-  roadWidth: number;           // m
+  roadWidth: number;           // m (tổng bề rộng mặt đường)
+  /** Phase 42 wave 9 — Loại đường (single/dual) — quyết định có DPC hay không */
+  roadType?: AtgtRoadType;
+  /** Phase 42 wave 9 — Số làn cả 2 chiều */
+  laneCount?: number;
+  /** Phase 42 wave 9 — Dải phân cách (m, dual only) */
+  medianWidth?: number;
+  /** Phase 42 wave 9 — Cách nhập vị trí: 'tim' hoặc 'mep' */
+  cachTimMode?: 'tim' | 'mep';
   drawMode?: DrawMode;         // Default 'duoithang' — duỗi thẳng auto polyline
   polylineHandle?: string;     // AutoCAD entity handle khi mode 'polyline'
+  /** Phase 42 wave 9 — Chiều dài polyline đã pick (m) khi mode 'polyline' */
+  polylineLength?: number;
   items: AtgtItem[];
   /** Phase 42 wave 8.3 — Bảng đa năng nhập block ATGT động (block .dwg từ Firestore) */
   blockPlacements?: AtgtBlockPlacement[];

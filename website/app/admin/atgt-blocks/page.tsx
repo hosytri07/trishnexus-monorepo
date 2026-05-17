@@ -29,6 +29,12 @@ interface AtgtBlock {
   label: string;
   fileName: string;
   category: string;
+  /** Phase 42 wave 9 — Ý nghĩa tài sản */
+  meaning?: string;
+  /** Phase 42 wave 9 — Dạng địa vật */
+  shapeKind?: 'block' | 'linetype';
+  /** Phase 42 wave 9 — Hướng so với tim tuyến */
+  orientation?: 'perpendicular' | 'parallel';
   description?: string;
   colorIndex?: number;
   hatchName?: string;
@@ -54,6 +60,9 @@ const EMPTY: AtgtBlock = {
   label: '',
   fileName: '',
   category: 'Biển báo',
+  meaning: '',
+  shapeKind: 'block',
+  orientation: 'perpendicular',
   description: '',
   colorIndex: 7,
   hatchName: '',
@@ -190,11 +199,12 @@ export default function AdminAtgtBlocksPage() {
               <tr>
                 <th style={thStyle}>ID</th>
                 <th style={thStyle}>Tên hiển thị</th>
-                <th style={thStyle}>Tên file .dwg</th>
+                <th style={thStyle}>Tên file</th>
                 <th style={thStyle}>Nhóm</th>
-                <th style={thStyle}>Mô tả</th>
-                <th style={thStyle}>Màu</th>
-                <th style={thStyle}>Scale</th>
+                <th style={thStyle}>Ý nghĩa</th>
+                <th style={thStyle}>Dạng</th>
+                <th style={thStyle}>Hướng</th>
+                <th style={thStyle}>Màu/Scale</th>
                 <th style={thStyle}></th>
               </tr>
             </thead>
@@ -205,9 +215,10 @@ export default function AdminAtgtBlocksPage() {
                   <td style={tdStyle}><strong>{b.label}</strong></td>
                   <td style={tdStyle}><code>{b.fileName}</code></td>
                   <td style={tdStyle}>{b.category}</td>
-                  <td style={{ ...tdStyle, color: '#6b7280', fontSize: 13 }}>{b.description ?? '—'}</td>
-                  <td style={tdStyle}>ACI {b.colorIndex ?? 7}</td>
-                  <td style={tdStyle}>{b.defaultScale ?? 1}</td>
+                  <td style={{ ...tdStyle, color: '#374151', fontSize: 13 }}>{b.meaning ?? '—'}</td>
+                  <td style={tdStyle}>{b.shapeKind === 'linetype' ? '〰 Linetype' : '⬜ Block'}</td>
+                  <td style={tdStyle}>{b.orientation === 'parallel' ? '↔ Song song' : '⊥ Vuông góc'}</td>
+                  <td style={{ ...tdStyle, fontSize: 12, color: '#6b7280' }}>ACI {b.colorIndex ?? 7} · ×{b.defaultScale ?? 1}</td>
                   <td style={{ ...tdStyle, whiteSpace: 'nowrap' }}>
                     <button type="button" onClick={() => setEditing(b)} style={btnGhost}>
                       <Edit2 size={14} />
@@ -304,10 +315,30 @@ function EditDialog({
               onChange={(e) => patch({ fileName: e.target.value })} />
           </Field>
 
+          <Field label="Dạng địa vật" hint="Block = INSERT 1 điểm. Linetype = chạy dọc tuyến">
+            <select style={inputStyle} value={v.shapeKind ?? 'block'}
+              onChange={(e) => patch({ shapeKind: e.target.value as 'block' | 'linetype' })}>
+              <option value="block">⬜ Block (INSERT)</option>
+              <option value="linetype">〰 Linetype (PLINE)</option>
+            </select>
+          </Field>
+          <Field label="Hướng với tim tuyến" hint="Vuông góc = block đứng chéo tim. Song song = chạy dọc tim">
+            <select style={inputStyle} value={v.orientation ?? 'perpendicular'}
+              onChange={(e) => patch({ orientation: e.target.value as 'perpendicular' | 'parallel' })}>
+              <option value="perpendicular">⊥ Vuông góc</option>
+              <option value="parallel">↔ Song song</option>
+            </select>
+          </Field>
+
+          <Field label="Ý nghĩa tài sản" hint="VD: Đường cấm, Cấm đi ngược chiều, Nguy hiểm giao nhau...">
+            <input style={inputStyle} value={v.meaning ?? ''}
+              onChange={(e) => patch({ meaning: e.target.value })} />
+          </Field>
           <Field label="Màu ACI (AutoCAD)" hint="1=đỏ, 2=vàng, 3=xanh lá, 5=xanh lam, 7=trắng/đen">
             <input type="number" min={1} max={255} style={inputStyle} value={v.colorIndex ?? 7}
               onChange={(e) => patch({ colorIndex: Number(e.target.value) || 7 })} />
           </Field>
+
           <Field label="Tỷ lệ scale block">
             <input type="number" step={0.1} min={0.01} style={inputStyle} value={v.defaultScale ?? 1}
               onChange={(e) => patch({ defaultScale: Number(e.target.value) || 1 })} />

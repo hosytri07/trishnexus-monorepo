@@ -14,9 +14,15 @@ import { collection, getDocs, limit, query } from 'firebase/firestore';
 
 export interface AtgtBlock {
   id: string;
-  label: string;        // Tên hiển thị tiếng Việt
-  fileName: string;     // .dwg file name
-  category: string;     // Biển báo / Cọc tiêu / Vạch sơn ...
+  label: string;        // Tên hiển thị (vd "P.101", "W.221")
+  fileName: string;     // .dwg file name (vd "1.BB.dwg", "2.BB.dwg")
+  category: string;     // Biển báo / Cọc tiêu / Vạch sơn / Đèn tín hiệu / Hộ lan mềm / Cống ngang / Tiêu phản quang / Gương cầu lồi / Rãnh dọc / Lí trình
+  /** Phase 42 wave 9 — Ý nghĩa tài sản (vd "Đường cấm", "Cấm đi ngược chiều") */
+  meaning?: string;
+  /** Phase 42 wave 9 — Dạng địa vật: Block (INSERT 1 điểm) hoặc Linetype (PLINE dọc tuyến) */
+  shapeKind?: 'block' | 'linetype';
+  /** Phase 42 wave 9 — Hướng so với tim tuyến: vuông góc / song song */
+  orientation?: 'perpendicular' | 'parallel';
   description?: string;
   colorIndex?: number;  // AutoCAD ACI (default 7)
   hatchName?: string;   // Hatch pattern (optional)
@@ -61,7 +67,7 @@ export function useAtgtBlocks(): {
     setError(null);
     try {
       const db = getFirebaseDb();
-      const snap = await getDocs(query(collection(db, 'atgt_blocks'), limit(500)));
+      const snap = await getDocs(query(collection(db, 'atgt_blocks'), limit(1000)));
       const items = snap.docs.map((d) => d.data() as AtgtBlock);
       setBlocks(items);
       saveCache(items);

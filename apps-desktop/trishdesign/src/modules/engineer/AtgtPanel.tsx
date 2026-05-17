@@ -563,47 +563,93 @@ function SegmentEditor({
   segment: AtgtSegment;
   onUpdate: (updater: (s: AtgtSegment) => AtgtSegment) => void;
 }): JSX.Element {
+  const isDual = segment.roadType === 'dual';
+  const mode = segment.drawMode ?? 'duoithang';
   return (
     <div className="atgt-section">
-      <div className="atgt-section-title">📏 Thông tin đoạn đường</div>
+      <div className="atgt-section-title">📏 Thông tin đoạn + Khuôn đường</div>
       <div className="atgt-grid-4">
         <label className="td-field">
           <span className="td-field-label">Tên đoạn</span>
-          <input
-            type="text"
-            className="td-input"
-            value={segment.name}
-            onChange={(e) => onUpdate((s) => ({ ...s, name: e.target.value }))}
-          />
+          <input type="text" className="td-input" value={segment.name}
+            onChange={(e) => onUpdate((s) => ({ ...s, name: e.target.value }))} />
         </label>
         <label className="td-field">
           <span className="td-field-label">Lý trình bắt đầu (m)</span>
-          <input
-            type="number"
-            className="td-input"
-            value={segment.startStation}
-            onChange={(e) => onUpdate((s) => ({ ...s, startStation: Number(e.target.value) || 0 }))}
-          />
+          <input type="number" className="td-input" value={segment.startStation}
+            onChange={(e) => onUpdate((s) => ({ ...s, startStation: Number(e.target.value) || 0 }))} />
         </label>
         <label className="td-field">
           <span className="td-field-label">Lý trình kết thúc (m)</span>
-          <input
-            type="number"
-            className="td-input"
-            value={segment.endStation}
-            onChange={(e) => onUpdate((s) => ({ ...s, endStation: Number(e.target.value) || 0 }))}
-          />
+          <input type="number" className="td-input" value={segment.endStation}
+            onChange={(e) => onUpdate((s) => ({ ...s, endStation: Number(e.target.value) || 0 }))} />
         </label>
         <label className="td-field">
           <span className="td-field-label">Bề rộng đường (m)</span>
-          <input
-            type="number"
-            className="td-input"
-            step={0.5}
-            value={segment.roadWidth}
-            onChange={(e) => onUpdate((s) => ({ ...s, roadWidth: Number(e.target.value) || 7 }))}
-          />
+          <input type="number" className="td-input" step={0.5} value={segment.roadWidth}
+            onChange={(e) => onUpdate((s) => ({ ...s, roadWidth: Number(e.target.value) || 7 }))} />
         </label>
+      </div>
+
+      {/* Phase 42 wave 9 — Khuôn đường giống HHMĐ */}
+      <div className="atgt-grid-4" style={{ marginTop: 12 }}>
+        <label className="td-field">
+          <span className="td-field-label">Loại đường</span>
+          <select className="td-select" value={segment.roadType ?? 'single'}
+            onChange={(e) => onUpdate((s) => ({ ...s, roadType: e.target.value as 'single' | 'dual' }))}>
+            <option value="single">Đường đơn</option>
+            <option value="dual">Đường đôi (có DPC)</option>
+          </select>
+        </label>
+        <label className="td-field">
+          <span className="td-field-label">Số làn (cả 2 chiều)</span>
+          <input type="number" className="td-input" min={1} max={12} value={segment.laneCount ?? 2}
+            onChange={(e) => onUpdate((s) => ({ ...s, laneCount: Number(e.target.value) || 2 }))} />
+        </label>
+        <label className="td-field" style={{ opacity: isDual ? 1 : 0.5 }}>
+          <span className="td-field-label">Bề rộng DPC (m)</span>
+          <input type="number" className="td-input" step={0.1} min={0} value={segment.medianWidth ?? 0}
+            disabled={!isDual}
+            onChange={(e) => onUpdate((s) => ({ ...s, medianWidth: Number(e.target.value) || 0 }))} />
+        </label>
+        <label className="td-field">
+          <span className="td-field-label">Cách nhập vị trí</span>
+          <select className="td-select" value={segment.cachTimMode ?? 'tim'}
+            onChange={(e) => onUpdate((s) => ({ ...s, cachTimMode: e.target.value as 'tim' | 'mep' }))}>
+            <option value="tim">Cách tim đường</option>
+            <option value="mep">Cách mép đường</option>
+          </select>
+        </label>
+      </div>
+
+      {/* Phase 42 wave 9 — Chế độ vẽ: duỗi thẳng hoặc polyline */}
+      <div style={{ marginTop: 12, padding: 10, background: 'rgba(16,185,129,0.06)', borderRadius: 8, border: '1px solid var(--color-border-subtle)' }}>
+        <div style={{ fontSize: 12, fontWeight: 600, marginBottom: 8, color: 'var(--color-accent-primary)' }}>🎨 Chế độ vẽ</div>
+        <div style={{ display: 'flex', gap: 16, alignItems: 'center', flexWrap: 'wrap' }}>
+          <label style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer' }}>
+            <input type="radio" checked={mode === 'duoithang'}
+              onChange={() => onUpdate((s) => ({ ...s, drawMode: 'duoithang' }))} />
+            <span>📏 <strong>Bình đồ duỗi thẳng</strong> (scale 1:1000 X / 1:200 Y)</span>
+          </label>
+          <label style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer' }}>
+            <input type="radio" checked={mode === 'polyline'}
+              onChange={() => onUpdate((s) => ({ ...s, drawMode: 'polyline' }))} />
+            <span>🛣 <strong>Theo polyline AutoCAD</strong> (pick từ CAD)</span>
+          </label>
+          {mode === 'polyline' && (
+            <label className="td-field" style={{ minWidth: 200 }}>
+              <span className="td-field-label" style={{ fontSize: 11 }}>Chiều dài polyline (m)</span>
+              <input type="number" className="td-input" step={1} min={0} value={segment.polylineLength ?? 0}
+                placeholder="VD: 1500"
+                onChange={(e) => onUpdate((s) => ({ ...s, polylineLength: Number(e.target.value) || 0 }))} />
+            </label>
+          )}
+        </div>
+        {mode === 'polyline' && (
+          <p style={{ fontSize: 11, color: 'var(--color-text-muted)', marginTop: 6, marginBottom: 0 }}>
+            ℹ Nhập chiều dài polyline thực tế (m) tính từ đầu đến cuối. Khi vẽ, app sẽ map mỗi lý trình block lên 1 điểm trên polyline trong AutoCAD theo Rust command.
+          </p>
+        )}
       </div>
     </div>
   );

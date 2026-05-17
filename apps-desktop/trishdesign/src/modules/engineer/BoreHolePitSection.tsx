@@ -19,19 +19,25 @@
 import { useMemo, useState } from 'react';
 import type { Project, RoadSegment, BoreHole, ExcavationPit, BorePitLayer, DamageSide } from '../../types.js';
 import { newId, formatStation } from '../../types.js';
-import { useDesignDb } from '../../state.js';
+import type { useDesignDb } from '../../state.js';
+
+/**
+ * Phase 42 wave 8 — Type của designDb hook trả về.
+ * BẮT BUỘC nhận qua props (KHÔNG gọi useDesignDb() local) — vì useDesignDb tạo
+ * state LOCAL mỗi lần gọi, instance khác sẽ không sync với HuHongPanel.
+ */
+type DesignDbApi = ReturnType<typeof useDesignDb>;
 
 interface Props {
   project: Project;
   segment: RoadSegment;
+  designDb: DesignDbApi;
 }
 
 /**
  * Section root — render 2 bảng + 2 bảng thống kê.
  */
-export function BoreHolePitSection({ project, segment }: Props): JSX.Element {
-  const designDb = useDesignDb();
-
+export function BoreHolePitSection({ project, segment, designDb }: Props): JSX.Element {
   const boreHoles = segment.boreHoles ?? [];
   const pits = segment.excavationPits ?? [];
 
@@ -69,12 +75,14 @@ export function BoreHolePitSection({ project, segment }: Props): JSX.Element {
         <BoreHoleTable
           project={project}
           segment={segment}
+          designDb={designDb}
           holes={boreHoles}
           onAdd={handleAddBoreHole}
         />
         <PitTable
           project={project}
           segment={segment}
+          designDb={designDb}
           pits={pits}
           onAdd={handleAddPit}
         />
@@ -96,11 +104,10 @@ export function BoreHolePitSection({ project, segment }: Props): JSX.Element {
  * BoreHole table (lỗ khoan — hình tròn)
  * ============================================================ */
 function BoreHoleTable({
-  project, segment, holes, onAdd,
+  project, segment, designDb, holes, onAdd,
 }: {
-  project: Project; segment: RoadSegment; holes: BoreHole[]; onAdd: () => void;
+  project: Project; segment: RoadSegment; designDb: DesignDbApi; holes: BoreHole[]; onAdd: () => void;
 }): JSX.Element {
-  const designDb = useDesignDb();
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [expandedId, setExpandedId] = useState<string | null>(null);
 
@@ -178,6 +185,7 @@ function BoreHoleTable({
                 key={h.id}
                 project={project}
                 segment={segment}
+                designDb={designDb}
                 hole={h}
                 index={idx}
                 selected={selectedIds.has(h.id)}
@@ -194,13 +202,12 @@ function BoreHoleTable({
 }
 
 function BoreHoleRow({
-  project, segment, hole, index, selected, expanded, onToggleSelect, onToggleExpand,
+  project, segment, designDb, hole, index, selected, expanded, onToggleSelect, onToggleExpand,
 }: {
-  project: Project; segment: RoadSegment; hole: BoreHole; index: number;
+  project: Project; segment: RoadSegment; designDb: DesignDbApi; hole: BoreHole; index: number;
   selected: boolean; expanded: boolean;
   onToggleSelect: () => void; onToggleExpand: () => void;
 }): JSX.Element {
-  const designDb = useDesignDb();
 
   function patch(p: Partial<BoreHole>): void {
     designDb.updateBoreHole(project.id, segment.id, hole.id, p);
@@ -247,11 +254,10 @@ function BoreHoleRow({
  * ExcavationPit table (hố đào — hình vuông) — pattern y hệt BoreHoleTable
  * ============================================================ */
 function PitTable({
-  project, segment, pits, onAdd,
+  project, segment, designDb, pits, onAdd,
 }: {
-  project: Project; segment: RoadSegment; pits: ExcavationPit[]; onAdd: () => void;
+  project: Project; segment: RoadSegment; designDb: DesignDbApi; pits: ExcavationPit[]; onAdd: () => void;
 }): JSX.Element {
-  const designDb = useDesignDb();
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [expandedId, setExpandedId] = useState<string | null>(null);
 
@@ -329,6 +335,7 @@ function PitTable({
                 key={p.id}
                 project={project}
                 segment={segment}
+                designDb={designDb}
                 pit={p}
                 index={idx}
                 selected={selectedIds.has(p.id)}
@@ -345,13 +352,12 @@ function PitTable({
 }
 
 function PitRow({
-  project, segment, pit, index, selected, expanded, onToggleSelect, onToggleExpand,
+  project, segment, designDb, pit, index, selected, expanded, onToggleSelect, onToggleExpand,
 }: {
-  project: Project; segment: RoadSegment; pit: ExcavationPit; index: number;
+  project: Project; segment: RoadSegment; designDb: DesignDbApi; pit: ExcavationPit; index: number;
   selected: boolean; expanded: boolean;
   onToggleSelect: () => void; onToggleExpand: () => void;
 }): JSX.Element {
-  const designDb = useDesignDb();
 
   function patch(p: Partial<ExcavationPit>): void {
     designDb.updateExcavationPit(project.id, segment.id, pit.id, p);
