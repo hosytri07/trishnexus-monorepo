@@ -9,6 +9,87 @@
 
 ---
 
+## 📍 PHIÊN HIỆN TẠI — 2026-05-13 (TrishDesign Phase 42 — chuyển máy nhà, CHƯA TEST)
+
+### 🚨 BƯỚC ĐẦU TIÊN máy nhà sau khi pull code:
+
+```powershell
+cd C:\Users\ADMIN\Documents\Claude\Projects\TrishTEAM\trishnexus-monorepo
+git pull
+pnpm install
+cd apps-desktop\trishdesign
+pnpm tauri dev
+```
+
+### Trạng thái Phase 42 (TrishDesign — 9 góp ý của Trí, 7 wave code)
+
+✅ **8/9 góp ý đã code** (TrishDesign):
+
+| # | Góp ý | Status |
+|---|-------|--------|
+| 1 | RoadDamage nút 🧹 Xóa bảng | ✅ DONE (`RoadDamageModule.tsx:1295`) |
+| 2 | ATGT — block insert + Leader nếu có Hiện trạng + att lý trình GHICHUBIENBAO | ⚙ HELPERS done. Wire vào `generateAtgtCommands` defer Wave 8 (sau khi Trí cấp folder block + test schema mới) |
+| 3 | BaoLu hốt sạt — refactor schema (areaDatSut + road geometry) + 2 tab Số liệu/AI Vision + Vẽ A3 khung scale 0.2 + bảng thống kê | ✅ DONE |
+| 4 | Chatbot — Trí skip | — |
+| 5 | OCR — AI prompt phân biệt 6 trường | ✅ DONE |
+| 6 | "Mẫu hồ sơ" Locked + đang phát triển | ✅ DONE |
+| 7 | AutoLISP Cloud — đã có sẵn Phase 28.14 | ✅ |
+| 8 | GIS Markers Firestore + admin web CRUD + fetch panel | ✅ DONE |
+| 9 | Dự toán + Kết cấu Locked | ✅ |
+
+✅ **Cộng thêm:**
+- Rust command `download_extract_blocks_atgt(url)` + nút **📥 Tải block ATGT** trong Settings (tự download zip từ GitHub + PowerShell extract về `%APPDATA%\vn.trishteam.design\blocks\ATGT`)
+
+### 🧪 TEST PLAN (làm tuần tự khi mở app):
+
+1. **Khởi động** — `pnpm tauri dev` → không còn lỗi compile (đã fix backtick + null bytes + JSX closing)
+2. **RoadDamage** → nhập 3 miếng → bấm **🧹 Xóa bảng** → confirm dialog → bảng rỗng (AutoCAD không bị xóa)
+3. **Mẫu hồ sơ** → banner "🚧 Đang phát triển"
+4. **GIS-MAP** → cuối panel có section "📍 Mốc tọa độ TrishTEAM" (rỗng nếu admin chưa thêm)
+5. **Web admin → 📍 GIS Markers** (https://trishteam.io.vn/admin/gis-markers) → thêm 3 mốc thử → reload TrishDesign GIS-MAP thấy filled
+6. **Settings → 📦 Thư mục Block ATGT → 📥 Tải block** → (CẦN GitHub Release `trishdesign-blocks-atgt-v1.0.0` đã upload trước)
+7. **Vẽ mặt cắt hốt sạt → mặt cắt mới**:
+   - 2 tab rõ ràng: 📝 **Nhập số liệu** (lý trình + areaDatSut + road geometry) | 🤖 **AI Vision đo ảnh** (upload + AI đo)
+   - Thêm 3-4 mặt cắt với station_m tăng dần + areaDatSut > 0
+   - Bấm **🖨 Vẽ A3 + bảng** → AutoCAD vẽ khung A3 + grid mặt cắt + bảng thống kê
+8. **Khảo sát OCR** → upload ảnh → AI chuẩn hóa với prompt mới (6 trường)
+
+### ⏸ Defer Wave 8 (sau khi Trí test wave 7):
+
+- AtgtPanel wire `insertBienBaoWithStation` + `generateBlockInsertCmd` vào `generateAtgtCommands` main flow (cần Trí cấp folder block thực tế)
+- GitHub Release `trishdesign-blocks-atgt-v1.0.0` với file zip chứa block .dwg (`GC.31a.dwg`, `GHICHUBIENBAO.dwg`, `COC_TIEU_1.dwg`, ...)
+- BaoLu — Tab "Điểm sụt" UI (tạo SlideEvent + assign sections)
+- Polygon đất sụt thực thay rectangle placeholder
+- AI Vision đo diện tích đất sụt — implement gọi Gemini/Groq Vision với prompt JSON `{ area_m2 }`
+
+### 📁 Files thay đổi/tạo trong Phase 42 (12 files):
+
+- `apps-desktop/trishdesign/src/App.tsx` — "Danh mục hồ sơ" → "Mẫu hồ sơ" Locked
+- `apps-desktop/trishdesign/src/modules/engineer/RoadDamageModule.tsx` — 🧹 Xóa bảng
+- `apps-desktop/trishdesign/src/modules/engineer/BaoLuPanel.tsx` — schema mới + 2 tab + Vẽ A3
+- `apps-desktop/trishdesign/src/modules/engineer/SettingsPanel.tsx` — 📦 Block ATGT folder
+- `apps-desktop/trishdesign/src/modules/engineer/SurveyPanel.tsx` — AI prompt mới
+- `apps-desktop/trishdesign/src/modules/engineer/GISMapPanel.tsx` — wire GisMarkersTab
+- `apps-desktop/trishdesign/src/modules/engineer/GisMarkersTab.tsx` — **NEW**
+- `apps-desktop/trishdesign/src/lib/atgt-types.ts` — leaderTextFor field
+- `apps-desktop/trishdesign/src/lib/atgt-script.ts` — `generateBlockInsertCmd`, `insertBienBaoWithStation`, `getAtgtBlocksFolder`, `leaderTextFor`
+- `apps-desktop/trishdesign/src/lib/baolu-script.ts` — **NEW** generateSlideEventCommands
+- `apps-desktop/trishdesign/src-tauri/src/lib.rs` — `download_extract_blocks_atgt`
+- `website/app/admin/gis-markers/page.tsx` — **NEW** CRUD GIS markers
+- `website/app/admin/layout.tsx` — link 📍 GIS Markers
+- `firestore.rules` — `/gis_markers` + `/apps_catalog` rules
+
+### 🔑 Lưu ý quan trọng:
+
+- App đã sạch lỗi compile khi Trí pull về máy nhà — chỉ cần `pnpm install` + `pnpm tauri dev`
+- Schema BaoLu mới có deprecated fields (`name`, `L`, `B`, `H`, `alpha`) giữ backward compat — data cũ không mất
+- Block folder default: `%APPDATA%\vn.trishteam.design\blocks\ATGT` — auto-create khi user bấm Tải
+- GitHub Release block ATGT: Trí chưa upload, bấm Tải sẽ fail HTTP 404 — bình thường
+
+---
+
+## 📍 PHIÊN CŨ (ARCHIVE Phase 41) — 2026-05-13 sáng
+
 ## 📍 PHIÊN HIỆN TẠI — 2026-05-13 (đọc TRƯỚC NHẤT, override mọi history phía dưới)
 
 ### Trạng thái Phase 40 + 41 (5 app SẴN SÀNG BUILD v1.0.0 wave 2)
