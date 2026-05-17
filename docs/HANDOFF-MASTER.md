@@ -4,12 +4,95 @@
 >
 > **🔴 ĐỌC SECTION `📍 PHIÊN HIỆN TẠI` NGAY DƯỚI — TẤT CẢ SECTION CŨ PHÍA DƯỚI LÀ LỊCH SỬ ARCHIVE, ĐỪNG NHẦM!**
 >
-> **Cập nhật:** 2026-05-10 cuối phiên (Phase 38 wave v1.0.0 DONE — 6 app released. Phase 38.7 TrishAdmin /admin/users code xong, chờ TEST trước khi build .exe.)
+> **Cập nhật:** 2026-05-17 (Phase 42 wave 8 — 6 góp ý mới của Trí cho TrishDesign code xong, CHƯA TEST.)
 > **Chủ dự án:** Trí (hosytri77@gmail.com / trishteam.official@gmail.com) — kỹ sư hạ tầng giao thông Đà Nẵng. Không phải dev. Giao tiếp tiếng Việt, tránh jargon.
 
 ---
 
-## 📍 PHIÊN HIỆN TẠI — 2026-05-13 (TrishDesign Phase 42 — chuyển máy nhà, CHƯA TEST)
+## 📍 PHIÊN HIỆN TẠI — 2026-05-17 (Phase 42 wave 8 — 6 góp ý mới TrishDesign, CHƯA TEST)
+
+### 🚨 BƯỚC ĐẦU TIÊN
+
+```powershell
+cd C:\Users\TRI\Documents\Claude\Projects\TrishTEAM\trishnexus-monorepo
+git pull
+pnpm install
+cd apps-desktop\trishdesign
+pnpm tauri dev
+```
+
+### Trạng thái Phase 42 wave 8 (3 commit lần lượt)
+
+**Wave 8.1 — BaoLu + Mẫu hồ sơ admin bypass** (commit 2026-05-17):
+1. ✅ `App.tsx` — admin thấy được "Mẫu hồ sơ" (DocumentsPanel), user thường vẫn Locked
+2. ✅ `BaoLuPanel.tsx` — gộp 2 nút "Vẽ AutoCAD" + "Vẽ A3+bảng" → 1 nút "📐 Vẽ AutoCAD" (gọi handleDrawSlideEventA3)
+3. ✅ `BaoLuPanel.tsx` — Diện tích đất sụt 4 nguồn (`areaSource`):
+   - 🤖 **AI Vision** (default) — auto-fill khi đo ảnh xong (prompt mới yêu cầu `areaDatSut` + `depthSut`)
+   - 📐 **Polygon AutoCAD** — nút "Mở lệnh AREA" gửi `_AREA O` vào CAD, user click polygon → copy số từ CAD command line → paste vào input
+   - 📏 **Hình học** — auto tính qua `computeAreaFromGeometry()` từ road geometry + `depthSut` (3 công thức theo crossType)
+   - ✏ **Nhập tay**
+4. ✅ SectionsSummary + ExportExcel update schema mới (bỏ L/B/H legacy)
+
+**Wave 8.2 — RoadDamage lỗ khoan + hố đào đa lớp** (commit 2026-05-17):
+- `types.ts` thêm 3 interface (`BorePitLayer`, `BoreHole`, `ExcavationPit`) + 2 field optional vào `RoadSegment`
+- `state.ts` thêm 8 CRUD methods
+- `BoreHolePitSection.tsx` (NEW ~570 dòng): UI 2 bảng "🔵 Lỗ khoan" + "🟧 Hố đào", cột Số hiệu / Lý trình / Cách tim / Vị trí / Số lớp; nút ➕ Thêm / 📋 Dán TSV / 🗑 Xóa multi / ♻ Xóa bảng; expand row → LayerEditor con với cột Lớp # / Tên / Chiều dày / Ghi chú + ▲▼🗑; 2 bảng thống kê tự sinh dưới
+- `RoadDamageModule.tsx` import + render `<BoreHolePitSection />` dưới `<HuHongRightSide />`
+- ⏳ **Defer Wave 8.4:** AutoCAD draw circle/square hatch + Excel export 2 bảng thống kê
+
+**Wave 8.3 — ATGT block động + bảng đa năng** (commit 2026-05-17):
+- `website/app/admin/atgt-blocks/page.tsx` (NEW) — CRUD danh mục block giống GIS Markers; schema `/atgt_blocks/{id}`: label, fileName, category, colorIndex, hatchName, defaultScale
+- `website/app/admin/layout.tsx` — nav link "🚸 ATGT Blocks" + import `Shapes`
+- `firestore.rules` — `/atgt_blocks/{blockId}` public read + admin write
+- `lib/atgt-blocks-fetch.ts` (NEW) — hook `useAtgtBlocks()` fetch Firestore + cache localStorage
+- `lib/atgt-types.ts` — thêm `AtgtBlockPlacement` + extend `AtgtSegment.blockPlacements?`
+- `modules/engineer/AtgtBlockTable.tsx` (NEW ~400 dòng): bảng đa năng dropdown chọn block; cột Block / Lý trình / Cách tim / Vị trí / Tình trạng / Ghi chú; nút ➕ / 📋 Dán Excel / 📥 Import file / 🗑 / ♻; filter nhóm; summary chip
+- `AtgtPanel.tsx` — render `<AtgtBlockTable />` giữa SegmentEditor và ItemForm (song song UI 9-category cũ)
+- ⏳ **Defer Wave 8.4:** AutoCAD INSERT block .dwg từ AtgtBlockPlacement + Excel export
+
+### 🧪 TEST PLAN Phase 42 wave 8
+
+**1. Mẫu hồ sơ — admin bypass**
+- Login admin (Trí) → sidebar "📂 Mẫu hồ sơ" → hiển thị 5 tab DocumentsPanel thay vì banner Locked
+- Login user thường → vẫn banner "🚧 Đang phát triển"
+
+**2. BaoLu — Diện tích 4 nguồn**
+- Mặt cắt → tab "Nhập số liệu" → dropdown "📥 Nguồn diện tích đất sụt"
+- 4 mode: AI Vision (readonly + hint) / Polygon (nút mở AREA, editable) / Hình học (input depthSut + readonly area) / Nhập tay
+- Test 3 crossType với mode 'geometry' → 3 công thức khác nhau
+
+**3. BaoLu — 1 nút Vẽ AutoCAD**
+- Toolbar chỉ còn 1 nút (gộp), bấm → A3 scale 0.2 + bảng thống kê
+
+**4. RoadDamage — Lỗ khoan + Hố đào**
+- Đoạn đường → cuộn xuống → 2 section
+- ➕ Thêm → nhập LK1 / 50 / 2 / Phải
+- 📚 Lớp → expand → 3 lớp (BTN 0.05 / CPDD 0.20 / Đất sét 0.40) → tổng 0.65m
+- 📋 Dán TSV / 🗑 Xóa multi / ♻ Xóa bảng
+
+**5. ATGT — Block động Firestore**
+- `trishteam.io.vn/admin/atgt-blocks` → "+ Thêm block": `bb_w210` / "Biển báo W210" / `W210.dwg` / "Biển báo"
+- Reload TrishDesign ATGT → "1 block khả dụng"
+- ➕ Thêm dòng → dropdown hiện block → chọn → nhập lý trình
+- 📋 Dán Excel: `bb_w210\t100\t2\tphải\ttốt`
+
+### ⏳ Defer Wave 8.4 (sau khi Trí test 8.1–8.3):
+- AutoCAD draw cho BoreHole/Pit (circle + square hatch)
+- Excel export 2 bảng thống kê BoreHole/Pit đa lớp
+- AutoCAD INSERT block .dwg từ AtgtBlockPlacement
+- Rust command `acad_get_polygon_area` (2-way pick — hiện 1-way)
+- Deploy Firestore rules: `firebase deploy --only firestore:rules`
+- Deploy website lên Vercel
+
+### 🔑 Lưu ý quan trọng:
+- ⚠ **Linter ẩn tự cắt file** — nếu thấy file cụt giữa hàm/JSX → restore git HEAD + reapply patches qua bash heredoc thay vì Edit tool
+- AtgtPanel hiện có 2 UI song song (9-category cũ + AtgtBlockTable mới) — sau khi Trí confirm OK, wave sau sẽ xóa UI cũ
+- ATGT Firestore deploy lần đầu cần Trí (admin) thêm vài block test trước, sau đó user mới thấy dropdown
+- Block .dwg cho ATGT vẫn cần upload qua GitHub Release `trishdesign-blocks-atgt-v1.0.0`
+
+---
+
+## 📍 PHIÊN CŨ — 2026-05-13 (TrishDesign Phase 42 wave 7 — chuyển máy nhà)
 
 ### 🚨 BƯỚC ĐẦU TIÊN máy nhà sau khi pull code:
 
@@ -1128,6 +1211,119 @@ Trước khi Trí bấm `END.bat`:
 - **Static metadata:** Layout server component export `metadata`, không dùng trong `'use client'`
 - **Mobile:** container `max-w-{N} mx-auto px-6`, grid `grid-cols-1 md:grid-cols-{N}`, table bọc `overflow-x-auto -mx-6 px-6` + `min-w-{N}px` + `whitespace-nowrap`
 - **Vietnamese diacritics:** `foldVietnamese()` trong `@trishteam/core/search` cho fuzzy match
+
+### Phong thủy / tử vi
+**KHÔNG bao giờ** thêm. Đã loại vĩnh viễn.
+
+---
+
+## 📜 LỊCH SỬ PHASE (TÓM TẮT)
+
+| Phase | Nội dung | Ngày |
+|---|---|---|
+| **14.x** | Monorepo + TrishLauncher v2 (Tauri 2) + 3 app đầu (Check/Clean/Font) | Đầu 04/2026 |
+| **15.x** | Release Check/Font/Library v2.0.0-1 | 25/04 |
+| **16.x** | Firebase Auth + Firestore role-based + TrishLibrary v2.1 sync 2 chiều | 26/04 |
+| **17.x** | 5 app code mới: Clean/Note/Search/Image/Type | 27/04 |
+| **18.6** | Build TrishLibrary 3.0.0 NSIS .exe + GitHub release | 27/04 |
+| **18.7** | TrishAdmin scaffold | 27/04 |
+| **18.8.a** | TrishAdmin v1.1 → 9 panel + audit log | 27/04 |
+| **18.8.b/c** | Telemetry package + wire vào tất cả app | ⏳ TODO |
+| **19.1-19.18** | Website slim layout, Firebase login, blog, admin panel, 404 custom, sidebar refactor | 27/04 |
+| **19.20** | Website: 6 database + 4 quiz + công cụ VN2000 + sitemap + Ctrl+K | 28/04 cơ quan |
+| **19.21** | Website: Cert exam BXD 163/2025 (8081 câu) — rewrite `/on-thi-chung-chi` | 28/04 cơ quan |
+| **19.22** | Web admin hoàn thiện: /admin/users CRUD, /admin/databases, /admin/apps, /admin/library, blog ID sequence, countdown realtime, blog preview widget, URL shortener TrishTEAM, banner Firestore, logo bg trắng đồng nhất, Việt hóa | 28-29/04 |
+| **19.23** | ✅ **DEPLOYED PRODUCTION** https://trishteam.io.vn (12 env vars Vercel, base64 service account, ENABLE_EXPERIMENTAL_COREPACK) | 29/04 nhà |
+| **19.24** | ✅ TrishAdmin desktop parity — 4 panel mới: BackupPanel (export/import JSON, audit), DatabaseVnPanel (4 collection JSON editor), BulkImportPanel (CSV/TSV → Firestore batch), StoragePanel (Cloudinary quota + folders + top files). CSS bổ sung 459 dòng. | 29/04 nhà |
+| **20.x** | ✅ TrishLauncher Sync + Web optimization (8 sub-task) | 29/04 |
+| **21.prep** | ✅ Cleanup + Telemetry + Observability — packages/telemetry, ErrorsPanel + VitalsPanel TrishAdmin v1.1.0, backup-firestore.yml weekly, docs SENTRY-SETUP, .gitattributes CRLF | 29/04 |
+| **21.x** | ⏳ TrishDesign desktop (AutoCAD + AI RAG TCVN/AASHTO) | TODO |
+
+---
+
+## 📋 VIỆC CÒN DANG DỞ
+
+### Cần Trí cung cấp source
+- **600 câu lái xe có đáp án** (PDF cũ image-based, sandbox không OCR được tiếng Việt)
+- **250 câu moto có đáp án**
+- **Ảnh thật biển báo QC41:2024** (upload qua admin panel sau)
+- **Lat/lng GPS chính xác cho 7,549 cầu** (hiện jitter ±0.15° — geocoding Gemini API là Phase 21)
+
+### Cần code (Phase 20+)
+- FCM push notification thực sự (Cloud Function + service worker)
+- Admin UI CRUD cho câu hỏi BXD 163 / định mức / quy chuẩn / vật liệu
+- Bookmark / favorite biển báo + câu hỏi
+- Lịch sử thi → Firestore `/users/{uid}/exam-history`
+- Leaderboard tuần / tháng
+- i18n vi/en (next-intl wire)
+
+### Desktop pending
+- Telemetry package + wire `reportError()` / `reportVital()` vào 7 app
+- Errors panel + Vitals panel trong TrishAdmin
+- TrishAdmin build + release
+- TrishDesign scaffold
+
+---
+
+## 🔧 LỆNH HAY DÙNG (1 dòng)
+
+```bash
+# Test website local
+cd 'C:\Users\TRI\Documents\Claude\Projects\TrishTEAM\trishnexus-monorepo\website'; pnpm dev
+
+# Build website check (luôn chạy trước push)
+cd 'C:\Users\TRI\Documents\Claude\Projects\TrishTEAM\trishnexus-monorepo\website'; pnpm build
+
+# Lint
+cd 'C:\Users\TRI\Documents\Claude\Projects\TrishTEAM\trishnexus-monorepo\website'; pnpm lint
+
+# Run desktop app dev (ví dụ TrishLibrary)
+cd 'C:\Users\TRI\Documents\Claude\Projects\TrishTEAM\trishnexus-monorepo\apps-desktop\trishlibrary'; pnpm tauri dev
+
+# QA all (73 check)
+cd 'C:\Users\TRI\Documents\Claude\Projects\TrishTEAM\trishnexus-monorepo'; pnpm qa:all
+
+# Set admin role (sau khi tải service-account.json về secrets/)
+cd 'C:\Users\TRI\Documents\Claude\Projects\TrishTEAM\trishnexus-monorepo'; $env:GOOGLE_APPLICATION_CREDENTIALS="./secrets/service-account.json"; npx ts-node scripts/firebase/seed-admin.ts --email trishteam.official@gmail.com
+
+# Deploy Firestore rules
+scripts\DEPLOY-RULES.bat
+
+# Deploy production
+git push origin main   # Vercel auto-deploy
+```
+
+---
+
+## 📚 FILE DOCS GIỮ LẠI (REFERENCE)
+
+| File | Mục đích |
+|---|---|
+| **HANDOFF-MASTER.md** | ← FILE NÀY — đọc đầu phiên |
+| **PARITY-WEB-TRISHADMIN.md** | ★ Mới — gap analysis web vs desktop + roadmap deploy → Zalo → TrishDesign |
+| `CHANGELOG.md` | Lịch sử release chi tiết |
+| `ROADMAP.md` | Lộ trình phase 20+ |
+| `DESIGN.md` + `design-spec.md` | Design system tokens |
+| `FIREBASE-SETUP.md` | Setup Firebase project mới |
+| `DEPLOY-VERCEL.md` | Deploy steps Vercel |
+| `DOMAIN-TENTEN.md` | Setup domain Tenten DNS |
+| `SETUP-HOME-PC.md` | Cài deps máy mới (Node, Rust, etc.) |
+| `WEB-DESKTOP-PARITY.md` | Mapping feature web ↔ desktop |
+| `STORAGE-STRATEGY.md` | Lý do chọn Cloudinary vs Firebase |
+| `PACKAGING.md` | Build & sign NSIS installer |
+| `RELEASE-CHECKLIST.md` | Pre-release sanity check |
+
+### File đã merge vào MASTER → có thể XÓA
+- ~~`HANDOFF-WEBSITE-PHASE-19.md`~~ (22KB)
+- ~~`HANDOFF-TRISHLIBRARY-3.0.md`~~ (35KB)
+- ~~`SESSION-HANDOFF.md`~~ (88KB) — archive Phase 14-16 cũ
+
+→ Sau khi xác nhận MASTER đã đủ thông tin → xóa 3 file trên.
+
+---
+
+**End of HANDOFF-MASTER.md.**
+zzy match
 
 ### Phong thủy / tử vi
 **KHÔNG bao giờ** thêm. Đã loại vĩnh viễn.

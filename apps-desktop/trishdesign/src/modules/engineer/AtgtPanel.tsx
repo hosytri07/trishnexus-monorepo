@@ -18,6 +18,7 @@ import {
   type AtgtSegment,
   type AtgtItem,
   type AtgtCategory,
+  type AtgtBlockPlacement,
   type RoadSide,
   type BienBaoItem,
   type VachSonItem,
@@ -40,6 +41,7 @@ import {
   statusLabel,
   getCategoryInfo,
 } from '../../lib/atgt-types.js';
+import { AtgtBlockTable } from './AtgtBlockTable.js';
 
 const LS_KEY = 'trishdesign:atgt-db';
 
@@ -426,6 +428,13 @@ export function AtgtPanel(): JSX.Element {
       {activeSegment ? (
         <>
           <SegmentEditor segment={activeSegment} onUpdate={updateActiveSegment} />
+
+          {/* Phase 42 wave 8.3 — Bảng đa năng nhập block ATGT động (Firestore catalog) */}
+          <AtgtBlockTable
+            segment={activeSegment}
+            onChange={(next: AtgtBlockPlacement[]) => updateActiveSegment((s) => ({ ...s, blockPlacements: next }))}
+          />
+
           <ItemForm
             onAdd={(item) => handleAddItem(item)}
             defaultStation={activeSegment.startStation}

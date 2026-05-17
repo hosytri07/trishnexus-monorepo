@@ -172,6 +172,30 @@ export interface AtgtSegment {
   drawMode?: DrawMode;         // Default 'duoithang' — duỗi thẳng auto polyline
   polylineHandle?: string;     // AutoCAD entity handle khi mode 'polyline'
   items: AtgtItem[];
+  /** Phase 42 wave 8.3 — Bảng đa năng nhập block ATGT động (block .dwg từ Firestore) */
+  blockPlacements?: AtgtBlockPlacement[];
+}
+
+/**
+ * Phase 42 wave 8.3 — Một lần đặt block ATGT trong segment.
+ * Mỗi placement reference 1 block trong danh mục /atgt_blocks Firestore.
+ */
+export interface AtgtBlockPlacement {
+  id: string;
+  /** ID của block trong /atgt_blocks (Firestore). Có thể null nếu user gõ free-form. */
+  blockId?: string;
+  /** Tên block tự gõ (nếu chưa chọn từ catalog) */
+  blockLabel?: string;
+  /** Lý trình (m, tính từ đầu đoạn) */
+  station: number;
+  /** Vị trí: trái / phải / tim đường */
+  side: RoadSide;
+  /** Khoảng cách từ tim đường (m) */
+  cachTim?: number;
+  /** Tình trạng */
+  status?: AtgtItemBase['status'];
+  /** Ghi chú thêm */
+  notes?: string;
 }
 
 /** Template library: mỗi loại có file DWG chứa block đặt tên theo ký hiệu */
@@ -268,6 +292,33 @@ export function defaultAtgtItem(category: AtgtCategory, station: number = 0): At
     case 'CONGNGANG':
       return { ...base, category: 'CONGNGANG', congType: 'tron', diameter: 1.0, length: 8 };
     case 'TIEUPQ':
+      return { ...base, category: 'TIEUPQ', spacing: 10, count: 10, color: 'yellow' };
+    case 'GUONGCAU':
+      return { ...base, category: 'GUONGCAU', diameter: 0.6, poleHeight: 4 };
+  }
+}
+
+export function formatStationKm(m: number): string {
+  const km = Math.floor(m / 1000);
+  const rest = m - km * 1000;
+  return `Km${km}+${rest.toString().padStart(3, '0')}`;
+}
+
+/** Tên đoạn auto từ start/end */
+export function autoAtgtSegmentName(start: number, end: number): string {
+  return `${formatStationKm(start)} - ${formatStationKm(end)}`;
+}
+
+export function sideLabel(side: RoadSide): string {
+  if (side === 'left') return 'Trái (T)';
+  if (side === 'right') return 'Phải (P)';
+  return 'Tim';
+}
+
+export function statusLabel(s: AtgtItemBase['status']): string {
+  return { good: 'Tốt', damaged: 'Hư hỏng', missing: 'Mất', new: 'Mới' }[s];
+}
+
       return { ...base, category: 'TIEUPQ', spacing: 10, count: 10, color: 'yellow' };
     case 'GUONGCAU':
       return { ...base, category: 'GUONGCAU', diameter: 0.6, poleHeight: 4 };

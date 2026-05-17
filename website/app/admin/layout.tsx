@@ -39,6 +39,7 @@ import {
   Building,
   MapPin,
   Ticket,
+  Shapes,
 } from 'lucide-react';
 import { useAuth } from '@/lib/auth-context';
 
@@ -71,6 +72,8 @@ const NAV: NavItem[] = [
   { href: '/admin/trishdrive', label: 'TrishDrive admin', icon: Cloud },
   // Phase 42 — GIS Markers (mốc tọa độ TrishDesign)
   { href: '/admin/gis-markers', label: '📍 GIS Markers', icon: MapPin },
+  // Phase 42 wave 8.3 — ATGT Blocks (danh mục block .dwg cho TrishDesign Vẽ hiện trạng ATGT)
+  { href: '/admin/atgt-blocks', label: '🚸 ATGT Blocks', icon: Shapes },
   // Phase 41 — TrishAdmin private download (admin-only)
   { href: '/admin/trishadmin-download', label: '🛡 TrishAdmin Desktop', icon: Shield },
 ];

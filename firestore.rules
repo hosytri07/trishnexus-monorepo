@@ -337,6 +337,14 @@ service cloud.firestore {
       allow create, update, delete: if isAdmin();
     }
 
+    // --- Phase 42 wave 8.3 — /atgt_blocks/{blockId} (ATGT block catalog) ---
+    // Admin curate danh mục block .dwg cho TrishDesign Vẽ hiện trạng ATGT.
+    // Public read (TrishDesign user fetch dropdown). Admin write.
+    match /atgt_blocks/{blockId} {
+      allow read: if true;
+      allow create, update, delete: if isAdmin();
+    }
+
     // --- Phase 19.22 — Database collections (admin CRUD, public read) ---
     // standards (QCVN/TCVN/Thông tư...) · dinh_muc (định mức) · vat_lieu · roads_vn
     match /standards/{id} {
