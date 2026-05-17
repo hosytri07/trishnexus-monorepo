@@ -5,6 +5,8 @@
  *   1. "Diện tích"      — diện tích hư hỏng theo segment + tổng project
  *   2. "Tỉ lệ %"        — tỉ lệ % phân bố hư hỏng theo loại
  *   3. "Chi tiết miếng" — raw data từng miếng hư hỏng
+ *   4. "Lỗ khoan"       — Phase 42 wave 9 — bảng lỗ khoan flatten theo từng lớp
+ *   5. "Hố đào"         — Phase 42 wave 9 — bảng hố đào flatten theo từng lớp
  *
  * Flow:
  *   1. Build workbook bằng SheetJS (xlsx package)
@@ -166,6 +168,60 @@ export async function exportProjectStatsToExcel(
     { wch: 10 }, { wch: 10 }, { wch: 14 }, { wch: 8 }, { wch: 30 },
   ];
   XLSX.utils.book_append_sheet(wb, ws3, 'Chi tiết miếng');
+
+  // ============================================================
+  // Phase 42 wave 9 — Sheet 4: Lỗ khoan (flatten theo lớp)
+  // ============================================================
+  const sheet4: (string | number)[][] = [];
+  sheet4.push(['BẢNG 4: LỖ KHOAN (theo từng lớp)']);
+  sheet4.push([]);
+  sheet4.push(['Đoạn', 'STT', 'Số hiệu', 'Lý trình (m)', 'Lý trình', 'Vị trí', 'Cách tim (m)', 'Lớp #', 'Tên lớp', 'Dày (m)', 'Ghi chú lớp', 'Ghi chú lỗ khoan']);
+  let bhStt = 0;
+  for (const seg of project.segments) {
+    const holes = seg.boreHoles ?? [];
+    for (const h of holes) {
+      const sideStr = h.side === 'left' ? 'Trái' : h.side === 'right' ? 'Phải' : 'Tim';
+      if (h.layers.length === 0) {
+        bhStt += 1;
+        sheet4.push([seg.name, bhStt, h.pieceNumber, h.startStation, formatStation(h.startStation), sideStr, h.cachTim ?? 0, '—', '(không có lớp)', '—', '', h.notes ?? '']);
+      } else {
+        for (const l of h.layers) {
+          bhStt += 1;
+          sheet4.push([seg.name, bhStt, h.pieceNumber, h.startStation, formatStation(h.startStation), sideStr, h.cachTim ?? 0, l.order, l.name, l.depth, l.notes ?? '', h.notes ?? '']);
+        }
+      }
+    }
+  }
+  const ws4 = XLSX.utils.aoa_to_sheet(sheet4);
+  ws4['!cols'] = [{ wch: 18 }, { wch: 5 }, { wch: 10 }, { wch: 12 }, { wch: 14 }, { wch: 10 }, { wch: 12 }, { wch: 6 }, { wch: 28 }, { wch: 10 }, { wch: 22 }, { wch: 22 }];
+  XLSX.utils.book_append_sheet(wb, ws4, 'Lỗ khoan');
+
+  // ============================================================
+  // Phase 42 wave 9 — Sheet 5: Hố đào (flatten theo lớp)
+  // ============================================================
+  const sheet5: (string | number)[][] = [];
+  sheet5.push(['BẢNG 5: HỐ ĐÀO (theo từng lớp)']);
+  sheet5.push([]);
+  sheet5.push(['Đoạn', 'STT', 'Số hiệu', 'Lý trình (m)', 'Lý trình', 'Vị trí', 'Cách tim (m)', 'Lớp #', 'Tên lớp', 'Dày (m)', 'Ghi chú lớp', 'Ghi chú hố đào']);
+  let pitStt = 0;
+  for (const seg of project.segments) {
+    const pits = seg.excavationPits ?? [];
+    for (const p of pits) {
+      const sideStr = p.side === 'left' ? 'Trái' : p.side === 'right' ? 'Phải' : 'Tim';
+      if (p.layers.length === 0) {
+        pitStt += 1;
+        sheet5.push([seg.name, pitStt, p.pieceNumber, p.startStation, formatStation(p.startStation), sideStr, p.cachTim ?? 0, '—', '(không có lớp)', '—', '', p.notes ?? '']);
+      } else {
+        for (const l of p.layers) {
+          pitStt += 1;
+          sheet5.push([seg.name, pitStt, p.pieceNumber, p.startStation, formatStation(p.startStation), sideStr, p.cachTim ?? 0, l.order, l.name, l.depth, l.notes ?? '', p.notes ?? '']);
+        }
+      }
+    }
+  }
+  const ws5 = XLSX.utils.aoa_to_sheet(sheet5);
+  ws5['!cols'] = [{ wch: 18 }, { wch: 5 }, { wch: 10 }, { wch: 12 }, { wch: 14 }, { wch: 10 }, { wch: 12 }, { wch: 6 }, { wch: 28 }, { wch: 10 }, { wch: 22 }, { wch: 22 }];
+  XLSX.utils.book_append_sheet(wb, ws5, 'Hố đào');
 
   // Save dialog
   const dateStr = new Date().toISOString().slice(0, 10);

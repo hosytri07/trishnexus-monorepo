@@ -17,9 +17,6 @@
  */
 
 import { useState } from 'react';
-import * as XLSX from 'xlsx';
-import { save } from '@tauri-apps/plugin-dialog';
-import { invoke } from '@tauri-apps/api/core';
 import type { Project, RoadSegment, BoreHole, ExcavationPit, BorePitLayer, DamageSide } from '../../types.js';
 import { newId, formatStation } from '../../types.js';
 import type { useDesignDb } from '../../state.js';
@@ -66,81 +63,6 @@ export function BoreHolePitSection({ project, segment, designDb }: Props): JSX.E
     });
   }
 
-  async function handleExportExcel(): Promise<void> {
-    if (boreHoles.length === 0 && pits.length === 0) {
-      alert('Chưa có dữ liệu để xuất');
-      return;
-    }
-    try {
-      const wb = XLSX.utils.book_new();
-
-      // Sheet 1: Lỗ khoan (mỗi dòng = 1 lớp của 1 lỗ khoan)
-      const rowsBore: (string | number)[][] = [
-        ['STT', 'Số hiệu', 'Lý trình (m)', 'Lý trình', 'Vị trí', 'Cách tim (m)', 'Lớp #', 'Tên lớp', 'Dày (m)', 'Ghi chú lớp', 'Ghi chú lỗ khoan'],
-      ];
-      let stt = 0;
-      for (const h of boreHoles) {
-        if (h.layers.length === 0) {
-          stt += 1;
-          rowsBore.push([stt, h.pieceNumber, h.startStation, formatStation(h.startStation), sideLabelVi(h.side), h.cachTim ?? 0, '—', '(không có lớp)', '—', '', h.notes ?? '']);
-        } else {
-          for (const l of h.layers) {
-            stt += 1;
-            rowsBore.push([stt, h.pieceNumber, h.startStation, formatStation(h.startStation), sideLabelVi(h.side), h.cachTim ?? 0, l.order, l.name, l.depth, l.notes ?? '', h.notes ?? '']);
-          }
-        }
-      }
-      const wsBore = XLSX.utils.aoa_to_sheet(rowsBore);
-      wsBore['!cols'] = [{ wch: 5 }, { wch: 10 }, { wch: 12 }, { wch: 14 }, { wch: 10 }, { wch: 12 }, { wch: 8 }, { wch: 32 }, { wch: 10 }, { wch: 20 }, { wch: 20 }];
-      XLSX.utils.book_append_sheet(wb, wsBore, 'Lỗ khoan');
-
-      // Sheet 2: Hố đào
-      const rowsPit: (string | number)[][] = [
-        ['STT', 'Số hiệu', 'Lý trình (m)', 'Lý trình', 'Vị trí', 'Cách tim (m)', 'Lớp #', 'Tên lớp', 'Dày (m)', 'Ghi chú lớp', 'Ghi chú hố đào'],
-      ];
-      stt = 0;
-      for (const p of pits) {
-        if (p.layers.length === 0) {
-          stt += 1;
-          rowsPit.push([stt, p.pieceNumber, p.startStation, formatStation(p.startStation), sideLabelVi(p.side), p.cachTim ?? 0, '—', '(không có lớp)', '—', '', p.notes ?? '']);
-        } else {
-          for (const l of p.layers) {
-            stt += 1;
-            rowsPit.push([stt, p.pieceNumber, p.startStation, formatStation(p.startStation), sideLabelVi(p.side), p.cachTim ?? 0, l.order, l.name, l.depth, l.notes ?? '', p.notes ?? '']);
-          }
-        }
-      }
-      const wsPit = XLSX.utils.aoa_to_sheet(rowsPit);
-      wsPit['!cols'] = [{ wch: 5 }, { wch: 10 }, { wch: 12 }, { wch: 14 }, { wch: 10 }, { wch: 12 }, { wch: 8 }, { wch: 32 }, { wch: 10 }, { wch: 20 }, { wch: 20 }];
-      XLSX.utils.book_append_sheet(wb, wsPit, 'Hố đào');
-
-      // Sheet 3: Tổng hợp số lượng
-      const rowsSum: (string | number)[][] = [
-        ['Loại', 'Số lượng', 'Tổng chiều dày các lớp (m)'],
-        ['Lỗ khoan', boreHoles.length, boreHoles.reduce((s, h) => s + h.layers.reduce((a, l) => a + l.depth, 0), 0).toFixed(2)],
-        ['Hố đào', pits.length, pits.reduce((s, p) => s + p.layers.reduce((a, l) => a + l.depth, 0), 0).toFixed(2)],
-      ];
-      const wsSum = XLSX.utils.aoa_to_sheet(rowsSum);
-      wsSum['!cols'] = [{ wch: 14 }, { wch: 10 }, { wch: 28 }];
-      XLSX.utils.book_append_sheet(wb, wsSum, 'Tổng hợp');
-
-      const safe = (segment.name || 'segment').replace(/[^a-zA-Z0-9_-]+/g, '_').slice(0, 40);
-      const dateStr = new Date().toISOString().slice(0, 10);
-      const pathOut = await save({
-        title: 'Lưu báo cáo Lỗ khoan + Hố đào',
-        defaultPath: `LoKhoan_HoDao_${safe}_${dateStr}.xlsx`,
-        filters: [{ name: 'Excel', extensions: ['xlsx'] }],
-      });
-      if (!pathOut) return;
-      const buf = XLSX.write(wb, { type: 'array', bookType: 'xlsx' }) as ArrayBuffer;
-      const bytes = Array.from(new Uint8Array(buf));
-      await invoke<number>('save_file_bytes', { path: pathOut, bytes });
-      alert(`✅ Đã xuất Excel: ${pathOut}`);
-    } catch (e) {
-      alert(`✗ Xuất Excel lỗi: ${e instanceof Error ? e.message : String(e)}`);
-    }
-  }
-
   return (
     <div className="bh-pit-section">
       <div className="bh-pit-grid">
@@ -160,17 +82,7 @@ export function BoreHolePitSection({ project, segment, designDb }: Props): JSX.E
         />
       </div>
 
-      {/* Phase 42 wave 9 fix — Bỏ bảng thống kê inline. Nhấn nút "📊 Xuất Excel" để xem kết quả */}
-      {(boreHoles.length > 0 || pits.length > 0) && (
-        <div style={{ marginTop: 12, display: 'flex', justifyContent: 'flex-end' }}>
-          <button
-            type="button"
-            className="acad-btn"
-            style={{ background: 'var(--color-accent-primary, #10b981)', color: '#fff', borderColor: 'transparent', padding: '6px 12px', borderRadius: 4, cursor: 'pointer' }}
-            onClick={() => void handleExportExcel()}
-          >📊 Xuất Excel (Lỗ khoan + Hố đào + Thống kê)</button>
-        </div>
-      )}
+      {/* Phase 42 wave 9 fix — Bỏ nút Xuất Excel riêng. Dùng nút "Excel Báo cáo" chung của HHMĐ (đã include 2 sheet Lỗ khoan + Hố đào). */}
 
       <SectionStyles />
     </div>
