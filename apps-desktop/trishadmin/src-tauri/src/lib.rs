@@ -1917,6 +1917,29 @@ async fn github_upload_release_asset(
 }
 
 
+
+/// Phase 43 wave 13 — Đọc list file (.dwg) trong file zip local.
+/// Dùng để admin compare zip vs database trong AtgtBlocksPanel.
+#[tauri::command]
+async fn read_zip_entries(file_path: String) -> Result<Vec<String>, String> {
+    let f = std::fs::File::open(&file_path).map_err(|e| format!("Open zip: {}", e))?;
+    let mut zip = zip::ZipArchive::new(f).map_err(|e| format!("Parse zip: {}", e))?;
+    let mut entries: Vec<String> = Vec::new();
+    for i in 0..zip.len() {
+        if let Ok(file) = zip.by_index(i) {
+            if !file.is_dir() {
+                // Lấy basename (bỏ folder path nếu có)
+                let name = file.name().to_string();
+                let basename = name.rsplit(|c| c == '/' || c == '\\').next().unwrap_or(&name).to_string();
+                if !basename.is_empty() {
+                    entries.push(basename);
+                }
+            }
+        }
+    }
+    Ok(entries)
+}
+
 // ============================================================
 // Tauri builder + run
 // ============================================================
@@ -1989,6 +2012,7 @@ pub fn run() {
             file_purge_mtproto,
             // Phase 43 wave 11.1 — ATGT blocks zip upload qua GitHub Release
             github_upload_release_asset,
+            read_zip_entries,
         ])
         .setup(|app| {
             // Init SQLite DB lúc app start (silent fail nếu lỗi — sẽ retry khi gọi command).

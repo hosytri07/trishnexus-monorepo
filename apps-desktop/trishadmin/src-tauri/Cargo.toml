@@ -49,6 +49,9 @@ rusqlite = { version = "0.31", features = ["bundled"] }
 aes-gcm = "0.10"
 sha2 = "0.10"
 
+# Phase 43 wave 13 — Read zip entries cho ATGT Blocks panel
+zip = { version = "0.6", default-features = false, features = ["deflate"] }
+
 # Credential store — Windows Credential Manager (DPAPI), keychain macOS, Secret Service Linux
 keyring = "2.3"
 

@@ -25,8 +25,7 @@ import { RegistryPanel } from './components/RegistryPanel.js';
 import { SettingsPanel } from './components/SettingsPanel.js';
 import { ApiKeysPanel } from './components/ApiKeysPanel.js';
 import { LispLibraryPanel } from './components/LispLibraryPanel.js';
-import { AtgtZipUploadPanel } from './components/AtgtZipUploadPanel.js';
-import { AtgtDatabasePanel } from './components/AtgtDatabasePanel.js';
+import { AtgtBlocksPanel } from './components/AtgtBlocksPanel.js';
 import { LibraryCuratorPanel } from './components/LibraryCuratorPanel.js';
 import { FeedbackPanel } from './components/FeedbackPanel.js';
 import { AuditPanel } from './components/AuditPanel.js';
@@ -68,8 +67,7 @@ type Panel =
   | 'drive'
   | 'api_keys'
   | 'lisp_library'
-  | 'atgt_zip_upload'
-  | 'atgt_database'
+  | 'atgt_blocks'
   | 'app_catalog'
   | 'office_admin'
   | 'iso_admin'
@@ -144,8 +142,7 @@ const NAV_GROUPS: NavGroup[] = [
       { id: 'backup', label: '💾 Backup / Restore' },
       { id: 'api_keys', label: '🔐 API Keys' },
       { id: 'lisp_library', label: '🧩 AutoLISP Library' },
-      { id: 'atgt_zip_upload', label: '📦 ATGT Blocks ZIP' },
-      { id: 'atgt_database', label: '🗂 ATGT Database' },
+      { id: 'atgt_blocks', label: '🚸 ATGT Blocks (DB + ZIP)' },
       { id: 'settings', label: 'Cài đặt' },
     ],
   },
@@ -295,8 +292,7 @@ export function App(): JSX.Element {
         {active === 'backup' && <BackupPanel />}
         {active === 'api_keys' && <ApiKeysPanel />}
         {active === 'lisp_library' && <LispLibraryPanel />}
-        {active === 'atgt_zip_upload' && <AtgtZipUploadPanel />}
-        {active === 'atgt_database' && <AtgtDatabasePanel />}
+        {active === 'atgt_blocks' && <AtgtBlocksPanel />}
         {active === 'app_catalog' && <AppCatalogPanel />}
         {active === 'office_admin' && <OfficeAdminPanel />}
         {active === 'iso_admin' && <ISOAdminPanel />}
