@@ -47,6 +47,7 @@ import { AtgtItemsTabs } from './AtgtItemsTabs.js';
 import type { AtgtSegmentItemsV2 } from '../../lib/atgt-items-types.js';
 import { generateAtgtSegmentCommands as generateAtgtSegmentCommandsV2 } from '../../lib/atgt-draw-script.js';
 import { exportAtgtItemsToExcel } from '../../lib/atgt-excel-export.js';
+import { AtgtDatabaseViewer } from './AtgtDatabaseViewer.js';
 import { invoke } from '@tauri-apps/api/core';
 import { getFirebaseDb } from '@trishteam/auth';
 import { doc as fsDoc, getDoc } from 'firebase/firestore';
@@ -126,6 +127,7 @@ export function AtgtPanel(): JSX.Element {
   const [acadRunning, setAcadRunning] = useState(false);
   const [statusMsg, setStatusMsg] = useState<string>('');
   const [downloadingBlocks, setDownloadingBlocks] = useState(false);
+  const [showDatabaseViewer, setShowDatabaseViewer] = useState(false);
 
   async function handleDownloadBlocks(): Promise<void> {
     if (downloadingBlocks) return;
@@ -485,6 +487,11 @@ export function AtgtPanel(): JSX.Element {
           <div className="atgt-main-col">
             <div className="atgt-action-bar atgt-action-bar-top">
               <button type="button" className="btn btn-ghost"
+                onClick={() => setShowDatabaseViewer(true)}
+                title="Xem 415 block trong database (admin TrishAdmin quản lý) — auto-sync khi cập nhật">
+                📋 Xem database
+              </button>
+              <button type="button" className="btn btn-ghost"
                 onClick={() => void handleDownloadBlocks()}
                 disabled={downloadingBlocks}
                 title="Tải zip block ATGT từ GitHub Release + giải nén vào folder local">
@@ -542,6 +549,8 @@ export function AtgtPanel(): JSX.Element {
       )}
 
       <InlineDialog state={dialog} onClose={() => setDialog(null)} />
+
+      {showDatabaseViewer && <AtgtDatabaseViewer onClose={() => setShowDatabaseViewer(false)} />}
     </div>
   );
 }
