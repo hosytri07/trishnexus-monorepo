@@ -464,16 +464,16 @@ export function AtgtBlocksPanel(): JSX.Element {
           ) : (
             <div style={{ overflow: 'auto', flex: 1, borderRadius: 6, border: '1px solid var(--ts-border)' }}>
               <table style={tableStyle}>
-                <thead style={{ position: 'sticky', top: 0, background: 'var(--ts-bg-2)', zIndex: 1 }}>
+                <thead>
                   <tr>
-                    <th style={{ ...thStyle, width: 76, cursor: 'pointer' }} onClick={() => handleSort('zip')} title="Block file đã có trong ZIP chưa?">ZIP{sortIndicator('zip')}</th>
-                    <th style={{ ...thStyle, width: 120, cursor: 'pointer' }} onClick={() => handleSort('id')} title="Slug Firestore docId">ID{sortIndicator('id')}</th>
-                    <th style={{ ...thStyle, width: 110, cursor: 'pointer' }} onClick={() => handleSort('label')} title="Tên hiển thị (vd P.101)">Label{sortIndicator('label')}</th>
-                    <th style={{ ...thStyle, width: 130, cursor: 'pointer' }} onClick={() => handleSort('fileName')} title="Tên file .dwg">File .dwg{sortIndicator('fileName')}</th>
-                    <th style={{ ...thStyle, width: 120, cursor: 'pointer' }} onClick={() => handleSort('category')} title="Loại tài sản">Nhóm{sortIndicator('category')}</th>
-                    <th style={{ ...thStyle, cursor: 'pointer' }} onClick={() => handleSort('meaning')} title="Diễn giải ý nghĩa">Ý nghĩa{sortIndicator('meaning')}</th>
-                    <th style={{ ...thStyle, width: 110, cursor: 'pointer' }} onClick={() => handleSort('shapeKind')} title="Block / Linetype · Vuông góc / Song song">Dạng/Hướng{sortIndicator('shapeKind')}</th>
-                    <th style={{ ...thStyle, width: 100 }}>Thao tác</th>
+                    <th style={{ ...thStyleSticky, width: 76, cursor: 'pointer' }} onClick={() => handleSort('zip')} title="Block file đã có trong ZIP chưa?">ZIP{sortIndicator('zip')}</th>
+                    <th style={{ ...thStyleSticky, width: 120, cursor: 'pointer' }} onClick={() => handleSort('id')} title="Slug Firestore docId">ID{sortIndicator('id')}</th>
+                    <th style={{ ...thStyleSticky, width: 110, cursor: 'pointer' }} onClick={() => handleSort('label')} title="Tên hiển thị (vd P.101)">Label{sortIndicator('label')}</th>
+                    <th style={{ ...thStyleSticky, width: 130, cursor: 'pointer' }} onClick={() => handleSort('fileName')} title="Tên file .dwg">File .dwg{sortIndicator('fileName')}</th>
+                    <th style={{ ...thStyleSticky, width: 120, cursor: 'pointer' }} onClick={() => handleSort('category')} title="Loại tài sản">Nhóm{sortIndicator('category')}</th>
+                    <th style={{ ...thStyleSticky, cursor: 'pointer' }} onClick={() => handleSort('meaning')} title="Diễn giải ý nghĩa">Ý nghĩa{sortIndicator('meaning')}</th>
+                    <th style={{ ...thStyleSticky, width: 110, cursor: 'pointer' }} onClick={() => handleSort('shapeKind')} title="Block / Linetype · Vuông góc / Song song">Dạng/Hướng{sortIndicator('shapeKind')}</th>
+                    <th style={{ ...thStyleSticky, width: 100 }}>Thao tác</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -763,6 +763,12 @@ const thStyle: React.CSSProperties = {
   overflow: 'hidden',
   textOverflow: 'ellipsis',
   userSelect: 'none',
+};
+// Wave 14.4 — BỎ sticky (gây overlap row data) — header scroll cùng table. Đơn giản, đúng.
+const thStyleSticky: React.CSSProperties = {
+  ...thStyle,
+  background: '#1c1c22',  // opaque solid để chắc không transparent (visual distinct)
+  borderBottom: '2px solid var(--ts-border)',
 };
 const tdStyle: React.CSSProperties = {
   padding: '5px 10px',
