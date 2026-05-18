@@ -287,7 +287,8 @@ export function AtgtBlocksPanel(): JSX.Element {
       let done = 0, failed = 0;
       const db = getFirebaseDb();
       for (const fp of files) {
-        const nm = String(fp).split(/[\/]/).pop() ?? 'unknown.dwg';
+        // Phase 43 wave 15.5 — split cả Windows (\) lẫn Unix (/) path
+        const nm = String(fp).split(/[\\/]/).pop() ?? 'unknown.dwg';
         setToast(`⏳ Upload ${done + 1}/${files.length}: ${nm}...`);
         try {
           const result = await invoke<{ releaseId: number; assetId: number; assetName: string; downloadUrl: string; sizeBytes: number }>(
@@ -587,11 +588,15 @@ export function AtgtBlocksPanel(): JSX.Element {
                           : (i % 2 === 0 ? '#1a1a20' : '#1f1f25'),
                       }}>
                         <td style={{ ...tdStyle, textAlign: 'center' }}>
-                          {zipConfig
+                          {(zipConfig || atgtFiles.length > 0)
                             ? (inZip
-                                ? <span style={pillOk} title={`File ${b.fileName} đã có trong ZIP v${zipConfig.version}`}>✓</span>
-                                : <span style={pillWarn} title={`File ${b.fileName} CHƯA có trong ZIP`}>✗</span>)
-                            : <span style={pillNeutral} title="Chưa có ZIP nào upload">—</span>}
+                                ? <span style={pillOk} title={
+                                    getFileMeta(b.fileName)
+                                      ? `File ${b.fileName} đã upload (per-file Wave 15)`
+                                      : `File ${b.fileName} đã có trong ZIP v${zipConfig?.version}`
+                                  }>✓</span>
+                                : <span style={pillWarn} title={`File ${b.fileName} CHƯA có`}>✗</span>)
+                            : <span style={pillNeutral} title="Chưa upload file nào">—</span>}
                         </td>
                         <td style={tdStyle}><code style={code}>{b.id}</code></td>
                         <td style={tdStyle}><strong>{b.label}</strong></td>
