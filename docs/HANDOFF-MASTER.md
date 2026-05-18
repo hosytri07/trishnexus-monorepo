@@ -4,12 +4,113 @@
 >
 > **🔴 ĐỌC SECTION `📍 PHIÊN HIỆN TẠI` NGAY DƯỚI — TẤT CẢ SECTION CŨ PHÍA DƯỚI LÀ LỊCH SỬ ARCHIVE, ĐỪNG NHẦM!**
 >
-> **Cập nhật:** 2026-05-17 (Phase 42 wave 8 — 6 góp ý mới của Trí cho TrishDesign code xong, CHƯA TEST.)
+> **Cập nhật:** 2026-05-18 (Phase 43 wave 15 — ATGT refactor xong toàn bộ. CHƯA test máy cơ quan.)
 > **Chủ dự án:** Trí (hosytri77@gmail.com / trishteam.official@gmail.com) — kỹ sư hạ tầng giao thông Đà Nẵng. Không phải dev. Giao tiếp tiếng Việt, tránh jargon.
 
 ---
 
-## 📍 PHIÊN HIỆN TẠI — 2026-05-17 (Phase 42 wave 8 — 6 góp ý mới TrishDesign, CHƯA TEST)
+## 📍 PHIÊN HIỆN TẠI — 2026-05-18 (Phase 43 wave 15 — ATGT toàn bộ, CHƯA TEST MÁY CƠ QUAN)
+
+### 🚨 BƯỚC ĐẦU TIÊN máy cơ quan
+
+```powershell
+cd C:\Users\TRI\Documents\Claude\Projects\TrishTEAM\trishnexus-monorepo
+START.bat
+```
+
+Sau đó chọn app cần test:
+
+```powershell
+cd apps-desktop\trishadmin
+pnpm tauri dev
+```
+
+hoặc:
+
+```powershell
+cd apps-desktop\trishdesign
+pnpm tauri dev
+```
+
+Nếu Firestore báo "Missing or insufficient permissions" → deploy rules 1 lần:
+
+```powershell
+cd C:\Users\TRI\Documents\Claude\Projects\TrishTEAM\trishnexus-monorepo
+firebase deploy --only firestore:rules
+```
+
+### 🧪 TEST PLAN sau khi START.bat lên
+
+**A. TrishAdmin → "🚸 ATGT Blocks (DB + ZIP)" (panel merged Wave 13):**
+1. Bấm "**Bulk import**" → modal textarea hiện ra (KHÔNG phải browser popup)
+2. Mở Excel `database-c41a296c.xlsx` → sheet "Database" → Ctrl+A + Ctrl+C → paste → Import (415 dòng)
+3. Click header cột bất kỳ (Label / File / Nhóm / Ý nghĩa) để sort ASC/DESC
+4. Nút "📁 **Upload .dwg**" (Wave 15.2) — nhập GitHub PAT (scope `repo`, lưu localStorage) + tag `trishdesign-blocks-atgt-v1.0.0` → chọn nhiều file .dwg → app upload tuần tự từng file lên GitHub Release + ghi Firestore `/atgt_files/{slug}` per file
+5. Sau upload, cột "ZIP" trong table hiện ✓ cho file đã upload, ✗ cho file chưa có, — nếu chưa upload zip nào
+6. Filter dropdown "Tất cả ZIP status / ✓ Có / ✗ Thiếu" để tìm nhanh file cần bổ sung
+7. Nút "**Sửa / Xóa**" mỗi row (Wave 14.3) — clickable, có border + padding
+
+**B. TrishDesign → Panel "🚸 Vẽ hiện trạng ATGT" (refactor Wave 10):**
+1. Tạo dự án + đoạn mới → thấy **layout 2-col**: Sidebar trái (khuôn đường + chế độ vẽ) + Main phải (9 tab tài sản)
+2. Nút "**📋 Xem database**" (Wave 14.2) → mở modal hiện 415 block — read-only, có search/filter/sort
+3. Nút "**🔄 Đồng bộ block**" (Wave 15.3) → fetch `/atgt_files` Firestore + Rust `list_local_atgt_files` + diff → download chỉ file mới/cập nhật, save vào `%APPDATA%\vn.trishteam.design\blocks\ATGT`
+   - Toast realtime: "Đồng bộ 5/12: 2.BB.dwg"
+   - Summary cuối: "+3 mới · ↻2 cập nhật · ✓10 đã có"
+4. **9 tab tài sản** (Wave 10.2): BienBao / VachSon / DenTinHieu / HoLanMem / CocTieu / RanhDoc / CongNgang / TieuPhanQuang / GuongCauLoi — mỗi tab có bảng nhập riêng với cột đúng schema Excel
+5. Tab "🛑 Biển báo" → ➕ Thêm dòng → gõ "P.101" → datalist autocomplete + tự fill "Ý nghĩa" + icon ✓ verify từ database (Wave 11.3 + 12.2)
+6. Nút "**📐 Vẽ AutoCAD**" (Wave 10.3): vẽ trục tuyến + 0.LT block lý trình + INSERT block tài sản + LEADER hiện trạng
+7. Nút "**📊 Xuất Excel**" (Wave 10.4): file 9 sheet đúng format database-c41a296c.xlsx
+
+**C. TrishDesign → Panel "🛣 Vẽ hư hỏng mặt đường" (Wave 8.2):**
+1. Cuộn xuống dưới grid hư hỏng → thấy section "🔵 Lỗ khoan" + "🟧 Hố đào"
+2. ➕ Thêm → ô TRỐNG (không default LK1) → tự nhập số hiệu + lý trình + cách tim + vị trí
+3. "📚 Lớp" expand → thêm các lớp (BTN/CPDD/Đất sét...)
+4. Nút "**📊 Xuất Excel**" (TOP toolbar HHMĐ — 1 nút duy nhất) → file 5 sheet bao gồm Lỗ khoan + Hố đào theo lớp
+5. Nút "**📐 Vẽ AutoCAD**" → vẽ DONUT lỗ khoan + RECTANG hố đào + bảng thống kê CAD merge cells
+
+**D. TrishDesign → Panel "🌊 Vẽ mặt cắt hốt sạt — BaoLu" (Wave 8.1):**
+1. Section "Diện tích đất sụt" có **dropdown 4 nguồn**: AI Vision / Polygon AutoCAD / Hình học / Nhập tay
+2. Chọn "Hình học" → hiện input "Chiều sâu sụt trung bình (m)" → ô diện tích tự tính readonly
+3. 1 nút "**📐 Vẽ AutoCAD**" duy nhất (gộp từ 2 nút cũ)
+
+**E. App.tsx → admin thấy "📂 Mẫu hồ sơ" (Wave 8.1):**
+- Admin login → sidebar "📂 Mẫu hồ sơ" hiển thị DocumentsPanel với 5 tab (KHÔNG phải banner Locked)
+
+### ⚠ Lỗi có thể gặp & cách fix
+
+- **"Missing or insufficient permissions"** → deploy Firestore rules (xem bước đầu)
+- **TrishAdmin upload .dwg 401 Unauthorized** → GitHub PAT sai/hết hạn, tạo mới ở github.com/settings/tokens (scope `repo`)
+- **TrishDesign sync 0 file** → Firestore `/atgt_files` rỗng, admin chưa upload .dwg qua TrishAdmin
+- **AutoCAD không nhận block khi vẽ ATGT** → bấm "🔄 Đồng bộ block" trước
+- **Vite esbuild lỗi "Unexpected" hoặc JSX no closing** → linter cắt file, `git checkout HEAD -- <file>` restore
+
+### 📁 Tổng kết Phase 42-43 (đã commit + push):
+
+| Phase/Wave | Nội dung chính | Files chính |
+|---|---|---|
+| **42 wave 8** | RoadDamage thêm lỗ khoan + hố đào + bảng thống kê đa lớp · BaoLu 4 nguồn diện tích · Admin bypass Mẫu hồ sơ | types.ts · state.ts · BoreHolePitSection.tsx (NEW) · BaoLuPanel.tsx · App.tsx |
+| **42 wave 9** | ATGT block động Firestore + bảng đa năng + admin /admin/atgt-blocks + Excel + draw straight | AtgtBlockTable.tsx (NEW) · admin/atgt-blocks/page.tsx · atgt-placement-script.ts · atgt-excel-export.ts |
+| **43 wave 10** | Refactor ATGT 9 loại tài sản theo `database-c41a296c.xlsx` · Sidebar khuôn đường · 9 tab · Engine vẽ + Excel 9 sheet | atgt-items-types.ts (NEW) · AtgtSidebar.tsx (NEW) · AtgtItemsTabs.tsx (NEW 833 dòng) · atgt-draw-script.ts (NEW) |
+| **43 wave 11** | TrishAdmin upload zip lên GitHub Release · nút Tải block trong AtgtPanel · datalist autocomplete | trishadmin/AtgtZipUploadPanel.tsx (deprecated) · Rust github_upload_release_asset |
+| **43 wave 12** | TrishAdmin panel CRUD database 415 block (bulk import TSV) + auto-fill yNghia · Bỏ web /atgt-blocks-zip | trishadmin/AtgtDatabasePanel.tsx (deprecated) · findBlockByLabel + BlockStatusBadge |
+| **43 wave 13** | Merge 2 panel thành 1 (Database + ZIP) · custom modal textarea bulk import (bỏ window.prompt) · Rust read_zip_entries · check ZIP vs database | trishadmin/AtgtBlocksPanel.tsx (NEW MERGED) |
+| **43 wave 14** | Sort header click · cột ZIP pill ✓/✗/— · TrishDesign AtgtDatabaseViewer modal read-only · table-layout fixed | AtgtDatabaseViewer.tsx (NEW) |
+| **43 wave 15** | Per-file upload .dwg lên GitHub (multi-pick) · Firestore `/atgt_files` per file metadata · TrishDesign incremental sync (chỉ file mới/cập nhật) · UI table colors explicit · Rust list_local + download_atgt_file | atgt-sync.ts (NEW) · Rust 3 command mới |
+
+### Defer (chưa làm):
+- TrishDesign mode "Theo polyline AutoCAD" (Wave 9.3b) — cần Rust `acad_get_point_on_polyline` đọc polyline curve
+- Upload block .dwg thật từ máy cơ quan để test full flow upload + sync
+- Build .exe release wave 2 (Drive/Finance/Office/ISO/Launcher) — defer sau khi test xong ATGT
+
+### 📚 Workflow nhắc lại:
+- **Đầu phiên:** `START.bat` (auto pull + install)
+- **Cuối phiên:** `END.bat` (auto commit + push)
+- **2 máy nhà ↔ cơ quan:** luân phiên qua GitHub
+- **Files NOT in git:** `.env.local`, `scripts/service-account.json`, `.machine-label` (copy USB nếu thiếu)
+
+---
+
+## 📍 PHIÊN CŨ — 2026-05-17 (Phase 42 wave 8 — 6 góp ý mới TrishDesign)
 
 ### 🚨 BƯỚC ĐẦU TIÊN
 
