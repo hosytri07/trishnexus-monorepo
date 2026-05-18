@@ -463,8 +463,18 @@ export function AtgtBlocksPanel(): JSX.Element {
         <button type="button" onClick={() => setZipUploadExpanded((v) => !v)} style={btnGhost}>
           {zipUploadExpanded ? 'Đóng upload' : 'Upload ZIP/files'}
         </button>
-        <button type="button" onClick={() => void handleUploadMultipleDwg()} style={btnPrimary} disabled={uploading || !token.trim() || !tag.trim()}
-          title="Chọn nhiều file .dwg local → upload từng file lên GitHub Release + lưu metadata Firestore">
+        <button type="button"
+          onClick={() => {
+            if (!token.trim() || !tag.trim()) {
+              setZipUploadExpanded(true);
+              setToast('Bấm "Upload ZIP/files" mở rộng → nhập GitHub PAT + tag trước khi upload .dwg');
+              return;
+            }
+            void handleUploadMultipleDwg();
+          }}
+          style={uploading ? { ...btnPrimary, opacity: 0.5, cursor: 'wait' } : btnPrimary}
+          disabled={uploading}
+          title={!token.trim() ? 'Cần nhập GitHub PAT trước (bấm Upload ZIP/files)' : 'Chọn nhiều .dwg → upload GitHub Release + Firestore'}>
           📁 Upload .dwg
         </button>
         <button type="button" onClick={() => { setEditing({ ...EMPTY }); setShowAdd(true); }} style={btnPrimary}>+ Thêm block</button>
@@ -478,13 +488,13 @@ export function AtgtBlocksPanel(): JSX.Element {
           {zipConfig ? (
             <>
               <span style={badgeOk}>v{zipConfig.version}</span>
-              <span style={{ color: 'var(--ts-text-2)' }}>· {zipConfig.fileName}</span>
-              <span style={{ color: 'var(--ts-text-2)' }}>· {(zipConfig.size / 1024 / 1024).toFixed(2)} MB</span>
-              <span style={{ color: 'var(--ts-text-2)' }}>· {(zipConfig.zipEntries?.length ?? 0)} file .dwg</span>
-              <span style={{ color: 'var(--ts-text-2)' }}>· {new Date(zipConfig.uploaded_at).toLocaleString('vi-VN')}</span>
+              <span style={{ color: 'var(--fg-muted)' }}>· {zipConfig.fileName}</span>
+              <span style={{ color: 'var(--fg-muted)' }}>· {(zipConfig.size / 1024 / 1024).toFixed(2)} MB</span>
+              <span style={{ color: 'var(--fg-muted)' }}>· {(zipConfig.zipEntries?.length ?? 0)} file .dwg</span>
+              <span style={{ color: 'var(--fg-muted)' }}>· {new Date(zipConfig.uploaded_at).toLocaleString('vi-VN')}</span>
             </>
           ) : (
-            <span style={{ color: 'var(--ts-text-2)' }}>Chưa có ZIP nào</span>
+            <span style={{ color: 'var(--fg-muted)' }}>Chưa có ZIP nào</span>
           )}
           <span style={{ flex: 1 }} />
           {items.length > 0 && (
@@ -496,7 +506,7 @@ export function AtgtBlocksPanel(): JSX.Element {
         </div>
 
         {zipUploadExpanded && (
-          <div style={{ marginTop: 12, paddingTop: 12, borderTop: '1px solid var(--ts-border)' }}>
+          <div style={{ marginTop: 12, paddingTop: 12, borderTop: '1px solid var(--border)' }}>
             <Field label="GitHub PAT (scope `repo`)" hint="Lấy ở github.com/settings/tokens">
               <input type="password" style={input} value={token}
                 onChange={(e) => saveToken(e.target.value)}
@@ -544,16 +554,16 @@ export function AtgtBlocksPanel(): JSX.Element {
           <input type="text" placeholder="Tìm tên / file / ý nghĩa..."
             value={searchText} onChange={(e) => setSearchText(e.target.value)}
             style={{ ...input, minWidth: 240, flex: 1 }} />
-          <span style={{ fontSize: 12, color: 'var(--ts-text-2)' }}>Hiển thị: <strong>{filtered.length}</strong></span>
+          <span style={{ fontSize: 12, color: 'var(--fg-muted)' }}>Hiển thị: <strong>{filtered.length}</strong></span>
         </div>
 
-        {loading ? <p style={{ color: 'var(--ts-text-2)' }}>Đang tải...</p>
+        {loading ? <p style={{ color: 'var(--fg-muted)' }}>Đang tải...</p>
           : items.length === 0 ? (
             <div style={{ background: 'rgba(245,158,11,0.12)', border: '1px solid rgba(245,158,11,0.4)', padding: 16, borderRadius: 8 }}>
               <p style={{ margin: 0, fontSize: 13 }}>Database rỗng. Bấm "Bulk import" để load 415 block từ Excel database-c41a296c.xlsx.</p>
             </div>
           ) : (
-            <div style={{ overflow: 'auto', flex: 1, borderRadius: 6, border: '1px solid var(--ts-border)' }}>
+            <div style={{ overflow: 'auto', flex: 1, borderRadius: 6, border: '1px solid var(--border)' }}>
               <table style={tableStyle}>
                 <thead>
                   <tr>
@@ -587,7 +597,7 @@ export function AtgtBlocksPanel(): JSX.Element {
                         <td style={tdStyle}><strong>{b.label}</strong></td>
                         <td style={tdStyle}><code style={code}>{b.fileName}</code></td>
                         <td style={tdStyle}>{b.category}</td>
-                        <td style={{ ...tdStyle, fontSize: 12, color: 'var(--ts-text-2)' }}>{b.meaning ?? '—'}</td>
+                        <td style={{ ...tdStyle, fontSize: 12, color: 'var(--fg-muted)' }}>{b.meaning ?? '—'}</td>
                         <td style={tdStyle}>
                           {b.shapeKind === 'linetype' ? 'LT' : 'Block'} / {b.orientation === 'parallel' ? '||' : '⊥'}
                         </td>
@@ -728,10 +738,10 @@ function BulkImportDialog({ value, onChange, onSubmit, onCancel }: {
         ...modalContent, minWidth: 760, maxWidth: 900,
       }}>
         <h2 style={modalTitle}>Bulk import database từ Excel</h2>
-        <p style={{ fontSize: 12, color: 'var(--ts-text-2)', margin: '0 0 4px' }}>
+        <p style={{ fontSize: 12, color: 'var(--fg-muted)', margin: '0 0 4px' }}>
           Mở Excel database-c41a296c.xlsx → sheet "Database" → Ctrl+A → Ctrl+C → Paste vào ô bên dưới.
         </p>
-        <p style={{ fontSize: 11, color: 'var(--ts-text-2)', margin: '0 0 8px' }}>
+        <p style={{ fontSize: 11, color: 'var(--fg-muted)', margin: '0 0 8px' }}>
           Cột: STT | Tên file | Dạng địa vật | Tên địa vật | Ý nghĩa | Hướng | Loại tài sản | Ghi chú
         </p>
         <textarea autoFocus value={value} onChange={(e) => onChange(e.target.value)}
@@ -739,13 +749,13 @@ function BulkImportDialog({ value, onChange, onSubmit, onCancel }: {
           style={{
             width: '100%', minHeight: 320,
             padding: '10px 12px',
-            border: '1px solid var(--ts-border)', borderRadius: 6,
-            background: 'var(--ts-bg-0)', color: 'var(--ts-text-1)',
+            border: '1px solid var(--border)', borderRadius: 6,
+            background: 'var(--bg-soft)', color: 'var(--fg)',
             fontFamily: 'monospace', fontSize: 12,
             outline: 'none', resize: 'vertical',
             boxSizing: 'border-box',
           }} />
-        <p style={{ fontSize: 11, color: 'var(--ts-text-2)', margin: '8px 0' }}>
+        <p style={{ fontSize: 11, color: 'var(--fg-muted)', margin: '8px 0' }}>
           {value ? `${value.split(/\r?\n/).filter((l) => l.trim()).length} dòng` : '0 dòng'}
         </p>
         <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 12 }}>
@@ -767,11 +777,11 @@ function ConfirmDialog({ title, message, danger, onConfirm, onCancel }: {
         ...modalContent, minWidth: 400, maxWidth: 500,
       }}>
         <h2 style={modalTitle}>{title}</h2>
-        <p style={{ fontSize: 13, color: 'var(--ts-text-2)', margin: '0 0 16px' }}>{message}</p>
+        <p style={{ fontSize: 13, color: 'var(--fg-muted)', margin: '0 0 16px' }}>{message}</p>
         <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
           <button type="button" onClick={onCancel} style={btnGhost}>Hủy</button>
           <button type="button" onClick={onConfirm}
-            style={{ ...btnPrimary, background: danger ? '#dc2626' : 'var(--ts-accent)' }}>
+            style={{ ...btnPrimary, background: danger ? '#dc2626' : 'var(--accent)' }}>
             {danger ? 'Xóa' : 'OK'}
           </button>
         </div>
@@ -783,23 +793,23 @@ function ConfirmDialog({ title, message, danger, onConfirm, onCancel }: {
 function Field({ label, hint, children }: { label: string; hint?: string; children: React.ReactNode }): JSX.Element {
   return (
     <label style={{ display: 'flex', flexDirection: 'column', gap: 3, marginTop: 8 }}>
-      <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--ts-text-1)' }}>{label}</span>
+      <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--fg)' }}>{label}</span>
       {children}
-      {hint && <span style={{ fontSize: 10, color: 'var(--ts-text-2)' }}>{hint}</span>}
+      {hint && <span style={{ fontSize: 10, color: 'var(--fg-muted)' }}>{hint}</span>}
     </label>
   );
 }
 
-const card: React.CSSProperties = { background: 'var(--ts-bg-1)', border: '1px solid var(--ts-border)', borderRadius: 8, padding: 12 };
-const input: React.CSSProperties = { padding: '5px 10px', border: '1px solid var(--ts-border)', borderRadius: 5, fontSize: 12, outline: 'none', background: 'var(--ts-bg-0)', color: 'var(--ts-text-1)', width: '100%', boxSizing: 'border-box' };
-const btnPrimary: React.CSSProperties = { padding: '6px 12px', background: 'var(--ts-accent)', color: '#fff', border: 'none', borderRadius: 5, fontSize: 12, fontWeight: 600, cursor: 'pointer' };
-const btnGhost: React.CSSProperties = { padding: '5px 10px', background: 'transparent', color: 'var(--ts-text-1)', border: '1px solid var(--ts-border)', borderRadius: 5, fontSize: 12, cursor: 'pointer' };
-const btnMini: React.CSSProperties = { padding: '2px 7px', background: 'transparent', color: 'var(--ts-text-1)', border: '1px solid var(--ts-border)', borderRadius: 3, fontSize: 11, cursor: 'pointer', marginLeft: 3 };
+const card: React.CSSProperties = { background: 'var(--bg-panel)', border: '1px solid var(--border)', borderRadius: 8, padding: 12 };
+const input: React.CSSProperties = { padding: '5px 10px', border: '1px solid var(--border)', borderRadius: 5, fontSize: 12, outline: 'none', background: 'var(--bg-soft)', color: 'var(--fg)', width: '100%', boxSizing: 'border-box' };
+const btnPrimary: React.CSSProperties = { padding: '6px 12px', background: 'var(--accent)', color: '#fff', border: 'none', borderRadius: 5, fontSize: 12, fontWeight: 600, cursor: 'pointer' };
+const btnGhost: React.CSSProperties = { padding: '5px 10px', background: 'transparent', color: 'var(--fg)', border: '1px solid var(--border)', borderRadius: 5, fontSize: 12, cursor: 'pointer' };
+const btnMini: React.CSSProperties = { padding: '2px 7px', background: 'transparent', color: 'var(--fg)', border: '1px solid var(--border)', borderRadius: 3, fontSize: 11, cursor: 'pointer', marginLeft: 3 };
 const btnAction: React.CSSProperties = {
   padding: '4px 10px',
-  background: 'var(--ts-bg-0)',
-  color: 'var(--ts-text-1)',
-  border: '1px solid var(--ts-border)',
+  background: 'var(--bg-soft)',
+  color: 'var(--fg)',
+  border: '1px solid var(--border)',
   borderRadius: 4,
   fontSize: 11,
   fontWeight: 600,
@@ -834,8 +844,8 @@ const pillNeutral: React.CSSProperties = {
   display: 'inline-block',
   width: 24, height: 18, lineHeight: '18px',
   background: 'transparent',
-  color: 'var(--ts-text-2)',
-  border: '1px solid var(--ts-border)',
+  color: 'var(--fg-muted)',
+  border: '1px solid var(--border)',
   borderRadius: 4,
   fontSize: 12, fontWeight: 600, textAlign: 'center',
 };
@@ -895,14 +905,14 @@ const modalBackdrop: React.CSSProperties = {
   display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000,
 };
 const modalContent: React.CSSProperties = {
-  background: 'var(--ts-bg-1)',
+  background: 'var(--bg-panel)',
   padding: 20, borderRadius: 12,
   minWidth: 560, maxWidth: 720,
   maxHeight: '90vh', overflowY: 'auto',
-  border: '1px solid var(--ts-border)',
+  border: '1px solid var(--border)',
   boxShadow: '0 20px 50px rgba(0,0,0,0.4)',
 };
 const modalTitle: React.CSSProperties = {
   marginTop: 0, marginBottom: 16,
-  fontSize: 16, color: 'var(--ts-text-1)',
+  fontSize: 16, color: 'var(--fg)',
 };
