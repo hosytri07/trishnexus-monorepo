@@ -14,7 +14,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { getAppVersion, openUrl } from './lib/platform';
 import { AuthProvider, useAuth } from '@trishteam/auth/react';
 import { Building2, Wallet, ShoppingCart, LogOut, Sun, Moon, Settings as SettingsIcon, Shield, ExternalLink, Bell, Menu, Trophy, Package, Printer, Home, Mic, Sparkles, Coffee, Dumbbell, CreditCard } from 'lucide-react';
-import { LoginScreen } from './pages/LoginScreen';
+import { LoginScreen } from '@trishteam/auth/react';
 import { SettingsModal } from './pages/SettingsModal';
 import { NhaTroModule } from './modules/nhatro/NhaTroModule';
 import { TaiChinhModule } from './modules/taichinh/TaiChinhModule';
@@ -73,7 +73,7 @@ function AppGate(): JSX.Element {
       </div>
     );
   }
-  if (!firebaseUser) return <LoginScreen />;
+  if (!firebaseUser) return <LoginScreen appName="TrishFinance" appShellId="finance" tagline="Quản lý nhà trọ · Tài chính cá nhân · Bán hàng" />;
   const role = (profile as any)?.role;
   const financeUser = (profile as any)?.finance_user === true;
   // Admin luôn vào được. User thường cần finance_user=true. Trial/no-role/missing flag → block.

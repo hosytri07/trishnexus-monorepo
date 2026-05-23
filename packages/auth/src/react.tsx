@@ -61,6 +61,9 @@ export { AuthApp, type AuthAppProps } from './auth-app.js';
 // UserMenu — avatar + dropdown (email, role, signout). Đặt ở topbar app.
 export { UserMenu } from './user-menu.js';
 
+// Phase 44.2 — AuthGate replace KeyGate cũ. Check role + app_keys, không nhập key tay.
+export { AuthGate, type AuthGateProps } from './auth-gate.js';
+
 export interface AuthContextValue extends AuthState {
   /** Quick role check */
   role: UserRole | 'guest';

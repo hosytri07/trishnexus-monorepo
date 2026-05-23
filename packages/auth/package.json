@@ -14,14 +14,17 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@trishteam/data": "workspace:*"
+    "@trishteam/data": "workspace:*",
+    "@trishteam/design-system": "workspace:*"
   },
   "peerDependencies": {
     "firebase": ">=10 <12",
     "react": ">=18"
   },
   "peerDependenciesMeta": {
-    "react": { "optional": true }
+    "react": {
+      "optional": true
+    }
   },
   "devDependencies": {
     "@types/react": "18.3.3",

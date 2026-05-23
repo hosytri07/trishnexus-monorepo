@@ -539,4 +539,210 @@ html, body, #root, button, input, textarea, select {
   body { background: white !important; color: #000 !important; }
   aside, header, .no-print { display: none !important; }
   .ts-app { padding-left: 0 !important; }
-} 
+}
+
+/* ================================================================
+   Phase 44.1 — Per-app accent overrides
+   Set `<html data-app="work|utilities|finance|admin">` ở consumer main.tsx
+   ================================================================ */
+
+:root {
+  --color-brand-bg: #0E1A1A;
+  --color-brand-bg-elevated: #1A2626;
+}
+
+/* --- TrishWork — xanh la --- */
+:root[data-app="work"],
+:root[data-app="work"][data-theme="light"] {
+  --color-accent-primary: #059669;
+  --color-accent-secondary: #047857;
+  --color-accent-soft: rgba(5,150,105,0.10);
+  --color-accent-gradient: linear-gradient(135deg, #10b981 0%, #047857 100%);
+  --color-accent-focus: #059669;
+  --color-app-logo: #34D399;
+}
+:root[data-app="work"][data-theme="dark"] {
+  --color-accent-primary: #34d399;
+  --color-accent-secondary: #10b981;
+  --color-accent-soft: rgba(52,211,153,0.16);
+  --color-accent-gradient: linear-gradient(135deg, #34d399 0%, #10b981 100%);
+  --color-accent-focus: #34d399;
+  --color-app-logo: #34D399;
+}
+
+/* --- TrishUtilities — vang --- */
+:root[data-app="utilities"],
+:root[data-app="utilities"][data-theme="light"] {
+  --color-accent-primary: #d97706;
+  --color-accent-secondary: #b45309;
+  --color-accent-soft: rgba(217,119,6,0.10);
+  --color-accent-gradient: linear-gradient(135deg, #f59e0b 0%, #b45309 100%);
+  --color-accent-focus: #d97706;
+  --color-app-logo: #FBBF24;
+}
+:root[data-app="utilities"][data-theme="dark"] {
+  --color-accent-primary: #fbbf24;
+  --color-accent-secondary: #f59e0b;
+  --color-accent-soft: rgba(251,191,36,0.16);
+  --color-accent-gradient: linear-gradient(135deg, #fbbf24 0%, #f59e0b 100%);
+  --color-accent-focus: #fbbf24;
+  --color-app-logo: #FBBF24;
+}
+
+/* --- TrishFinance — xanh duong --- */
+:root[data-app="finance"],
+:root[data-app="finance"][data-theme="light"] {
+  --color-accent-primary: #2563eb;
+  --color-accent-secondary: #1d4ed8;
+  --color-accent-soft: rgba(37,99,235,0.10);
+  --color-accent-gradient: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%);
+  --color-accent-focus: #2563eb;
+  --color-app-logo: #2563EB;
+}
+:root[data-app="finance"][data-theme="dark"] {
+  --color-accent-primary: #60a5fa;
+  --color-accent-secondary: #3b82f6;
+  --color-accent-soft: rgba(96,165,250,0.16);
+  --color-accent-gradient: linear-gradient(135deg, #60a5fa 0%, #3b82f6 100%);
+  --color-accent-focus: #60a5fa;
+  --color-app-logo: #2563EB;
+}
+
+/* --- TrishAdmin — do --- */
+:root[data-app="admin"],
+:root[data-app="admin"][data-theme="light"] {
+  --color-accent-primary: #dc2626;
+  --color-accent-secondary: #b91c1c;
+  --color-accent-soft: rgba(220,38,38,0.10);
+  --color-accent-gradient: linear-gradient(135deg, #ef4444 0%, #b91c1c 100%);
+  --color-accent-focus: #dc2626;
+  --color-app-logo: #F87171;
+}
+:root[data-app="admin"][data-theme="dark"] {
+  --color-accent-primary: #f87171;
+  --color-accent-secondary: #ef4444;
+  --color-accent-soft: rgba(248,113,113,0.16);
+  --color-accent-gradient: linear-gradient(135deg, #f87171 0%, #ef4444 100%);
+  --color-accent-focus: #f87171;
+  --color-app-logo: #F87171;
+}
+
+/* ================================================================
+   Phase 44.13 — AppShell layout CSS (extract from TrishLibrary cu)
+   Map vars: --bg-panel/accent/fg/border → --color-* cua design-system
+   ================================================================ */
+
+.app-shell {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  min-height: 0;
+}
+
+.module-nav {
+  display: flex;
+  align-items: center;
+  background: var(--color-surface-card);
+  border-bottom: 2px solid var(--color-border-default);
+  padding: 0;
+  flex-shrink: 0;
+  height: 56px;
+}
+
+.module-nav-brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0 18px;
+  border-right: 1px solid var(--color-border-default);
+  height: 100%;
+  flex-shrink: 0;
+}
+
+.module-nav-brand strong {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--color-text-primary);
+}
+
+.module-nav-version {
+  font-size: 11px;
+  color: var(--color-accent-primary);
+  background: var(--color-accent-soft);
+  padding: 2px 7px;
+  border-radius: 4px;
+  font-family: 'JetBrains Mono', monospace;
+  font-weight: 600;
+}
+
+.module-nav-tabs {
+  display: flex;
+  height: 100%;
+}
+
+.module-nav-tab {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  background: transparent;
+  border: none;
+  border-bottom: 2px solid transparent;
+  color: var(--color-text-muted);
+  padding: 0 20px;
+  height: 100%;
+  cursor: pointer;
+  font-size: 15px;
+  font-weight: 500;
+  font-family: inherit;
+  transition: all 0.12s;
+  margin-bottom: -2px;
+}
+
+.module-nav-tab:hover {
+  background: var(--color-surface-muted);
+  color: var(--color-text-primary);
+}
+
+.module-nav-tab.active {
+  color: var(--color-accent-primary);
+  border-bottom-color: var(--color-accent-primary);
+  background: var(--color-surface-bg-elevated);
+}
+
+.module-nav-tab .module-nav-icon {
+  font-size: 18px;
+  width: auto;
+  height: auto;
+  background: transparent;
+  border: none;
+  color: inherit;
+  padding: 0;
+  display: inline;
+}
+
+.module-nav-spacer {
+  flex: 1;
+}
+
+.module-nav-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0 12px;
+  border-left: 1px solid var(--color-border-default);
+  height: 100%;
+}
+
+.module-content {
+  flex: 1;
+  overflow: auto;
+  min-height: 0;
+  background: var(--color-surface-bg);
+}
+
+/* Tranh img logo lon chiem full screen trong module content (DesignModule co
+   <img logoUrl/> default natural size 1024px). Han che max-width. */
+.module-content img:not([width]):not(.module-nav-logo) {
+  max-width: 200px;
+  max-height: 200px;
+}

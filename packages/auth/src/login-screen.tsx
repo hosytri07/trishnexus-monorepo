@@ -18,10 +18,76 @@ import {
 
 type Mode = 'signin' | 'signup' | 'forgot';
 
+// Phase 44 — AppLogo SVG inline (chữ T + swoosh) — không import từ design-system
+// để tránh circular dep (design-system import auth, không ngược lại).
+const APP_LOGO_COLORS = {
+  work:      '#34D399',
+  utilities: '#FBBF24',
+  finance:   '#2563EB',
+  admin:     '#F87171',
+} as const;
+
+// PNG paths — import qua entry chính của design-system (workspace package).
+import { APP_LOGO_PNG_URLS as APP_LOGO_PNG_URL } from '@trishteam/design-system';
+
+function AppLogoInline({ appShellId, size = 72 }: { appShellId: keyof typeof APP_LOGO_COLORS; size?: number }): JSX.Element {
+  const fg = APP_LOGO_COLORS[appShellId];
+  return (
+    <span
+      style={{
+        display: 'inline-flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        position: 'relative',
+        width: size,
+        height: size,
+        background: '#0E1A1A',
+        borderRadius: Math.round(size * 0.22),
+        boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+        overflow: 'hidden',
+      }}
+      role="img"
+    >
+      {/* SVG fallback nằm dưới */}
+      <svg
+        viewBox="0 0 64 64"
+        width={Math.round(size * 0.75)}
+        height={Math.round(size * 0.75)}
+        aria-hidden="true"
+        style={{ position: 'absolute', inset: 0, margin: 'auto' }}
+      >
+        <path d="M16 14 L48 14 L48 22 L36 22 L36 50 L28 50 L28 22 L16 22 Z" fill={fg} />
+        <path
+          d="M40 30 Q48 36 54 50"
+          stroke={fg}
+          strokeWidth="4"
+          fill="none"
+          strokeLinecap="round"
+        />
+      </svg>
+      {/* PNG đè lên — khi là placeholder 1x1 transparent, SVG hiển thị */}
+      <img
+        src={APP_LOGO_PNG_URL[appShellId]}
+        alt=""
+        style={{
+          width: '100%',
+          height: '100%',
+          objectFit: 'contain',
+          position: 'relative',
+          zIndex: 2,
+        }}
+        aria-hidden="true"
+      />
+    </span>
+  );
+}
+
 interface LoginScreenProps {
   appName: string;
-  /** Logo URL (PNG/SVG asset) */
+  /** Logo URL (PNG/SVG asset) — legacy, dùng cho 1 app dùng PNG riêng */
   logoUrl?: string;
+  /** Phase 44 — appShellId để render <AppLogo /> SVG đồng bộ 4 app. Có ưu tiên cao hơn logoUrl. */
+  appShellId?: 'work' | 'utilities' | 'finance' | 'admin';
   /** Subtitle dưới appName, vd "Quản lý font Windows" */
   tagline?: string;
 }
@@ -29,6 +95,7 @@ interface LoginScreenProps {
 export function LoginScreen({
   appName,
   logoUrl,
+  appShellId,
   tagline,
 }: LoginScreenProps): JSX.Element {
   const [mode, setMode] = useState<Mode>('signin');
@@ -130,7 +197,12 @@ export function LoginScreen({
         }}
       >
         <div style={{ textAlign: 'center', marginBottom: 24 }}>
-          {logoUrl && (
+          {/* Phase 44: ưu tiên AppLogo SVG đồng bộ 4 app. Fallback PNG logo cũ nếu chỉ có logoUrl. */}
+          {appShellId ? (
+            <div style={{ marginBottom: 12 }}>
+              <AppLogoInline appShellId={appShellId} />
+            </div>
+          ) : logoUrl && (
             <div
               style={{
                 display: 'inline-flex',
@@ -349,79 +421,72 @@ export function LoginScreen({
           }}
         >
           ⚠ Tài khoản mới mặc định ở chế độ{' '}
-          <strong>Trial (chưa kích hoạt)</strong>. Liên hệ admin để được upgrade
-          sang Demo (dùng thử có hạn) hoặc User (chính thức).
-          <br />
-          📩 Admin: <strong>hosytri77@gmail.com</strong>
+          <strong>Trial (chưa kích hoạt)</strong>. Liên hệ admin để được cấp quyền truy cập ứng dụng.
         </p>
       </div>
     </div>
   );
 }
 
-const labelStyle: React.CSSProperties = {
+const labelStyle = {
   display: 'block',
   fontSize: 12,
-  fontWeight: 600,
-  marginBottom: 4,
-  color: 'var(--color-text-primary)',
-};
+  fontWeight: 500,
+  color: 'var(--color-text-secondary)',
+  marginBottom: 6,
+} as const;
 
-const inputStyle: React.CSSProperties = {
+const inputStyle = {
   width: '100%',
   padding: '10px 12px',
-  fontSize: 14,
   border: '1px solid var(--color-border-default)',
   borderRadius: 8,
-  background: 'var(--color-surface-bg)',
+  fontSize: 14,
+  background: 'var(--color-surface-card)',
   color: 'var(--color-text-primary)',
-  fontFamily: 'inherit',
-  boxSizing: 'border-box',
-};
+  outline: 'none',
+} as const;
 
-function primaryBtnStyle(busy: boolean): React.CSSProperties {
+function primaryBtnStyle(busy: boolean) {
   return {
     width: '100%',
-    padding: '10px 16px',
-    background: '#10B981',
-    color: '#fff',
+    padding: '11px 16px',
+    background: busy ? '#9CA3AF' : 'var(--color-accent-gradient, var(--color-accent-primary, #059669))',
+    color: 'white',
     border: 'none',
-    borderRadius: 8,
-    fontWeight: 600,
+    borderRadius: 10,
     fontSize: 14,
+    fontWeight: 600,
     cursor: busy ? 'wait' : 'pointer',
-    opacity: busy ? 0.7 : 1,
-    fontFamily: 'inherit',
-  };
+    marginTop: 8,
+  } as const;
 }
 
-function googleBtnStyle(busy: boolean): React.CSSProperties {
+function googleBtnStyle(busy: boolean) {
   return {
     width: '100%',
     padding: '10px 16px',
-    background: 'transparent',
-    color: 'var(--color-text-primary)',
-    border: '1px solid var(--color-border-default)',
-    borderRadius: 8,
-    fontWeight: 600,
+    background: 'var(--color-surface-card, #fff)',
+    color: 'var(--color-text-primary, #1c1b22)',
+    border: '1px solid var(--color-border-default, rgba(0,0,0,0.12))',
+    borderRadius: 10,
     fontSize: 13,
+    fontWeight: 500,
     cursor: busy ? 'wait' : 'pointer',
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
     gap: 8,
-    fontFamily: 'inherit',
-  };
+  } as const;
 }
 
-const linkBtnStyle: React.CSSProperties = {
+const linkBtnStyle = {
   background: 'transparent',
   border: 'none',
-  color: 'var(--color-accent-primary)',
+  color: 'var(--color-accent-primary, #059669)',
   fontSize: 12,
-  fontWeight: 600,
+  fontWeight: 500,
   cursor: 'pointer',
-  textDecoration: 'underline',
   padding: 0,
-  fontFamily: 'inherit',
-};
+  textDecoration: 'underline',
+} as const;

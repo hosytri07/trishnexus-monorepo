@@ -1,0 +1,422 @@
+{
+  "updated_at": "2026-05-09",
+  "note": "Tips/tricks fix lỗi Windows + phần mềm. Admin cập nhật qua TrishAdmin.",
+  "items": [
+    {
+      "id": "win-slow-startup",
+      "title": "Windows khởi động chậm sau khi đăng nhập",
+      "category": "Windows",
+      "tags": [
+        "startup",
+        "performance"
+      ],
+      "summary": "Tắt bớt app tự khởi động + giảm delay launch.",
+      "body": "1. Mở Task Manager (Ctrl+Shift+Esc) → tab Startup apps\n2. Disable các app không cần (Skype, Teams, Spotify)\n3. msconfig → Boot → tick 'No GUI boot'\n4. Settings → Privacy → Background apps → tắt app không dùng\n5. Defrag/Optimize ổ C nếu là HDD (Win+R 'dfrgui')",
+      "links": [
+        {
+          "label": "Microsoft Docs",
+          "url": "https://learn.microsoft.com/en-us/windows/configuration/windows-startup"
+        }
+      ]
+    },
+    {
+      "id": "win-blue-screen",
+      "title": "Màn hình xanh BSOD - đọc minidump",
+      "category": "Windows",
+      "tags": [
+        "bsod",
+        "crash"
+      ],
+      "summary": "Phân tích nguyên nhân BSOD bằng WhoCrashed / WinDbg.",
+      "body": "1. Vào C:\\Windows\\Minidump xem file .dmp gần nhất\n2. Tải WhoCrashed (free) → Analyze\n3. Hoặc cài WinDbg Preview từ Store → File → Open dump → !analyze -v\n4. Chú ý dòng 'Probably caused by:'\n5. Common: nvlddmkm.sys (NVIDIA), igdkmd64.sys (Intel GPU), netio.sys (network)",
+      "links": [
+        {
+          "label": "WhoCrashed",
+          "url": "https://www.resplendence.com/whocrashed"
+        },
+        {
+          "label": "WinDbg Preview",
+          "url": "https://apps.microsoft.com/detail/9PGJGD53TN86"
+        }
+      ]
+    },
+    {
+      "id": "win-explorer-frozen",
+      "title": "Windows Explorer treo / không phản hồi",
+      "category": "Windows",
+      "tags": [
+        "explorer",
+        "freeze"
+      ],
+      "summary": "Restart explorer.exe + clear thumbnail cache.",
+      "body": "1. Task Manager → Windows Explorer → Restart\n2. Nếu vẫn treo: chạy 'cleanmgr' → tick Thumbnails → OK\n3. Disable Quick Access nếu network share offline\n4. Tắt Preview Pane (Alt+P) nếu file nặng (PSD, video)",
+      "links": []
+    },
+    {
+      "id": "win-context-menu-slow",
+      "title": "Click chuột phải bị lag",
+      "category": "Windows",
+      "tags": [
+        "explorer",
+        "context-menu"
+      ],
+      "summary": "Gỡ shell extension thừa từ phần mềm cũ.",
+      "body": "1. Tải ShellExView (NirSoft, free)\n2. Run as Admin → Hide All Microsoft Extensions\n3. Disable Dropbox/OneDrive/Adobe/NVIDIA shell extensions\n4. Restart Explorer sau mỗi lần test\n5. Nếu lag chỉ trên file .dwg → check AutoCAD/Bricscad extension",
+      "links": [
+        {
+          "label": "ShellExView",
+          "url": "https://www.nirsoft.net/utils/shexview.html"
+        }
+      ]
+    },
+    {
+      "id": "win-update-error-0x80070643",
+      "title": "Lỗi Windows Update 0x80070643",
+      "category": "Windows Update",
+      "tags": [
+        "update",
+        "error"
+      ],
+      "summary": "Sửa lỗi update Microsoft .NET / KB packages.",
+      "body": "1. Settings → Windows Update → tạm dừng update 1 tuần\n2. CMD as Admin: sfc /scannow\n3. DISM /Online /Cleanup-Image /RestoreHealth\n4. Restart máy\n5. Services.msc → Windows Update → Stop\n6. Xóa C:\\Windows\\SoftwareDistribution\n7. Start lại service → Check updates",
+      "links": [
+        {
+          "label": "Microsoft KB",
+          "url": "https://support.microsoft.com/en-us/topic/kb5034441"
+        }
+      ]
+    },
+    {
+      "id": "win-update-stuck",
+      "title": "Windows Update đứng ở 0% hoặc 100%",
+      "category": "Windows Update",
+      "tags": [
+        "update",
+        "stuck"
+      ],
+      "summary": "Reset Windows Update components hoàn toàn.",
+      "body": "CMD as Admin chạy lần lượt:\nnet stop wuauserv\nnet stop cryptSvc\nnet stop bits\nnet stop msiserver\nren C:\\Windows\\SoftwareDistribution SoftwareDistribution.old\nren C:\\Windows\\System32\\catroot2 catroot2.old\nnet start wuauserv\nnet start cryptSvc\nnet start bits\nnet start msiserver\n\nRestart → Check updates lại.",
+      "links": []
+    },
+    {
+      "id": "win-disk-full-c",
+      "title": "Ổ C đầy không rõ lý do",
+      "category": "Disk",
+      "tags": [
+        "disk",
+        "cleanup"
+      ],
+      "summary": "Quét + xóa file rác + cache hệ thống.",
+      "body": "1. Dùng TrishClean (chính chủ) để quét cache + temp\n2. Win+R 'cleanmgr' → chọn ổ C → Clean up system files\n3. Settings → Storage → Storage Sense bật xóa Recycle Bin sau 30 ngày\n4. powercfg /h off (xóa hiberfil.sys ~RAM/2)\n5. Page file: System → Advanced → Performance → Virtual memory → Custom 4-8GB",
+      "links": [
+        {
+          "label": "TrishClean",
+          "url": "https://www.trishteam.io.vn"
+        }
+      ]
+    },
+    {
+      "id": "win-find-large-files",
+      "title": "Tìm file lớn nhất trên ổ cứng",
+      "category": "Disk",
+      "tags": [
+        "disk",
+        "search"
+      ],
+      "summary": "Dùng WizTree / TreeSize xem file ngốn dung lượng.",
+      "body": "1. Tải WizTree (free, nhanh nhất, quét NTFS ~3s/ổ)\n2. Run as Admin → chọn ổ C → Scan\n3. Sort theo Size giảm dần\n4. Common chiếm chỗ: %LOCALAPPDATA%\\Temp, OneDrive cache, node_modules, Adobe Media Cache",
+      "links": [
+        {
+          "label": "WizTree",
+          "url": "https://www.diskanalyzer.com/"
+        }
+      ]
+    },
+    {
+      "id": "disk-bad-sector",
+      "title": "Kiểm tra bad sector ổ cứng",
+      "category": "Disk",
+      "tags": [
+        "disk",
+        "health"
+      ],
+      "summary": "Chạy chkdsk + xem SMART status.",
+      "body": "1. CMD as Admin: chkdsk C: /f /r → Y → Restart (chạy 30-90 phút lúc boot)\n2. Cài CrystalDiskInfo (free) xem SMART status\n3. Status Caution/Bad → backup ngay + thay ổ\n4. Reallocated Sectors Count tăng dần = ổ đang chết",
+      "links": [
+        {
+          "label": "CrystalDiskInfo",
+          "url": "https://crystalmark.info/en/software/crystaldiskinfo/"
+        }
+      ]
+    },
+    {
+      "id": "office-activation-error",
+      "title": "Microsoft Office báo lỗi kích hoạt",
+      "category": "Office",
+      "tags": [
+        "office",
+        "activation"
+      ],
+      "summary": "Reset license cache khi Office hiện 'Unlicensed Product'.",
+      "body": "1. Đóng tất cả ứng dụng Office\n2. CMD as Admin → cd 'C:\\Program Files\\Microsoft Office\\Office16'\n3. cscript ospp.vbs /dstatus\n4. Nếu license expired → /unpkeys → /inpkey:<key>\n5. Settings → Apps → Microsoft 365 → Modify → Online Repair (≥30 phút)",
+      "links": [
+        {
+          "label": "Microsoft",
+          "url": "https://support.microsoft.com/en-us/office/activate-office"
+        }
+      ]
+    },
+    {
+      "id": "excel-slow-large-file",
+      "title": "Excel mở/save file lớn rất chậm",
+      "category": "Office",
+      "tags": [
+        "excel",
+        "performance"
+      ],
+      "summary": "Tắt auto-calculate + giảm format thừa.",
+      "body": "1. Formulas → Calculation Options → Manual\n2. Home → Conditional Formatting → Clear Rules from Entire Sheet\n3. Ctrl+End - nếu nhảy xa cell có data → Clear All từ đó về sau\n4. Options → Advanced → tắt Animation + Hardware acceleration\n5. Save dạng .xlsb thay .xlsx (nhỏ hơn 50%, mở nhanh hơn)",
+      "links": []
+    },
+    {
+      "id": "outlook-pst-corrupt",
+      "title": "Outlook báo file PST/OST hỏng",
+      "category": "Office",
+      "tags": [
+        "outlook",
+        "pst"
+      ],
+      "summary": "Chạy SCANPST.EXE để repair.",
+      "body": "1. Đóng Outlook hoàn toàn\n2. SCANPST.EXE thường ở C:\\Program Files\\Microsoft Office\\root\\Office16\\\n3. Mở SCANPST → Browse → chọn .pst hoặc .ost\n4. Start → chạy 5-30 phút\n5. Tick 'Make backup' → Repair\n6. Nếu vẫn lỗi: xóa .ost (sẽ tự sync lại từ server)",
+      "links": []
+    },
+    {
+      "id": "autocad-licensing-error",
+      "title": "AutoCAD báo Licensing Error khi khởi động",
+      "category": "AutoCAD",
+      "tags": [
+        "autocad",
+        "license"
+      ],
+      "summary": "Reset license server + sign out / sign in lại.",
+      "body": "1. Đóng AutoCAD hoàn toàn\n2. Vào %ProgramData%\\Autodesk\\AdskLicensingService\n3. Đổi tên data.json → data.json.bak\n4. Restart service 'Autodesk Desktop Licensing Service'\n5. Mở AutoCAD → Sign in lại bằng Autodesk account\n6. Nếu vẫn lỗi: chạy LicensingInstaller mới nhất",
+      "links": [
+        {
+          "label": "Autodesk Knowledge",
+          "url": "https://knowledge.autodesk.com/"
+        }
+      ]
+    },
+    {
+      "id": "autocad-slow-open",
+      "title": "AutoCAD mở/save file DWG chậm",
+      "category": "AutoCAD",
+      "tags": [
+        "autocad",
+        "performance"
+      ],
+      "summary": "Purge + Audit + tắt cloud sync.",
+      "body": "1. PURGE → All → tick 'Purge nested items' → Purge All (chạy 2-3 lần)\n2. AUDIT → Y → fix lỗi DWG\n3. -OVERKILL → ALL → loại entity trùng\n4. OP → Open and Save → Demand load: Object Detect & Command Invoke\n5. Tắt Autodesk Desktop App + Drive sync\n6. Đóng tất cả AcCoreConsole.exe trong Task Manager",
+      "links": []
+    },
+    {
+      "id": "autocad-shx-missing",
+      "title": "AutoCAD báo missing SHX font khi mở DWG",
+      "category": "AutoCAD",
+      "tags": [
+        "autocad",
+        "font",
+        "shx"
+      ],
+      "summary": "Cài thêm font SHX hoặc map sang font có sẵn.",
+      "body": "1. Khi popup hiện, ghi nhớ tên file SHX bị thiếu (vd: vnsimplex.shx)\n2. Tải bộ SHX font kỹ thuật VN (hoặc dùng TrishFont)\n3. Copy file .shx vào: C:\\Program Files\\Autodesk\\AutoCAD 20XX\\Fonts\\\n4. Restart AutoCAD → mở lại file\n5. Hoặc STYLE command → đổi sang font có sẵn (romans.shx)",
+      "links": [
+        {
+          "label": "TrishFont",
+          "url": "https://www.trishteam.io.vn"
+        }
+      ]
+    },
+    {
+      "id": "autocad-fatal-error",
+      "title": "AutoCAD bị FATAL ERROR / crash",
+      "category": "AutoCAD",
+      "tags": [
+        "autocad",
+        "crash"
+      ],
+      "summary": "Reset profile + xóa cache.",
+      "body": "1. Đóng AutoCAD hoàn toàn (kill AcCoreConsole.exe)\n2. Vào %APPDATA%\\Autodesk\\AutoCAD 20XX\\R24.X\\enu\\\n3. Đổi tên Support → Support.bak\n4. Hoặc reset hoàn toàn: 'Reset Settings to Default' từ Start menu\n5. Update graphics driver mới nhất (NVIDIA Studio, không phải Game Ready)",
+      "links": []
+    },
+    {
+      "id": "wifi-no-internet",
+      "title": "Wi-Fi đã kết nối nhưng không có Internet",
+      "category": "Network",
+      "tags": [
+        "wifi",
+        "network"
+      ],
+      "summary": "Reset network stack + flush DNS.",
+      "body": "CMD as Admin chạy lần lượt:\nnetsh winsock reset\nnetsh int ip reset\nipconfig /release\nipconfig /renew\nipconfig /flushdns\n\nRestart máy.\n\nNếu vẫn lỗi: đổi DNS sang 1.1.1.1 hoặc 8.8.8.8 trong Network adapter properties.",
+      "links": []
+    },
+    {
+      "id": "lan-share-not-visible",
+      "title": "Không thấy máy khác trong mạng LAN",
+      "category": "Network",
+      "tags": [
+        "lan",
+        "share"
+      ],
+      "summary": "Bật Network Discovery + đảm bảo cùng Workgroup.",
+      "body": "1. Settings → Network → Advanced sharing → bật Network discovery, File sharing\n2. services.msc → đảm bảo Running:\n   Function Discovery Provider Host\n   Function Discovery Resource Publication\n   SSDP Discovery\n   UPnP Device Host\n3. Đặt 4 service trên = Automatic\n4. Mở \\\\\\\\<IP_máy> trực tiếp thay vì duyệt Network\n5. Đảm bảo cùng Workgroup: System → Computer Name → Change",
+      "links": []
+    },
+    {
+      "id": "vpn-cannot-connect",
+      "title": "VPN không kết nối được sau update Windows",
+      "category": "Network",
+      "tags": [
+        "vpn",
+        "network"
+      ],
+      "summary": "Reinstall WAN Miniport + reset Winsock.",
+      "body": "1. Device Manager → Network adapters → Show hidden devices\n2. Uninstall tất cả 'WAN Miniport (...)'\n3. Action → Scan for hardware changes\n4. CMD as Admin: netsh winsock reset → restart\n5. VPN của hãng (Cisco AnyConnect, FortiClient): uninstall → reboot → cài bản mới",
+      "links": []
+    },
+    {
+      "id": "printer-not-working",
+      "title": "Máy in không in được sau update Windows",
+      "category": "Hardware",
+      "tags": [
+        "printer",
+        "driver"
+      ],
+      "summary": "Reset Print Spooler + cài lại driver.",
+      "body": "1. services.msc → Print Spooler → Stop\n2. Xóa toàn bộ file trong C:\\Windows\\System32\\spool\\PRINTERS\n3. Start lại Print Spooler\n4. Settings → Printers → Remove device → Add device\n5. Tải driver mới nhất từ trang chủ hãng (Canon/HP/Epson)",
+      "links": []
+    },
+    {
+      "id": "usb-not-recognized",
+      "title": "USB không nhận / báo Unknown Device",
+      "category": "Hardware",
+      "tags": [
+        "usb",
+        "driver"
+      ],
+      "summary": "Reset USB controller + uninstall driver lỗi.",
+      "body": "1. Device Manager → Universal Serial Bus controllers\n2. USB Root Hub → Properties → Power Management → bỏ tick 'Allow turn off'\n3. Uninstall các 'Unknown USB Device' → Scan for hardware changes\n4. Thử cổng USB khác (USB 3.0 ↔ 2.0)\n5. Test USB ở máy khác để xác định lỗi USB hay máy",
+      "links": []
+    },
+    {
+      "id": "bluetooth-no-audio",
+      "title": "Tai nghe Bluetooth không có âm thanh",
+      "category": "Hardware",
+      "tags": [
+        "bluetooth",
+        "audio"
+      ],
+      "summary": "Đổi audio profile + restart Bluetooth service.",
+      "body": "1. Sound settings → chọn output Headphones (Stereo) - chất lượng cao\n   hoặc Headset (Hands-Free) - có mic nhưng kém\n2. services.msc → 'Bluetooth Support Service' → Restart, set Automatic\n3. Update Bluetooth driver từ trang chủ hãng laptop",
+      "links": []
+    },
+    {
+      "id": "gpu-driver-crash",
+      "title": "Driver GPU crash / Display driver stopped responding",
+      "category": "Hardware",
+      "tags": [
+        "gpu",
+        "driver",
+        "crash"
+      ],
+      "summary": "DDU + cài lại driver clean.",
+      "body": "1. Tải DDU (Display Driver Uninstaller) - Wagnardsoft\n2. Boot vào Safe Mode\n3. Run DDU → chọn GPU brand → Clean and restart\n4. Tải driver mới từ trang chủ → 'Custom (Advanced)' → tick 'Perform clean installation'\n5. NVIDIA: dùng Studio Driver cho công việc, không phải Game Ready",
+      "links": [
+        {
+          "label": "DDU",
+          "url": "https://www.wagnardsoft.com/"
+        }
+      ]
+    },
+    {
+      "id": "battery-drain-laptop",
+      "title": "Laptop tụt pin nhanh khi sleep",
+      "category": "Hardware",
+      "tags": [
+        "battery",
+        "laptop"
+      ],
+      "summary": "Tắt Modern Standby + Wake timers.",
+      "body": "1. CMD as Admin: powercfg /a (xem chế độ sleep đang dùng)\n2. Modern Standby (S0) hao pin → bật Hibernation\n3. CMD as Admin: powercfg /h on\n4. Power Options → Sleep → đóng nắp/nút power → Hibernate (thay Sleep)\n5. Tắt Wake Timers: Power Options → Advanced → Sleep → Allow wake timers → Disable",
+      "links": []
+    },
+    {
+      "id": "overheating-cpu",
+      "title": "Máy nóng / CPU 90°C+ thường xuyên",
+      "category": "Hardware",
+      "tags": [
+        "cpu",
+        "thermal"
+      ],
+      "summary": "Vệ sinh quạt + check process ngốn CPU.",
+      "body": "1. HWiNFO64 hoặc HWMonitor (free) xem nhiệt độ real-time\n2. Task Manager → cột CPU → tìm process ngốn cao bất thường\n3. Defender check: services.msc → Microsoft Defender Antivirus → tạm pause\n4. Vệ sinh quạt + thay keo tản nhiệt nếu máy ≥2 năm\n5. Power Options → Maximum processor state = 99% (tắt turbo) - giảm 10-15°C",
+      "links": [
+        {
+          "label": "HWiNFO64",
+          "url": "https://www.hwinfo.com/"
+        }
+      ]
+    },
+    {
+      "id": "browser-slow-chrome",
+      "title": "Chrome / Edge chạy chậm, ngốn RAM",
+      "category": "Browser",
+      "tags": [
+        "chrome",
+        "edge",
+        "performance"
+      ],
+      "summary": "Tắt extension + bật Memory Saver.",
+      "body": "1. chrome://extensions → tắt extension không cần\n2. chrome://settings/performance → bật Memory Saver + Energy Saver\n3. Settings → Privacy → Clear browsing data → Cached images\n4. chrome://flags → tìm 'GPU' → Disable nếu GPU yếu\n5. Reset hoàn toàn: chrome://settings/reset",
+      "links": []
+    },
+    {
+      "id": "browser-cant-open-https",
+      "title": "Trình duyệt không vào được HTTPS (NET::ERR_CERT)",
+      "category": "Browser",
+      "tags": [
+        "chrome",
+        "ssl",
+        "certificate"
+      ],
+      "summary": "Đồng bộ thời gian + clear SSL cache.",
+      "body": "1. Settings → Time → Set time automatically: ON, sync ngay\n2. Đảm bảo timezone GMT+7 cho VN\n3. Internet Options (Win+R inetcpl.cpl) → Content → Clear SSL state\n4. Disable VPN/proxy đang chạy\n5. Nếu chỉ 1 site lỗi: cert hết hạn - báo admin trang web",
+      "links": []
+    },
+    {
+      "id": "antivirus-blocking-app",
+      "title": "Antivirus chặn app chính chủ (false positive)",
+      "category": "Security",
+      "tags": [
+        "antivirus",
+        "defender"
+      ],
+      "summary": "Add exclusion folder/file vào Windows Defender.",
+      "body": "1. Settings → Privacy → Windows Security → Virus & threat protection → Manage settings\n2. Exclusions → Add an exclusion → Folder hoặc File\n3. Thêm folder app cần whitelist\n4. App đã bị quarantine: Protection history → Allow on device\n5. App từ trishteam.io.vn → luôn whitelist folder cài",
+      "links": []
+    },
+    {
+      "id": "uac-disable",
+      "title": "Tắt UAC popup khi chạy app",
+      "category": "Security",
+      "tags": [
+        "uac",
+        "admin"
+      ],
+      "summary": "Hạ UAC level (cẩn thận - giảm bảo mật).",
+      "body": "Khuyến cáo: KHÔNG nên tắt hoàn toàn UAC trên máy có internet.\n\n1. Win+R 'useraccountcontrolsettings'\n2. Kéo slider xuống 'Never notify' (tắt) hoặc 'Notify me only when apps...' (giữ một phần)\n3. Restart máy\n4. Cách an toàn hơn: tạo shortcut chạy as Admin sẵn:\n   Phải chuột app → Properties → Shortcut → Advanced → 'Run as administrator'",
+      "links": []
+    }
+  ]
+}

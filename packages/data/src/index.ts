@@ -139,22 +139,38 @@ export function canAccessApp(
 }
 
 /**
- * App ID enum — Phase 36.1.
+ * App ID enum — Phase 36.1 + Phase 44 (gộp app).
+ *
+ * Phase 44 (2026-05-23) thêm 2 ID mới: 'trishwork' + 'trishutilities'.
+ *   - trishwork = TrishDesign + TrishLibrary + TrishISO
+ *   - trishutilities = TrishClean + TrishCheck + TrishDrive + TrishFont + TrishShortcut
+ *   - trishfinance + trishadmin giữ nguyên
+ *
+ * Các ID cũ (trishdesign, trishlibrary, trishiso, trishclean, trishcheck, trishdrive,
+ * trishfont, trishshortcut, trishlauncher, trishoffice) giữ lại làm legacy cho:
+ *   (a) migration data từ user cũ đã activate
+ *   (b) Firestore rules backward compat
+ * KHÔNG dùng cho app mới — app gộp xài 2 ID mới.
+ *
  * 'all' = key đặc biệt unlock tất cả apps trả phí.
  */
 export type AppId =
+  // Phase 44 — 4 app mới
+  | 'trishwork'
+  | 'trishutilities'
+  | 'trishfinance'
+  | 'trishadmin'
+  // Legacy IDs (Phase 36.1) — giữ cho migration, không dùng cho app mới
   | 'trishlauncher'
   | 'trishlibrary'
   | 'trishdrive'
   | 'trishdesign'
-  | 'trishfinance'
   | 'trishiso'
   | 'trishoffice'
   | 'trishshortcut'
   | 'trishcheck'
   | 'trishclean'
   | 'trishfont'
-  | 'trishadmin'
   | 'all';
 
 /** Phase 36.1 — Per-app key activation entry trong TrishUser */

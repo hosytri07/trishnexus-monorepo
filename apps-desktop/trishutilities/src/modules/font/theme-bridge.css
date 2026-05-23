@@ -1,0 +1,33 @@
+/**
+ * theme-bridge.css — Phase 30.2
+ * Map legacy CSS vars (--bg, --fg, --accent, --border, --surface, ...) sang
+ * design-system tokens. Đặt SAU styles.css trong main.tsx.
+ */
+:root,
+:root[data-theme='light'],
+:root[data-theme='dark'] {
+  --bg: var(--color-surface-bg);
+  --surface: var(--color-surface-card);
+  --muted: var(--color-text-muted);
+  --border: var(--color-border-default);
+  --border-strong: var(--color-border-strong);
+  --accent: var(--color-accent-primary);
+  --accent-hover: var(--color-accent-secondary);
+  --accent-soft: var(--color-accent-soft);
+  --danger: var(--semantic-danger);
+  --danger-hover: #dc2626;
+  --status-ok: var(--semantic-success);
+  --status-ok-soft: rgba(16,185,129,0.10);
+  --status-warn: var(--semantic-warning);
+  --status-warn-soft: rgba(245,158,11,0.10);
+  --status-fail: var(--semantic-danger);
+  --status-fail-soft: rgba(239,68,68,0.10);
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 14px;
+  --shadow-modal: var(--shadow-sm);
+}
+
+html, body, #root {
+  font-family: var(--font-sans);
+}

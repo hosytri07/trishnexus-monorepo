@@ -1,0 +1,66 @@
+[package]
+name = "trishutilities"
+version = "1.0.0"
+description = "TrishDrive — User app: paste share link → tải file, browse Thư viện TrishTEAM (admin curate). Phase 26.1 rebuild khỏi admin (admin features đã chuyển sang TrishAdmin)."
+authors = ["TrishTEAM <hosytri77@gmail.com>"]
+edition = "2021"
+rust-version = "1.77"
+
+[[bin]]
+name = "trishutilities"
+path = "src/main.rs"
+
+[lib]
+name = "trishutilities_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+path = "src/lib.rs"
+
+[build-dependencies]
+tauri-build = { version = "2.0", features = [] }
+
+[dependencies]
+tauri = { version = "2.0", features = ["tray-icon", "image-png"] }
+tauri-plugin-dialog = "2"
+tauri-plugin-opener = "2"
+tauri-plugin-updater = "2"
+tauri-plugin-process = "2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+# HTTP client cho web API /proxy + /info (browser CORS không cho fetch trực tiếp).
+reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "json", "stream"] }
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "fs", "io-util"] }
+
+# SQLite local cho download history + tags + bookmarks + notes (Phase 26.1.B).
+rusqlite = { version = "0.31", features = ["bundled"] }
+
+# AES-256-GCM decrypt chunks tải về (master key derive từ password share PBKDF2).
+aes-gcm = "0.10"
+sha2 = "0.10"
+pbkdf2 = "0.12"
+hmac = "0.12"
+
+rand = "0.8"
+hex = "0.4"
+urlencoding = "2.1"
+url = "2"
+
+# Phase 25.1.E — WebDAV mount Z:\ (read-only proxy → Telegram cache local)
+dav-server = { version = "0.7", default-features = false, features = ["localfs"] }
+hyper = { version = "1", features = ["server", "http1"] }
+hyper-util = { version = "0.1", features = ["tokio", "server-auto"] }
+http-body-util = "0.1"
+bytes = "1"
+async-trait = "0.1"
+
+# Bỏ Phase 26.1.A: keyring + grammers-* (admin-only, đã chuyển sang TrishAdmin).
+
+# Phase 36.5 — Machine ID cho key concurrent control
+trishteam-machine-id = { path = "../../../packages/machine-id" }
+
+[profile.release]
+panic = "abort"
+codegen-units = 1
+lto = true
+opt-level = "s"
+strip = true

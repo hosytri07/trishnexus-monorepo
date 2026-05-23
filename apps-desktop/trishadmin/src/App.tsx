@@ -15,6 +15,7 @@ import { useAuth } from '@trishteam/auth/react';
 import { signOut } from '@trishteam/auth';
 import { DashboardPanel } from './components/DashboardPanel.js';
 import { UsersPanel } from './components/UsersPanel.js';
+import { AppAccessPanel } from './components/AppAccessPanel.js';
 import { KeysPanel } from './components/KeysPanel.js';
 import { PromoCodesPanel } from './components/PromoCodesPanel.js';
 import { ActiveSessionsPanel } from './components/ActiveSessionsPanel.js';
@@ -47,6 +48,7 @@ import logoUrl from './assets/logo.png';
 type Panel =
   | 'dashboard'
   | 'users'
+  | 'app_access'
   | 'keys'
   | 'promo_codes'
   | 'sessions'
@@ -88,7 +90,8 @@ const NAV_GROUPS: NavGroup[] = [
     label: 'Người dùng',
     items: [
       { id: 'users', label: 'Users' },
-      { id: 'keys', label: 'Keys' },
+      { id: 'app_access', label: '🔑 Cấp quyền App (Phase 44)' },
+      { id: 'keys', label: 'Keys (legacy)' },
       { id: 'promo_codes', label: '🎟 Promo Codes' },
       { id: 'sessions', label: 'Active Sessions' },
       { id: 'session_history', label: '📜 Session History' },
@@ -262,6 +265,7 @@ export function App(): JSX.Element {
       <main className="admin-main">
         {active === 'dashboard' && <DashboardPanel />}
         {active === 'users' && <UsersPanel />}
+        {active === 'app_access' && <AppAccessPanel />}
         {active === 'keys' && (
           <KeysPanel adminUid={firebaseUser?.uid ?? ''} />
         )}

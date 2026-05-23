@@ -1,0 +1,49 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "TrishWork",
+  "version": "2.0.0",
+  "identifier": "vn.trishteam.work",
+  "build": {
+    "beforeDevCommand": "pnpm dev",
+    "devUrl": "http://localhost:1440",
+    "beforeBuildCommand": "pnpm build",
+    "frontendDist": "../dist"
+  },
+  "app": {
+    "windows": [
+      {
+        "label": "main",
+        "title": "TrishWork — Kỹ sư · Thư viện · ISO",
+        "width": 1700,
+        "height": 1000,
+        "minWidth": 1280,
+        "minHeight": 740,
+        "resizable": true,
+        "center": true
+      }
+    ],
+    "security": {
+      "csp": null
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": "all",
+    "icon": [
+      "icons/icon.png"
+    ]
+  },
+  "plugins": {
+    "updater": {
+      "_comment": "Phase 44 - Auto-update placeholder. Set pubkey + endpoint khi release that.",
+      "active": false,
+      "endpoints": [
+        "https://trishteam.io.vn/api/updates/{{target}}/{{current_version}}"
+      ],
+      "windows": {
+        "installMode": "passive"
+      },
+      "pubkey": ""
+    }
+  }
+}

@@ -4,6 +4,8 @@ import { installTauriTelemetry } from '@trishteam/telemetry/tauri';
 import App from './App.tsx';
 import packageJson from '../package.json' with { type: 'json' };
 import '@trishteam/design-system';
+import { applyAppAccent } from '@trishteam/design-system';
+applyAppAccent('finance');
 import './index.css';
 
 installTauriTelemetry({

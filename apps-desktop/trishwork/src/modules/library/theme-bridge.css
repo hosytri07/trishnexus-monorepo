@@ -1,0 +1,69 @@
+/**
+ * theme-bridge.css — Phase 30.1
+ *
+ * Map legacy CSS vars (--bg, --fg, --accent, --border, --surface, ...) sang
+ * design-system tokens (--color-surface-bg, --color-text-primary, ...) để
+ * đồng bộ với gold standard TrishDrive (Plus Jakarta Sans + emerald).
+ *
+ * Đặt SAU `@trishteam/design-system` + `styles.css` legacy trong main.tsx.
+ * Specificity cao hơn vì :root selector + declared sau.
+ *
+ * Bridge này tạm thời — sau khi refactor từng component sang dùng design-system
+ * tokens trực tiếp, có thể xoá file này.
+ */
+
+:root,
+:root[data-theme='light'] {
+  /* Background tiers */
+  --bg: var(--color-surface-bg);
+  --bg-panel: var(--color-surface-bg-elevated);
+  --bg-soft: var(--color-surface-row);
+  --bg-elev: var(--color-surface-card);
+  --surface: var(--color-surface-card);
+
+  /* Text */
+  --fg: var(--color-text-primary);
+  --fg-muted: var(--color-text-muted);
+  --muted: var(--color-text-muted);
+
+  /* Borders */
+  --border: var(--color-border-default);
+
+  /* Accent (emerald thay cyan) */
+  --accent: var(--color-accent-primary);
+  --accent-soft: var(--color-accent-soft);
+
+  /* Semantic colors */
+  --danger: var(--semantic-danger);
+  --ok: var(--semantic-success);
+  --info: var(--semantic-info);
+
+  /* Mono font giữ nguyên */
+  --mono: 'JetBrains Mono', 'Fira Code', 'SF Mono', Consolas, monospace;
+}
+
+:root[data-theme='dark'] {
+  --bg: var(--color-surface-bg);
+  --bg-panel: var(--color-surface-bg-elevated);
+  --bg-soft: var(--color-surface-row);
+  --bg-elev: var(--color-surface-card);
+  --surface: var(--color-surface-card);
+
+  --fg: var(--color-text-primary);
+  --fg-muted: var(--color-text-muted);
+  --muted: var(--color-text-muted);
+
+  --border: var(--color-border-default);
+
+  --accent: var(--color-accent-primary);
+  --accent-soft: var(--color-accent-soft);
+
+  --danger: var(--semantic-danger);
+  --ok: var(--semantic-success);
+  --info: var(--semantic-info);
+}
+
+/* Plus Jakarta Sans cho toàn bộ app (override font cũ) */
+html, body, #root {
+  font-family: var(--font-sans);
+}

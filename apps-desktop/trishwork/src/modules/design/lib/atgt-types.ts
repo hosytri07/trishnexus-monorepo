@@ -1,0 +1,383 @@
+/**
+ * TrishDesign Phase 28.5 — Module ATGT (An Toàn Giao Thông).
+ *
+ * Data model 9 loại đối tượng theo QCVN 41:2019/BGTVT + TCVN:
+ *   - Biển báo (cấm/nguy hiểm/hiệu lệnh/chỉ dẫn/phụ)
+ *   - Vạch sơn mặt đường (dọc/ngang)
+ *   - Đèn tín hiệu giao thông
+ *   - Hộ lan / gờ giảm tốc / chống lóa
+ *   - Cọc tiêu
+ *   - Rãnh dọc
+ *   - Cống ngang
+ *   - Tiêu phản quang dẫn hướng
+ *   - Gương cầu lồi
+ *
+ * Pattern: 1 AtgtProject = nhiều AtgtSegment, mỗi segment chứa items theo lý trình.
+ * Sync với HHMĐ (RoadSegment) để 2 panel có thể dùng chung 1 đoạn đường.
+ */
+
+// =====================================================================
+// Categories — 9 loại đối tượng
+// =====================================================================
+
+export type AtgtCategory =
+  | 'BIENBAO'      // Biển báo (cấm/nguy hiểm/hiệu lệnh/chỉ dẫn/phụ)
+  | 'VACHSON'      // Vạch sơn (dọc/ngang/qua đường)
+  | 'DENTH'        // Đèn tín hiệu
+  | 'HOLAN'        // Hộ lan / gờ giảm tốc / chống lóa
+  | 'COCTIEU'      // Cọc tiêu
+  | 'RANHDOC'      // Rãnh dọc
+  | 'CONGNGANG'    // Cống ngang
+  | 'TIEUPQ'       // Tiêu phản quang dẫn hướng
+  | 'GUONGCAU';    // Gương cầu lồi
+
+export const ATGT_CATEGORIES: { id: AtgtCategory; name: string; icon: string; color: number }[] = [
+  { id: 'BIENBAO',   name: 'Biển báo',                icon: '🛑', color: 1 },  // Red
+  { id: 'VACHSON',   name: 'Vạch sơn',                icon: '🟨', color: 2 },  // Yellow
+  { id: 'DENTH',     name: 'Đèn tín hiệu',            icon: '🚦', color: 3 },  // Green
+  { id: 'HOLAN',     name: 'Hộ lan / Gờ giảm tốc',   icon: '🚧', color: 4 },  // Cyan
+  { id: 'COCTIEU',   name: 'Cọc tiêu',                icon: '📍', color: 5 },  // Blue
+  { id: 'RANHDOC',   name: 'Rãnh dọc',                icon: '🟦', color: 6 },  // Magenta
+  { id: 'CONGNGANG', name: 'Cống ngang',              icon: '⬛', color: 30 }, // Orange
+  { id: 'TIEUPQ',    name: 'Tiêu phản quang',         icon: '✨', color: 7 },  // White
+  { id: 'GUONGCAU',  name: 'Gương cầu lồi',           icon: '🪞', color: 8 },  // Gray
+];
+
+export function getCategoryInfo(id: AtgtCategory): { name: string; icon: string; color: number } {
+  return ATGT_CATEGORIES.find((c) => c.id === id) ?? ATGT_CATEGORIES[0]!;
+}
+
+// =====================================================================
+// Biển báo subtype theo QCVN 41:2019
+// =====================================================================
+
+export type BienBaoGroup = 'P' | 'W' | 'R' | 'I' | 'S';
+
+export const BIENBAO_GROUPS: { id: BienBaoGroup; name: string; prefix: string }[] = [
+  { id: 'P', name: 'Biển cấm',        prefix: 'P' },
+  { id: 'W', name: 'Biển nguy hiểm',  prefix: 'W' },
+  { id: 'R', name: 'Biển hiệu lệnh',  prefix: 'R' },
+  { id: 'I', name: 'Biển chỉ dẫn',    prefix: 'I' },
+  { id: 'S', name: 'Biển phụ',        prefix: 'S' },
+];
+
+// =====================================================================
+// Side (vị trí so với tim đường) — giống HHMĐ
+// =====================================================================
+
+export type RoadSide = 'left' | 'right' | 'center';
+
+// =====================================================================
+// Item types (per category)
+// =====================================================================
+
+export interface AtgtItemBase {
+  id: string;
+  category: AtgtCategory;
+  station: number;          // Lý trình điểm đầu (m)
+  endStation?: number;      // Lý trình điểm cuối (chỉ áp dụng line-based: vạch sơn / hộ lan / rãnh dọc)
+  side: RoadSide;
+  cachTim: number;          // Cách tim đường (m) — offset từ polyline (Phase 28.6)
+  status: 'good' | 'damaged' | 'missing' | 'new';  // Tình trạng
+  note?: string;
+}
+
+export interface BienBaoItem extends AtgtItemBase {
+  category: 'BIENBAO';
+  group: BienBaoGroup;        // P/W/R/I/S
+  code: string;               // Mã biển vd "P.103a", "W.221"
+  diameter: number;           // Đường kính/cạnh (m), default 0.7
+  poleHeight: number;         // Chiều cao cột (m), default 2.2
+}
+
+export interface VachSonItem extends AtgtItemBase {
+  category: 'VACHSON';
+  vachType: 'tim' | 'lan' | 'mep' | 'qua_duong' | 'dung_xe' | 'gianh_uu_tien';
+  length: number;             // Chiều dài vạch (m)
+  width: number;              // Chiều rộng vạch (m), default 0.15
+  isContinuous: boolean;      // Liền (true) / đứt (false)
+}
+
+export interface DenTHItem extends AtgtItemBase {
+  category: 'DENTH';
+  denType: 'xe' | 'nguoi' | 'mui_ten';   // Loại đèn
+  poleHeight: number;          // Chiều cao cột (m), default 4.5
+  cantilever: number;          // Vươn cần (m), default 0
+}
+
+export interface HoLanItem extends AtgtItemBase {
+  category: 'HOLAN';
+  holanType: 'ho_lan_ton' | 'ho_lan_betong' | 'go_giam_toc' | 'chong_loa';
+  length: number;              // Chiều dài (m)
+}
+
+export interface CocTieuItem extends AtgtItemBase {
+  category: 'COCTIEU';
+  spacing: number;             // Khoảng cách giữa cọc (m), default 5
+  count: number;               // Số cọc liên tiếp
+  height: number;              // Chiều cao (m), default 0.6
+}
+
+export interface RanhDocItem extends AtgtItemBase {
+  category: 'RANHDOC';
+  ranhType: 'dat' | 'da_xay' | 'betong' | 'nap_be' | 'tron' | 'hinh_thang';
+  length: number;
+  width: number;               // Chiều rộng đáy (m)
+  depth: number;               // Chiều sâu (m)
+}
+
+export interface CongNgangItem extends AtgtItemBase {
+  category: 'CONGNGANG';
+  congType: 'tron' | 'vuong' | 'hop' | 'ban';
+  diameter: number;            // Đường kính/khẩu độ (m)
+  length: number;              // Chiều dài cống (m)
+}
+
+export interface TieuPQItem extends AtgtItemBase {
+  category: 'TIEUPQ';
+  spacing: number;             // Khoảng cách (m)
+  count: number;               // Số lượng
+  color: 'red' | 'yellow' | 'white';
+}
+
+export interface GuongCauItem extends AtgtItemBase {
+  category: 'GUONGCAU';
+  diameter: number;            // Đường kính (m), default 0.6
+  poleHeight: number;          // Chiều cao cột (m), default 4
+}
+
+export type AtgtItem =
+  | BienBaoItem
+  | VachSonItem
+  | DenTHItem
+  | HoLanItem
+  | CocTieuItem
+  | RanhDocItem
+  | CongNgangItem
+  | TieuPQItem
+  | GuongCauItem;
+
+// =====================================================================
+// Segment + Project
+// =====================================================================
+
+export type DrawMode = 'duoithang' | 'polyline';
+
+/** Phase 42 wave 9 — Khuôn đường (giống HHMĐ RoadSegment) */
+export type AtgtRoadType = 'single' | 'dual';
+
+export interface AtgtSegment {
+  id: string;
+  name: string;
+  startStation: number;        // m
+  endStation: number;          // m
+  roadWidth: number;           // m (tổng bề rộng mặt đường)
+  /** Phase 42 wave 9 — Loại đường (single/dual) — quyết định có DPC hay không */
+  roadType?: AtgtRoadType;
+  /** Phase 42 wave 9 — Số làn cả 2 chiều */
+  laneCount?: number;
+  /** Phase 42 wave 9 — Dải phân cách (m, dual only) */
+  medianWidth?: number;
+  /** Phase 42 wave 9 — Cách nhập vị trí: 'tim' hoặc 'mep' */
+  cachTimMode?: 'tim' | 'mep';
+  drawMode?: DrawMode;         // Default 'duoithang' — duỗi thẳng auto polyline
+  polylineHandle?: string;     // AutoCAD entity handle khi mode 'polyline'
+  /** Phase 42 wave 9 — Chiều dài polyline đã pick (m) khi mode 'polyline' */
+  polylineLength?: number;
+  /** Phase 43 wave 16.2 — Toạ độ các đỉnh polyline đã pick. Dùng cho engine arc-length param.
+   *  Format: [[x1, y1], [x2, y2], ...] — toạ độ AutoCAD model space (m). */
+  polylineVertices?: Array<[number, number]>;
+  items: AtgtItem[];
+  /** Phase 42 wave 8.3 — Bảng đa năng nhập block ATGT động (block .dwg từ Firestore) — DEPRECATED Wave 10 */
+  blockPlacements?: AtgtBlockPlacement[];
+  /**
+   * Phase 43 wave 10 — 9 bảng tài sản theo schema database-c41a296c.xlsx.
+   * Mỗi loại có cột riêng. Thay thế blockPlacements cũ.
+   */
+  itemsV2?: import('./atgt-items-types.js').AtgtSegmentItemsV2;
+}
+
+/**
+ * Phase 42 wave 8.3 — Một lần đặt block ATGT trong segment.
+ * Mỗi placement reference 1 block trong danh mục /atgt_blocks Firestore.
+ */
+export interface AtgtBlockPlacement {
+  id: string;
+  /** ID của block trong /atgt_blocks (Firestore). Có thể null nếu user gõ free-form. */
+  blockId?: string;
+  /** Tên block tự gõ (nếu chưa chọn từ catalog) */
+  blockLabel?: string;
+  /** Lý trình (m, tính từ đầu đoạn) */
+  station: number;
+  /** Vị trí: trái / phải / tim đường */
+  side: RoadSide;
+  /** Khoảng cách từ tim đường (m) */
+  cachTim?: number;
+  /** Tình trạng */
+  status?: AtgtItemBase['status'];
+  /** Ghi chú thêm */
+  notes?: string;
+}
+
+/** Template library: mỗi loại có file DWG chứa block đặt tên theo ký hiệu */
+export interface AtgtTemplateLibrary {
+  /** Path tới file DWG chứa block biển báo (block name = mã biển vd "P.103a") */
+  bienBaoLibrary?: string;
+  /** Path tới file DWG chứa block đèn TH */
+  denTHLibrary?: string;
+  /** Path tới file DWG chứa block cọc tiêu */
+  cocTieuLibrary?: string;
+  /** Path tới file DWG chứa block cống ngang */
+  congNgangLibrary?: string;
+  /** Path tới file DWG chứa block tiêu phản quang */
+  tieuPQLibrary?: string;
+  /** Path tới file DWG chứa block gương cầu lồi */
+  guongCauLibrary?: string;
+  /** Path tới file DWG chứa các nét vạch sơn (1.1, 1.2, 1.3, ...) */
+  vachSonLibrary?: string;
+  /** Path tới file DWG chứa nét hộ lan tôn sóng */
+  hoLanLibrary?: string;
+  /** Path tới file DWG chứa nét rãnh dọc */
+  ranhDocLibrary?: string;
+}
+
+/** Phase 43 wave 16.6 — Text style preferences cho project ATGT (giống HHMĐ). */
+export interface AtgtTextPrefs {
+  styleName: string;      // tên TextStyle AutoCAD (vd "ATGT_TEXT")
+  fontFile: string;       // .shx hoặc .ttf (vd "romans.shx")
+  widthFactor: number;    // 0.7 mặc định
+  stationHeight: number;  // chiều cao text lý trình (m hoặc unit drawing)
+  blockTextHeight: number; // chiều cao text leader/hiện trạng
+  /** Phase 43 wave 16.10 — Scale block khi INSERT (0.LT + biển báo + cọc tiêu...).
+   *  Block design size cố định trong file .dwg. Tăng scale = block hiện lớn hơn.
+   *  Default 1. Nếu polyline drawing units nhỏ (m), scale 1 OK; nếu mm thì scale 1000. */
+  blockScale: number;
+  /** Phase 43 wave 16.11 — Vị trí block 0.LT (cọc lý trình) so với tim đường (m).
+   *  0 = đặt ngay tim. Dương = phía left, âm = phía right. Default 0. */
+  lyTrinhBlockOffset: number;
+  /** Phase 43 wave 16.11 — Chiều dài block 0.LT (m, theo drawing units).
+   *  Biển báo + đèn TH + gương cầu sẽ offset thêm khoảng này khi đặt từ tim đường:
+   *  vị trí thực = cách tim + lyTrinhBlockLength. Default 0 (không offset thêm). */
+  lyTrinhBlockLength: number;
+  /** Phase 43 wave 16.13 — Chiều cao block biển báo (Y axis của block).
+   *  Áp dụng cho side='right' (vì insertion point thường ở đầu cột, bên phải cần thêm chiều cao
+   *  để cột mọc xuống phía mép phải): offset_right = cachTim + lyTrinhBlockLength + bienBaoHeight.
+   *  Default 0. */
+  bienBaoHeight: number;
+}
+
+export interface AtgtProject {
+  id: string;
+  name: string;
+  designUnit?: string;
+  surveyDate?: string;
+  templates?: AtgtTemplateLibrary;   // Phase 28.6: thư viện block/nét
+  segments: AtgtSegment[];
+  /** Phase 43 wave 16.6 — Cấu hình text style cho engine vẽ AutoCAD. */
+  textPrefs?: AtgtTextPrefs;
+  createdAt: number;
+  updatedAt: number;
+}
+
+/** Phase 43 wave 16.6 — Default text prefs giống HHMĐ TEXT_HH. */
+export function defaultAtgtTextPrefs(): AtgtTextPrefs {
+  return {
+    styleName: 'ATGT_TEXT',
+    fontFile: 'romans.shx',
+    widthFactor: 0.7,
+    stationHeight: 0.5,
+    blockTextHeight: 0.4,
+    blockScale: 1,
+    lyTrinhBlockOffset: 0,
+    lyTrinhBlockLength: 0,
+    bienBaoHeight: 0,
+  };
+}
+
+export interface AtgtDb {
+  version: number;
+  projects: AtgtProject[];
+  activeProjectId: string | null;
+  updatedAt: number;
+}
+
+// =====================================================================
+// Defaults + helpers
+// =====================================================================
+
+export function emptyAtgtDb(): AtgtDb {
+  return {
+    version: 1,
+    projects: [],
+    activeProjectId: null,
+    updatedAt: Date.now(),
+  };
+}
+
+export function newAtgtId(prefix: string): string {
+  return `${prefix}_${Date.now().toString(36)}_${Math.floor(Math.random() * 1000).toString(36)}`;
+}
+
+export function defaultAtgtSegment(): Omit<AtgtSegment, 'id'> {
+  return {
+    name: 'Đoạn 1',
+    startStation: 0,
+    endStation: 1000,
+    roadWidth: 7,
+    items: [],
+  };
+}
+
+/** Factory: tạo AtgtItem mặc định cho 1 category */
+export function defaultAtgtItem(category: AtgtCategory, station: number = 0): AtgtItem {
+  const base = {
+    id: newAtgtId('item'),
+    category,
+    station,
+    side: 'right' as RoadSide,
+    cachTim: 1.5,  // mặc định cách tim 1.5m
+    status: 'good' as const,
+    note: '',
+  };
+  switch (category) {
+    case 'BIENBAO':
+      return { ...base, category: 'BIENBAO', group: 'P', code: 'P.103a', diameter: 0.7, poleHeight: 2.2 };
+    case 'VACHSON':
+      return { ...base, category: 'VACHSON', vachType: 'tim', length: 50, width: 0.15, isContinuous: false };
+    case 'DENTH':
+      return { ...base, category: 'DENTH', denType: 'xe', poleHeight: 4.5, cantilever: 0 };
+    case 'HOLAN':
+      return { ...base, category: 'HOLAN', holanType: 'ho_lan_ton', length: 50 };
+    case 'COCTIEU':
+      return { ...base, category: 'COCTIEU', spacing: 5, count: 10, height: 0.6 };
+    case 'RANHDOC':
+      return { ...base, category: 'RANHDOC', ranhType: 'da_xay', length: 100, width: 0.4, depth: 0.4 };
+    case 'CONGNGANG':
+      return { ...base, category: 'CONGNGANG', congType: 'tron', diameter: 1.0, length: 8 };
+    case 'TIEUPQ':
+      return { ...base, category: 'TIEUPQ', spacing: 10, count: 10, color: 'yellow' };
+    case 'GUONGCAU':
+      return { ...base, category: 'GUONGCAU', diameter: 0.6, poleHeight: 4 };
+  }
+}
+
+export function formatStationKm(m: number): string {
+  const km = Math.floor(m / 1000);
+  const rest = m - km * 1000;
+  return `Km${km}+${rest.toString().padStart(3, '0')}`;
+}
+
+/** Tên đoạn auto từ start/end */
+export function autoAtgtSegmentName(start: number, end: number): string {
+  return `${formatStationKm(start)} - ${formatStationKm(end)}`;
+}
+
+export function sideLabel(side: RoadSide): string {
+  if (side === 'left') return 'Trái (T)';
+  if (side === 'right') return 'Phải (P)';
+  return 'Tim';
+}
+
+export function statusLabel(s: AtgtItemBase['status']): string {
+  return { good: 'Tốt', damaged: 'Hư hỏng', missing: 'Mất', new: 'Mới' }[s];
+}

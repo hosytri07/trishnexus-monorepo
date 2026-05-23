@@ -4,12 +4,252 @@
 >
 > **🔴 ĐỌC SECTION `📍 PHIÊN HIỆN TẠI` NGAY DƯỚI — TẤT CẢ SECTION CŨ PHÍA DƯỚI LÀ LỊCH SỬ ARCHIVE, ĐỪNG NHẦM!**
 >
-> **Cập nhật:** 2026-05-23 (Phase 43 wave 16 — pick polyline + textPrefs/FontPicker — đang code dở, CHƯA commit. Sắp chuyển máy về nhà.)
+> **Cập nhật:** 2026-05-23 (chiều) — **Phase 44 plan: gộp 12 app desktop → 4 app mới** (TrishWork / TrishUtilities / TrishFinance / TrishAdmin). Bỏ Launcher + Office. Đổi auth: bỏ KeyGate key tay → Firebase login + role admin cấp.
 > **Chủ dự án:** Trí (hosytri77@gmail.com / trishteam.official@gmail.com) — kỹ sư hạ tầng giao thông Đà Nẵng. Không phải dev. Giao tiếp tiếng Việt, tránh jargon.
 
 ---
 
-## 📍 PHIÊN HIỆN TẠI — 2026-05-23 (Phase 43 wave 16 — pick polyline AutoCAD + textPrefs giống HHMĐ — CHUYỂN MÁY VỀ NHÀ)
+## 📍 PHIÊN HIỆN TẠI — 2026-05-23 (chiều) — Phase 44 ECOSYSTEM REFACTOR: 12 → 4 app
+
+### 🎯 Quyết định lớn (Trí chốt 2026-05-23 chiều)
+
+Gộp 10 app desktop hiện tại (trừ Admin) thành 3 app, tổng cộng còn **4 app + Admin**:
+
+| App mới | Gộp từ | Accent color | Logo |
+|---|---|---|---|
+| **TrishWork** | TrishDesign + TrishLibrary + TrishISO | 🟢 `#34D399` xanh lá | Chữ T xanh lá + swoosh, nền `#0E1A1A` |
+| **TrishUtilities** | TrishClean + TrishCheck + TrishDrive + TrishFont + TrishShortcut | 🟣 `#A78BFA` tím | Chữ T tím + swoosh, nền `#0E1A1A` |
+| **TrishFinance** | (giữ nguyên, refactor đồng bộ giao diện) | 🟡 `#FBBF24` vàng cam | Chữ T vàng cam + swoosh, nền `#0E1A1A` |
+| **TrishAdmin** | (giữ nguyên, refactor đồng bộ giao diện + thêm panel cấp quyền user) | 🔴 `#F87171` đỏ | Chữ T đỏ + swoosh, nền `#0E1A1A` |
+
+**Bỏ hẳn:** TrishLauncher, TrishOffice (Office không gộp vào đâu — bỏ luôn).
+
+**Auth flow MỚI (thay KeyGate cũ):**
+- Bỏ cơ chế nhập key tay trong app.
+- Mở app → Firebase Auth (Google Sign-In + email/password).
+- Signup mới → role `trial` → bị block hết app, hiện màn "Liên hệ admin cấp quyền".
+- Admin (TrishAdmin) có panel mới "Cấp quyền user": chọn user trial → tick app cho phép → save → user mở được app.
+- Firestore `/users/{uid}` schema: `role` (trial/free/pro/admin), `apps[]` (work/utilities/finance), `keyIssuedAt`.
+
+**Design system thống nhất:** Cả 4 app đều dùng `<AppShell>` chung (extract từ TrishLibrary lên `packages/design-system`). Khác nhau chỉ ở: accent color (token), danh sách module (config), nội dung main. Sidebar trái + Topbar + Statusbar dưới giống nhau.
+
+### 📋 Lộ trình Phase 44 — 7 wave (đã setup task list)
+
+```
+44.1 Design system (AppShell + 4 token màu)         [IN PROGRESS]
+   ↓
+44.2 AuthGate Firebase (thay KeyGate cũ)
+   ↓
+44.3 TrishWork    44.4 TrishUtilities    44.5 Finance+Admin
+   ↓                ↓                       ↓
+                44.6 Archive 10 app cũ vào apps-desktop/_archive/
+                       ↓
+                44.7 Build .exe 4 app + smoke test + Release v2.0.0
+                       ↓
+                44.8 Test Wave 16 pick polyline (DEFER từ Phase 43 wave 16)
+```
+
+### 🚧 Phase 43 wave 16 — DEFER
+
+Wave 16 code đã commit `abb07ba` (pick polyline AutoCAD + textPrefs/FontPicker). **Chưa test thực tế trong AutoCAD.** Trí chốt: bỏ qua test này, test lại sau khi gộp xong vào TrishWork.Design (task 44.8). Code Wave 16 sẽ được move vào `apps-desktop/trishwork/src/modules/design/` ở wave 44.3.
+
+### 📝 Quy ước cấu trúc app mới
+
+```
+apps-desktop/trishwork/        ← NEW
+  src/
+    App.tsx                    ← gọi <AppShell appId="work">
+    main.tsx
+    modules/
+      design/                  ← code từ trishdesign cũ
+      library/                 ← code từ trishlibrary cũ
+      iso/                     ← code từ trishiso cũ
+    auth/
+      AuthGate.tsx             ← Firebase login
+  src-tauri/
+    src/
+      lib.rs                   ← merge commands từ 3 Tauri backend cũ
+
+apps-desktop/trishutilities/   ← NEW (tương tự, 5 module)
+apps-desktop/_archive/         ← NEW (move 10 app cũ vào đây làm backup)
+  trishdesign/
+  trishlibrary/
+  trishiso/
+  trishclean/
+  trishcheck/
+  trishdrive/
+  trishfont/
+  trishshortcut/
+  trishlauncher/
+  trishoffice/
+
+packages/design-system/        ← MỞ RỘNG
+  src/
+    AppShell.tsx               ← extract từ trishlibrary
+    Sidebar.tsx
+    Topbar.tsx
+    tokens.ts                  ← export 4 accent
+```
+
+### 🔧 Tiến độ Phase 44 — phiên 2026-05-23 (chiều)
+
+**✅ Wave 44.1 — Design system DONE**
+- `design/tokens.json` — thêm `color.apps` (work/utilities/finance/admin) + `color.brand`
+- `website/assets/tokens.css` + `shared/trishteam_core/.../tokens.py` regenerated
+- `packages/design-system/src/theme.css` — append 8 rules accent per-app × light/dark
+- `packages/design-system/src/AppLogo.tsx` **NEW** — SVG chữ T + swoosh, 4 màu
+- `packages/design-system/src/AppShell.tsx` **NEW** — generic shell + Ctrl+1..9 + accent auto-apply
+- `packages/design-system/src/applyAppAccent.ts` **NEW** — `applyAppAccent(id)` + `shellToLicenseAppId()` map
+- `packages/design-system/src/index.ts` — re-export tất cả
+- `packages/design-system/package.json` — bump v1.1.0 + react peerDep
+- TypeScript syntax: 4/4 file pass esbuild check
+
+**✅ Wave 44.2 — AuthGate Firebase DONE**
+- `packages/data/src/index.ts` — thêm `'trishwork'` + `'trishutilities'` vào `AppId` enum (giữ legacy IDs cho migration)
+- `packages/auth/src/auth-gate.tsx` **NEW** ~280 dòng — replace KeyGate:
+  - Dùng `useAuth()` lấy profile auto-loaded
+  - Admin bypass tất cả
+  - Check `userHasAppAccess(profile, appId)` (đã có helper sẵn trong data)
+  - Trial / chưa có quyền → màn "Liên hệ admin"
+  - KHÔNG có input nhập key tay
+- `packages/auth/src/react.tsx` — re-export `AuthGate` + `AuthGateProps`
+
+**✅ Wave 44.4 — TrishUtilities scaffold DONE, logic migrate DEFER**
+
+Y hệt Wave 44.3 nhưng accent tím + 5 module (clean/check/drive/font/shortcut). Port dev 1442. Identifier `vn.trishteam.utilities`. 17 file scaffold, syntax 7/7 pass.
+
+**✅ Wave 44.5 — TrishAdmin AppAccessPanel DONE (refactor giao diện DEFER)**
+
+- `apps-desktop/trishadmin/src/lib/firestore-admin.ts` — thêm 2 helper:
+  - `grantAppAccess(uid, appId, durationDays, actor, email)` → set `app_keys[appId] = { key_id, activated_at, expires_at }`
+  - `revokeAppAccess(uid, appId, actor, email)` → delete field
+- `apps-desktop/trishadmin/src/components/AppAccessPanel.tsx` **NEW** ~310 dòng:
+  - Bảng users với 4 cột app (Work/Utilities/Finance/Admin)
+  - Checkbox enable + input số ngày + nút Lưu mỗi row
+  - Filter search by email/tên/uid
+  - Audit log tự ghi
+- `apps-desktop/trishadmin/src/App.tsx` — thêm Panel type `'app_access'` + nav item "🔑 Cấp quyền App (Phase 44)" trong nhóm Người dùng + render case
+
+**DEFER:** Refactor TrishFinance + TrishAdmin sang AppShell unified (có thể giữ layout cũ vì 2 app này đã có UI tốt — chỉ cần đổi accent color qua `applyAppAccent`).
+
+**🚧 Wave 44.3 — TrishWork scaffold DONE, logic migrate DEFER**
+
+Đã tạo `apps-desktop/trishwork/` với 15 file scaffold:
+
+```
+apps-desktop/trishwork/
+  package.json              ← @trishteam/trishwork v2.0.0
+  vite.config.ts            ← port 1440 (Library = 1434)
+  tsconfig.json
+  index.html                ← <html data-app="work">
+  src/
+    main.tsx                ← applyAppAccent('work') + AuthProvider
+    App.tsx                 ← <AuthGate appId="trishwork"><AppShell appId="work">
+    modules/
+      design/DesignModule.tsx   ← PLACEHOLDER
+      library/LibraryModule.tsx ← PLACEHOLDER
+      iso/IsoModule.tsx         ← PLACEHOLDER
+  src-tauri/
+    Cargo.toml              ← trishwork crate, Tauri 2 minimal
+    build.rs
+    tauri.conf.json         ← identifier vn.trishteam.work
+    capabilities/main.json
+    src/main.rs
+    src/lib.rs              ← invoke_handler[app_version] (skeleton)
+```
+
+App skeleton COMPILE OK (esbuild syntax 5/5). Sau khi Trí pull về, có thể:
+- `cd apps-desktop/trishwork && pnpm install`
+- `pnpm tauri:dev` → mở app TrishWork với màn login (Firebase Auth)
+- Login → màn "Liên hệ admin" (vì chưa cấp app_keys.trishwork)
+- Vào TrishAdmin → cấp quyền → reload → vào shell với 3 module placeholder
+
+**DEFER (Wave 44.3.x sau):**
+- 44.3.1: Migrate code từ `apps-desktop/trishdesign/src/` → `apps-desktop/trishwork/src/modules/design/`
+- 44.3.2: Migrate code từ `apps-desktop/trishlibrary/src/` → `apps-desktop/trishwork/src/modules/library/`
+- 44.3.3: Migrate code từ `apps-desktop/trishiso/src/` → `apps-desktop/trishwork/src/modules/iso/`
+- 44.3.B: Merge Rust backend commands từ 3 lib.rs cũ vào `trishwork/src-tauri/src/lib.rs`
+
+### 📦 Files đụng đến trong phiên này
+
+**Modified:**
+- `design/tokens.json`
+- `website/assets/tokens.css` (regen)
+- `shared/trishteam_core/.../tokens.py` (regen)
+- `packages/design-system/package.json`
+- `packages/design-system/src/index.ts`
+- `packages/design-system/src/theme.css`
+- `packages/data/src/index.ts`
+- `packages/auth/src/react.tsx`
+
+**NEW (4 file design-system + 1 file auth):**
+- `packages/design-system/src/AppLogo.tsx`
+- `packages/design-system/src/AppShell.tsx`
+- `packages/design-system/src/applyAppAccent.ts`
+- `packages/auth/src/auth-gate.tsx`
+
+**NEW folder (15 file scaffold trishwork):**
+- `apps-desktop/trishwork/` (toàn bộ)
+
+### ✅ Wave 44.3.x — TrishWork logic migration DONE (best-effort copy)
+
+- `apps-desktop/trishwork/src/modules/design/` — copy nguyên `apps-desktop/trishdesign/src/` (trừ App/Root/main/KeyGate). Rename App.tsx → `DesignModule.tsx` (`export function DesignModule()`). Submodules folder `__submodules` rename → `modules` để giữ import path đúng. **55 file**.
+- `apps-desktop/trishwork/src/modules/library/` — copy `apps-desktop/trishlibrary/src/` (trừ main). AppShell.tsx → `LibraryModule.tsx`, App.tsx → `App.tsx` (sub-app library). **50 file**.
+- `apps-desktop/trishwork/src/modules/iso/` — copy `apps-desktop/trishiso/src/`. App.tsx → `IsoModule.tsx`. **10 file**.
+- `apps-desktop/trishwork/package.json` — merge 53 deps + 10 devDeps từ 3 app gốc.
+- `apps-desktop/trishwork/src-tauri/` — Rust base copy từ TrishDesign (có `acad_com.rs` + `lib.rs` + resources/SRETC_HuHong.pat). Cargo.toml rename `trishdesign → trishwork`. **DEFER:** merge thêm Rust commands từ TrishLibrary (Tantivy/OCR) + TrishISO ở Wave 44.3.B.
+
+### ✅ Wave 44.4.x — TrishUtilities logic migration DONE (best-effort copy)
+
+- Copy `apps-desktop/{trishclean,trishcheck,trishdrive,trishfont,trishshortcut}/src/` → `apps-desktop/trishutilities/src/modules/{clean,check,drive,font,shortcut}/`. App.tsx mỗi app → `{Mod}Module.tsx`. Tổng **~70 file**.
+- `apps-desktop/trishutilities/package.json` — merge 19 deps + 6 devDeps.
+- `apps-desktop/trishutilities/src-tauri/` — Rust base copy từ TrishDrive (8 .rs MTProto Telegram). Cargo.toml rename `trishdrive → trishutilities`. **DEFER:** merge Rust commands từ Clean/Check/Font/Shortcut ở Wave 44.4.B.
+
+### ✅ Wave 44.6 — Archive 10 app cũ DONE
+
+```
+apps-desktop/_archive/
+├── trishdesign/      (→ migrated vào trishwork/modules/design)
+├── trishlibrary/     (→ migrated vào trishwork/modules/library)
+├── trishiso/         (→ migrated vào trishwork/modules/iso)
+├── trishclean/       (→ migrated vào trishutilities/modules/clean)
+├── trishcheck/       (→ migrated vào trishutilities/modules/check)
+├── trishdrive/       (→ migrated vào trishutilities/modules/drive)
+├── trishfont/        (→ migrated vào trishutilities/modules/font)
+├── trishshortcut/    (→ migrated vào trishutilities/modules/shortcut)
+├── trishlauncher/    (BỎ HẲN — không gộp vào đâu)
+└── trishoffice/      (BỎ HẲN — không gộp vào đâu)
+```
+
+`pnpm-workspace.yaml` đã update — explicit list 4 app + admin, exclude `_archive`.
+`CLAUDE.md` đã update cấu trúc mới.
+
+### 🧪 Wave 44.7 — Smoke test plan READY
+
+Đọc **`docs/PHASE44-SMOKE-TEST.md`** trước khi test. Trí pull về + `pnpm install` + chạy `pnpm tauri:dev` ở 4 app.
+
+### ⚠ Defer sang phiên sau
+
+1. **Wave 44.3.B + 44.4.B:** Merge Rust commands còn lại từ TrishLibrary (Tantivy/OCR) / TrishISO / Clean / Check / Font / Shortcut vào lib.rs của 2 app mới. Hiện tại chỉ AutoCAD COM (work) + MTProto (utilities) hoạt động đầy đủ.
+2. **TrishFinance refactor accent vàng** (cosmetic — UI vẫn chạy được như cũ).
+3. **TrishLibrary sticky window** (defer — không scaffold ở trishwork).
+4. **Build + sign + Release .exe** (wave 44.7 phần build thật — defer cho khi test pass).
+5. **Wave 44.8** — Test Wave 16 polyline AutoCAD trong TrishWork.Design.
+
+### 📋 Sau khi test xong
+
+- Nếu fail: rollback bằng cách restore 10 folder từ `_archive` lên 1 level, hoặc fix imports cụ thể (xem PHASE44-SMOKE-TEST.md mục "Nếu fail").
+- Nếu OK: tiếp Wave 44.8 test polyline AutoCAD + 44.3.B/44.4.B migrate Rust commands còn lại.
+
+### ⚠ Lưu ý cho máy bên kia (cơ quan / nhà) khi pull về
+
+- 10 app cũ trong `apps-desktop/` vẫn chạy được bình thường cho tới khi Wave 44.6 (archive). Không ảnh hưởng workflow hiện tại.
+- Phải pull `packages/design-system` mới sau wave 44.1.
+- Phase 44 dự kiến nhiều phiên — đọc section này để biết đang ở wave nào.
+
+---
+
+## 📍 PHIÊN CŨ — 2026-05-23 (sáng) — Phase 43 wave 16 (pick polyline + textPrefs/FontPicker) — ĐÃ COMMIT, DEFER TEST
 
 ### ⚠ TRƯỚC KHI MỞ LẠI MÁY NHÀ — đọc kỹ
 
@@ -20,7 +260,7 @@ Nếu pull về máy nhà mà KHÔNG thấy các file `polyline-curve.ts`, `Font
 ### 🚨 BƯỚC ĐẦU TIÊN máy nhà
 
 ```powershell
-cd C:\Users\ADMIN\Documents\Claude\Projects\TrishTEAM\trishnexus-monorepo
+cd C:\Users\TRI\Documents\Claude\Projects\TrishTEAM\trishnexus-monorepo
 START.bat
 ```
 
@@ -105,7 +345,7 @@ Wave 16 chính là làm **defer item #1 của wave 15** ("TrishDesign mode 'Theo
 Phiên này máy cơ quan có file `.git/index.lock` còn sót từ Claude tool (size 0, không xoá được qua bash). Nếu chạy `END.bat` báo lỗi "Another git process seems to be running":
 
 ```powershell
-cd C:\Users\ADMIN\Documents\Claude\Projects\TrishTEAM\trishnexus-monorepo
+cd C:\Users\TRI\Documents\Claude\Projects\TrishTEAM\trishnexus-monorepo
 del .git\index.lock
 END.bat
 ```
@@ -149,7 +389,7 @@ git push origin main
 ### 🚨 BƯỚC ĐẦU TIÊN máy cơ quan
 
 ```powershell
-cd C:\Users\ADMIN\Documents\Claude\Projects\TrishTEAM\trishnexus-monorepo
+cd C:\Users\TRI\Documents\Claude\Projects\TrishTEAM\trishnexus-monorepo
 START.bat
 ```
 
@@ -170,7 +410,7 @@ pnpm tauri dev
 Nếu Firestore báo "Missing or insufficient permissions" → deploy rules 1 lần:
 
 ```powershell
-cd C:\Users\ADMIN\Documents\Claude\Projects\TrishTEAM\trishnexus-monorepo
+cd C:\Users\TRI\Documents\Claude\Projects\TrishTEAM\trishnexus-monorepo
 firebase deploy --only firestore:rules
 ```
 
@@ -250,7 +490,7 @@ firebase deploy --only firestore:rules
 ### 🚨 BƯỚC ĐẦU TIÊN
 
 ```powershell
-cd C:\Users\ADMIN\Documents\Claude\Projects\TrishTEAM\trishnexus-monorepo
+cd C:\Users\TRI\Documents\Claude\Projects\TrishTEAM\trishnexus-monorepo
 git pull
 pnpm install
 cd apps-desktop\trishdesign
@@ -333,7 +573,7 @@ pnpm tauri dev
 ### 🚨 BƯỚC ĐẦU TIÊN máy nhà sau khi pull code:
 
 ```powershell
-cd C:\Users\ADMIN\Documents\Claude\Projects\TrishTEAM\trishnexus-monorepo
+cd C:\Users\TRI\Documents\Claude\Projects\TrishTEAM\trishnexus-monorepo
 git pull
 pnpm install
 cd apps-desktop\trishdesign
@@ -439,7 +679,7 @@ pnpm tauri dev
 
 **Lệnh duy nhất:**
 ```powershell
-cd C:\Users\ADMIN\Documents\Claude\Projects\TrishTEAM\trishnexus-monorepo
+cd C:\Users\TRI\Documents\Claude\Projects\TrishTEAM\trishnexus-monorepo
 if (Test-Path .git\index.lock) { Remove-Item .git\index.lock -Force }
 git add -A
 git commit -m "feat: Phase 40-41 wave 2 - 5 app v1.0.0 ready to ship"
@@ -512,7 +752,7 @@ Deadline cũ 2026-05-07 đã trễ. Làm sau khi 5 app release.
 ### ⏳ Bước tiếp NGAY (đang chờ)
 
 ```powershell
-cd C:\Users\ADMIN\Documents\Claude\Projects\TrishTEAM\trishnexus-monorepo
+cd C:\Users\TRI\Documents\Claude\Projects\TrishTEAM\trishnexus-monorepo
 Remove-Item .git\index.lock -ErrorAction SilentlyContinue
 cd apps-desktop\trishadmin
 pnpm tauri dev
@@ -579,7 +819,7 @@ TrishTEAM là **hệ sinh thái phần mềm + tri thức + công cụ** cho k�
 
 1. **Build + verify Phase 38.2.0:**
    ```powershell
-   cd C:\Users\ADMIN\Documents\Claude\Projects\TrishTEAM\trishnexus-monorepo
+   cd C:\Users\TRI\Documents\Claude\Projects\TrishTEAM\trishnexus-monorepo
    pnpm install   # similar crate sẽ resolve khi cargo fetch
    pnpm -C apps-desktop\trishlibrary fetch:tessdata   # tải ~70MB tessdata vie+eng
    pnpm -C apps-desktop\trishlibrary tauri dev        # test mở app, vào Settings → Công cụ ngoài
@@ -704,12 +944,12 @@ TrishTEAM là **hệ sinh thái phần mềm + tri thức + công cụ** cho k�
 
 2. **Push code lên Vercel:**
    ```powershell
-   cd C:\Users\ADMIN\Documents\Claude\Projects\TrishTEAM\trishnexus-monorepo; git add -A; git commit -m "feat: Phase 36+37 key system end-to-end + Phase 38.1 launcher metadata"; git push origin main
+   cd C:\Users\TRI\Documents\Claude\Projects\TrishTEAM\trishnexus-monorepo; git add -A; git commit -m "feat: Phase 36+37 key system end-to-end + Phase 38.1 launcher metadata"; git push origin main
    ```
 
 3. **Cài deps machine-id Rust crate** (1 lần, các app sẽ link path):
    ```powershell
-   cd C:\Users\ADMIN\Documents\Claude\Projects\TrishTEAM\trishnexus-monorepo; pnpm install
+   cd C:\Users\TRI\Documents\Claude\Projects\TrishTEAM\trishnexus-monorepo; pnpm install
    ```
 
 4. **Build test 1 app** (vd TrishLibrary) để verify Tauri command machine_id work:
@@ -850,7 +1090,7 @@ TrishTEAM là **hệ sinh thái phần mềm + tri thức + công cụ** cho k�
 Bug đã fix code, Trí cần BUILD lại:
 
 ```powershell
-cd C:\Users\ADMIN\Documents\Claude\Projects\TrishTEAM\trishnexus-monorepo
+cd C:\Users\TRI\Documents\Claude\Projects\TrishTEAM\trishnexus-monorepo
 
 # 1. Reinstall NPM (TrishShortcut bumped api ^2.11.0)
 pnpm install
@@ -1404,271 +1644,4 @@ trishnexus-monorepo/
 | `SETUP.bat` | Setup máy mới (cài deps lần đầu) |
 
 ### Phân biệt máy
-File `.machine-label` ở root project (gitignored) chứa `home` hoặc `office`. START.bat đọc và hiển thị label. Lần đầu chạy mỗi máy → tự hỏi và lưu.
-
----
-
-## 🚦 RULES BẮT BUỘC CHO CLAUDE
-
-### Khi bắt đầu phiên
-1. Trí gõ "tiếp tục" / "pick up" / "đọc handoff" → đọc FILE NÀY trước khi làm gì khác
-2. Tóm tắt 2-3 dòng "đang ở đâu" rồi propose action
-3. **Lệnh terminal đưa 1 dòng copy-paste** (ghép `;` cho PowerShell, `&&` cho cmd) — không tách step-by-step
-
-### Khi kết thúc phiên
-Trước khi Trí bấm `END.bat`:
-1. Update section "PICK UP TỪ ĐÂY" của file này
-2. Mark phase đã xong / thêm phase mới ở section "LỊCH SỬ PHASE"
-3. Cập nhật "Pending cho phiên kế"
-
-### Giao tiếp
-- **Tiếng Việt** mọi nơi
-- Trí ngắn gọn ("ok", "tiếp tục", "được rồi") = confirm, cứ chạy tiếp
-- Khi Trí hỏi "còn gì nữa" → liệt kê option theo độ ưu tiên
-- Tránh emoji nhiều, tránh post-amble dài, tránh "sao chép câu hỏi rồi trả lời"
-
-### Không tự ý làm
-- Đừng deploy production khi chưa confirm
-- Đừng xóa file legacy chưa hỏi
-- Đừng sửa source data Trí cung cấp (PDF, JSON) — chỉ parse, không bịa
-- Đừng commit secrets / API keys
-
-### Design system (bất biến)
-- **Font:** Be Vietnam Pro (Latin + Vietnamese subsets)
-- **Color:** Theme variables CSS qua tokens (`var(--color-text-primary)`, etc.) — KHÔNG hard-code
-- **Accent:** `#667eea → #764ba2` (gradient tím-indigo)
-- **Theme:** Auto switch qua `data-theme="dark"|"light"` trên `<html>`
-
-### Patterns / Gotchas
-- **Cloudinary:** signed upload qua `/api/cloudinary/sign`, folder pattern (avatar/temp/sign/bridge/post)
-- **Firestore rules:** Bắt buộc pass — deploy rules trước khi dùng query mới
-- **Big JSON:** lazy fetch + `cache: 'force-cache'` + có `loading.tsx` skeleton
-- **LocalStorage:** wrap `useEffect`, check `typeof window !== 'undefined'`
-- **Static metadata:** Layout server component export `metadata`, không dùng trong `'use client'`
-- **Mobile:** container `max-w-{N} mx-auto px-6`, grid `grid-cols-1 md:grid-cols-{N}`, table bọc `overflow-x-auto -mx-6 px-6` + `min-w-{N}px` + `whitespace-nowrap`
-- **Vietnamese diacritics:** `foldVietnamese()` trong `@trishteam/core/search` cho fuzzy match
-
-### Phong thủy / tử vi
-**KHÔNG bao giờ** thêm. Đã loại vĩnh viễn.
-
----
-
-## 📜 LỊCH SỬ PHASE (TÓM TẮT)
-
-| Phase | Nội dung | Ngày |
-|---|---|---|
-| **14.x** | Monorepo + TrishLauncher v2 (Tauri 2) + 3 app đầu (Check/Clean/Font) | Đầu 04/2026 |
-| **15.x** | Release Check/Font/Library v2.0.0-1 | 25/04 |
-| **16.x** | Firebase Auth + Firestore role-based + TrishLibrary v2.1 sync 2 chiều | 26/04 |
-| **17.x** | 5 app code mới: Clean/Note/Search/Image/Type | 27/04 |
-| **18.6** | Build TrishLibrary 3.0.0 NSIS .exe + GitHub release | 27/04 |
-| **18.7** | TrishAdmin scaffold | 27/04 |
-| **18.8.a** | TrishAdmin v1.1 → 9 panel + audit log | 27/04 |
-| **18.8.b/c** | Telemetry package + wire vào tất cả app | ⏳ TODO |
-| **19.1-19.18** | Website slim layout, Firebase login, blog, admin panel, 404 custom, sidebar refactor | 27/04 |
-| **19.20** | Website: 6 database + 4 quiz + công cụ VN2000 + sitemap + Ctrl+K | 28/04 cơ quan |
-| **19.21** | Website: Cert exam BXD 163/2025 (8081 câu) — rewrite `/on-thi-chung-chi` | 28/04 cơ quan |
-| **19.22** | Web admin hoàn thiện: /admin/users CRUD, /admin/databases, /admin/apps, /admin/library, blog ID sequence, countdown realtime, blog preview widget, URL shortener TrishTEAM, banner Firestore, logo bg trắng đồng nhất, Việt hóa | 28-29/04 |
-| **19.23** | ✅ **DEPLOYED PRODUCTION** https://trishteam.io.vn (12 env vars Vercel, base64 service account, ENABLE_EXPERIMENTAL_COREPACK) | 29/04 nhà |
-| **19.24** | ✅ TrishAdmin desktop parity — 4 panel mới: BackupPanel (export/import JSON, audit), DatabaseVnPanel (4 collection JSON editor), BulkImportPanel (CSV/TSV → Firestore batch), StoragePanel (Cloudinary quota + folders + top files). CSS bổ sung 459 dòng. | 29/04 nhà |
-| **20.x** | ✅ TrishLauncher Sync + Web optimization (8 sub-task) | 29/04 |
-| **21.prep** | ✅ Cleanup + Telemetry + Observability — packages/telemetry, ErrorsPanel + VitalsPanel TrishAdmin v1.1.0, backup-firestore.yml weekly, docs SENTRY-SETUP, .gitattributes CRLF | 29/04 |
-| **21.x** | ⏳ TrishDesign desktop (AutoCAD + AI RAG TCVN/AASHTO) | TODO |
-
----
-
-## 📋 VIỆC CÒN DANG DỞ
-
-### Cần Trí cung cấp source
-- **600 câu lái xe có đáp án** (PDF cũ image-based, sandbox không OCR được tiếng Việt)
-- **250 câu moto có đáp án**
-- **Ảnh thật biển báo QC41:2024** (upload qua admin panel sau)
-- **Lat/lng GPS chính xác cho 7,549 cầu** (hiện jitter ±0.15° — geocoding Gemini API là Phase 21)
-
-### Cần code (Phase 20+)
-- FCM push notification thực sự (Cloud Function + service worker)
-- Admin UI CRUD cho câu hỏi BXD 163 / định mức / quy chuẩn / vật liệu
-- Bookmark / favorite biển báo + câu hỏi
-- Lịch sử thi → Firestore `/users/{uid}/exam-history`
-- Leaderboard tuần / tháng
-- i18n vi/en (next-intl wire)
-
-### Desktop pending
-- Telemetry package + wire `reportError()` / `reportVital()` vào 7 app
-- Errors panel + Vitals panel trong TrishAdmin
-- TrishAdmin build + release
-- TrishDesign scaffold
-
----
-
-## 🔧 LỆNH HAY DÙNG (1 dòng)
-
-```bash
-# Test website local
-cd 'C:\Users\ADMIN\Documents\Claude\Projects\TrishTEAM\trishnexus-monorepo\website'; pnpm dev
-
-# Build website check (luôn chạy trước push)
-cd 'C:\Users\ADMIN\Documents\Claude\Projects\TrishTEAM\trishnexus-monorepo\website'; pnpm build
-
-# Lint
-cd 'C:\Users\ADMIN\Documents\Claude\Projects\TrishTEAM\trishnexus-monorepo\website'; pnpm lint
-
-# Run desktop app dev (ví dụ TrishLibrary)
-cd 'C:\Users\ADMIN\Documents\Claude\Projects\TrishTEAM\trishnexus-monorepo\apps-desktop\trishlibrary'; pnpm tauri dev
-
-# QA all (73 check)
-cd 'C:\Users\ADMIN\Documents\Claude\Projects\TrishTEAM\trishnexus-monorepo'; pnpm qa:all
-
-# Set admin role (sau khi tải service-account.json về secrets/)
-cd 'C:\Users\ADMIN\Documents\Claude\Projects\TrishTEAM\trishnexus-monorepo'; $env:GOOGLE_APPLICATION_CREDENTIALS="./secrets/service-account.json"; npx ts-node scripts/firebase/seed-admin.ts --email trishteam.official@gmail.com
-
-# Deploy Firestore rules
-scripts\DEPLOY-RULES.bat
-
-# Deploy production
-git push origin main   # Vercel auto-deploy
-```
-
----
-
-## 📚 FILE DOCS GIỮ LẠI (REFERENCE)
-
-| File | Mục đích |
-|---|---|
-| **HANDOFF-MASTER.md** | ← FILE NÀY — đọc đầu phiên |
-| **PARITY-WEB-TRISHADMIN.md** | ★ Mới — gap analysis web vs desktop + roadmap deploy → Zalo → TrishDesign |
-| `CHANGELOG.md` | Lịch sử release chi tiết |
-| `ROADMAP.md` | Lộ trình phase 20+ |
-| `DESIGN.md` + `design-spec.md` | Design system tokens |
-| `FIREBASE-SETUP.md` | Setup Firebase project mới |
-| `DEPLOY-VERCEL.md` | Deploy steps Vercel |
-| `DOMAIN-TENTEN.md` | Setup domain Tenten DNS |
-| `SETUP-HOME-PC.md` | Cài deps máy mới (Node, Rust, etc.) |
-| `WEB-DESKTOP-PARITY.md` | Mapping feature web ↔ desktop |
-| `STORAGE-STRATEGY.md` | Lý do chọn Cloudinary vs Firebase |
-| `PACKAGING.md` | Build & sign NSIS installer |
-| `RELEASE-CHECKLIST.md` | Pre-release sanity check |
-
-### File đã merge vào MASTER → có thể XÓA
-- ~~`HANDOFF-WEBSITE-PHASE-19.md`~~ (22KB)
-- ~~`HANDOFF-TRISHLIBRARY-3.0.md`~~ (35KB)
-- ~~`SESSION-HANDOFF.md`~~ (88KB) — archive Phase 14-16 cũ
-
-→ Sau khi xác nhận MASTER đã đủ thông tin → xóa 3 file trên.
-
----
-
-**End of HANDOFF-MASTER.md.**
-zzy match
-
-### Phong thủy / tử vi
-**KHÔNG bao giờ** thêm. Đã loại vĩnh viễn.
-
----
-
-## 📜 LỊCH SỬ PHASE (TÓM TẮT)
-
-| Phase | Nội dung | Ngày |
-|---|---|---|
-| **14.x** | Monorepo + TrishLauncher v2 (Tauri 2) + 3 app đầu (Check/Clean/Font) | Đầu 04/2026 |
-| **15.x** | Release Check/Font/Library v2.0.0-1 | 25/04 |
-| **16.x** | Firebase Auth + Firestore role-based + TrishLibrary v2.1 sync 2 chiều | 26/04 |
-| **17.x** | 5 app code mới: Clean/Note/Search/Image/Type | 27/04 |
-| **18.6** | Build TrishLibrary 3.0.0 NSIS .exe + GitHub release | 27/04 |
-| **18.7** | TrishAdmin scaffold | 27/04 |
-| **18.8.a** | TrishAdmin v1.1 → 9 panel + audit log | 27/04 |
-| **18.8.b/c** | Telemetry package + wire vào tất cả app | ⏳ TODO |
-| **19.1-19.18** | Website slim layout, Firebase login, blog, admin panel, 404 custom, sidebar refactor | 27/04 |
-| **19.20** | Website: 6 database + 4 quiz + công cụ VN2000 + sitemap + Ctrl+K | 28/04 cơ quan |
-| **19.21** | Website: Cert exam BXD 163/2025 (8081 câu) — rewrite `/on-thi-chung-chi` | 28/04 cơ quan |
-| **19.22** | Web admin hoàn thiện: /admin/users CRUD, /admin/databases, /admin/apps, /admin/library, blog ID sequence, countdown realtime, blog preview widget, URL shortener TrishTEAM, banner Firestore, logo bg trắng đồng nhất, Việt hóa | 28-29/04 |
-| **19.23** | ✅ **DEPLOYED PRODUCTION** https://trishteam.io.vn (12 env vars Vercel, base64 service account, ENABLE_EXPERIMENTAL_COREPACK) | 29/04 nhà |
-| **19.24** | ✅ TrishAdmin desktop parity — 4 panel mới: BackupPanel (export/import JSON, audit), DatabaseVnPanel (4 collection JSON editor), BulkImportPanel (CSV/TSV → Firestore batch), StoragePanel (Cloudinary quota + folders + top files). CSS bổ sung 459 dòng. | 29/04 nhà |
-| **20.x** | ✅ TrishLauncher Sync + Web optimization (8 sub-task) | 29/04 |
-| **21.prep** | ✅ Cleanup + Telemetry + Observability — packages/telemetry, ErrorsPanel + VitalsPanel TrishAdmin v1.1.0, backup-firestore.yml weekly, docs SENTRY-SETUP, .gitattributes CRLF | 29/04 |
-| **21.x** | ⏳ TrishDesign desktop (AutoCAD + AI RAG TCVN/AASHTO) | TODO |
-
----
-
-## 📋 VIỆC CÒN DANG DỞ
-
-### Cần Trí cung cấp source
-- **600 câu lái xe có đáp án** (PDF cũ image-based, sandbox không OCR được tiếng Việt)
-- **250 câu moto có đáp án**
-- **Ảnh thật biển báo QC41:2024** (upload qua admin panel sau)
-- **Lat/lng GPS chính xác cho 7,549 cầu** (hiện jitter ±0.15° — geocoding Gemini API là Phase 21)
-
-### Cần code (Phase 20+)
-- FCM push notification thực sự (Cloud Function + service worker)
-- Admin UI CRUD cho câu hỏi BXD 163 / định mức / quy chuẩn / vật liệu
-- Bookmark / favorite biển báo + câu hỏi
-- Lịch sử thi → Firestore `/users/{uid}/exam-history`
-- Leaderboard tuần / tháng
-- i18n vi/en (next-intl wire)
-
-### Desktop pending
-- Telemetry package + wire `reportError()` / `reportVital()` vào 7 app
-- Errors panel + Vitals panel trong TrishAdmin
-- TrishAdmin build + release
-- TrishDesign scaffold
-
----
-
-## 🔧 LỆNH HAY DÙNG (1 dòng)
-
-```bash
-# Test website local
-cd 'C:\Users\ADMIN\Documents\Claude\Projects\TrishTEAM\trishnexus-monorepo\website'; pnpm dev
-
-# Build website check (luôn chạy trước push)
-cd 'C:\Users\ADMIN\Documents\Claude\Projects\TrishTEAM\trishnexus-monorepo\website'; pnpm build
-
-# Lint
-cd 'C:\Users\ADMIN\Documents\Claude\Projects\TrishTEAM\trishnexus-monorepo\website'; pnpm lint
-
-# Run desktop app dev (ví dụ TrishLibrary)
-cd 'C:\Users\ADMIN\Documents\Claude\Projects\TrishTEAM\trishnexus-monorepo\apps-desktop\trishlibrary'; pnpm tauri dev
-
-# QA all (73 check)
-cd 'C:\Users\ADMIN\Documents\Claude\Projects\TrishTEAM\trishnexus-monorepo'; pnpm qa:all
-
-# Set admin role (sau khi tải service-account.json về secrets/)
-cd 'C:\Users\ADMIN\Documents\Claude\Projects\TrishTEAM\trishnexus-monorepo'; $env:GOOGLE_APPLICATION_CREDENTIALS="./secrets/service-account.json"; npx ts-node scripts/firebase/seed-admin.ts --email trishteam.official@gmail.com
-
-# Deploy Firestore rules
-scripts\DEPLOY-RULES.bat
-
-# Deploy production
-git push origin main   # Vercel auto-deploy
-```
-
----
-
-## 📚 FILE DOCS GIỮ LẠI (REFERENCE)
-
-| File | Mục đích |
-|---|---|
-| **HANDOFF-MASTER.md** | ← FILE NÀY — đọc đầu phiên |
-| **PARITY-WEB-TRISHADMIN.md** | ★ Mới — gap analysis web vs desktop + roadmap deploy → Zalo → TrishDesign |
-| `CHANGELOG.md` | Lịch sử release chi tiết |
-| `ROADMAP.md` | Lộ trình phase 20+ |
-| `DESIGN.md` + `design-spec.md` | Design system tokens |
-| `FIREBASE-SETUP.md` | Setup Firebase project mới |
-| `DEPLOY-VERCEL.md` | Deploy steps Vercel |
-| `DOMAIN-TENTEN.md` | Setup domain Tenten DNS |
-| `SETUP-HOME-PC.md` | Cài deps máy mới (Node, Rust, etc.) |
-| `WEB-DESKTOP-PARITY.md` | Mapping feature web ↔ desktop |
-| `STORAGE-STRATEGY.md` | Lý do chọn Cloudinary vs Firebase |
-| `PACKAGING.md` | Build & sign NSIS installer |
-| `RELEASE-CHECKLIST.md` | Pre-release sanity check |
-
-### File đã merge vào MASTER → có thể XÓA
-- ~~`HANDOFF-WEBSITE-PHASE-19.md`~~ (22KB)
-- ~~`HANDOFF-TRISHLIBRARY-3.0.md`~~ (35KB)
-- ~~`SESSION-HANDOFF.md`~~ (88KB) — archive Phase 14-16 cũ
-
-→ Sau khi xác nhận MASTER đã đủ thông tin → xóa 3 file trên.
-
----
-
-**End of HANDOFF-MASTER.md.**
+File `.machine-label` ở root project (gitignored) chứa `home` hoặc `office`. START.ba

@@ -1,26 +1,18 @@
-# TrishTEAM monorepo — pnpm workspaces
-# Cập nhật 2026-04-29 (Phase 21 prep): bỏ apps-zalo placeholder (không có trong roadmap),
-# auth/ui/data/adapters đã populate đầy đủ.
+# TrishTEAM monorepo - pnpm workspaces
+# Phase 44 (2026-05-23): gop 12 app -> 4 app + Admin.
+#   trishwork (Design + Library + ISO)
+#   trishutilities (Clean + Check + Drive + Font + Shortcut)
+#   trishfinance (giu)
+#   trishadmin (giu, them AppAccessPanel)
+# 10 app cu archive vao apps-desktop/_archive/ (excluded khoi workspace).
 
 packages:
-  # Website production (Next.js 14 App Router)
   - 'website'
-
-  # Shared packages — domain logic, auth, UI, data, platform adapters.
-  #   packages/core      — Pure TS (không DOM, không React). Domain logic:
-  #                        apps catalog, search index, note model, QR codec.
-  #   packages/auth      — Firebase REST + DPAPI Windows token store cho desktop.
-  #   packages/ui        — React component cross-platform (web + desktop).
-  #   packages/data      — Firestore collection paths + type-safe converters.
-  #   packages/adapters  — Platform interface: router/storage/notify/clipboard.
-  #   packages/telemetry — (Phase 21 prep) reportError/reportVital cho 7 app.
   - 'packages/*'
+  - 'apps-desktop/trishwork'
+  - 'apps-desktop/trishutilities'
+  - 'apps-desktop/trishfinance'
+  - 'apps-desktop/trishadmin'
 
-  # 7 desktop app Tauri 2 (sau Phase 19.24):
-  #   trishlauncher · trishlibrary · trishadmin
-  #   trishfont · trishcheck · trishclean · trishdesign (Phase 21)
-  - 'apps-desktop/*'
-
-  # Cloud Functions TS (setUserRole, exchangeForWebToken) — KHÔNG đưa vào workspace
-  # vì firebase deploy quản lý độc lập, pnpm có thể conflict với firebase-tools deploy.
-  # Cần chạy `pnpm install` trong folder functions/ thủ công.
+# NOTE: apps-desktop/_archive/* explicitly NOT in workspace.
+# Code legacy giu lai de tham chieu/migrate logic sau.

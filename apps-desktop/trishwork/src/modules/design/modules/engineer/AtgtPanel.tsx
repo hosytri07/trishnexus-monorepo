@@ -1,0 +1,1275 @@
+/**
+ * TrishDesign Phase 28.5 — Panel Vẽ hiện trạng ATGT.
+ *
+ * Workflow giống HHMĐ:
+ *   - Project list → Active project
+ *   - Segment list → Active segment
+ *   - Items table với form thêm theo category
+ *   - Vẽ AutoCAD + Xuất Excel
+ */
+
+import { useEffect, useMemo, useState } from 'react';
+import * as dialog from '@tauri-apps/plugin-dialog';
+import { autoCadStatus, autoCadEnsureDocument, autoCadSendCommands } from '../../lib/autocad.js';
+import { generateAtgtCommands, computeAtgtStats } from '../../lib/atgt-script.js';
+import {
+  type AtgtDb,
+  type AtgtProject,
+  type AtgtSegment,
+  type AtgtItem,
+  type AtgtCategory,
+  type AtgtBlockPlacement,
+  type RoadSide,
+  type BienBaoItem,
+  type VachSonItem,
+  type DenTHItem,
+  type HoLanItem,
+  type CocTieuItem,
+  type RanhDocItem,
+  type CongNgangItem,
+  type TieuPQItem,
+  type GuongCauItem,
+  type AtgtTextPrefs,
+  ATGT_CATEGORIES,
+  BIENBAO_GROUPS,
+  emptyAtgtDb,
+  newAtgtId,
+  defaultAtgtSegment,
+  defaultAtgtItem,
+  defaultAtgtTextPrefs,
+  formatStationKm,
+  autoAtgtSegmentName,
+  sideLabel,
+  statusLabel,
+  getCategoryInfo,
+} from '../../lib/atgt-types.js';
+import { AtgtBlockTable } from './AtgtBlockTable.js';
+import { AtgtSidebar } from './AtgtSidebar.js';
+import { AtgtItemsTabs } from './AtgtItemsTabs.js';
+import type { AtgtSegmentItemsV2 } from '../../lib/atgt-items-types.js';
+import { generateAtgtSegmentCommands as generateAtgtSegmentCommandsV2 } from '../../lib/atgt-draw-script.js';
+import { exportAtgtItemsToExcel } from '../../lib/atgt-excel-export.js';
+import { AtgtDatabaseViewer } from './AtgtDatabaseViewer.js';
+import { FontPicker } from './FontPicker.js';
+import { syncAtgtBlocks } from '../../lib/atgt-sync.js';
+import { invoke } from '@tauri-apps/api/core';
+import { getFirebaseDb } from '@trishteam/auth';
+import { doc as fsDoc, getDoc } from 'firebase/firestore';
+
+const LS_KEY = 'trishdesign:atgt-db';
+
+// =====================================================================
+// State management hook
+// =====================================================================
+
+function loadDb(): AtgtDb {
+  if (typeof window === 'undefined') return emptyAtgtDb();
+  try {
+    const raw = window.localStorage.getItem(LS_KEY);
+    if (!raw) return emptyAtgtDb();
+    return JSON.parse(raw) as AtgtDb;
+  } catch {
+    return emptyAtgtDb();
+  }
+}
+
+function saveDb(db: AtgtDb): void {
+  if (typeof window === 'undefined') return;
+  try {
+    window.localStorage.setItem(LS_KEY, JSON.stringify(db));
+  } catch {
+    /* ignore */
+  }
+}
+
+function useAtgtDb(): {
+  db: AtgtDb;
+  setDb: (updater: (prev: AtgtDb) => AtgtDb) => void;
+} {
+  const [db, setDbState] = useState<AtgtDb>(() => loadDb());
+  useEffect(() => {
+    saveDb(db);
+  }, [db]);
+  const setDb = (updater: (prev: AtgtDb) => AtgtDb): void => {
+    setDbState((prev) => ({ ...updater(prev), updatedAt: Date.now() }));
+  };
+  return { db, setDb };
+}
+
+// =====================================================================
+// Main panel
+// =====================================================================
+
+export function AtgtPanel(): JSX.Element {
+  const { db, setDb } = useAtgtDb();
+
+  const activeProject = useMemo(
+    () => db.projects.find((p) => p.id === db.activeProjectId) ?? null,
+    [db.projects, db.activeProjectId],
+  );
+
+  const [activeSegmentId, setActiveSegmentId] = useState<string | null>(
+    () => activeProject?.segments[0]?.id ?? null,
+  );
+
+  // Sync activeSegmentId khi project đổi
+  useEffect(() => {
+    if (!activeProject) {
+      setActiveSegmentId(null);
+      return;
+    }
+    if (!activeProject.segments.find((s) => s.id === activeSegmentId)) {
+      setActiveSegmentId(activeProject.segments[0]?.id ?? null);
+    }
+  }, [activeProject, activeSegmentId]);
+
+  const activeSegment = useMemo(
+    () => activeProject?.segments.find((s) => s.id === activeSegmentId) ?? null,
+    [activeProject, activeSegmentId],
+  );
+
+  const [acadRunning, setAcadRunning] = useState(false);
+  const [statusMsg, setStatusMsg] = useState<string>('');
+  const [downloadingBlocks, setDownloadingBlocks] = useState(false);
+  const [showDatabaseViewer, setShowDatabaseViewer] = useState(false);
+  const [showTextPrefs, setShowTextPrefs] = useState(false);
+
+  // Phase 43 wave 15.3 — Incremental sync per-file
+  async function handleDownloadBlocks(): Promise<void> {
+    if (downloadingBlocks) return;
+    setDownloadingBlocks(true);
+    setStatusMsg('⏳ Đang đồng bộ block ATGT từ Firestore...');
+    try {
+      const result = await syncAtgtBlocks((cur, total, name) => {
+        setStatusMsg(`⏳ Đồng bộ ${cur}/${total}: ${name}`);
+      });
+      try { window.localStorage.setItem('trishdesign:atgt-blocks-folder', result.folder); } catch { /* ignore */ }
+      const parts: string[] = [];
+      if (result.added.length > 0) parts.push(`+${result.added.length} mới`);
+      if (result.updated.length > 0) parts.push(`↻${result.updated.length} cập nhật`);
+      if (result.skipped.length > 0) parts.push(`✓${result.skipped.length} đã có`);
+      if (result.errors.length > 0) parts.push(`✗${result.errors.length} lỗi`);
+      const summary = parts.length > 0 ? parts.join(' · ') : 'Không có file nào trên Firestore';
+      setStatusMsg(`✅ Đồng bộ xong: ${summary}. Folder: ${result.folder}`);
+    } catch (e) {
+      setStatusMsg(`✗ Sync fail: ${e instanceof Error ? e.message : String(e)}`);
+    } finally {
+      setDownloadingBlocks(false);
+    }
+  }
+
+  // Inline dialog state — không dùng window.prompt/confirm native
+  type DialogState =
+    | { kind: 'prompt'; title: string; value: string; placeholder?: string; onSubmit: (v: string) => void }
+    | { kind: 'confirm'; title: string; message: string; danger?: boolean; onConfirm: () => void }
+    | null;
+  const [dialog, setDialog] = useState<DialogState>(null);
+
+  useEffect(() => {
+    autoCadStatus().then((s) => setAcadRunning(s.running));
+    const t = setInterval(() => autoCadStatus().then((s) => setAcadRunning(s.running)), 5000);
+    return () => clearInterval(t);
+  }, []);
+
+  // -------------------------------------------------------------------
+  // Project actions — inline dialog thay native popup
+  // -------------------------------------------------------------------
+  function handleNewProject(): void {
+    setDialog({
+      kind: 'prompt',
+      title: 'Tạo dự án ATGT mới',
+      value: 'Dự án ATGT mới',
+      placeholder: 'VD: Đường Lê Lợi, Quận 1',
+      onSubmit: (name) => {
+        const id = newAtgtId('proj');
+        const proj: AtgtProject = {
+          id,
+          name: name.trim(),
+          segments: [{ id: newAtgtId('seg'), ...defaultAtgtSegment() }],
+          createdAt: Date.now(),
+          updatedAt: Date.now(),
+        };
+        setDb((prev) => ({
+          ...prev,
+          projects: [...prev.projects, proj],
+          activeProjectId: id,
+        }));
+        setStatusMsg(`✓ Đã tạo dự án "${name.trim()}"`);
+      },
+    });
+  }
+
+  function handleSelectProject(id: string): void {
+    setDb((prev) => ({ ...prev, activeProjectId: id }));
+  }
+
+  function handleDeleteProject(id: string): void {
+    const target = db.projects.find((p) => p.id === id);
+    if (!target) return;
+    setDialog({
+      kind: 'confirm',
+      title: 'Xóa dự án',
+      message: `Xóa dự án "${target.name}"? Hành động này không thể hoàn tác.`,
+      danger: true,
+      onConfirm: () => {
+        setDb((prev) => ({
+          ...prev,
+          projects: prev.projects.filter((p) => p.id !== id),
+          activeProjectId: prev.activeProjectId === id
+            ? (prev.projects.find((p) => p.id !== id)?.id ?? null)
+            : prev.activeProjectId,
+        }));
+      },
+    });
+  }
+
+  function handleRenameProject(): void {
+    if (!activeProject) return;
+    setDialog({
+      kind: 'prompt',
+      title: 'Đổi tên dự án',
+      value: activeProject.name,
+      onSubmit: (name) => {
+        setDb((prev) => ({
+          ...prev,
+          projects: prev.projects.map((p) =>
+            p.id === activeProject.id ? { ...p, name: name.trim() } : p,
+          ),
+        }));
+      },
+    });
+  }
+
+  // -------------------------------------------------------------------
+  // Segment actions
+  // -------------------------------------------------------------------
+  function handleAddSegment(): void {
+    if (!activeProject) return;
+    const segDefault = defaultAtgtSegment();
+    const newSeg: AtgtSegment = {
+      id: newAtgtId('seg'),
+      ...segDefault,
+      name: autoAtgtSegmentName(segDefault.startStation, segDefault.endStation),
+    };
+    setDb((prev) => ({
+      ...prev,
+      projects: prev.projects.map((p) =>
+        p.id === activeProject.id ? { ...p, segments: [...p.segments, newSeg] } : p,
+      ),
+    }));
+    setActiveSegmentId(newSeg.id);
+  }
+
+  function updateActiveSegment(updater: (s: AtgtSegment) => AtgtSegment): void {
+    if (!activeProject || !activeSegment) return;
+    setDb((prev) => ({
+      ...prev,
+      projects: prev.projects.map((p) =>
+        p.id === activeProject.id
+          ? {
+              ...p,
+              segments: p.segments.map((s) => (s.id === activeSegment.id ? updater(s) : s)),
+            }
+          : p,
+      ),
+    }));
+  }
+
+  function handleDeleteSegment(): void {
+    if (!activeProject || !activeSegment) return;
+    setDialog({
+      kind: 'confirm',
+      title: 'Xóa đoạn',
+      message: `Xóa đoạn "${activeSegment.name}" khỏi dự án "${activeProject.name}"?`,
+      danger: true,
+      onConfirm: () => {
+        setDb((prev) => ({
+          ...prev,
+          projects: prev.projects.map((p) =>
+            p.id === activeProject.id
+              ? { ...p, segments: p.segments.filter((s) => s.id !== activeSegment.id) }
+              : p,
+          ),
+        }));
+      },
+    });
+  }
+
+  // -------------------------------------------------------------------
+  // Item actions
+  // -------------------------------------------------------------------
+  function handleAddItem(item: AtgtItem): void {
+    updateActiveSegment((s) => ({ ...s, items: [...s.items, item] }));
+    setStatusMsg(`✓ Đã thêm ${getCategoryInfo(item.category).name}`);
+  }
+
+  function handleDeleteItem(id: string): void {
+    updateActiveSegment((s) => ({ ...s, items: s.items.filter((i) => i.id !== id) }));
+  }
+
+  // -------------------------------------------------------------------
+  // Wave 16.1 — Bỏ handlePasteTsv (legacy 9-category, gây clipboard permission popup).
+  // Người dùng dùng 9 tab mới với "📥 Nhập file" hoặc gõ trực tiếp.
+  // -------------------------------------------------------------------
+  // AutoCAD draw
+  // -------------------------------------------------------------------
+  async function handleDrawAcad(): Promise<void> {
+    if (!activeProject || !activeSegment) return;
+    if (!acadRunning) {
+      await dialog.message('Chưa kết nối AutoCAD. Mở AutoCAD với 1 bản vẽ trống trước.', { kind: 'warning' });
+      return;
+    }
+    // Phase 43 wave 10.3 — Ưu tiên schema V2 (9 loại tài sản)
+    const items = activeSegment.itemsV2 ?? {};
+    const totalNew = (items.bienBao?.length ?? 0) + (items.vachSon?.length ?? 0) + (items.denTinHieu?.length ?? 0)
+      + (items.hoLanMem?.length ?? 0) + (items.cocTieu?.length ?? 0) + (items.ranhDoc?.length ?? 0)
+      + (items.congNgang?.length ?? 0) + (items.tieuPhanQuang?.length ?? 0) + (items.guongCauLoi?.length ?? 0);
+    if (totalNew === 0 && activeSegment.items.length === 0) {
+      setStatusMsg('Không có dữ liệu để vẽ.');
+      return;
+    }
+    try {
+      setStatusMsg('⏳ Đang gửi lệnh tới AutoCAD...');
+      await autoCadEnsureDocument();
+      if (totalNew > 0) {
+        const cacheRaw = typeof window !== 'undefined' ? window.localStorage.getItem('trishdesign:atgt-blocks-cache') : null;
+        const blocks = cacheRaw ? JSON.parse(cacheRaw) : [];
+        // Phase 43 wave 16.4 — Đọc folder chứa block .dwg đã sync, truyền vào engine
+        // để INSERT block với full path (0.LT.dwg + 9 loại tài sản).
+        const blocksFolder = typeof window !== 'undefined'
+          ? window.localStorage.getItem('trishdesign:atgt-blocks-folder') ?? undefined
+          : undefined;
+        // Phase 43 wave 16.6 — Lấy textPrefs từ project (user cấu hình qua modal "Cài đặt text")
+        const textPrefs = activeProject.textPrefs;
+        // Phase 43 wave 16.24 — Debug: log textPrefs giá trị engine đang dùng
+        const debugInfo = textPrefs
+          ? `ltLen=${textPrefs.lyTrinhBlockLength ?? 0}, bbH=${textPrefs.bienBaoHeight ?? 0}, blockScale=${textPrefs.blockScale ?? 1}`
+          : 'KHÔNG có textPrefs (chưa save Modal)';
+        console.log('[ATGT engine] textPrefs:', textPrefs, debugInfo);
+        const cmds = generateAtgtSegmentCommandsV2(activeSegment, blocks, blocksFolder ?? undefined, textPrefs);
+        const sent = await autoCadSendCommands(cmds);
+        setStatusMsg(`✓ Đã gửi ${sent} lệnh vẽ ${totalNew} tài sản — ${debugInfo}`);
+      } else {
+        const cmds = generateAtgtCommands(activeProject);
+        const sent = await autoCadSendCommands(cmds);
+        setStatusMsg(`✓ Đã gửi ${sent} lệnh ATGT (legacy) vào AutoCAD.`);
+      }
+    } catch (e) {
+      setStatusMsg(`✗ Lỗi: ${String(e)}`);
+    }
+  }
+
+  // -------------------------------------------------------------------
+  // Render
+  // -------------------------------------------------------------------
+  if (!activeProject) {
+    return (
+      <>
+        <div className="atgt-shell">
+          <div className="atgt-selector-bar">
+            <button type="button" className="btn btn-primary" onClick={handleNewProject}>➕ Tạo dự án ATGT mới</button>
+            <span className="muted small">9 loại đối tượng ATGT theo QCVN 41:2019.</span>
+            <div style={{ flex: 1 }} />
+          </div>
+          <div className="empty-banner">
+            <h3 className="empty-banner-title">🚸 Chưa có dự án ATGT — hãy tạo dự án mới</h3>
+            <p className="empty-banner-msg">
+              Tạo dự án để bắt đầu quản lý 9 loại đối tượng ATGT theo QCVN 41:2019: biển báo, vạch sơn, đèn tín hiệu, hộ lan, cọc tiêu, rãnh dọc, cống ngang, tiêu phản quang, gương cầu lồi.
+            </p>
+            <button type="button" className="btn btn-primary" onClick={handleNewProject}>➕ Tạo dự án ATGT mới</button>
+            {db.projects.length > 0 && (
+              <div className="empty-banner-recent">
+                <div className="atgt-recent-label">Dự án gần đây:</div>
+                {db.projects.map((p) => (
+                  <button key={p.id} type="button" className="atgt-recent-item" onClick={() => handleSelectProject(p.id)}>
+                    📁 {p.name} <span className="muted small">({p.segments.length} đoạn)</span>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+        <InlineDialog state={dialog} onClose={() => setDialog(null)} />
+      </>
+    );
+  }
+
+  return (
+    <div className="atgt-shell">
+      {/* Selector bar */}
+      <div className="atgt-selector-bar">
+        <select
+          className="td-select atgt-project-select"
+          value={activeProject.id}
+          onChange={(e) => handleSelectProject(e.target.value)}
+        >
+          {db.projects.map((p) => (
+            <option key={p.id} value={p.id}>📁 {p.name}</option>
+          ))}
+        </select>
+        <button type="button" className="btn btn-ghost" onClick={handleNewProject} title="Tạo dự án mới">
+          ➕
+        </button>
+        <button type="button" className="btn btn-ghost" onClick={handleRenameProject} title="Đổi tên dự án">
+          ✏
+        </button>
+        <button type="button" className="btn btn-ghost" onClick={() => handleDeleteProject(activeProject.id)} title="Xóa dự án">
+          🗑
+        </button>
+        <span className="atgt-selector-sep">›</span>
+        <select
+          className="td-select atgt-segment-select"
+          value={activeSegmentId ?? ''}
+          onChange={(e) => setActiveSegmentId(e.target.value || null)}
+        >
+          {activeProject.segments.map((s) => (
+            <option key={s.id} value={s.id}>📏 {s.name} ({s.items.length})</option>
+          ))}
+        </select>
+        <button type="button" className="btn btn-ghost" onClick={handleAddSegment} title="Thêm đoạn">
+          ➕
+        </button>
+        {activeSegment && (
+          <button type="button" className="btn btn-ghost" onClick={handleDeleteSegment} title="Xóa đoạn">
+            🗑
+          </button>
+        )}
+        <div style={{ flex: 1 }} />
+        <span className="atgt-acad-status">
+          AutoCAD: {acadRunning
+            ? <span className="atgt-status-on">● Đã kết nối</span>
+            : <span className="atgt-status-off">● Chưa mở</span>
+          }
+        </span>
+      </div>
+
+      {activeSegment ? (
+        <div className="atgt-2col-layout">
+          <AtgtSidebar segment={activeSegment} onUpdate={updateActiveSegment} />
+          <div className="atgt-main-col">
+            <div className="atgt-action-bar atgt-action-bar-top">
+              <button type="button" className="btn btn-ghost"
+                onClick={() => setShowDatabaseViewer(true)}
+                title="Xem 415 block trong database (admin TrishAdmin quản lý) — auto-sync khi cập nhật">
+                📋 Xem database
+              </button>
+              <button type="button" className="btn btn-ghost"
+                onClick={() => void handleDownloadBlocks()}
+                disabled={downloadingBlocks}
+                title="Đồng bộ block ATGT từ Firestore — tải file mới/cập nhật về folder local">
+                {downloadingBlocks ? '⏳ Đang sync...' : '🔄 Đồng bộ block'}
+              </button>
+              <button type="button" className="btn btn-ghost"
+                onClick={() => setShowTextPrefs(true)}
+                title="Phase 43 wave 16.6 — Cài đặt font, width, chiều cao text trước khi vẽ (giống HHMĐ)">
+                🔠 Cài đặt text
+              </button>
+              <button type="button" className="btn btn-primary"
+                onClick={() => void handleDrawAcad()}
+                disabled={!acadRunning}
+                title="Phase 43 wave 10.3 — Vẽ AutoCAD theo 9 loại tài sản">📐 Vẽ AutoCAD</button>
+              <button type="button" className="btn btn-ghost"
+                onClick={async () => {
+                  if (!activeSegment) return;
+                  try {
+                    const r = await exportAtgtItemsToExcel(activeSegment);
+                    if (r) setStatusMsg(`✓ Đã xuất Excel: ${r.path}`);
+                  } catch (e) {
+                    setStatusMsg(`✗ Excel lỗi: ${String(e)}`);
+                  }
+                }}
+                title="Xuất Excel 9 sheet (BienBao, VachSon, ...)">📊 Xuất Excel</button>
+              <span className="atgt-status-msg">{statusMsg}</span>
+            </div>
+            <AtgtItemsTabs
+              segment={activeSegment}
+              onChange={(next: AtgtSegmentItemsV2) => updateActiveSegment((s) => ({ ...s, itemsV2: next }))}
+            />
+          </div>
+          <style>{`
+            .atgt-2col-layout { display: flex; flex: 1; min-height: 0; height: calc(100vh - 200px); }
+            .atgt-main-col { flex: 1; display: flex; flex-direction: column; min-width: 0; }
+            .atgt-action-bar-top { padding: 6px 12px; border-bottom: 1px solid var(--color-border-subtle); }
+          `}</style>
+        </div>
+      ) : (
+        <div className="atgt-no-segment">
+          <p>Chưa có đoạn nào.</p>
+          <button type="button" className="btn btn-primary" onClick={handleAddSegment}>
+            ➕ Thêm đoạn đầu tiên
+          </button>
+        </div>
+      )}
+
+      {/* Legacy components — sẽ xoá Wave 10.6 sau khi confirm 9-tab UI mới ổn định */}
+      {false && activeSegment && (
+        <>
+          <SegmentEditor segment={activeSegment} onUpdate={updateActiveSegment} />
+          <AtgtBlockTable segment={activeSegment} onChange={(next: AtgtBlockPlacement[]) => updateActiveSegment((s) => ({ ...s, blockPlacements: next }))} />
+          <ItemForm onAdd={(item) => handleAddItem(item)} defaultStation={activeSegment.startStation} />
+          <ItemTable items={activeSegment.items} onDelete={handleDeleteItem} />
+          <StatsPanel segment={activeSegment} />
+        </>
+      )}
+
+      <InlineDialog state={dialog} onClose={() => setDialog(null)} />
+
+      {showDatabaseViewer && <AtgtDatabaseViewer onClose={() => setShowDatabaseViewer(false)} />}
+      {showTextPrefs && activeProject && (
+        <AtgtTextPrefsModal
+          project={activeProject}
+          onSave={(prefs) => {
+            // Phase 43 wave 16.24 — Debug log + verify save
+            console.log('[Modal Save] prefs to save:', prefs);
+            setDb((prev) => ({
+              ...prev,
+              projects: prev.projects.map((p) =>
+                p.id === activeProject.id ? { ...p, textPrefs: prefs, updatedAt: Date.now() } : p,
+              ),
+              updatedAt: Date.now(),
+            }));
+            setStatusMsg(`✓ Đã lưu Cài đặt text: ltLen=${prefs.lyTrinhBlockLength}, bbH=${prefs.bienBaoHeight}, scale=${prefs.blockScale}`);
+            setShowTextPrefs(false);
+          }}
+          onClose={() => setShowTextPrefs(false)}
+        />
+      )}
+    </div>
+  );
+}
+
+// =====================================================================
+// InlineDialog — modal styled không dùng native window.prompt/confirm
+// =====================================================================
+
+type InlineDialogState =
+  | { kind: 'prompt'; title: string; value: string; placeholder?: string; onSubmit: (v: string) => void }
+  | { kind: 'confirm'; title: string; message: string; danger?: boolean; onConfirm: () => void }
+  | null;
+
+function InlineDialog({
+  state,
+  onClose,
+}: {
+  state: InlineDialogState;
+  onClose: () => void;
+}): JSX.Element {
+  const [input, setInput] = useState('');
+
+  // Sync input khi state mới
+  useEffect(() => {
+    if (state?.kind === 'prompt') setInput(state.value);
+  }, [state]);
+
+  if (!state) return <></>;
+
+  function handleSubmit(): void {
+    if (state?.kind === 'prompt') {
+      const trimmed = input.trim();
+      if (!trimmed) return;
+      state.onSubmit(trimmed);
+    } else if (state?.kind === 'confirm') {
+      state.onConfirm();
+    }
+    onClose();
+  }
+
+  return (
+    <div className="atgt-dialog-backdrop" onClick={onClose}>
+      <div className="atgt-dialog" onClick={(e) => e.stopPropagation()}>
+        <div className="atgt-dialog-title">{state.title}</div>
+        {state.kind === 'prompt' ? (
+          <input
+            type="text"
+            className="td-input"
+            autoFocus
+            value={input}
+            placeholder={state.placeholder}
+            onChange={(e) => setInput(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') handleSubmit();
+              if (e.key === 'Escape') onClose();
+            }}
+          />
+        ) : (
+          <p className="atgt-dialog-msg">{state.message}</p>
+        )}
+        <div className="atgt-dialog-actions">
+          <button type="button" className="btn btn-ghost" onClick={onClose}>
+            Hủy
+          </button>
+          <button
+            type="button"
+            className={state.kind === 'confirm' && state.danger ? 'btn atgt-dialog-danger' : 'btn btn-primary'}
+            onClick={handleSubmit}
+          >
+            {state.kind === 'prompt' ? '✓ Lưu' : state.danger ? '🗑 Xóa' : '✓ OK'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// =====================================================================
+// SegmentEditor — chỉnh sửa thông tin đoạn (start/end/width)
+// =====================================================================
+
+function SegmentEditor({
+  segment,
+  onUpdate,
+}: {
+  segment: AtgtSegment;
+  onUpdate: (updater: (s: AtgtSegment) => AtgtSegment) => void;
+}): JSX.Element {
+  const isDual = segment.roadType === 'dual';
+  const mode = segment.drawMode ?? 'duoithang';
+  return (
+    <div className="atgt-section">
+      <div className="atgt-section-title">📏 Thông tin đoạn + Khuôn đường</div>
+      <div className="atgt-grid-4">
+        <label className="td-field">
+          <span className="td-field-label">Tên đoạn</span>
+          <input type="text" className="td-input" value={segment.name}
+            onChange={(e) => onUpdate((s) => ({ ...s, name: e.target.value }))} />
+        </label>
+        <label className="td-field">
+          <span className="td-field-label">Lý trình bắt đầu (m)</span>
+          <input type="number" className="td-input" value={segment.startStation}
+            onChange={(e) => onUpdate((s) => ({ ...s, startStation: Number(e.target.value) || 0 }))} />
+        </label>
+        <label className="td-field">
+          <span className="td-field-label">Lý trình kết thúc (m)</span>
+          <input type="number" className="td-input" value={segment.endStation}
+            onChange={(e) => onUpdate((s) => ({ ...s, endStation: Number(e.target.value) || 0 }))} />
+        </label>
+        <label className="td-field">
+          <span className="td-field-label">Bề rộng đường (m)</span>
+          <input type="number" className="td-input" step={0.5} value={segment.roadWidth}
+            onChange={(e) => onUpdate((s) => ({ ...s, roadWidth: Number(e.target.value) || 7 }))} />
+        </label>
+      </div>
+
+      {/* Phase 42 wave 9 — Khuôn đường giống HHMĐ */}
+      <div className="atgt-grid-4" style={{ marginTop: 12 }}>
+        <label className="td-field">
+          <span className="td-field-label">Loại đường</span>
+          <select className="td-select" value={segment.roadType ?? 'single'}
+            onChange={(e) => onUpdate((s) => ({ ...s, roadType: e.target.value as 'single' | 'dual' }))}>
+            <option value="single">Đường đơn</option>
+            <option value="dual">Đường đôi (có DPC)</option>
+          </select>
+        </label>
+        <label className="td-field">
+          <span className="td-field-label">Số làn (cả 2 chiều)</span>
+          <input type="number" className="td-input" min={1} max={12} value={segment.laneCount ?? 2}
+            onChange={(e) => onUpdate((s) => ({ ...s, laneCount: Number(e.target.value) || 2 }))} />
+        </label>
+        <label className="td-field" style={{ opacity: isDual ? 1 : 0.5 }}>
+          <span className="td-field-label">Bề rộng DPC (m)</span>
+          <input type="number" className="td-input" step={0.1} min={0} value={segment.medianWidth ?? 0}
+            disabled={!isDual}
+            onChange={(e) => onUpdate((s) => ({ ...s, medianWidth: Number(e.target.value) || 0 }))} />
+        </label>
+        <label className="td-field">
+          <span className="td-field-label">Cách nhập vị trí</span>
+          <select className="td-select" value={segment.cachTimMode ?? 'tim'}
+            onChange={(e) => onUpdate((s) => ({ ...s, cachTimMode: e.target.value as 'tim' | 'mep' }))}>
+            <option value="tim">Cách tim đường</option>
+            <option value="mep">Cách mép đường</option>
+          </select>
+        </label>
+      </div>
+
+      {/* Phase 42 wave 9 — Chế độ vẽ: duỗi thẳng hoặc polyline */}
+      <div style={{ marginTop: 12, padding: 10, background: 'rgba(16,185,129,0.06)', borderRadius: 8, border: '1px solid var(--color-border-subtle)' }}>
+        <div style={{ fontSize: 12, fontWeight: 600, marginBottom: 8, color: 'var(--color-accent-primary)' }}>🎨 Chế độ vẽ</div>
+        <div style={{ display: 'flex', gap: 16, alignItems: 'center', flexWrap: 'wrap' }}>
+          <label style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer' }}>
+            <input type="radio" checked={mode === 'duoithang'}
+              onChange={() => onUpdate((s) => ({ ...s, drawMode: 'duoithang' }))} />
+            <span>📏 <strong>Bình đồ duỗi thẳng</strong> (scale 1:1000 X / 1:200 Y)</span>
+          </label>
+          <label style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer' }}>
+            <input type="radio" checked={mode === 'polyline'}
+              onChange={() => onUpdate((s) => ({ ...s, drawMode: 'polyline' }))} />
+            <span>🛣 <strong>Theo polyline AutoCAD</strong> (pick từ CAD)</span>
+          </label>
+          {mode === 'polyline' && (
+            <label className="td-field" style={{ minWidth: 200 }}>
+              <span className="td-field-label" style={{ fontSize: 11 }}>Chiều dài polyline (m)</span>
+              <input type="number" className="td-input" step={1} min={0} value={segment.polylineLength ?? 0}
+                placeholder="VD: 1500"
+                onChange={(e) => onUpdate((s) => ({ ...s, polylineLength: Number(e.target.value) || 0 }))} />
+            </label>
+          )}
+        </div>
+        {mode === 'polyline' && (
+          <p style={{ fontSize: 11, color: 'var(--color-text-muted)', marginTop: 6, marginBottom: 0 }}>
+            ℹ Nhập chiều dài polyline thực tế (m) tính từ đầu đến cuối. Khi vẽ, app sẽ map mỗi lý trình block lên 1 điểm trên polyline trong AutoCAD theo Rust command.
+          </p>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// =====================================================================
+// ItemForm — form thêm item theo category (dynamic fields)
+// =====================================================================
+
+function ItemForm({
+  onAdd,
+  defaultStation,
+}: {
+  onAdd: (item: AtgtItem) => void;
+  defaultStation: number;
+}): JSX.Element {
+  const [category, setCategory] = useState<AtgtCategory>('BIENBAO');
+  const [draft, setDraft] = useState<AtgtItem>(() => defaultAtgtItem('BIENBAO', defaultStation));
+
+  // Reset draft khi đổi category
+  function handleCategoryChange(c: AtgtCategory): void {
+    setCategory(c);
+    setDraft(defaultAtgtItem(c, defaultStation));
+  }
+
+  function handleAddClick(): void {
+    onAdd({ ...draft, id: newAtgtId('item') });
+    // Keep category, reset station += 50m, fields reset
+    setDraft({
+      ...defaultAtgtItem(category, draft.station + 50),
+      side: draft.side,
+      status: draft.status,
+    } as AtgtItem);
+  }
+
+  return (
+    <div className="atgt-section">
+      <div className="atgt-section-title">➕ Thêm đối tượng ATGT</div>
+      <div className="atgt-category-tabs">
+        {ATGT_CATEGORIES.map((c) => (
+          <button
+            key={c.id}
+            type="button"
+            className={`atgt-tab${category === c.id ? ' atgt-tab-active' : ''}`}
+            onClick={() => handleCategoryChange(c.id)}
+          >
+            <span>{c.icon}</span>
+            <span>{c.name}</span>
+          </button>
+        ))}
+      </div>
+
+      <div className="atgt-grid-4">
+        {/* Common fields */}
+        <label className="td-field">
+          <span className="td-field-label">Lý trình (m)</span>
+          <input
+            type="number"
+            className="td-input"
+            value={draft.station}
+            onChange={(e) => setDraft({ ...draft, station: Number(e.target.value) || 0 } as AtgtItem)}
+          />
+        </label>
+        <label className="td-field">
+          <span className="td-field-label">Vị trí</span>
+          <select
+            className="td-select"
+            value={draft.side}
+            onChange={(e) => setDraft({ ...draft, side: e.target.value as RoadSide } as AtgtItem)}
+          >
+            <option value="left">Trái (T)</option>
+            <option value="right">Phải (P)</option>
+            <option value="center">Tim đường</option>
+          </select>
+        </label>
+        <label className="td-field">
+          <span className="td-field-label">Cách tim đường (m)</span>
+          <input
+            type="number"
+            step={0.1}
+            className="td-input"
+            value={draft.cachTim ?? 1.5}
+            onChange={(e) => setDraft({ ...draft, cachTim: Number(e.target.value) || 0 } as AtgtItem)}
+          />
+        </label>
+        <label className="td-field">
+          <span className="td-field-label">Tình trạng</span>
+          <select
+            className="td-select"
+            value={draft.status}
+            onChange={(e) => setDraft({ ...draft, status: e.target.value as AtgtItem['status'] } as AtgtItem)}
+          >
+            <option value="good">Tốt</option>
+            <option value="damaged">Hư hỏng</option>
+            <option value="missing">Mất</option>
+            <option value="new">Mới</option>
+          </select>
+        </label>
+        <label className="td-field">
+          <span className="td-field-label">Ghi chú</span>
+          <input
+            type="text"
+            className="td-input"
+            value={draft.note ?? ''}
+            onChange={(e) => setDraft({ ...draft, note: e.target.value } as AtgtItem)}
+          />
+        </label>
+
+        {/* Dynamic fields per category */}
+        {renderCategoryFields(category, draft, setDraft)}
+      </div>
+
+      <div style={{ marginTop: 12 }}>
+        <button type="button" className="btn btn-primary" onClick={handleAddClick}>
+          ➕ Thêm vào danh sách
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function renderCategoryFields(
+  category: AtgtCategory,
+  draft: AtgtItem,
+  setDraft: (item: AtgtItem) => void,
+): JSX.Element {
+  const update = (patch: Partial<AtgtItem>): void => {
+    setDraft({ ...draft, ...patch } as AtgtItem);
+  };
+
+  switch (category) {
+    case 'BIENBAO': {
+      const it = draft as BienBaoItem;
+      return (
+        <>
+          <label className="td-field">
+            <span className="td-field-label">Nhóm biển</span>
+            <select className="td-select" value={it.group} onChange={(e) => update({ group: e.target.value as BienBaoItem['group'] })}>
+              {BIENBAO_GROUPS.map((g) => <option key={g.id} value={g.id}>{g.name}</option>)}
+            </select>
+          </label>
+          <label className="td-field">
+            <span className="td-field-label">Mã biển (vd P.103a)</span>
+            <input type="text" className="td-input" value={it.code} onChange={(e) => update({ code: e.target.value })} />
+          </label>
+          <label className="td-field">
+            <span className="td-field-label">Đường kính (m)</span>
+            <input type="number" className="td-input" step={0.1} value={it.diameter} onChange={(e) => update({ diameter: Number(e.target.value) || 0.7 })} />
+          </label>
+          <label className="td-field">
+            <span className="td-field-label">Chiều cao cột (m)</span>
+            <input type="number" className="td-input" step={0.1} value={it.poleHeight} onChange={(e) => update({ poleHeight: Number(e.target.value) || 2.2 })} />
+          </label>
+        </>
+      );
+    }
+    case 'VACHSON': {
+      const it = draft as VachSonItem;
+      return (
+        <>
+          <label className="td-field">
+            <span className="td-field-label">Loại vạch</span>
+            <select className="td-select" value={it.vachType} onChange={(e) => update({ vachType: e.target.value as VachSonItem['vachType'] })}>
+              <option value="tim">Vạch tim</option>
+              <option value="lan">Vạch chia làn</option>
+              <option value="mep">Vạch mép</option>
+              <option value="qua_duong">Qua đường</option>
+              <option value="dung_xe">Dừng xe</option>
+              <option value="gianh_uu_tien">Giành ưu tiên</option>
+            </select>
+          </label>
+          <label className="td-field">
+            <span className="td-field-label">Chiều dài (m)</span>
+            <input type="number" className="td-input" value={it.length} onChange={(e) => update({ length: Number(e.target.value) || 50 })} />
+          </label>
+          <label className="td-field">
+            <span className="td-field-label">Bề rộng vạch (m)</span>
+            <input type="number" className="td-input" step={0.05} value={it.width} onChange={(e) => update({ width: Number(e.target.value) || 0.15 })} />
+          </label>
+          <label className="td-field">
+            <span className="td-field-label">Kiểu vạch</span>
+            <select className="td-select" value={it.isContinuous ? 'true' : 'false'} onChange={(e) => update({ isContinuous: e.target.value === 'true' })}>
+              <option value="true">Liền</option>
+              <option value="false">Đứt</option>
+            </select>
+          </label>
+        </>
+      );
+    }
+    case 'DENTH': {
+      const it = draft as DenTHItem;
+      return (
+        <>
+          <label className="td-field">
+            <span className="td-field-label">Loại đèn</span>
+            <select className="td-select" value={it.denType} onChange={(e) => update({ denType: e.target.value as DenTHItem['denType'] })}>
+              <option value="xe">Đèn xe</option>
+              <option value="nguoi">Đèn người</option>
+              <option value="mui_ten">Đèn mũi tên</option>
+            </select>
+          </label>
+          <label className="td-field">
+            <span className="td-field-label">Cao cột (m)</span>
+            <input type="number" className="td-input" step={0.1} value={it.poleHeight} onChange={(e) => update({ poleHeight: Number(e.target.value) || 4.5 })} />
+          </label>
+          <label className="td-field">
+            <span className="td-field-label">Vươn cần (m)</span>
+            <input type="number" className="td-input" step={0.5} value={it.cantilever} onChange={(e) => update({ cantilever: Number(e.target.value) || 0 })} />
+          </label>
+        </>
+      );
+    }
+    case 'HOLAN': {
+      const it = draft as HoLanItem;
+      return (
+        <>
+          <label className="td-field">
+            <span className="td-field-label">Loại</span>
+            <select className="td-select" value={it.holanType} onChange={(e) => update({ holanType: e.target.value as HoLanItem['holanType'] })}>
+              <option value="ho_lan_ton">Hộ lan tôn sóng</option>
+              <option value="ho_lan_betong">Hộ lan bê tông</option>
+              <option value="go_giam_toc">Gờ giảm tốc</option>
+              <option value="chong_loa">Chống lóa</option>
+            </select>
+          </label>
+          <label className="td-field">
+            <span className="td-field-label">Chiều dài (m)</span>
+            <input type="number" className="td-input" value={it.length} onChange={(e) => update({ length: Number(e.target.value) || 50 })} />
+          </label>
+        </>
+      );
+    }
+    case 'COCTIEU': {
+      const it = draft as CocTieuItem;
+      return (
+        <>
+          <label className="td-field">
+            <span className="td-field-label">Khoảng cách cọc (m)</span>
+            <input type="number" className="td-input" step={0.5} value={it.spacing} onChange={(e) => update({ spacing: Number(e.target.value) || 5 })} />
+          </label>
+          <label className="td-field">
+            <span className="td-field-label">Số lượng cọc</span>
+            <input type="number" className="td-input" value={it.count} onChange={(e) => update({ count: Number(e.target.value) || 10 })} />
+          </label>
+          <label className="td-field">
+            <span className="td-field-label">Cao cọc (m)</span>
+            <input type="number" className="td-input" step={0.1} value={it.height} onChange={(e) => update({ height: Number(e.target.value) || 0.6 })} />
+          </label>
+        </>
+      );
+    }
+    case 'RANHDOC': {
+      const it = draft as RanhDocItem;
+      return (
+        <>
+          <label className="td-field">
+            <span className="td-field-label">Loại rãnh</span>
+            <select className="td-select" value={it.ranhType} onChange={(e) => update({ ranhType: e.target.value as RanhDocItem['ranhType'] })}>
+              <option value="dat">Đất</option>
+              <option value="da_xay">Đá xây</option>
+              <option value="betong">Bê tông</option>
+              <option value="nap_be">Nắp bê tông</option>
+              <option value="tron">Tròn</option>
+              <option value="hinh_thang">Hình thang</option>
+            </select>
+          </label>
+          <label className="td-field">
+            <span className="td-field-label">Chiều dài (m)</span>
+            <input type="number" className="td-input" value={it.length} onChange={(e) => update({ length: Number(e.target.value) || 100 })} />
+          </label>
+          <label className="td-field">
+            <span className="td-field-label">Rộng đáy (m)</span>
+            <input type="number" className="td-input" step={0.1} value={it.width} onChange={(e) => update({ width: Number(e.target.value) || 0.4 })} />
+          </label>
+          <label className="td-field">
+            <span className="td-field-label">Sâu (m)</span>
+            <input type="number" className="td-input" step={0.1} value={it.depth} onChange={(e) => update({ depth: Number(e.target.value) || 0.4 })} />
+          </label>
+        </>
+      );
+    }
+    case 'CONGNGANG': {
+      const it = draft as CongNgangItem;
+      return (
+        <>
+          <label className="td-field">
+            <span className="td-field-label">Loại cống</span>
+            <select className="td-select" value={it.congType} onChange={(e) => update({ congType: e.target.value as CongNgangItem['congType'] })}>
+              <option value="tron">Cống tròn</option>
+              <option value="vuong">Cống vuông</option>
+              <option value="hop">Cống hộp</option>
+              <option value="ban">Cống bản</option>
+            </select>
+          </label>
+          <label className="td-field">
+            <span className="td-field-label">Đường kính/khẩu độ (m)</span>
+            <input type="number" className="td-input" step={0.1} value={it.diameter} onChange={(e) => update({ diameter: Number(e.target.value) || 1.0 })} />
+          </label>
+          <label className="td-field">
+            <span className="td-field-label">Chiều dài cống (m)</span>
+            <input type="number" className="td-input" step={0.5} value={it.length} onChange={(e) => update({ length: Number(e.target.value) || 8 })} />
+          </label>
+        </>
+      );
+    }
+    case 'TIEUPQ': {
+      const it = draft as TieuPQItem;
+      return (
+        <>
+          <label className="td-field">
+            <span className="td-field-label">Khoảng cách (m)</span>
+            <input type="number" className="td-input" value={it.spacing} onChange={(e) => update({ spacing: Number(e.target.value) || 10 })} />
+          </label>
+          <label className="td-field">
+            <span className="td-field-label">Số lượng</span>
+            <input type="number" className="td-input" value={it.count} onChange={(e) => update({ count: Number(e.target.value) || 10 })} />
+          </label>
+          <label className="td-field">
+            <span className="td-field-label">Màu</span>
+            <select className="td-select" value={it.color} onChange={(e) => update({ color: e.target.value as TieuPQItem['color'] })}>
+              <option value="yellow">Vàng</option>
+              <option value="red">Đỏ</option>
+              <option value="white">Trắng</option>
+            </select>
+          </label>
+        </>
+      );
+    }
+    case 'GUONGCAU': {
+      const it = draft as GuongCauItem;
+      return (
+        <>
+          <label className="td-field">
+            <span className="td-field-label">Đường kính (m)</span>
+            <input type="number" className="td-input" step={0.1} value={it.diameter} onChange={(e) => update({ diameter: Number(e.target.value) || 0.6 })} />
+          </label>
+          <label className="td-field">
+            <span className="td-field-label">Cao cột (m)</span>
+            <input type="number" className="td-input" step={0.1} value={it.poleHeight} onChange={(e) => update({ poleHeight: Number(e.target.value) || 4 })} />
+          </label>
+        </>
+      );
+    }
+  }
+}
+
+// =====================================================================
+// ItemTable — bảng list items
+// =====================================================================
+
+function ItemTable({
+  items,
+  onDelete,
+}: {
+  items: AtgtItem[];
+  onDelete: (id: string) => void;
+}): JSX.Element {
+  return (
+    <div className="atgt-section">
+      <div className="atgt-section-title">📋 Danh sách đối tượng ({items.length})</div>
+      <div className="atgt-table-wrap">
+        <table className="atgt-table">
+          <thead>
+            <tr>
+              <th style={{ width: 120 }}>Lý trình</th>
+              <th style={{ width: 180 }}>Loại</th>
+              <th style={{ width: 90 }}>Vị trí</th>
+              <th style={{ width: 90 }}>Cách tim</th>
+              <th>Chi tiết</th>
+              <th style={{ width: 90 }}>Tình trạng</th>
+              <th style={{ width: 50 }}></th>
+            </tr>
+          </thead>
+          <tbody>
+            {items.length === 0 ? (
+              <tr><td colSpan={7} className="atgt-empty-row">Chưa có đối tượng nào.</td></tr>
+            ) : items.map((it) => {
+              const cat = getCategoryInfo(it.category);
+              return (
+                <tr key={it.id}>
+                  <td>{formatStationKm(it.station)}</td>
+                  <td>{cat.icon} {cat.name}</td>
+                  <td>{sideLabel(it.side)}</td>
+                  <td>{(it.cachTim ?? 0).toFixed(1)}m</td>
+                  <td className="atgt-detail-cell">{describeItem(it)}</td>
+                  <td><StatusBadge status={it.status} /></td>
+                  <td>
+                    <button type="button" className="atgt-del-btn" onClick={() => onDelete(it.id)}>🗑</button>
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+function describeItem(it: AtgtItem): string {
+  switch (it.category) {
+    case 'BIENBAO': return `${it.code} · Ø${it.diameter}m · cột ${it.poleHeight}m`;
+    case 'VACHSON': return `${it.vachType} · ${it.length}m × ${it.width}m · ${it.isContinuous ? 'liền' : 'đứt'}`;
+    case 'DENTH': return `${it.denType} · cột ${it.poleHeight}m`;
+    case 'HOLAN': return `${it.holanType} · ${it.length}m`;
+    case 'COCTIEU': return `${it.count} cọc × ${it.spacing}m`;
+    case 'RANHDOC': return `${it.ranhType} · ${it.length}m × ${it.width}×${it.depth}m`;
+    case 'CONGNGANG': return `${it.congType} · Ø${it.diameter}m · L=${it.length}m`;
+    case 'TIEUPQ': return `${it.count} tiêu × ${it.spacing}m · màu ${it.color}`;
+    case 'GUONGCAU': return `Ø${it.diameter}m · cột ${it.poleHeight}m`;
+  }
+}
+
+function StatusBadge({ status }: { status: AtgtItem['status'] }): JSX.Element {
+  const colors: Record<AtgtItem['status'], { bg: string; fg: string }> = {
+    good: { bg: 'rgba(16,185,129,0.14)', fg: '#047857' },
+    damaged: { bg: 'rgba(245,158,11,0.14)', fg: '#b45309' },
+    missing: { bg: 'rgba(239,68,68,0.14)', fg: '#b91c1c' },
+    new: { bg: 'rgba(59,130,246,0.14)', fg: '#1e40af' },
+  };
+  const c = colors[status];
+  return (
+    <span style={{
+      display: 'inline-block',
+      padding: '2px 8px',
+      borderRadius: 999,
+      background: c.bg,
+      color: c.fg,
+      fontSize: 11,
+      fontWeight: 600,
+    }}>{statusLabel(status)}</span>
+  );
+}
+
+function StatsPanel({ segment }: { segment: AtgtSegment }): JSX.Element {
+  const stats = useMemo(() => computeAtgtStats(segment), [segment]);
+  if (stats.total === 0) return <></>;
+  return (
+    <div className="atgt-section">
+      <div className="atgt-section-title">📊 Thống kê đoạn ({stats.total} đối tượng)</div>
+      <div className="atgt-stats-row">
+        {stats.byCategory.map((c) => {
+          const info = ATGT_CATEGORIES.find((x) => x.id === c.id);
+          return (
+            <div key={c.id} className="atgt-stat-chip">
+              <span>{info?.icon}</span>
+              <span>{c.name}:</span>
+              <strong>{c.count}</strong>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+// =====================================================================
+// Phase 43 wave 16.6 — AtgtTextPrefsModal (giống HHMĐ cài đặt font/text)
+// =====================================================================
+
+function AtgtTextPrefsModal({
+  project, onSave, onClose,
+}: {
+  project: AtgtProject;
+  onSave: (prefs: AtgtTextPrefs) => void;
+  onClose: () => void;
+}): JSX.Element {
+  const [draft, setDraft] = useState<AtgtTextPrefs>(project.textPrefs ?? defaultAtgtTextPrefs());
+
+  function patch(p: Partial<AtgtTextPrefs>): void { setDraft((d) => ({ ...d, ...p })); }
+  function handleReset(): void { setDraft(defaultAtgtTextPrefs()); }
+
+  return (
+    <div className="atgt-modal-backdrop" onClick={onClose}>
+      <div className="atgt-modal-content" onClick={(e) => e.stopPropagation()} style={{ minWidth: 460 }}>
+        <h2 style={{ margin: '0 0 16px', fontSize: 16, fontWeight: 700 }}>🔠 Cài đặt Text Style (vẽ AutoCAD)</h2>
+        <p style={{ fontSize: 12, color: 'var(--color-text-muted, #888)', margin: '0 0 14px' }}>
+          Cấu hình này áp dụng cho project: <strong>{project.name}</strong>. App sẽ chạy <code>_-STYLE</code> trong AutoCAD trước khi vẽ.
+        </p>
+        <div style={{ display: 'grid', gridTemplateColumns: '160px 1fr', gap: 10, alignItems: 'center' }}>
+          <label>Tên style:</label>
+          <input type="text" value={draft.styleName}
+            onChange={(e) => patch({ styleName: e.target.value })}
+            className="atgt-side-input" placeholder="ATGT_TEXT" />
+
+          <label>Font file:</label>
+          <FontPicker
+            value={draft.fontFile}
+            onChange={(v) => patch({ fontFile: v })}
+          />
+
+          <label>Width factor:</label>
+          <input type="number" step={0.05} min={0.1} max={3}
+            value={draft.widthFactor}
+            onChange={(e) => patch({ widthFactor: Number(e.target.value) || 0.7 })}
+            className="atgt-side-input" />
+
+          <label>Cao text lý trình:</label>
+          <input type="number" step={0.05} min={0.05}
+            value={draft.stationHeight}
+            onChange={(e) => patch({ stationHeight: Number(e.target.value) || 0.5 })}
+            className="atgt-side-input" />
+
+          <label>Cao text leader:</label>
+          <input type="number" step={0.05} min={0.05}
+            value={draft.blockTextHeight}
+            onChange={(e) => patch({ blockTextHeight: Number(e.target.value) || 0.4 })}
+            className="atgt-side-input" />
+
+          <label>Scale block (0.LT, biển báo...):</label>
+          <input type="number" step={0.5} min={0.01}
+            value={draft.blockScale}
+            onChange={(e) => patch({ blockScale: Number(e.target.value) || 1 })}
+            className="atgt-side-input"
+            title="Block design có size cố định. Polyline dài → tăng scale để block hiện đủ lớn. Vd polyline 144 unit → blockScale = 10-50" />
+
+          <label>Vị trí block 0.LT (cách tim, m):</label>
+          <input type="number" step={0.5}
+            value={draft.lyTrinhBlockOffset ?? 0}
+            onChange={(e) => patch({ lyTrinhBlockOffset: Number(e.target.value) || 0 })}
+            className="atgt-side-input"
+            title="0 = đặt tại tim đường. Dương = bên trái, âm = bên phải. Vd: 3.5 = đặt tại mép trái" />
+
+          <label>Chiều dài block 0.LT (m):</label>
+          <input type="number" step={0.5} min={0}
+            value={draft.lyTrinhBlockLength ?? 0}
+            onChange={(e) => patch({ lyTrinhBlockLength: Number(e.target.value) || 0 })}
+            className="atgt-side-input"
+            title="Biển báo/đèn/gương cầu sẽ offset thêm khoảng này từ tim. VD: block 0.LT dài 5m, cách tim 2m → biển báo cách tim thực = 2 + 5 = 7m" />
+
+          <label>Chiều cao block biển báo (m):</label>
+          <input type="number" step={0.5} min={0}
+            value={draft.bienBaoHeight ?? 0}
+            onChange={(e) => patch({ bienBaoHeight: Number(e.target.value) || 0 })}
+            className="atgt-side-input"
+            title="Áp dụng cho biển báo side=Phải: offset thêm chiều cao block để cột không chồng lên cọc 0.LT. VD: bbHeight=2 → biển báo bên phải cách tim thêm 2m so với bên trái" />
+        </div>
+        <div style={{ display: 'flex', gap: 8, marginTop: 20, justifyContent: 'space-between' }}>
+          <button type="button" className="btn btn-ghost" onClick={handleReset}>↺ Mặc định</button>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button type="button" className="btn btn-ghost" onClick={onClose}>Hủy</button>
+            <button type="button" className="btn btn-primary" onClick={() => onSave(draft)}>💾 Lưu</button>
+          </div>
+        </div>
+        <style>{`
+          .atgt-modal-backdrop {
+            position: fixed; inset: 0;
+            background: rgba(0,0,0,0.5);
+            display: flex; align-items: center; justify-content: center;
+            z-index: 1000;
+          }
+          .atgt-modal-content {
+            background: var(--color-bg-elevated, #1a1a1f);
+            padding: 24px;
+            border-radius: 10px;
+            border: 1px solid var(--color-border-subtle, #2a2a30);
+            max-width: 90vw; max-height: 90vh; overflow: auto;
+            box-shadow: 0 20px 50px rgba(0,0,0,0.4);
+          }
+        `}</style>
+      </div>
+    </div>
+  );
+}

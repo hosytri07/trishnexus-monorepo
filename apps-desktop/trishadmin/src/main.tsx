@@ -8,6 +8,8 @@ import packageJson from '../package.json' with { type: 'json' };
 // Phase 24.3 — design-system package thay cho local drive-theme.css.
 // `import '@trishteam/design-system'` bundle Plus Jakarta + theme + utility CSS.
 import '@trishteam/design-system';
+import { applyAppAccent } from '@trishteam/design-system';
+applyAppAccent('admin');
 import './styles.css';
 
 // Apply theme từ settings local trước khi React mount để tránh flash

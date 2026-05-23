@@ -252,6 +252,84 @@ export async function setUserFinanceUser(
   }
 }
 
+// ============================================================
+// Phase 44.5 — App access grant/revoke (4 app mới)
+// ============================================================
+
+/**
+ * Cấp quyền cho user vào 1 app (work/utilities/finance/admin).
+ * Set `app_keys[appId] = { key_id, activated_at, expires_at }` trong Firestore
+ * `/users/{uid}`. Khác KeyGate cũ (user nhập key tay) — admin trực tiếp gán.
+ *
+ * @param durationDays — số ngày hết hạn từ now. 0 = vĩnh viễn.
+ */
+export async function grantAppAccess(
+  uid: string,
+  appId: string,
+  durationDays: number,
+  actor?: ActorContext,
+  targetEmail?: string,
+): Promise<void> {
+  const db = getFirebaseDb();
+  const ref = doc(db, paths.user(uid));
+  const now = Date.now();
+  const expiresAt = durationDays > 0 ? now + durationDays * 86_400_000 : 0;
+  // Synthetic key_id = admin-issued + timestamp (không cần ActivationKey thật)
+  const keyId = `admin-${appId}-${now}`;
+  await setDoc(
+    ref,
+    {
+      id: uid,
+      [`app_keys.${appId}`]: {
+        key_id: keyId,
+        activated_at: now,
+        expires_at: expiresAt,
+      },
+    },
+    { merge: true },
+  );
+  if (actor) {
+    await writeAudit({
+      action: 'user.app_access_grant',
+      actor_uid: actor.uid,
+      actor_email: actor.email,
+      target_type: 'user',
+      target_id: uid,
+      target_label: targetEmail,
+      details: { app_id: appId, duration_days: durationDays, expires_at: expiresAt },
+    });
+  }
+}
+
+/** Thu hồi quyền user vào 1 app. Xóa field `app_keys[appId]`. */
+export async function revokeAppAccess(
+  uid: string,
+  appId: string,
+  actor?: ActorContext,
+  targetEmail?: string,
+): Promise<void> {
+  const db = getFirebaseDb();
+  const ref = doc(db, paths.user(uid));
+  // Dùng deleteField marker — Firestore SDK: import deleteField from 'firebase/firestore'
+  // Workaround không import thêm: set explicit null + merge — chấp nhận field còn rỗng.
+  // Hoặc dùng `updateDoc` với FieldValue.delete(). Để rõ ràng, em dùng updateDoc + deleteField.
+  const { updateDoc, deleteField } = await import('firebase/firestore');
+  await updateDoc(ref, {
+    [`app_keys.${appId}`]: deleteField(),
+  });
+  if (actor) {
+    await writeAudit({
+      action: 'user.app_access_revoke',
+      actor_uid: actor.uid,
+      actor_email: actor.email,
+      target_type: 'user',
+      target_id: uid,
+      target_label: targetEmail,
+      details: { app_id: appId },
+    });
+  }
+}
+
 export async function resetUserToTrial(
   uid: string,
   actor?: ActorContext,

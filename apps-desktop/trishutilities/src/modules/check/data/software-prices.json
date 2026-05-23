@@ -1,0 +1,408 @@
+{
+  "version": "1.0.0",
+  "updated_at": "2026-05-08",
+  "currency": "VND",
+  "note": "Giá tham khảo từ vendor chính thức (regional Việt Nam khi có). Có thể thay đổi theo tỷ giá / khuyến mãi. Kiểm tra link mua trước khi quyết định.",
+  "items": [
+    {
+      "match": ["AutoCAD", "Autodesk AutoCAD"],
+      "ten_vi": "AutoCAD (Autodesk)",
+      "loai": "Vẽ kỹ thuật 2D/3D",
+      "vendor": "Autodesk",
+      "gia_vnd_nam": 45000000,
+      "ghi_chu": "Subscription annual ~$1,865/năm",
+      "free_alt": ["LibreCAD", "DraftSight", "QCAD", "NanoCAD Free"],
+      "link": "https://www.autodesk.com/products/autocad/overview"
+    },
+    {
+      "match": ["Civil 3D", "Autodesk Civil 3D"],
+      "ten_vi": "Civil 3D (Autodesk)",
+      "loai": "Hạ tầng giao thông, thủy lợi",
+      "vendor": "Autodesk",
+      "gia_vnd_nam": 65000000,
+      "ghi_chu": "Subscription annual ~$2,690/năm — included in AEC Collection",
+      "free_alt": ["BlenderBIM", "FreeCAD"],
+      "link": "https://www.autodesk.com/products/civil-3d/overview"
+    },
+    {
+      "match": ["Revit", "Autodesk Revit"],
+      "ten_vi": "Revit (Autodesk)",
+      "loai": "BIM kiến trúc / kết cấu",
+      "vendor": "Autodesk",
+      "gia_vnd_nam": 65000000,
+      "ghi_chu": "Subscription ~$2,690/năm",
+      "free_alt": ["BlenderBIM", "Sweet Home 3D"],
+      "link": "https://www.autodesk.com/products/revit/overview"
+    },
+    {
+      "match": ["3ds Max", "Autodesk 3ds Max"],
+      "ten_vi": "3ds Max (Autodesk)",
+      "loai": "3D modeling + render",
+      "vendor": "Autodesk",
+      "gia_vnd_nam": 50000000,
+      "ghi_chu": "~$2,070/năm",
+      "free_alt": ["Blender", "SketchUp Free"],
+      "link": "https://www.autodesk.com/products/3ds-max"
+    },
+    {
+      "match": ["Microsoft 365", "Office 365", "Microsoft Office", "Office 2024", "Office 2021", "Office 2019"],
+      "ten_vi": "Microsoft 365 / Office",
+      "loai": "Văn phòng (Word/Excel/PowerPoint)",
+      "vendor": "Microsoft",
+      "gia_vnd_nam": 1700000,
+      "ghi_chu": "Personal ~$70/năm. Family $100/năm cho 6 người. Office 2021 perpetual ~$150 mua đứt.",
+      "free_alt": ["LibreOffice", "OnlyOffice", "WPS Office", "Google Docs"],
+      "link": "https://www.microsoft.com/vi-vn/microsoft-365"
+    },
+    {
+      "match": ["Adobe Acrobat Pro", "Acrobat Pro"],
+      "ten_vi": "Adobe Acrobat Pro",
+      "loai": "PDF chuyên nghiệp",
+      "vendor": "Adobe",
+      "gia_vnd_nam": 5000000,
+      "ghi_chu": "~$240/năm (subscription)",
+      "free_alt": ["Foxit Reader Free", "Sumatra PDF", "TrishLibrary 🌟"],
+      "link": "https://www.adobe.com/acrobat.html"
+    },
+    {
+      "match": ["Adobe Photoshop", "Photoshop"],
+      "ten_vi": "Adobe Photoshop",
+      "loai": "Chỉnh sửa ảnh",
+      "vendor": "Adobe",
+      "gia_vnd_nam": 6000000,
+      "ghi_chu": "Single app $20.99/tháng",
+      "free_alt": ["GIMP", "Krita", "Photopea (web)"],
+      "link": "https://www.adobe.com/products/photoshop.html"
+    },
+    {
+      "match": ["Adobe Illustrator", "Illustrator"],
+      "ten_vi": "Adobe Illustrator",
+      "loai": "Vector graphics",
+      "vendor": "Adobe",
+      "gia_vnd_nam": 6000000,
+      "ghi_chu": "Single app $20.99/tháng",
+      "free_alt": ["Inkscape", "Affinity Designer (mua đứt $70)"],
+      "link": "https://www.adobe.com/products/illustrator.html"
+    },
+    {
+      "match": ["Adobe Premiere Pro", "Premiere Pro"],
+      "ten_vi": "Adobe Premiere Pro",
+      "loai": "Video editing",
+      "vendor": "Adobe",
+      "gia_vnd_nam": 6000000,
+      "ghi_chu": "Single app $20.99/tháng",
+      "free_alt": ["DaVinci Resolve Free", "Shotcut", "OpenShot"],
+      "link": "https://www.adobe.com/products/premiere.html"
+    },
+    {
+      "match": ["Adobe Creative Cloud", "Creative Cloud"],
+      "ten_vi": "Adobe Creative Cloud (full suite)",
+      "loai": "Suite design + video",
+      "vendor": "Adobe",
+      "gia_vnd_nam": 16000000,
+      "ghi_chu": "All Apps ~$60/tháng = $720/năm",
+      "free_alt": ["Affinity Suite (V2 mua đứt $165)", "Inkscape + GIMP + DaVinci Resolve"],
+      "link": "https://www.adobe.com/creativecloud.html"
+    },
+    {
+      "match": ["SAP2000"],
+      "ten_vi": "SAP2000",
+      "loai": "Phân tích kết cấu",
+      "vendor": "Computers and Structures (CSI)",
+      "gia_vnd_nam": 90000000,
+      "ghi_chu": "Standard ~$3,700+ (tùy bậc Plus/Advanced/Ultimate)",
+      "free_alt": ["OpenSees (mã nguồn mở)", "Ftool (2D)"],
+      "link": "https://www.csiamerica.com/products/sap2000"
+    },
+    {
+      "match": ["ETABS"],
+      "ten_vi": "ETABS",
+      "loai": "Phân tích nhà cao tầng",
+      "vendor": "Computers and Structures (CSI)",
+      "gia_vnd_nam": 100000000,
+      "ghi_chu": "~$4,200+ tùy bậc",
+      "free_alt": ["OpenSees"],
+      "link": "https://www.csiamerica.com/products/etabs"
+    },
+    {
+      "match": ["Plaxis"],
+      "ten_vi": "Plaxis (Bentley)",
+      "loai": "Phân tích địa kỹ thuật",
+      "vendor": "Bentley Systems",
+      "gia_vnd_nam": 250000000,
+      "ghi_chu": "~$10,000+ depending license",
+      "free_alt": ["GeoStudio Free trial", "FLAC Slope"],
+      "link": "https://www.bentley.com/software/plaxis-2d/"
+    },
+    {
+      "match": ["MIDAS Civil", "MIDAS GTS", "MIDAS Gen"],
+      "ten_vi": "MIDAS Civil/Gen",
+      "loai": "Phân tích cầu, kết cấu",
+      "vendor": "MIDAS IT",
+      "gia_vnd_nam": 80000000,
+      "ghi_chu": "Tùy module, ~$3,300+",
+      "free_alt": ["OpenSees"],
+      "link": "https://www.midasoft.com/"
+    },
+    {
+      "match": ["WinRAR"],
+      "ten_vi": "WinRAR",
+      "loai": "Nén file",
+      "vendor": "RARLab",
+      "gia_vnd_nam": 700000,
+      "ghi_chu": "~$29 mua đứt vĩnh viễn (1 user)",
+      "free_alt": ["7-Zip", "PeaZip"],
+      "link": "https://www.win-rar.com/"
+    },
+    {
+      "match": ["Visual Studio Professional", "Visual Studio Enterprise"],
+      "ten_vi": "Visual Studio (paid editions)",
+      "loai": "IDE phát triển phần mềm",
+      "vendor": "Microsoft",
+      "gia_vnd_nam": 12000000,
+      "ghi_chu": "Pro ~$45/tháng, Enterprise ~$250/tháng",
+      "free_alt": ["Visual Studio Community", "VS Code (free)", "Rider Community"],
+      "link": "https://visualstudio.microsoft.com/"
+    },
+    {
+      "match": ["Visual Studio Code", "VS Code"],
+      "ten_vi": "Visual Studio Code",
+      "loai": "Code editor",
+      "vendor": "Microsoft",
+      "gia_vnd_nam": 0,
+      "ghi_chu": "Miễn phí",
+      "free_alt": [],
+      "link": "https://code.visualstudio.com/"
+    },
+    {
+      "match": ["IntelliJ IDEA Ultimate", "IntelliJ IDEA"],
+      "ten_vi": "IntelliJ IDEA Ultimate",
+      "loai": "IDE Java/Kotlin",
+      "vendor": "JetBrains",
+      "gia_vnd_nam": 4000000,
+      "ghi_chu": "$169/năm (cá nhân). IntelliJ Community FREE.",
+      "free_alt": ["IntelliJ Community Edition", "Eclipse"],
+      "link": "https://www.jetbrains.com/idea/"
+    },
+    {
+      "match": ["WebStorm", "PyCharm Professional"],
+      "ten_vi": "JetBrains IDE (WebStorm/PyCharm Pro)",
+      "loai": "IDE web/Python",
+      "vendor": "JetBrains",
+      "gia_vnd_nam": 4000000,
+      "ghi_chu": "$159-189/năm (cá nhân)",
+      "free_alt": ["VS Code", "PyCharm Community"],
+      "link": "https://www.jetbrains.com/"
+    },
+    {
+      "match": ["MATLAB"],
+      "ten_vi": "MATLAB",
+      "loai": "Tính toán khoa học, mô phỏng",
+      "vendor": "MathWorks",
+      "gia_vnd_nam": 22000000,
+      "ghi_chu": "~$940/năm individual, $260/năm Home",
+      "free_alt": ["GNU Octave", "Scilab", "Python + NumPy/SciPy"],
+      "link": "https://www.mathworks.com/products/matlab.html"
+    },
+    {
+      "match": ["TeamViewer"],
+      "ten_vi": "TeamViewer",
+      "loai": "Remote desktop",
+      "vendor": "TeamViewer",
+      "gia_vnd_nam": 14000000,
+      "ghi_chu": "Single user $34.90/tháng",
+      "free_alt": ["AnyDesk free (cá nhân)", "Chrome Remote Desktop", "Microsoft Remote Desktop"],
+      "link": "https://www.teamviewer.com/"
+    },
+    {
+      "match": ["AnyDesk"],
+      "ten_vi": "AnyDesk",
+      "loai": "Remote desktop",
+      "vendor": "AnyDesk",
+      "gia_vnd_nam": 4500000,
+      "ghi_chu": "Solo ~$15/tháng. Free cho cá nhân không thương mại.",
+      "free_alt": ["Chrome Remote Desktop", "RustDesk (open-source)"],
+      "link": "https://anydesk.com/"
+    },
+    {
+      "match": ["IDM", "Internet Download Manager"],
+      "ten_vi": "Internet Download Manager (IDM)",
+      "loai": "Download accelerator",
+      "vendor": "Tonec",
+      "gia_vnd_nam": 700000,
+      "ghi_chu": "~$30 mua đứt vĩnh viễn",
+      "free_alt": ["Free Download Manager", "JDownloader 2"],
+      "link": "https://www.internetdownloadmanager.com/"
+    },
+    {
+      "match": ["Kaspersky", "Kaspersky Internet Security", "Kaspersky Total Security"],
+      "ten_vi": "Kaspersky (Antivirus/Internet Security)",
+      "loai": "Bảo mật",
+      "vendor": "Kaspersky",
+      "gia_vnd_nam": 800000,
+      "ghi_chu": "~$30-60/năm tùy bản",
+      "free_alt": ["Windows Defender (built-in)", "Kaspersky Free", "Avast Free"],
+      "link": "https://www.kaspersky.com/"
+    },
+    {
+      "match": ["Bitdefender"],
+      "ten_vi": "Bitdefender",
+      "loai": "Bảo mật",
+      "vendor": "Bitdefender",
+      "gia_vnd_nam": 1000000,
+      "ghi_chu": "~$30-80/năm",
+      "free_alt": ["Windows Defender", "Bitdefender Free"],
+      "link": "https://www.bitdefender.com/"
+    },
+    {
+      "match": ["Foxit PhantomPDF", "Foxit PDF Editor"],
+      "ten_vi": "Foxit PDF Editor",
+      "loai": "PDF chuyên nghiệp",
+      "vendor": "Foxit",
+      "gia_vnd_nam": 3500000,
+      "ghi_chu": "~$159/năm",
+      "free_alt": ["Foxit Reader Free", "Sumatra PDF", "TrishLibrary 🌟"],
+      "link": "https://www.foxit.com/"
+    },
+    {
+      "match": ["Notepad++"],
+      "ten_vi": "Notepad++",
+      "loai": "Text editor",
+      "vendor": "Notepad++ Team",
+      "gia_vnd_nam": 0,
+      "ghi_chu": "Miễn phí (open-source)",
+      "free_alt": [],
+      "link": "https://notepad-plus-plus.org/"
+    },
+    {
+      "match": ["7-Zip"],
+      "ten_vi": "7-Zip",
+      "loai": "Nén file",
+      "vendor": "Igor Pavlov",
+      "gia_vnd_nam": 0,
+      "ghi_chu": "Miễn phí (open-source)",
+      "free_alt": [],
+      "link": "https://www.7-zip.org/"
+    },
+    {
+      "match": ["Google Chrome"],
+      "ten_vi": "Google Chrome",
+      "loai": "Browser",
+      "vendor": "Google",
+      "gia_vnd_nam": 0,
+      "ghi_chu": "Miễn phí",
+      "free_alt": [],
+      "link": "https://www.google.com/chrome/"
+    },
+    {
+      "match": ["Mozilla Firefox", "Firefox"],
+      "ten_vi": "Mozilla Firefox",
+      "loai": "Browser",
+      "vendor": "Mozilla",
+      "gia_vnd_nam": 0,
+      "ghi_chu": "Miễn phí (open-source)",
+      "free_alt": [],
+      "link": "https://www.mozilla.org/firefox/"
+    },
+    {
+      "match": ["Skype"],
+      "ten_vi": "Skype",
+      "loai": "Video call",
+      "vendor": "Microsoft",
+      "gia_vnd_nam": 0,
+      "ghi_chu": "Miễn phí cho video call",
+      "free_alt": [],
+      "link": "https://www.skype.com/"
+    },
+    {
+      "match": ["Zoom"],
+      "ten_vi": "Zoom",
+      "loai": "Video meeting",
+      "vendor": "Zoom",
+      "gia_vnd_nam": 4000000,
+      "ghi_chu": "Free 40 phút/meeting. Pro $14.99/tháng cho meeting không giới hạn.",
+      "free_alt": ["Google Meet", "Microsoft Teams Free", "Jitsi Meet"],
+      "link": "https://zoom.us/"
+    },
+    {
+      "match": ["Discord"],
+      "ten_vi": "Discord",
+      "loai": "Chat + voice",
+      "vendor": "Discord",
+      "gia_vnd_nam": 0,
+      "ghi_chu": "Miễn phí. Nitro $9.99/tháng (optional)",
+      "free_alt": [],
+      "link": "https://discord.com/"
+    },
+    {
+      "match": ["Telegram"],
+      "ten_vi": "Telegram Desktop",
+      "loai": "Messaging",
+      "vendor": "Telegram",
+      "gia_vnd_nam": 0,
+      "ghi_chu": "Miễn phí",
+      "free_alt": [],
+      "link": "https://telegram.org/"
+    },
+    {
+      "match": ["Zalo"],
+      "ten_vi": "Zalo",
+      "loai": "Messaging",
+      "vendor": "VNG",
+      "gia_vnd_nam": 0,
+      "ghi_chu": "Miễn phí",
+      "free_alt": [],
+      "link": "https://zalo.me/"
+    },
+    {
+      "match": ["VLC media player", "VLC"],
+      "ten_vi": "VLC Media Player",
+      "loai": "Media player",
+      "vendor": "VideoLAN",
+      "gia_vnd_nam": 0,
+      "ghi_chu": "Miễn phí (open-source)",
+      "free_alt": [],
+      "link": "https://www.videolan.org/"
+    },
+    {
+      "match": ["Windows 10", "Windows 11"],
+      "ten_vi": "Windows OS",
+      "loai": "Hệ điều hành",
+      "vendor": "Microsoft",
+      "gia_vnd_nam": 3500000,
+      "ghi_chu": "Win 11 Pro retail ~$200, Home ~$140 (mua đứt)",
+      "free_alt": ["Linux (Ubuntu/Mint/Fedora)"],
+      "link": "https://www.microsoft.com/windows/"
+    },
+    {
+      "match": ["Git"],
+      "ten_vi": "Git",
+      "loai": "Version control",
+      "vendor": "Git Project",
+      "gia_vnd_nam": 0,
+      "ghi_chu": "Miễn phí (open-source)",
+      "free_alt": [],
+      "link": "https://git-scm.com/"
+    },
+    {
+      "match": ["Node.js"],
+      "ten_vi": "Node.js",
+      "loai": "JavaScript runtime",
+      "vendor": "OpenJS Foundation",
+      "gia_vnd_nam": 0,
+      "ghi_chu": "Miễn phí",
+      "free_alt": [],
+      "link": "https://nodejs.org/"
+    },
+    {
+      "match": ["Python"],
+      "ten_vi": "Python",
+      "loai": "Programming language",
+      "vendor": "Python Software Foundation",
+      "gia_vnd_nam": 0,
+      "ghi_chu": "Miễn phí (open-source)",
+      "free_alt": [],
+      "link": "https://www.python.org/"
+    }
+  ]
+}

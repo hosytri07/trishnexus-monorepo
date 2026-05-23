@@ -1,0 +1,54 @@
+/**
+ * theme-bridge.css — Phase 30.4
+ * Map legacy CSS vars sang design-system tokens. Đặt SAU styles.css.
+ *
+ * Note: --cat-* (categorize colors cho dọn dẹp) giữ nguyên giá trị hardcoded
+ * trong styles.css vì là phân loại UI riêng của TrishClean, không thuộc
+ * design-system.
+ */
+/**
+ * TrishClean dùng class `.theme-light` / `.theme-dark` trên <html> (settings.ts
+ * applyTheme), KHÔNG dùng `[data-theme]` attribute. Bridge phải bắt cả 3 form
+ * selector để emerald accent + Plus Jakarta apply trong cả light + dark.
+ */
+:root,
+:root[data-theme='light'],
+:root[data-theme='dark'],
+:root.theme-light,
+:root.theme-dark {
+  --bg: var(--color-surface-bg);
+  --surface: var(--color-surface-card);
+  --text: var(--color-text-primary);
+  --muted: var(--color-text-muted);
+  --border: var(--color-border-default);
+  --accent: var(--color-accent-primary);
+  --accent-hover: var(--color-accent-secondary);
+  --error: var(--semantic-danger);
+  --error-bg: rgba(239,68,68,0.10);
+  --warn: var(--semantic-warning);
+  --warn-bg: rgba(245,158,11,0.10);
+}
+
+/* Phase 30.4 — Khi user chọn dark mode (.theme-dark trên <html>), set
+ * design-system attribute đồng bộ để token --color-* switch sang dark variant.
+ * Cách hack CSS-only: re-define --color-* directly cho dark class.
+ * Lấy đúng giá trị từ packages/design-system/theme.css :root[data-theme='dark']. */
+:root.theme-dark {
+  --color-accent-primary: #34d399;
+  --color-accent-secondary: #10b981;
+  --color-accent-soft: rgba(52,211,153,0.16);
+  --color-surface-bg: #14161b;
+  --color-surface-bg-elevated: #1c1f26;
+  --color-surface-card: #1c1f26;
+  --color-surface-row: #181b21;
+  --color-text-primary: #e5e7eb;
+  --color-text-secondary: #d1d5db;
+  --color-text-muted: #9aa1ad;
+  --color-border-subtle: rgba(229,231,235,0.08);
+  --color-border-default: rgba(229,231,235,0.14);
+  --color-border-strong: rgba(229,231,235,0.24);
+}
+
+html, body, #root {
+  font-family: var(--font-sans);
+}

@@ -11,7 +11,7 @@
 
 import { useEffect, useState } from 'react';
 import { useAuth } from '@trishteam/auth/react';
-import { AdminLogin } from './components/AdminLogin.js';
+import { LoginScreen } from '@trishteam/auth/react';
 import { AdminBlocked } from './components/AdminBlocked.js';
 import { App } from './App.js';
 import { isAdminEmail } from './lib/admin-emails.js';
@@ -24,7 +24,7 @@ export function Root(): JSX.Element {
   }
 
   if (!firebaseUser) {
-    return <AdminLogin />;
+    return <LoginScreen appName="TrishAdmin" appShellId="admin" tagline="Quản trị hệ sinh thái TrishTEAM" />;
   }
 
   // CRITICAL — chỉ admin email được vào. User thường login qua app khác
