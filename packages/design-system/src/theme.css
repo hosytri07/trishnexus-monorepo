@@ -746,3 +746,14 @@ html, body, #root, button, input, textarea, select {
   max-width: 200px;
   max-height: 200px;
 }
+
+/* ================================================================
+   Phase 45 — Component animations
+   ================================================================ */
+@keyframes app-spin {
+  to { transform: rotate(360deg); }
+}
+@keyframes app-modal-fade {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}

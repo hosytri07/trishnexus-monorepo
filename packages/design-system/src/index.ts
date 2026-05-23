@@ -42,3 +42,6 @@ export function loadTheme(persistKey: string): ThemeMode {
   } catch { /* ignore */ }
   return 'light';
 }
+
+// Phase 45 — Component library
+export * from './components/index.js';
