@@ -4,17 +4,152 @@
 >
 > **🔴 ĐỌC SECTION `📍 PHIÊN HIỆN TẠI` NGAY DƯỚI — TẤT CẢ SECTION CŨ PHÍA DƯỚI LÀ LỊCH SỬ ARCHIVE, ĐỪNG NHẦM!**
 >
-> **Cập nhật:** 2026-05-18 (Phase 43 wave 15 — ATGT refactor xong toàn bộ. CHƯA test máy cơ quan.)
+> **Cập nhật:** 2026-05-23 (Phase 43 wave 16 — pick polyline + textPrefs/FontPicker — đang code dở, CHƯA commit. Sắp chuyển máy về nhà.)
 > **Chủ dự án:** Trí (hosytri77@gmail.com / trishteam.official@gmail.com) — kỹ sư hạ tầng giao thông Đà Nẵng. Không phải dev. Giao tiếp tiếng Việt, tránh jargon.
 
 ---
 
-## 📍 PHIÊN HIỆN TẠI — 2026-05-18 (Phase 43 wave 15 — ATGT toàn bộ, CHƯA TEST MÁY CƠ QUAN)
+## 📍 PHIÊN HIỆN TẠI — 2026-05-23 (Phase 43 wave 16 — pick polyline AutoCAD + textPrefs giống HHMĐ — CHUYỂN MÁY VỀ NHÀ)
+
+### ⚠ TRƯỚC KHI MỞ LẠI MÁY NHÀ — đọc kỹ
+
+**Phiên này (máy cơ quan, 2026-05-23) đang code dở Phase 43 wave 16.** Code đã commit hay chưa tuỳ END.bat có thành công không (xem bên dưới).
+
+Nếu pull về máy nhà mà KHÔNG thấy các file `polyline-curve.ts`, `FontPicker.tsx`, hoặc thấy `acad_pick_polyline` thiếu trong `acad_com.rs` → tức commit cuối thất bại, máy nhà cần kéo lại từ máy cơ quan thủ công (xem section "🛟 Nếu END.bat máy cơ quan fail" cuối).
+
+### 🚨 BƯỚC ĐẦU TIÊN máy nhà
+
+```powershell
+cd C:\Users\ADMIN\Documents\Claude\Projects\TrishTEAM\trishnexus-monorepo
+START.bat
+```
+
+Sau khi pull xong:
+
+```powershell
+cd apps-desktop\trishdesign
+pnpm tauri dev
+```
+
+(TrishAdmin chỉ cần test nếu muốn upload .dwg lên GitHub Release — không bắt buộc đầu phiên.)
+
+### 🆕 Đã làm thêm sau handoff cũ 2026-05-18
+
+**Đã commit (3 commit ngày 2026-05-18, sau handoff cũ):**
+
+| Commit | Wave | Nội dung |
+|---|---|---|
+| `ef95166` | docs | Update HANDOFF Phase 43 wave 15 (test plan đầy đủ) |
+| `529aaae` | 15.4 | AtgtBlocksPanel dùng CSS var đúng prefix `--bg/--accent/--fg/--border` (KHÔNG `--ts-*`) + nút Upload .dwg auto-mở Upload ZIP/files khi thiếu PAT (thay vì disable im lặng) |
+| `e8e011b` | 15.5 | 4 fix tiếp: (1) CSS var, (2) auto-mở upload ZIP, (3) split path Windows `\` và Unix `/` cho đúng basename (trước save full path `G:\TrishTEAM\...` vào Firestore), (4) cột ZIP hiện ✓/✗ cả khi có per-file metadata |
+
+**Đang code dở Phase 43 wave 16 (CHƯA commit ở thời điểm viết handoff này — END.bat phía dưới sẽ commit):**
+
+Wave 16 chính là làm **defer item #1 của wave 15** ("TrishDesign mode 'Theo polyline AutoCAD' — cần Rust `acad_get_point_on_polyline`") + thêm **textPrefs/FontPicker giống HHMĐ**.
+
+| Sub-wave | Nội dung | Files |
+|---|---|---|
+| 16.1 | Bỏ `handlePasteTsv` legacy 9-category (gây clipboard permission popup) | `AtgtPanel.tsx` |
+| **16.2** | **Rust `acad_pick_polyline` LISP integration**: gửi LISP file `%TEMP%/trishdesign_pick_polyline.lsp` → user click polyline trong AutoCAD → đọc handle + length + coords về Tauri. Hỗ trợ LWPOLYLINE 2D + POLYLINE 2D (KHÔNG 3D). Result struct: `PolylineInfo { handle, length, vertices: Vec<[f64;2]> }` | `acad_com.rs` +136 dòng |
+| **16.3** | **`polyline-curve.ts` NEW (108 dòng)** — Polyline arc-length parameterization. Cho `vertices + station_m` → trả về `{ x, y, tangentAngle, normal }`. Dùng để map block ATGT vào polyline cong. Có `posFn(station, offset, side, isMep)` thay rectangle SCALE_X cũ | `polyline-curve.ts` NEW |
+| 16.4 | Engine vẽ ATGT đọc folder block đã sync, truyền vào INSERT command | `AtgtPanel.tsx` |
+| **16.6** | **`AtgtTextPrefs` interface mới + `defaultAtgtTextPrefs()`** — text style cho project ATGT giống HHMĐ TEXT_HH: `styleName, fontFile, widthFactor, stationHeight, blockTextHeight, blockScale, lyTrinhBlockOffset, lyTrinhBlockLength, bienBaoHeight`. Engine vẽ chạy `_-STYLE` trước. Modal "🔠 Cài đặt Text Style" mở từ AtgtPanel | `atgt-types.ts`, `AtgtPanel.tsx` |
+| **16.7** | **`FontPicker.tsx` NEW (121 dòng)** — Scan font 3 nguồn: System TTF qua `queryLocalFonts`, AutoCAD SHX qua Tauri (Program Files\Autodesk\AutoCAD\Fonts\), Preset (`AUTOCAD_SHX_FONTS` + `VN_COMMON_TTF`) | `FontPicker.tsx` NEW |
+| 16.9 | Modal Save flow + verify | `AtgtPanel.tsx` |
+| 16.10 | `blockScale` field — fix block design size cố định: polyline lớn → tăng scale | `atgt-types.ts`, `atgt-draw-script.ts` |
+| 16.11 | `lyTrinhBlockOffset` + `lyTrinhBlockLength` — vị trí + chiều dài block 0.LT cọc lý trình | `atgt-types.ts`, `atgt-draw-script.ts` |
+| 16.13 | `bienBaoHeight` — chiều cao block biển báo (Y axis) cho side='right' để cột mọc xuống mép | `atgt-types.ts`, `atgt-draw-script.ts` |
+| 16.17 | Cọc 0.LT đặt TẠI vị trí cách tim của tài sản (baseOffset = cachTim/cachMep) | `atgt-draw-script.ts` |
+| 16.23 | Leader = SOLID arrow + PLINE 3 đỉnh (group 1 object) + MTEXT riêng | `atgt-draw-script.ts` |
+| 16.24 | Debug log textPrefs giá trị engine đang dùng + verify save | `AtgtPanel.tsx` |
+
+**Tổng diff Wave 16:** 9 file modified (+868/-358 dòng) + 2 file NEW (`polyline-curve.ts` 108 dòng, `FontPicker.tsx` 121 dòng).
+
+### 🧪 TEST PLAN máy nhà — Phase 43 wave 16
+
+**A. AtgtSidebar — nút Pick polyline mới (Wave 16.2):**
+1. TrishDesign → tạo project ATGT → tạo đoạn → mở sidebar trái
+2. Section "Chế độ vẽ" → chọn radio **"🛣 Theo polyline AutoCAD"**
+3. Hiện nút xanh "**🎯 Chọn polyline trong AutoCAD**" thay cho input "Chiều dài polyline" cũ
+4. Mở AutoCAD trước, vẽ 1 polyline cong/thẳng bất kỳ
+5. Bấm nút → app gửi LISP vào AutoCAD → message "🖱 Chuyển sang AutoCAD và click vào polyline..."
+6. Chuyển sang AutoCAD → click polyline → app nhận: "✓ Đã pick: N đỉnh, L=XX.XXm"
+7. Sidebar hiện handle + chiều dài + số đỉnh
+
+**B. AtgtPanel — Modal Cài đặt Text Style (Wave 16.6 + 16.7):**
+1. AtgtPanel → tìm nút "🔠 Cài đặt text" (tooltip "Cài đặt font, width, chiều cao text trước khi vẽ (giống HHMĐ)")
+2. Modal hiện: Tên style / Font file / Width factor / Cao text lý trình / Cao text leader / Scale block / Vị trí block 0.LT / Chiều dài block 0.LT / Chiều cao block biển báo
+3. Field **Font file** = `FontPicker`: dropdown 3 tab (System TTF / SHX / Preset) → chọn `romans.shx` mặc định
+4. Bấm "Save" → console log textPrefs đã save + reload modal phải giữ giá trị
+
+**C. Engine vẽ AutoCAD — mode 'polyline' (Wave 16.3 + 16.10-16.23):**
+1. Sau khi pick polyline + cài text + nhập tài sản (9 tab) → bấm "📐 Vẽ AutoCAD"
+2. Engine chạy `_-STYLE` tạo style ATGT_TEXT → INSERT 0.LT cọc lý trình tại baseOffset (cách tim của tài sản) + scale `blockScale`
+3. Vẽ biển báo bên RIGHT phải offset thêm `bienBaoHeight` (cột mọc xuống mép)
+4. Leader = SOLID arrow + PLINE 3 đỉnh + MTEXT (không phải LEADER lệnh ACAD, để có thể group/edit từng object)
+5. Block 0.LT (cọc lý trình) đặt tại `lyTrinhBlockOffset` + extend `lyTrinhBlockLength`
+
+**D. Regression — Wave 15 vẫn chạy:**
+- TrishAdmin AtgtBlocksPanel: bulk import 415 dòng / sort header / nút Upload .dwg / cột ZIP ✓/✗
+- TrishDesign 9 tab tài sản / Vẽ AutoCAD (mode duỗi thẳng cũ) / Excel 9 sheet / Sync block
+
+### ⚠ Còn dở (defer Wave 17):
+
+- **Mode 'polyline'** đang code engine vẽ nhưng chưa test thực tế trong AutoCAD (chỉ test compile). Cần Trí mở AutoCAD vẽ polyline → pick → vẽ tài sản → verify block đặt đúng vị trí trên đường cong.
+- Excel export cho mode 'polyline' (hiện chỉ duỗi thẳng có Excel)
+- Upload block .dwg thật từ máy cơ quan để test full flow upload + sync (defer từ Wave 15)
+- Build .exe release wave 2 (Drive/Finance/Office/ISO/Launcher)
+
+### 🛟 Nếu END.bat máy cơ quan FAIL (gặp lỗi `.git/index.lock`)
+
+Phiên này máy cơ quan có file `.git/index.lock` còn sót từ Claude tool (size 0, không xoá được qua bash). Nếu chạy `END.bat` báo lỗi "Another git process seems to be running":
+
+```powershell
+cd C:\Users\ADMIN\Documents\Claude\Projects\TrishTEAM\trishnexus-monorepo
+del .git\index.lock
+END.bat
+```
+
+Nếu vẫn fail, push thủ công:
+
+```powershell
+git add .
+git commit -m "wip(wave16): pick polyline + textPrefs + FontPicker"
+git push origin main
+```
+
+### ⚠ Lỗi có thể gặp & cách fix (mới Wave 16)
+
+- **Pick polyline timeout 60s** → user chưa click polyline trong AutoCAD, hoặc click vào object không phải polyline/LWPOLYLINE/POLYLINE 2D. 3D polyline KHÔNG hỗ trợ (lỗi vlax-get).
+- **`acad_pick_polyline` báo "ERR|..."** → LISP đọc coords lỗi. Mở `%TEMP%\trishdesign_pick_polyline.txt` xem nội dung.
+- **FontPicker không load TTF system** → browser cũ không hỗ trợ `queryLocalFonts` API (Tauri WebView2 thường OK).
+- **Block ATGT vẽ ra quá nhỏ/lớn** → chỉnh `blockScale` trong Modal text. Polyline 144 unit → blockScale 10-50 thường OK.
+
+### 📁 Files thay đổi/tạo Phase 43 wave 16 (11 files):
+
+**Modified (9):**
+- `apps-desktop/trishadmin/src-tauri/src/lib.rs` (+36 dòng — chỉnh nhỏ)
+- `apps-desktop/trishadmin/src/components/AtgtBlocksPanel.tsx` (+11)
+- `apps-desktop/trishdesign/src-tauri/src/acad_com.rs` (+136 — Wave 16.2)
+- `apps-desktop/trishdesign/src-tauri/src/lib.rs` (+2 — register command)
+- `apps-desktop/trishdesign/src/lib/atgt-draw-script.ts` (+431/-... — engine vẽ refactor cho polyline)
+- `apps-desktop/trishdesign/src/lib/atgt-script.ts` (+290 — posFn mode-aware)
+- `apps-desktop/trishdesign/src/lib/atgt-types.ts` (+45 — AtgtTextPrefs + polylineVertices)
+- `apps-desktop/trishdesign/src/modules/engineer/AtgtPanel.tsx` (+207 — Modal text + FontPicker integration)
+- `apps-desktop/trishdesign/src/modules/engineer/AtgtSidebar.tsx` (+68 — nút Pick polyline)
+
+**New (2):**
+- `apps-desktop/trishdesign/src/lib/polyline-curve.ts` (108 dòng — arc-length param)
+- `apps-desktop/trishdesign/src/modules/engineer/FontPicker.tsx` (121 dòng — font scanner)
+
+---
+
+## 📍 PHIÊN CŨ — 2026-05-18 (Phase 43 wave 15 — ATGT toàn bộ, CHƯA TEST MÁY CƠ QUAN)
 
 ### 🚨 BƯỚC ĐẦU TIÊN máy cơ quan
 
 ```powershell
-cd C:\Users\TRI\Documents\Claude\Projects\TrishTEAM\trishnexus-monorepo
+cd C:\Users\ADMIN\Documents\Claude\Projects\TrishTEAM\trishnexus-monorepo
 START.bat
 ```
 
@@ -35,7 +170,7 @@ pnpm tauri dev
 Nếu Firestore báo "Missing or insufficient permissions" → deploy rules 1 lần:
 
 ```powershell
-cd C:\Users\TRI\Documents\Claude\Projects\TrishTEAM\trishnexus-monorepo
+cd C:\Users\ADMIN\Documents\Claude\Projects\TrishTEAM\trishnexus-monorepo
 firebase deploy --only firestore:rules
 ```
 
@@ -115,7 +250,7 @@ firebase deploy --only firestore:rules
 ### 🚨 BƯỚC ĐẦU TIÊN
 
 ```powershell
-cd C:\Users\TRI\Documents\Claude\Projects\TrishTEAM\trishnexus-monorepo
+cd C:\Users\ADMIN\Documents\Claude\Projects\TrishTEAM\trishnexus-monorepo
 git pull
 pnpm install
 cd apps-desktop\trishdesign
@@ -377,7 +512,7 @@ Deadline cũ 2026-05-07 đã trễ. Làm sau khi 5 app release.
 ### ⏳ Bước tiếp NGAY (đang chờ)
 
 ```powershell
-cd C:\Users\TRI\Documents\Claude\Projects\TrishTEAM\trishnexus-monorepo
+cd C:\Users\ADMIN\Documents\Claude\Projects\TrishTEAM\trishnexus-monorepo
 Remove-Item .git\index.lock -ErrorAction SilentlyContinue
 cd apps-desktop\trishadmin
 pnpm tauri dev
@@ -444,7 +579,7 @@ TrishTEAM là **hệ sinh thái phần mềm + tri thức + công cụ** cho k�
 
 1. **Build + verify Phase 38.2.0:**
    ```powershell
-   cd C:\Users\TRI\Documents\Claude\Projects\TrishTEAM\trishnexus-monorepo
+   cd C:\Users\ADMIN\Documents\Claude\Projects\TrishTEAM\trishnexus-monorepo
    pnpm install   # similar crate sẽ resolve khi cargo fetch
    pnpm -C apps-desktop\trishlibrary fetch:tessdata   # tải ~70MB tessdata vie+eng
    pnpm -C apps-desktop\trishlibrary tauri dev        # test mở app, vào Settings → Công cụ ngoài
@@ -715,7 +850,7 @@ TrishTEAM là **hệ sinh thái phần mềm + tri thức + công cụ** cho k�
 Bug đã fix code, Trí cần BUILD lại:
 
 ```powershell
-cd C:\Users\TRI\Documents\Claude\Projects\TrishTEAM\trishnexus-monorepo
+cd C:\Users\ADMIN\Documents\Claude\Projects\TrishTEAM\trishnexus-monorepo
 
 # 1. Reinstall NPM (TrishShortcut bumped api ^2.11.0)
 pnpm install
@@ -1370,22 +1505,22 @@ Trước khi Trí bấm `END.bat`:
 
 ```bash
 # Test website local
-cd 'C:\Users\TRI\Documents\Claude\Projects\TrishTEAM\trishnexus-monorepo\website'; pnpm dev
+cd 'C:\Users\ADMIN\Documents\Claude\Projects\TrishTEAM\trishnexus-monorepo\website'; pnpm dev
 
 # Build website check (luôn chạy trước push)
-cd 'C:\Users\TRI\Documents\Claude\Projects\TrishTEAM\trishnexus-monorepo\website'; pnpm build
+cd 'C:\Users\ADMIN\Documents\Claude\Projects\TrishTEAM\trishnexus-monorepo\website'; pnpm build
 
 # Lint
-cd 'C:\Users\TRI\Documents\Claude\Projects\TrishTEAM\trishnexus-monorepo\website'; pnpm lint
+cd 'C:\Users\ADMIN\Documents\Claude\Projects\TrishTEAM\trishnexus-monorepo\website'; pnpm lint
 
 # Run desktop app dev (ví dụ TrishLibrary)
-cd 'C:\Users\TRI\Documents\Claude\Projects\TrishTEAM\trishnexus-monorepo\apps-desktop\trishlibrary'; pnpm tauri dev
+cd 'C:\Users\ADMIN\Documents\Claude\Projects\TrishTEAM\trishnexus-monorepo\apps-desktop\trishlibrary'; pnpm tauri dev
 
 # QA all (73 check)
-cd 'C:\Users\TRI\Documents\Claude\Projects\TrishTEAM\trishnexus-monorepo'; pnpm qa:all
+cd 'C:\Users\ADMIN\Documents\Claude\Projects\TrishTEAM\trishnexus-monorepo'; pnpm qa:all
 
 # Set admin role (sau khi tải service-account.json về secrets/)
-cd 'C:\Users\TRI\Documents\Claude\Projects\TrishTEAM\trishnexus-monorepo'; $env:GOOGLE_APPLICATION_CREDENTIALS="./secrets/service-account.json"; npx ts-node scripts/firebase/seed-admin.ts --email trishteam.official@gmail.com
+cd 'C:\Users\ADMIN\Documents\Claude\Projects\TrishTEAM\trishnexus-monorepo'; $env:GOOGLE_APPLICATION_CREDENTIALS="./secrets/service-account.json"; npx ts-node scripts/firebase/seed-admin.ts --email trishteam.official@gmail.com
 
 # Deploy Firestore rules
 scripts\DEPLOY-RULES.bat
@@ -1483,22 +1618,22 @@ zzy match
 
 ```bash
 # Test website local
-cd 'C:\Users\TRI\Documents\Claude\Projects\TrishTEAM\trishnexus-monorepo\website'; pnpm dev
+cd 'C:\Users\ADMIN\Documents\Claude\Projects\TrishTEAM\trishnexus-monorepo\website'; pnpm dev
 
 # Build website check (luôn chạy trước push)
-cd 'C:\Users\TRI\Documents\Claude\Projects\TrishTEAM\trishnexus-monorepo\website'; pnpm build
+cd 'C:\Users\ADMIN\Documents\Claude\Projects\TrishTEAM\trishnexus-monorepo\website'; pnpm build
 
 # Lint
-cd 'C:\Users\TRI\Documents\Claude\Projects\TrishTEAM\trishnexus-monorepo\website'; pnpm lint
+cd 'C:\Users\ADMIN\Documents\Claude\Projects\TrishTEAM\trishnexus-monorepo\website'; pnpm lint
 
 # Run desktop app dev (ví dụ TrishLibrary)
-cd 'C:\Users\TRI\Documents\Claude\Projects\TrishTEAM\trishnexus-monorepo\apps-desktop\trishlibrary'; pnpm tauri dev
+cd 'C:\Users\ADMIN\Documents\Claude\Projects\TrishTEAM\trishnexus-monorepo\apps-desktop\trishlibrary'; pnpm tauri dev
 
 # QA all (73 check)
-cd 'C:\Users\TRI\Documents\Claude\Projects\TrishTEAM\trishnexus-monorepo'; pnpm qa:all
+cd 'C:\Users\ADMIN\Documents\Claude\Projects\TrishTEAM\trishnexus-monorepo'; pnpm qa:all
 
 # Set admin role (sau khi tải service-account.json về secrets/)
-cd 'C:\Users\TRI\Documents\Claude\Projects\TrishTEAM\trishnexus-monorepo'; $env:GOOGLE_APPLICATION_CREDENTIALS="./secrets/service-account.json"; npx ts-node scripts/firebase/seed-admin.ts --email trishteam.official@gmail.com
+cd 'C:\Users\ADMIN\Documents\Claude\Projects\TrishTEAM\trishnexus-monorepo'; $env:GOOGLE_APPLICATION_CREDENTIALS="./secrets/service-account.json"; npx ts-node scripts/firebase/seed-admin.ts --email trishteam.official@gmail.com
 
 # Deploy Firestore rules
 scripts\DEPLOY-RULES.bat

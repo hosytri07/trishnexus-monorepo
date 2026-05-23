@@ -184,6 +184,9 @@ export interface AtgtSegment {
   polylineHandle?: string;     // AutoCAD entity handle khi mode 'polyline'
   /** Phase 42 wave 9 — Chiều dài polyline đã pick (m) khi mode 'polyline' */
   polylineLength?: number;
+  /** Phase 43 wave 16.2 — Toạ độ các đỉnh polyline đã pick. Dùng cho engine arc-length param.
+   *  Format: [[x1, y1], [x2, y2], ...] — toạ độ AutoCAD model space (m). */
+  polylineVertices?: Array<[number, number]>;
   items: AtgtItem[];
   /** Phase 42 wave 8.3 — Bảng đa năng nhập block ATGT động (block .dwg từ Firestore) — DEPRECATED Wave 10 */
   blockPlacements?: AtgtBlockPlacement[];
@@ -238,6 +241,31 @@ export interface AtgtTemplateLibrary {
   ranhDocLibrary?: string;
 }
 
+/** Phase 43 wave 16.6 — Text style preferences cho project ATGT (giống HHMĐ). */
+export interface AtgtTextPrefs {
+  styleName: string;      // tên TextStyle AutoCAD (vd "ATGT_TEXT")
+  fontFile: string;       // .shx hoặc .ttf (vd "romans.shx")
+  widthFactor: number;    // 0.7 mặc định
+  stationHeight: number;  // chiều cao text lý trình (m hoặc unit drawing)
+  blockTextHeight: number; // chiều cao text leader/hiện trạng
+  /** Phase 43 wave 16.10 — Scale block khi INSERT (0.LT + biển báo + cọc tiêu...).
+   *  Block design size cố định trong file .dwg. Tăng scale = block hiện lớn hơn.
+   *  Default 1. Nếu polyline drawing units nhỏ (m), scale 1 OK; nếu mm thì scale 1000. */
+  blockScale: number;
+  /** Phase 43 wave 16.11 — Vị trí block 0.LT (cọc lý trình) so với tim đường (m).
+   *  0 = đặt ngay tim. Dương = phía left, âm = phía right. Default 0. */
+  lyTrinhBlockOffset: number;
+  /** Phase 43 wave 16.11 — Chiều dài block 0.LT (m, theo drawing units).
+   *  Biển báo + đèn TH + gương cầu sẽ offset thêm khoảng này khi đặt từ tim đường:
+   *  vị trí thực = cách tim + lyTrinhBlockLength. Default 0 (không offset thêm). */
+  lyTrinhBlockLength: number;
+  /** Phase 43 wave 16.13 — Chiều cao block biển báo (Y axis của block).
+   *  Áp dụng cho side='right' (vì insertion point thường ở đầu cột, bên phải cần thêm chiều cao
+   *  để cột mọc xuống phía mép phải): offset_right = cachTim + lyTrinhBlockLength + bienBaoHeight.
+   *  Default 0. */
+  bienBaoHeight: number;
+}
+
 export interface AtgtProject {
   id: string;
   name: string;
@@ -245,8 +273,25 @@ export interface AtgtProject {
   surveyDate?: string;
   templates?: AtgtTemplateLibrary;   // Phase 28.6: thư viện block/nét
   segments: AtgtSegment[];
+  /** Phase 43 wave 16.6 — Cấu hình text style cho engine vẽ AutoCAD. */
+  textPrefs?: AtgtTextPrefs;
   createdAt: number;
   updatedAt: number;
+}
+
+/** Phase 43 wave 16.6 — Default text prefs giống HHMĐ TEXT_HH. */
+export function defaultAtgtTextPrefs(): AtgtTextPrefs {
+  return {
+    styleName: 'ATGT_TEXT',
+    fontFile: 'romans.shx',
+    widthFactor: 0.7,
+    stationHeight: 0.5,
+    blockTextHeight: 0.4,
+    blockScale: 1,
+    lyTrinhBlockOffset: 0,
+    lyTrinhBlockLength: 0,
+    bienBaoHeight: 0,
+  };
 }
 
 export interface AtgtDb {

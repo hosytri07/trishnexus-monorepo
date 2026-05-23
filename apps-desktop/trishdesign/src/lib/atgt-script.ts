@@ -35,6 +35,10 @@ import {
   formatStationKm,
   statusLabel,
 } from './atgt-types.js';
+import { polylineLengths, blockPositionOnPolyline, pointAtStation, type Vec2 } from './polyline-curve.js';
+
+/** Phase 43 wave 16.3 — Hàm map (station, offset từ tim) → "x,y" AutoCAD. */
+type PosXYFn = (stationM: number, offsetFromCenterM: number) => string;
 
 /**
  * Phase 42 — Helper: chỉ tạo leader khi item có nội dung Hiện trạng (notes) hoặc status khác 'good'.
@@ -201,31 +205,71 @@ function cleanupCommands(): string[] {
 
 function segmentCommands(seg: AtgtSegment, project: AtgtProject, originY: number): string[] {
   const cmds: string[] = [];
-  const segLen = seg.endStation - seg.startStation;
   const halfW = seg.roadWidth / 2;
+  const mode = seg.drawMode ?? 'duoithang';
+  const hasPolyline = mode === 'polyline'
+    && Array.isArray(seg.polylineVertices)
+    && seg.polylineVertices.length >= 2;
 
+  // X, Y giữ cho backward compat (chỉ dùng straight mode + leader offset global)
   const X = (m: number) => ((m - seg.startStation) * SCALE_X).toFixed(3);
   const Y = (m: number) => (m * SCALE_Y + originY).toFixed(3);
 
-  // Mode duỗi thẳng: vẽ tim đường + 2 mép
-  if ((seg.drawMode ?? 'duoithang') === 'duoithang') {
-    cmds.push(`._-LAYER\nS\nATGT_DUONG\n\n`);
-    // Tim đường (dashed)
-    cmds.push(`._LINE ${X(seg.startStation)},${Y(0)} ${X(seg.endStation)},${Y(0)} `);
-    // 2 mép
-    cmds.push(`._LINE ${X(seg.startStation)},${Y(halfW)} ${X(seg.endStation)},${Y(halfW)} `);
-    cmds.push(`._LINE ${X(seg.startStation)},${Y(-halfW)} ${X(seg.endStation)},${Y(-halfW)} `);
+  // Phase 43 wave 16.3 — posXY: map (station, offset cách tim) → "x,y" AutoCAD theo mode
+  let posXY: PosXYFn;
+  if (hasPolyline) {
+    const vertices = seg.polylineVertices as Array<[number, number]>;
+    const precomp = polylineLengths(vertices as Vec2[]);
+    // Station trong polyline tính từ điểm đầu (= startStation lý trình)
+    posXY = (stationM, offsetM) => {
+      const sLocal = stationM - seg.startStation;
+      const p = blockPositionOnPolyline(vertices as Vec2[], sLocal, offsetM, precomp);
+      return `${p.x.toFixed(3)},${p.y.toFixed(3)}`;
+    };
+  } else {
+    posXY = (stationM, offsetM) => `${X(stationM)},${Y(offsetM)}`;
   }
-  // Mode polyline: app giả định user đã có polyline ở vị trí (0, originY) → (segLen*scaleX, originY)
-  // Phase sau wire LSP để đặt theo polyline cong thật.
 
-  // Tên đoạn label
+  // Vẽ trục tuyến: mode duỗi thẳng → vẽ tim + 2 mép; mode polyline → user đã có polyline, chỉ vẽ 2 mép offset
+  if (!hasPolyline) {
+    cmds.push(`._-LAYER\nS\nATGT_DUONG\n\n`);
+    cmds.push(`._LINE ${posXY(seg.startStation, 0)} ${posXY(seg.endStation, 0)} `);
+    cmds.push(`._LINE ${posXY(seg.startStation, halfW)} ${posXY(seg.endStation, halfW)} `);
+    cmds.push(`._LINE ${posXY(seg.startStation, -halfW)} ${posXY(seg.endStation, -halfW)} `);
+  } else {
+    cmds.push(`._-LAYER\nS\nATGT_DUONG\n\n`);
+    // Vẽ 2 mép theo polyline: lấy điểm tại mỗi đỉnh + offset normal — kết quả là polyline offset
+    const vertices = seg.polylineVertices as Array<[number, number]>;
+    const precomp = polylineLengths(vertices as Vec2[]);
+    const edgeLeft: Array<[number, number]> = [];
+    const edgeRight: Array<[number, number]> = [];
+    // Sample các đỉnh + 1 vài điểm trung gian để smooth (dùng cumLens)
+    for (const sCum of precomp.cumLens) {
+      const cp = pointAtStation(vertices as Vec2[], sCum, precomp);
+      edgeLeft.push([cp.x + cp.normal[0] * halfW, cp.y + cp.normal[1] * halfW]);
+      edgeRight.push([cp.x + cp.normal[0] * -halfW, cp.y + cp.normal[1] * -halfW]);
+    }
+    // Vẽ LINE cho 2 mép qua các đỉnh
+    for (let i = 1; i < edgeLeft.length; i++) {
+      const [x0, y0] = edgeLeft[i - 1]!;
+      const [x1, y1] = edgeLeft[i]!;
+      cmds.push(`._LINE ${x0.toFixed(3)},${y0.toFixed(3)} ${x1.toFixed(3)},${y1.toFixed(3)} `);
+    }
+    for (let i = 1; i < edgeRight.length; i++) {
+      const [x0, y0] = edgeRight[i - 1]!;
+      const [x1, y1] = edgeRight[i]!;
+      cmds.push(`._LINE ${x0.toFixed(3)},${y0.toFixed(3)} ${x1.toFixed(3)},${y1.toFixed(3)} `);
+    }
+  }
+
+  // Tên đoạn label (đặt tại điểm giữa, offset +halfW + 2 lên trên)
   cmds.push(`._-LAYER\nS\nATGT_TEXT\n\n`);
-  cmds.push(`._-TEXT\nJ\nMC\n${(((seg.startStation + seg.endStation) / 2 - seg.startStation) * SCALE_X).toFixed(3)},${(halfW + 2 + originY).toFixed(3)}\n1.2\n0\n${seg.name}\n`);
+  const midStation = (seg.startStation + seg.endStation) / 2;
+  cmds.push(`._-TEXT\nJ\nMC\n${posXY(midStation, halfW + 2)}\n1.2\n0\n${seg.name}\n`);
 
-  // Vẽ từng item
+  // Vẽ từng item (X, Y giữ cho leader global offset; posXY cho đặt block + line)
   for (const item of seg.items) {
-    cmds.push(...itemCommands(item, project, X, Y, halfW));
+    cmds.push(...itemCommands(item, project, X, Y, halfW, posXY));
   }
   return cmds;
 }
@@ -236,17 +280,18 @@ function itemCommands(
   X: (m: number) => string,
   Y: (m: number) => string,
   halfW: number,
+  posXY: PosXYFn,
 ): string[] {
   switch (item.category) {
-    case 'BIENBAO':   return drawBienBao(item, project, X, Y, halfW);
-    case 'VACHSON':   return drawVachSon(item, project, X, Y, halfW);
-    case 'DENTH':     return drawDenTH(item, project, X, Y, halfW);
-    case 'HOLAN':     return drawHoLan(item, project, X, Y, halfW);
-    case 'COCTIEU':   return drawCocTieu(item, project, X, Y, halfW);
-    case 'RANHDOC':   return drawRanhDoc(item, project, X, Y, halfW);
-    case 'CONGNGANG': return drawCongNgang(item, project, X, Y, halfW);
-    case 'TIEUPQ':    return drawTieuPQ(item, project, X, Y, halfW);
-    case 'GUONGCAU':  return drawGuongCau(item, project, X, Y, halfW);
+    case 'BIENBAO':   return drawBienBao(item, project, X, Y, halfW, posXY);
+    case 'VACHSON':   return drawVachSon(item, project, X, Y, halfW, posXY);
+    case 'DENTH':     return drawDenTH(item, project, X, Y, halfW, posXY);
+    case 'HOLAN':     return drawHoLan(item, project, X, Y, halfW, posXY);
+    case 'COCTIEU':   return drawCocTieu(item, project, X, Y, halfW, posXY);
+    case 'RANHDOC':   return drawRanhDoc(item, project, X, Y, halfW, posXY);
+    case 'CONGNGANG': return drawCongNgang(item, project, X, Y, halfW, posXY);
+    case 'TIEUPQ':    return drawTieuPQ(item, project, X, Y, halfW, posXY);
+    case 'GUONGCAU':  return drawGuongCau(item, project, X, Y, halfW, posXY);
   }
 }
 
@@ -293,112 +338,120 @@ function leaderText(x: string, y: string, dx: number, dy: number, height: number
 // Block-based items
 // =====================================================================
 
-function drawBienBao(it: BienBaoItem, _proj: AtgtProject, X: (m: number) => string, Y: (m: number) => string, _halfW: number): string[] {
+function drawBienBao(it: BienBaoItem, _proj: AtgtProject, _X: (m: number) => string, _Y: (m: number) => string, _halfW: number, posXY: PosXYFn): string[] {
   const cmds: string[] = [];
   cmds.push(`._-LAYER\nS\nATGT_BIENBAO\n\n`);
-  const x = X(it.station);
-  const y = Y(ySide(it.side, it.cachTim));
+  const offset = ySide(it.side, it.cachTim);
+  const xy = posXY(it.station, offset);
+  const [x, y] = xy.split(',');
   // INSERT block: tên = mã biển (vd "P.103a")
   const blockName = it.code || `BIENBAO_${it.group}`;
-  cmds.push(...insertBlockOrFallback(blockName, x, y, () => {
-    // Fallback: vòng tròn + text mã
+  cmds.push(...insertBlockOrFallback(blockName, x!, y!, () => {
     return [
-      `._CIRCLE\n${x},${y}\n${(it.diameter / 2).toFixed(2)}\n`,
-      `._-TEXT\nJ\nMC\n${x},${y}\n0.3\n0\n${blockName}\n`,
+      `._CIRCLE\n${xy}\n${(it.diameter / 2).toFixed(2)}\n`,
+      `._-TEXT\nJ\nMC\n${xy}\n0.3\n0\n${blockName}\n`,
     ];
   }));
-  // Leader 1: lý trình (offset góc trên phải)
-  cmds.push(...leaderText(x, y, 1.5, 1.5, 0.3, formatStationKm(it.station)));
-  // Leader 2: hiện trạng (offset góc dưới phải)
-  cmds.push(...leaderText(x, y, 1.5, -1.5, 0.3, statusLabel(it.status)));
+  cmds.push(...leaderText(x!, y!, 1.5, 1.5, 0.3, formatStationKm(it.station)));
+  cmds.push(...leaderText(x!, y!, 1.5, -1.5, 0.3, statusLabel(it.status)));
   return cmds;
 }
 
-function drawDenTH(it: DenTHItem, _proj: AtgtProject, X: (m: number) => string, Y: (m: number) => string, _halfW: number): string[] {
+function drawDenTH(it: DenTHItem, _proj: AtgtProject, _X: (m: number) => string, _Y: (m: number) => string, _halfW: number, posXY: PosXYFn): string[] {
   const cmds: string[] = [];
   cmds.push(`._-LAYER\nS\nATGT_DENTH\n\n`);
-  const x = X(it.station);
-  const y = Y(ySide(it.side, it.cachTim));
+  const xy = posXY(it.station, ySide(it.side, it.cachTim));
+  const [x, y] = xy.split(',');
   const blockName = `DENTH_${it.denType}`;
-  cmds.push(...insertBlockOrFallback(blockName, x, y, () => [
+  cmds.push(...insertBlockOrFallback(blockName, x!, y!, () => [
     `._RECTANG\n${(Number(x) - 0.3).toFixed(3)},${y}\n${(Number(x) + 0.3).toFixed(3)},${(Number(y) + 1.5).toFixed(3)}\n`,
   ]));
-  cmds.push(...leaderText(x, y, 1.5, 1.5, 0.3, formatStationKm(it.station)));
-  cmds.push(...leaderText(x, y, 1.5, -1.5, 0.3, statusLabel(it.status)));
+  cmds.push(...leaderText(x!, y!, 1.5, 1.5, 0.3, formatStationKm(it.station)));
+  cmds.push(...leaderText(x!, y!, 1.5, -1.5, 0.3, statusLabel(it.status)));
   return cmds;
 }
 
-function drawCocTieu(it: CocTieuItem, _proj: AtgtProject, X: (m: number) => string, Y: (m: number) => string, _halfW: number): string[] {
+function drawCocTieu(it: CocTieuItem, _proj: AtgtProject, _X: (m: number) => string, _Y: (m: number) => string, _halfW: number, posXY: PosXYFn): string[] {
   const cmds: string[] = [];
   cmds.push(`._-LAYER\nS\nATGT_COCTIEU\n\n`);
-  const yy = ySide(it.side, it.cachTim);
+  const offset = ySide(it.side, it.cachTim);
   const blockName = 'COCTIEU';
   for (let i = 0; i < it.count; i++) {
     const station = it.station + i * it.spacing;
-    const x = X(station);
-    const y = Y(yy);
-    cmds.push(...insertBlockOrFallback(blockName, x, y, () => [
-      `._CIRCLE\n${x},${y}\n0.15\n`,
+    const xy = posXY(station, offset);
+    const [x, y] = xy.split(',');
+    cmds.push(...insertBlockOrFallback(blockName, x!, y!, () => [
+      `._CIRCLE\n${xy}\n0.15\n`,
     ]));
   }
-  // Leader đầu: lý trình bắt đầu
-  cmds.push(...leaderText(X(it.station), Y(yy), 1, 1.5, 0.3, formatStationKm(it.station)));
-  // Leader cuối: lý trình kết thúc
+  const xyStart = posXY(it.station, offset);
+  const [xs, ys] = xyStart.split(',');
   const endStation = it.station + (it.count - 1) * it.spacing;
-  cmds.push(...leaderText(X(endStation), Y(yy), 1, -1.5, 0.3, formatStationKm(endStation)));
-  // Leader hiện trạng
-  cmds.push(...leaderText(X((it.station + endStation) / 2), Y(yy), 0, 2.5, 0.3, statusLabel(it.status)));
+  const xyEnd = posXY(endStation, offset);
+  const [xe, ye] = xyEnd.split(',');
+  const xyMid = posXY((it.station + endStation) / 2, offset);
+  const [xm, ym] = xyMid.split(',');
+  cmds.push(...leaderText(xs!, ys!, 1, 1.5, 0.3, formatStationKm(it.station)));
+  cmds.push(...leaderText(xe!, ye!, 1, -1.5, 0.3, formatStationKm(endStation)));
+  cmds.push(...leaderText(xm!, ym!, 0, 2.5, 0.3, statusLabel(it.status)));
   return cmds;
 }
 
-function drawCongNgang(it: CongNgangItem, _proj: AtgtProject, X: (m: number) => string, Y: (m: number) => string, halfW: number): string[] {
+function drawCongNgang(it: CongNgangItem, _proj: AtgtProject, _X: (m: number) => string, _Y: (m: number) => string, halfW: number, posXY: PosXYFn): string[] {
   const cmds: string[] = [];
   cmds.push(`._-LAYER\nS\nATGT_CONGNGANG\n\n`);
-  const x = X(it.station);
-  const y = Y(0);  // Cống ngang luôn ngang qua tim
+  const xy = posXY(it.station, 0);
+  const [x, y] = xy.split(',');
   const blockName = `CONG_${it.congType}_${it.diameter}`;
-  cmds.push(...insertBlockOrFallback(blockName, x, y, () => {
+  cmds.push(...insertBlockOrFallback(blockName, x!, y!, () => {
     const rx = (it.diameter / 2);
     return [
       `._RECTANG\n${(Number(x) - rx * SCALE_X).toFixed(3)},${(Number(y) + halfW + 2).toFixed(3)}\n${(Number(x) + rx * SCALE_X).toFixed(3)},${(Number(y) - halfW - 2).toFixed(3)}\n`,
     ];
   }));
-  cmds.push(...leaderText(x, y, 2, 3, 0.3, formatStationKm(it.station)));
-  cmds.push(...leaderText(x, y, 2, -3, 0.3, statusLabel(it.status)));
-  // Leader 3: loại cống
-  cmds.push(...leaderText(x, y, -3, 0, 0.3, `${it.congType} Ø${it.diameter}m L=${it.length}m`));
+  cmds.push(...leaderText(x!, y!, 2, 3, 0.3, formatStationKm(it.station)));
+  cmds.push(...leaderText(x!, y!, 2, -3, 0.3, statusLabel(it.status)));
+  cmds.push(...leaderText(x!, y!, -3, 0, 0.3, `${it.congType} Ø${it.diameter}m L=${it.length}m`));
   return cmds;
 }
 
-function drawTieuPQ(it: TieuPQItem, _proj: AtgtProject, X: (m: number) => string, Y: (m: number) => string, _halfW: number): string[] {
+function drawTieuPQ(it: TieuPQItem, _proj: AtgtProject, _X: (m: number) => string, _Y: (m: number) => string, _halfW: number, posXY: PosXYFn): string[] {
   const cmds: string[] = [];
   cmds.push(`._-LAYER\nS\nATGT_TIEUPQ\n\n`);
-  const yy = ySide(it.side, it.cachTim);
+  const offset = ySide(it.side, it.cachTim);
   const blockName = `TIEUPQ_${it.color}`;
   for (let i = 0; i < it.count; i++) {
     const station = it.station + i * it.spacing;
-    cmds.push(...insertBlockOrFallback(blockName, X(station), Y(yy), () => [
-      `._CIRCLE\n${X(station)},${Y(yy)}\n0.08\n`,
+    const xy = posXY(station, offset);
+    const [x, y] = xy.split(',');
+    cmds.push(...insertBlockOrFallback(blockName, x!, y!, () => [
+      `._CIRCLE\n${xy}\n0.08\n`,
     ]));
   }
-  cmds.push(...leaderText(X(it.station), Y(yy), 1, 1.5, 0.25, formatStationKm(it.station)));
+  const xyStart = posXY(it.station, offset);
+  const [xs, ys] = xyStart.split(',');
   const endStation = it.station + (it.count - 1) * it.spacing;
-  cmds.push(...leaderText(X(endStation), Y(yy), 1, -1.5, 0.25, formatStationKm(endStation)));
-  cmds.push(...leaderText(X((it.station + endStation) / 2), Y(yy), 0, 2.5, 0.25, statusLabel(it.status)));
+  const xyEnd = posXY(endStation, offset);
+  const [xe, ye] = xyEnd.split(',');
+  const xyMid = posXY((it.station + endStation) / 2, offset);
+  const [xm, ym] = xyMid.split(',');
+  cmds.push(...leaderText(xs!, ys!, 1, 1.5, 0.25, formatStationKm(it.station)));
+  cmds.push(...leaderText(xe!, ye!, 1, -1.5, 0.25, formatStationKm(endStation)));
+  cmds.push(...leaderText(xm!, ym!, 0, 2.5, 0.25, statusLabel(it.status)));
   return cmds;
 }
 
-function drawGuongCau(it: GuongCauItem, _proj: AtgtProject, X: (m: number) => string, Y: (m: number) => string, _halfW: number): string[] {
+function drawGuongCau(it: GuongCauItem, _proj: AtgtProject, _X: (m: number) => string, _Y: (m: number) => string, _halfW: number, posXY: PosXYFn): string[] {
   const cmds: string[] = [];
   cmds.push(`._-LAYER\nS\nATGT_GUONGCAU\n\n`);
-  const x = X(it.station);
-  const y = Y(ySide(it.side, it.cachTim));
+  const xy = posXY(it.station, ySide(it.side, it.cachTim));
+  const [x, y] = xy.split(',');
   const blockName = 'GUONGCAU';
-  cmds.push(...insertBlockOrFallback(blockName, x, y, () => [
-    `._CIRCLE\n${x},${y}\n${(it.diameter / 2).toFixed(2)}\n`,
+  cmds.push(...insertBlockOrFallback(blockName, x!, y!, () => [
+    `._CIRCLE\n${xy}\n${(it.diameter / 2).toFixed(2)}\n`,
   ]));
-  cmds.push(...leaderText(x, y, 1.5, 1.5, 0.3, formatStationKm(it.station)));
-  cmds.push(...leaderText(x, y, 1.5, -1.5, 0.3, statusLabel(it.status)));
+  cmds.push(...leaderText(x!, y!, 1.5, 1.5, 0.3, formatStationKm(it.station)));
+  cmds.push(...leaderText(x!, y!, 1.5, -1.5, 0.3, statusLabel(it.status)));
   return cmds;
 }
 
@@ -406,71 +459,76 @@ function drawGuongCau(it: GuongCauItem, _proj: AtgtProject, X: (m: number) => st
 // Line-based items
 // =====================================================================
 
-function drawVachSon(it: VachSonItem, _proj: AtgtProject, X: (m: number) => string, Y: (m: number) => string, _halfW: number): string[] {
+function drawVachSon(it: VachSonItem, _proj: AtgtProject, _X: (m: number) => string, _Y: (m: number) => string, _halfW: number, posXY: PosXYFn): string[] {
   const cmds: string[] = [];
   cmds.push(`._-LAYER\nS\nATGT_VACHSON\n\n`);
-  const x0 = X(it.station);
-  const x1 = X(it.station + it.length);
-  const yy = ySide(it.side, it.cachTim);
-  const y = Y(yy);
-  // Vẽ polyline (liền hoặc đứt)
+  const offset = ySide(it.side, it.cachTim);
   if (it.isContinuous) {
-    cmds.push(`._LINE ${x0},${y} ${x1},${y} `);
+    cmds.push(`._LINE ${posXY(it.station, offset)} ${posXY(it.station + it.length, offset)} `);
   } else {
     const dash = 3, gap = 6;
     let s = it.station;
     while (s < it.station + it.length) {
       const se = Math.min(s + dash, it.station + it.length);
-      cmds.push(`._LINE ${X(s)},${y} ${X(se)},${y} `);
+      cmds.push(`._LINE ${posXY(s, offset)} ${posXY(se, offset)} `);
       s += dash + gap;
     }
   }
-  // Leader đầu: lý trình bắt đầu
-  cmds.push(...leaderText(x0, y, 0, 1.5, 0.3, formatStationKm(it.station)));
-  // Leader cuối
-  cmds.push(...leaderText(x1, y, 0, -1.5, 0.3, formatStationKm(it.station + it.length)));
-  // Leader hiện trạng + loại vạch
-  const xMid = (Number(x0) + Number(x1)) / 2;
-  cmds.push(...leaderText(xMid.toFixed(3), y, 0, 2.5, 0.3, `Vạch ${it.vachType} · ${statusLabel(it.status)}`));
+  const xyStart = posXY(it.station, offset);
+  const [xs, ys] = xyStart.split(',');
+  const xyEnd = posXY(it.station + it.length, offset);
+  const [xe, ye] = xyEnd.split(',');
+  const xyMid = posXY(it.station + it.length / 2, offset);
+  const [xm, ym] = xyMid.split(',');
+  cmds.push(...leaderText(xs!, ys!, 0, 1.5, 0.3, formatStationKm(it.station)));
+  cmds.push(...leaderText(xe!, ye!, 0, -1.5, 0.3, formatStationKm(it.station + it.length)));
+  cmds.push(...leaderText(xm!, ym!, 0, 2.5, 0.3, `Vạch ${it.vachType} · ${statusLabel(it.status)}`));
   return cmds;
 }
 
-function drawHoLan(it: HoLanItem, _proj: AtgtProject, X: (m: number) => string, Y: (m: number) => string, halfW: number): string[] {
+function drawHoLan(it: HoLanItem, _proj: AtgtProject, _X: (m: number) => string, _Y: (m: number) => string, halfW: number, posXY: PosXYFn): string[] {
   const cmds: string[] = [];
   cmds.push(`._-LAYER\nS\nATGT_HOLAN\n\n`);
-  const x0 = X(it.station);
-  const x1 = X(it.station + it.length);
-  const yy = ySide(it.side, halfW + it.cachTim * 0.1 + 0.3);  // hộ lan ngoài mép đường
-  const y = Y(yy);
-  // Vẽ 2 đường song song = hộ lan tôn sóng
-  cmds.push(`._LINE ${x0},${y} ${x1},${y} `);
-  const yOffset = it.side === 'left' ? 0.2 : -0.2;
-  cmds.push(`._LINE ${x0},${(Number(y) + yOffset).toFixed(3)} ${x1},${(Number(y) + yOffset).toFixed(3)} `);
-  // Tick marks 4m
+  const offsetOuter = halfW + it.cachTim * 0.1 + 0.3; // ngoài mép đường
+  const sideOffset = it.side === 'left' ? offsetOuter : -offsetOuter;
+  cmds.push(`._LINE ${posXY(it.station, sideOffset)} ${posXY(it.station + it.length, sideOffset)} `);
+  const innerOffset = sideOffset + (it.side === 'left' ? 0.2 : -0.2);
+  cmds.push(`._LINE ${posXY(it.station, innerOffset)} ${posXY(it.station + it.length, innerOffset)} `);
   for (let s = 0; s < it.length; s += 4) {
-    const xs = X(it.station + s);
-    cmds.push(`._LINE ${xs},${y} ${xs},${(Number(y) + yOffset).toFixed(3)} `);
+    cmds.push(`._LINE ${posXY(it.station + s, sideOffset)} ${posXY(it.station + s, innerOffset)} `);
   }
-  cmds.push(...leaderText(x0, y, 0, 1.5, 0.3, formatStationKm(it.station)));
-  cmds.push(...leaderText(x1, y, 0, -1.5, 0.3, formatStationKm(it.station + it.length)));
-  const xMid = (Number(x0) + Number(x1)) / 2;
-  cmds.push(...leaderText(xMid.toFixed(3), y, 0, 2.5, 0.3, `${it.holanType} · ${statusLabel(it.status)}`));
+  const xyStart = posXY(it.station, sideOffset);
+  const [xs, ys] = xyStart.split(',');
+  const xyEnd = posXY(it.station + it.length, sideOffset);
+  const [xe, ye] = xyEnd.split(',');
+  const xyMid = posXY(it.station + it.length / 2, sideOffset);
+  const [xm, ym] = xyMid.split(',');
+  cmds.push(...leaderText(xs!, ys!, 0, 1.5, 0.3, formatStationKm(it.station)));
+  cmds.push(...leaderText(xe!, ye!, 0, -1.5, 0.3, formatStationKm(it.station + it.length)));
+  cmds.push(...leaderText(xm!, ym!, 0, 2.5, 0.3, `${it.holanType} · ${statusLabel(it.status)}`));
   return cmds;
 }
 
-function drawRanhDoc(it: RanhDocItem, _proj: AtgtProject, X: (m: number) => string, Y: (m: number) => string, halfW: number): string[] {
+function drawRanhDoc(it: RanhDocItem, _proj: AtgtProject, _X: (m: number) => string, _Y: (m: number) => string, halfW: number, posXY: PosXYFn): string[] {
   const cmds: string[] = [];
   cmds.push(`._-LAYER\nS\nATGT_RANHDOC\n\n`);
-  const x0 = X(it.station);
-  const x1 = X(it.station + it.length);
-  const yy = ySide(it.side, halfW + it.cachTim);
-  const y = Y(yy);
-  const yWidth = it.side === 'left' ? it.width : -it.width;
-  cmds.push(`._RECTANG\n${x0},${y}\n${x1},${(Number(y) + yWidth).toFixed(3)}\n`);
-  cmds.push(...leaderText(x0, y, 0, 1.5, 0.3, formatStationKm(it.station)));
-  cmds.push(...leaderText(x1, y, 0, -1.5, 0.3, formatStationKm(it.station + it.length)));
-  const xMid = (Number(x0) + Number(x1)) / 2;
-  cmds.push(...leaderText(xMid.toFixed(3), y, 0, 3, 0.3, `Rãnh ${it.ranhType} · ${it.width}×${it.depth}m · ${statusLabel(it.status)}`));
+  const offsetInner = halfW + it.cachTim;
+  const sideOffsetInner = it.side === 'left' ? offsetInner : -offsetInner;
+  const sideOffsetOuter = sideOffsetInner + (it.side === 'left' ? it.width : -it.width);
+  // Vẽ 4 cạnh rãnh (2 dọc + 2 ngang) — gần đúng cho mode polyline (giả định rãnh hẹp so với curvature)
+  cmds.push(`._LINE ${posXY(it.station, sideOffsetInner)} ${posXY(it.station + it.length, sideOffsetInner)} `);
+  cmds.push(`._LINE ${posXY(it.station, sideOffsetOuter)} ${posXY(it.station + it.length, sideOffsetOuter)} `);
+  cmds.push(`._LINE ${posXY(it.station, sideOffsetInner)} ${posXY(it.station, sideOffsetOuter)} `);
+  cmds.push(`._LINE ${posXY(it.station + it.length, sideOffsetInner)} ${posXY(it.station + it.length, sideOffsetOuter)} `);
+  const xyStart = posXY(it.station, sideOffsetInner);
+  const [xs, ys] = xyStart.split(',');
+  const xyEnd = posXY(it.station + it.length, sideOffsetInner);
+  const [xe, ye] = xyEnd.split(',');
+  const xyMid = posXY(it.station + it.length / 2, sideOffsetInner);
+  const [xm, ym] = xyMid.split(',');
+  cmds.push(...leaderText(xs!, ys!, 0, 1.5, 0.3, formatStationKm(it.station)));
+  cmds.push(...leaderText(xe!, ye!, 0, -1.5, 0.3, formatStationKm(it.station + it.length)));
+  cmds.push(...leaderText(xm!, ym!, 0, 3, 0.3, `Rãnh ${it.ranhType} · ${it.width}×${it.depth}m · ${statusLabel(it.status)}`));
   return cmds;
 }
 

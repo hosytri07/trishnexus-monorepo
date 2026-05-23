@@ -57,6 +57,142 @@ pub fn autocad_ensure_document() -> Result<(), String> {
     }
 }
 
+/// Phase 43 wave 16.2 — Result struct cho pick polyline.
+#[derive(serde::Serialize, Clone, Debug)]
+pub struct PolylineInfo {
+    pub handle: String,
+    pub length: f64,
+    pub vertices: Vec<[f64; 2]>,
+}
+
+/// Phase 43 wave 16.2 — Pick polyline AutoCAD qua LISP entsel + temp file.
+///
+/// Flow:
+///   1. Write LISP file `%TEMP%/trishdesign_pick_polyline.lsp`
+///   2. SendCommand `(load "...") (c:TrishDesignPickPolyline)` → user click polyline trong AutoCAD
+///   3. LISP ghi handle|length|x1,y1,x2,y2,... vào `%TEMP%/trishdesign_pick_polyline.txt`
+///   4. Rust poll file (max 60s) → parse → return PolylineInfo
+///
+/// Support: LWPOLYLINE (2D, coords flat array), POLYLINE 2D. 3D polyline KHÔNG support.
+#[tauri::command]
+pub async fn acad_pick_polyline() -> Result<PolylineInfo, String> {
+    #[cfg(windows)]
+    {
+        let temp_dir = std::env::temp_dir();
+        let output_path = temp_dir.join("trishdesign_pick_polyline.txt");
+        let lisp_path = temp_dir.join("trishdesign_pick_polyline.lsp");
+
+        // Xóa file output cũ (nếu có) trước khi pick mới
+        let _ = std::fs::remove_file(&output_path);
+
+        // Tạo LISP file
+        let output_for_lisp = output_path.to_string_lossy().replace('\\', "/");
+        let lisp_code = format!(r#"(vl-load-com)
+(defun write-err (msg / f)
+  (setq f (open "{0}" "w"))
+  (princ (strcat "ERR|" msg "|") f)
+  (close f)
+)
+(defun pick-poly-core (eobj / coords pts len handle n i f)
+  (setq len (vla-get-length eobj))
+  (setq handle (vla-get-handle eobj))
+  (setq coords (vlax-get eobj 'Coordinates))
+  ;; coords có thể là LIST (AutoCAD mới) hoặc SAFEARRAY (cũ) — handle cả 2
+  (setq pts (cond
+    ((listp coords) coords)
+    ((= (type coords) 'safearray) (vlax-safearray->list coords))
+    (T (vlax-safearray->list (vlax-variant-value coords)))))
+  (setq f (open "{0}" "w"))
+  (princ (strcat handle "|" (rtos len 2 4) "|") f)
+  (setq n (length pts) i 0)
+  (while (< i n)
+    (princ (rtos (nth i pts) 2 4) f)
+    (if (< i (- n 1)) (princ "," f))
+    (setq i (1+ i)))
+  (close f)
+  (princ (strcat "\nTrishDesign: OK handle=" handle " len=" (rtos len 2 2) "m " (itoa (/ n 2)) " dinh"))
+)
+(defun c:TrishDesignPickPolyline ( / ent eobj objname err-result)
+  (princ "\n>> TrishDesign: Click chon polyline (LWPOLYLINE/POLYLINE 2D)...")
+  (setq ent (car (entsel "\nChon polyline: ")))
+  (cond
+    ((null ent)
+      (write-err "User huy hoac khong pick entity nao"))
+    (T
+      (setq eobj (vlax-ename->vla-object ent))
+      (setq objname (vla-get-objectname eobj))
+      (cond
+        ((or (= objname "AcDbPolyline") (= objname "AcDb2dPolyline"))
+          (setq err-result (vl-catch-all-apply 'pick-poly-core (list eobj)))
+          (if (vl-catch-all-error-p err-result)
+            (write-err (strcat "LISP loi: " (vl-catch-all-error-message err-result)))))
+        (T
+          (write-err (strcat "Entity la " objname " - chon LWPOLYLINE/POLYLINE 2D"))))))
+  (princ)
+)
+"#, output_for_lisp);
+
+        std::fs::write(&lisp_path, lisp_code)
+            .map_err(|e| format!("Ghi LISP file fail: {}", e))?;
+
+        // SendCommand load + run — phải kết thúc bằng \n để AutoCAD execute
+        let lisp_path_for_acad = lisp_path.to_string_lossy().replace('\\', "/");
+        let cmd = format!("(load \"{}\")\n(c:TrishDesignPickPolyline)\n", lisp_path_for_acad);
+        {
+            let _g = win::ComGuard::new()?;
+            let app = win::get_acad_app()?;
+            let doc = win::get_active_document(&app)?;
+            win::invoke_method_bstr(&doc, "SendCommand", &cmd)?;
+        }
+
+        // Poll output file (max 60s = 300 x 200ms) — đợi user click polyline trong AutoCAD
+        for _ in 0..300 {
+            std::thread::sleep(std::time::Duration::from_millis(200));
+            if let Ok(content) = std::fs::read_to_string(&output_path) {
+                if !content.trim().is_empty() {
+                    return parse_polyline_output(&content);
+                }
+            }
+        }
+        Err("Timeout 60s — user chưa pick polyline trong AutoCAD.".to_string())
+    }
+    #[cfg(not(windows))]
+    {
+        Err("Pick polyline chỉ hoạt động trên Windows.".to_string())
+    }
+}
+
+#[cfg(windows)]
+fn parse_polyline_output(content: &str) -> Result<PolylineInfo, String> {
+    let trimmed = content.trim();
+    // Error format từ LISP: "ERR|<message>|"
+    if let Some(rest) = trimmed.strip_prefix("ERR|") {
+        let msg = rest.trim_end_matches('|').trim();
+        return Err(msg.to_string());
+    }
+    let parts: Vec<&str> = trimmed.splitn(3, '|').collect();
+    if parts.len() < 3 {
+        return Err(format!("Output LISP fail (parts={}): {}", parts.len(), trimmed));
+    }
+    let handle = parts[0].trim().to_string();
+    let length: f64 = parts[1].trim().parse()
+        .map_err(|e| format!("Parse length '{}': {}", parts[1], e))?;
+    let coords_str = parts[2].trim();
+    let nums: Vec<f64> = coords_str.split(',')
+        .filter_map(|s| s.trim().parse::<f64>().ok())
+        .collect();
+    if nums.len() < 4 || nums.len() % 2 != 0 {
+        return Err(format!("Polyline cần ít nhất 2 đỉnh (4 doubles), got {}", nums.len()));
+    }
+    let mut vertices: Vec<[f64; 2]> = Vec::with_capacity(nums.len() / 2);
+    let mut i = 0;
+    while i + 1 < nums.len() {
+        vertices.push([nums[i], nums[i + 1]]);
+        i += 2;
+    }
+    Ok(PolylineInfo { handle, length, vertices })
+}
+
 #[tauri::command]
 pub fn autocad_send_commands(commands: Vec<String>) -> Result<usize, String> {
     #[cfg(windows)]

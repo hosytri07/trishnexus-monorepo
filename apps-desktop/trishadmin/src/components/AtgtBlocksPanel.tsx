@@ -285,6 +285,7 @@ export function AtgtBlocksPanel(): JSX.Element {
       if (files.length === 0) return;
       setUploading(true);
       let done = 0, failed = 0;
+      const errors: Array<{ name: string; message: string }> = [];
       const db = getFirebaseDb();
       for (const fp of files) {
         // Phase 43 wave 15.5 — split cả Windows (\) lẫn Unix (/) path
@@ -315,10 +316,18 @@ export function AtgtBlocksPanel(): JSX.Element {
           done++;
         } catch (e) {
           failed++;
+          const msg = e instanceof Error ? e.message : String(e);
+          errors.push({ name: nm, message: msg });
           console.warn(`Upload fail ${nm}:`, e);
         }
       }
-      setToast(`OK Upload ${done}/${files.length}${failed > 0 ? ` (${failed} fail)` : ''}`);
+      if (failed > 0) {
+        // Phase 43 wave 16.9 — Show chi tiết lỗi file đầu tiên thay vì chỉ "(N fail)"
+        const first = errors[0]!;
+        setToast(`X Upload ${done}/${files.length} (${failed} fail) — ${first.name}: ${first.message.slice(0, 200)}`);
+      } else {
+        setToast(`OK Upload ${done}/${files.length}`);
+      }
       await reload();
     } catch (e) {
       setToast(`X Upload lỗi: ${e instanceof Error ? e.message : String(e)}`);

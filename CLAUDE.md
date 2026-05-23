@@ -4,15 +4,15 @@
 
 ## Context ngắn
 
-- **User**: Trí (hosytri07 / hosytri07@gmail.com), không phải developer. Giao tiếp tiếng Việt, ngắn gọn, tránh jargon.
-- **Workspace**: Monorepo trên USB tại `G:\4. Code\TrishNexus-New\trishnexus-monorepo`. User làm việc luân phiên giữa máy nhà và máy cơ quan.
+- **User**: Trí (hosytri77 / hosytri77@gmail.com / trishteam.official@gmail.com), kỹ sư hạ tầng giao thông Đà Nẵng, không phải developer. Giao tiếp tiếng Việt, ngắn gọn, tránh jargon.
+- **Workspace**: Monorepo tại `C:\Users\ADMIN\Documents\Claude\Projects\TrishTEAM\trishnexus-monorepo` (CẢ máy nhà và máy cơ quan đều dùng user `ADMIN`, cùng path). Đồng bộ qua GitHub.
 - **GitHub**: `hosytri07/trishnexus-monorepo`
 - **Website live**: trishteam-website (Vercel), domain chính thức `trishteam.io.vn` (mua TenTen, chưa cấu hình)
 
 ## Quy ước quan trọng
 
-1. **Luôn đọc `docs/SESSION-HANDOFF.md`** khi session mới bắt đầu để biết đang làm đến đâu. File đó là "nhật ký progress" chia sẻ giữa 2 máy.
-2. **Luôn cập nhật `docs/SESSION-HANDOFF.md`** trước khi session kết thúc — nếu không, máy bên kia sẽ làm trùng.
+1. **Luôn đọc `docs/HANDOFF-MASTER.md`** khi session mới bắt đầu để biết đang làm đến đâu. File đó là "nhật ký progress" chia sẻ giữa 2 máy. Chỉ đọc section `📍 PHIÊN HIỆN TẠI` trên cùng — phần dưới là archive.
+2. **Luôn cập nhật `docs/HANDOFF-MASTER.md`** trước khi session kết thúc — nếu không, máy bên kia sẽ làm trùng.
 3. **User gõ `tiếp tục`** = đọc handoff + pick up. Không hỏi dài dòng.
 4. **User gõ `chốt` / `xong rồi` / `để mai` / `bấm END.bat`** = update handoff TRƯỚC khi chào.
 
@@ -21,7 +21,7 @@
 ```
 trishnexus-monorepo/
 ├── CLAUDE.md                    ← file này
-├── docs/SESSION-HANDOFF.md      ← trạng thái hiện tại, luôn đọc/update
+├── docs/HANDOFF-MASTER.md       ← trạng thái hiện tại, luôn đọc/update
 ├── design/tokens.json           ← nguồn sự thật design tokens
 ├── scripts/                     ← gen-tokens.js + START/END/SETUP.bat
 ├── shared/trishteam_core/       ← Python package chung cho mọi app
@@ -35,8 +35,4 @@ trishnexus-monorepo/
 
 - **Double-click `scripts/START.bat`**: pull code, chuẩn bị môi trường (bấm mỗi sáng)
 - **Double-click `scripts/END.bat`**: commit + push tự động, nhắc eject USB (bấm mỗi tối)
-- **Double-click `scripts/SETUP.bat`**: setup máy mới (chạy 1 lần per máy)
-
-## Chi tiết công việc
-
-Xem **`docs/SESSION-HANDOFF.md`** — có đầy đủ: trạng thái, task đang dở, kế hoạch tiếp theo, API của trishteam_core, user preferences.
+- **Double-click `scripts/SETUP.bat`**: setup máy mới (ch�

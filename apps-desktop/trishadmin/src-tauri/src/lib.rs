@@ -1888,12 +1888,46 @@ async fn github_upload_release_asset(
         return Err(format!("GitHub lookup release fail: {}", err_txt));
     }
 
+    // Phase 43 wave 16.9 — Auto-delete asset cũ trùng tên trước khi upload mới
+    // GitHub API trả "already_exists" khi upload asset trùng tên trong cùng release.
+    let assets_url = format!("https://api.github.com/repos/{}/{}/releases/{}/assets?per_page=100", owner, repo, release_id);
+    let assets_resp = client.get(&assets_url)
+        .header("Authorization", format!("Bearer {}", token))
+        .header("Accept", "application/vnd.github+json")
+        .send().await
+        .map_err(|e| format!("List assets: {}", e))?;
+    if assets_resp.status().is_success() {
+        let assets_v: serde_json::Value = assets_resp.json().await
+            .map_err(|e| format!("Parse list assets: {}", e))?;
+        if let Some(arr) = assets_v.as_array() {
+            for asset in arr {
+                let asset_name = asset.get("name").and_then(|x| x.as_str()).unwrap_or("");
+                if asset_name == file_name {
+                    if let Some(old_id) = asset.get("id").and_then(|x| x.as_i64()) {
+                        let del_url = format!("https://api.github.com/repos/{}/{}/releases/assets/{}", owner, repo, old_id);
+                        let _ = client.delete(&del_url)
+                            .header("Authorization", format!("Bearer {}", token))
+                            .header("Accept", "application/vnd.github+json")
+                            .send().await;
+                    }
+                }
+            }
+        }
+    }
+
     let upload_url = upload_url_template.split("{").next().unwrap_or(&upload_url_template);
     let upload_url_full = format!("{}?name={}", upload_url, file_name);
 
+    // Content-Type cho .dwg: octet-stream (generic binary); cho .zip: application/zip
+    let content_type = if file_name.to_lowercase().ends_with(".zip") {
+        "application/zip"
+    } else {
+        "application/octet-stream"
+    };
+
     let up = client.post(&upload_url_full)
         .header("Authorization", format!("Bearer {}", token))
-        .header("Content-Type", "application/zip")
+        .header("Content-Type", content_type)
         .header("Accept", "application/vnd.github+json")
         .body(bytes)
         .send().await

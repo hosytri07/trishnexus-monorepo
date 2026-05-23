@@ -1177,6 +1177,8 @@ pub fn run() {
             acad_com::autocad_get_version,
             acad_com::autocad_ensure_document,
             acad_com::autocad_send_commands,
+            // Phase 43 wave 16.2 — Pick polyline có sẵn trong AutoCAD
+            acad_com::acad_pick_polyline,
             // Phase 28.4 Turn 10 — Custom hatch pattern deployment
             deploy_hatch_patterns,
             // Phase 28.4 Turn 11 — Scan AutoCAD SHX fonts

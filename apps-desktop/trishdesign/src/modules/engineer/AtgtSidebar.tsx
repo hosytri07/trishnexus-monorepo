@@ -4,9 +4,11 @@
  * Gồm 3 nhóm compact (giống HHMĐ):
  *   - Lý trình đoạn tuyến
  *   - Cài đặt khuôn đường (loại, bề rộng, số làn, DPC, cách nhập)
- *   - Chế độ vẽ (duỗi thẳng / polyline + chiều dài polyline)
+ *   - Chế độ vẽ (duỗi thẳng / polyline + nút pick polyline AutoCAD — Wave 16.2)
  */
 
+import { useState } from 'react';
+import { invoke } from '@tauri-apps/api/core';
 import type { AtgtSegment } from '../../lib/atgt-types.js';
 
 interface Props {
@@ -14,7 +16,35 @@ interface Props {
   onUpdate: (updater: (s: AtgtSegment) => AtgtSegment) => void;
 }
 
+interface PolylineInfo {
+  handle: string;
+  length: number;
+  vertices: Array<[number, number]>;
+}
+
 export function AtgtSidebar({ segment, onUpdate }: Props): JSX.Element {
+  const [picking, setPicking] = useState(false);
+  const [pickMsg, setPickMsg] = useState<string>('');
+
+  async function handlePickPolyline(): Promise<void> {
+    setPicking(true);
+    setPickMsg('🖱 Chuyển sang AutoCAD và click vào polyline...');
+    try {
+      const info = await invoke<PolylineInfo>('acad_pick_polyline');
+      onUpdate((s) => ({
+        ...s,
+        polylineHandle: info.handle,
+        polylineLength: info.length,
+        polylineVertices: info.vertices,
+      }));
+      setPickMsg(`✓ Đã pick: ${info.vertices.length} đỉnh, L=${info.length.toFixed(2)}m`);
+    } catch (e) {
+      setPickMsg(`✗ ${e instanceof Error ? e.message : String(e)}`);
+    } finally {
+      setPicking(false);
+    }
+  }
+
   const isDual = segment.roadType === 'dual';
   const mode = segment.drawMode ?? 'duoithang';
 
@@ -100,11 +130,24 @@ export function AtgtSidebar({ segment, onUpdate }: Props): JSX.Element {
           <span>🛣 Theo polyline AutoCAD</span>
         </label>
         {mode === 'polyline' && (
-          <label className="atgt-side-field" style={{ marginTop: 4 }}>
-            <span>Chiều dài polyline (m)</span>
-            <input type="number" className="atgt-side-input" step={1} min={0} value={segment.polylineLength ?? 0}
-              onChange={(e) => onUpdate((s) => ({ ...s, polylineLength: Number(e.target.value) || 0 }))} />
-          </label>
+          <div style={{ marginTop: 8 }}>
+            <button type="button"
+              className="atgt-pick-btn"
+              disabled={picking}
+              onClick={() => void handlePickPolyline()}
+              title="Chuyển sang AutoCAD → click polyline có sẵn (cong/thẳng/đa đoạn) → app tự đọc tọa độ + chiều dài">
+              {picking ? '⏳ Đợi pick...' : '🎯 Chọn polyline trong AutoCAD'}
+            </button>
+            {segment.polylineHandle && (
+              <div className="atgt-side-hint" style={{ marginTop: 4, marginLeft: 0, color: '#10b981' }}>
+                ✓ Handle: <code>{segment.polylineHandle}</code><br/>
+                L = {(segment.polylineLength ?? 0).toFixed(2)}m · {(segment.polylineVertices?.length ?? 0)} đỉnh
+              </div>
+            )}
+            {pickMsg && (
+              <div className="atgt-side-hint" style={{ marginTop: 4, marginLeft: 0 }}>{pickMsg}</div>
+            )}
+          </div>
         )}
       </div>
 
@@ -172,6 +215,19 @@ function SidebarStyles(): JSX.Element {
         font-size: 10px; color: var(--color-text-muted, #888);
         margin-left: 22px;
       }
+      .atgt-pick-btn {
+        width: 100%;
+        padding: 7px 10px;
+        font-size: 12px; font-weight: 600;
+        background: var(--color-accent-primary, #10b981);
+        color: white;
+        border: none;
+        border-radius: 5px;
+        cursor: pointer;
+        transition: opacity 0.15s;
+      }
+      .atgt-pick-btn:hover:not(:disabled) { opacity: 0.85; }
+      .atgt-pick-btn:disabled { opacity: 0.5; cursor: wait; }
     `}</style>
   );
 }

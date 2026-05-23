@@ -29,12 +29,14 @@ import {
   type CongNgangItem,
   type TieuPQItem,
   type GuongCauItem,
+  type AtgtTextPrefs,
   ATGT_CATEGORIES,
   BIENBAO_GROUPS,
   emptyAtgtDb,
   newAtgtId,
   defaultAtgtSegment,
   defaultAtgtItem,
+  defaultAtgtTextPrefs,
   formatStationKm,
   autoAtgtSegmentName,
   sideLabel,
@@ -48,6 +50,7 @@ import type { AtgtSegmentItemsV2 } from '../../lib/atgt-items-types.js';
 import { generateAtgtSegmentCommands as generateAtgtSegmentCommandsV2 } from '../../lib/atgt-draw-script.js';
 import { exportAtgtItemsToExcel } from '../../lib/atgt-excel-export.js';
 import { AtgtDatabaseViewer } from './AtgtDatabaseViewer.js';
+import { FontPicker } from './FontPicker.js';
 import { syncAtgtBlocks } from '../../lib/atgt-sync.js';
 import { invoke } from '@tauri-apps/api/core';
 import { getFirebaseDb } from '@trishteam/auth';
@@ -129,6 +132,7 @@ export function AtgtPanel(): JSX.Element {
   const [statusMsg, setStatusMsg] = useState<string>('');
   const [downloadingBlocks, setDownloadingBlocks] = useState(false);
   const [showDatabaseViewer, setShowDatabaseViewer] = useState(false);
+  const [showTextPrefs, setShowTextPrefs] = useState(false);
 
   // Phase 43 wave 15.3 — Incremental sync per-file
   async function handleDownloadBlocks(): Promise<void> {
@@ -304,55 +308,8 @@ export function AtgtPanel(): JSX.Element {
   }
 
   // -------------------------------------------------------------------
-  // Data Input: Paste TSV from clipboard + Import Excel
-  // -------------------------------------------------------------------
-  /**
-   * Paste TSV format (mỗi dòng = 1 item):
-   *   category<TAB>station<TAB>side<TAB>cachTim<TAB>extra1<TAB>extra2...
-   * VD biển báo: BIENBAO\\t100\\tright\\t1.5\\tP.103a\\tP\\t0.7
-   * VD vạch sơn: VACHSON\\t50\\tcenter\\t0\\ttim\\t100\\t0.15\\ttrue
-   */
-  async function handlePasteTsv(): Promise<void> {
-    if (!activeSegment) {
-      setStatusMsg('Chưa chọn đoạn để paste.');
-      return;
-    }
-    try {
-      const text = await navigator.clipboard.readText();
-      const lines = text.split(/\r?\n/).filter((l) => l.trim());
-      if (lines.length === 0) { setStatusMsg('Clipboard rỗng.'); return; }
-      const newItems: AtgtItem[] = [];
-      for (const line of lines) {
-        const cols = line.split(/\t|,|;/).map((c) => c.trim());
-        if (cols.length < 4) continue;
-        const cat = (cols[0] ?? '').toUpperCase() as AtgtCategory;
-        const station = Number(cols[1]) || 0;
-        const side = (cols[2] === 'left' || cols[2] === 'right' || cols[2] === 'center') ? cols[2] : 'right';
-        const cachTim = Number(cols[3]) || 1.5;
-        const it = { ...defaultAtgtItem(cat, station), side, cachTim, status: 'good' } as AtgtItem;
-        // Specific extras theo category
-        if (cat === 'BIENBAO' && cols[4]) (it as BienBaoItem).code = cols[4];
-        if (cat === 'VACHSON') {
-          if (cols[4]) (it as VachSonItem).vachType = cols[4] as any;
-          if (cols[5]) (it as VachSonItem).length = Number(cols[5]) || 50;
-          if (cols[6]) (it as VachSonItem).width = Number(cols[6]) || 0.15;
-          if (cols[7]) (it as VachSonItem).isContinuous = cols[7] === 'true';
-        }
-        if (cat === 'COCTIEU' || cat === 'TIEUPQ') {
-          if (cols[4]) (it as any).count = Number(cols[4]) || 10;
-          if (cols[5]) (it as any).spacing = Number(cols[5]) || 5;
-        }
-        newItems.push(it);
-      }
-      if (newItems.length === 0) {
-        setStatusMsg('✗ Không parse được dòng nào. Format: CATEGORY\\tstation\\tside\\tcachTim\\textra...');
-        return;
-      }
-      updateActiveSegment((s) => ({ ...s, items: [...s.items, ...newItems] }));
-      setStatusMsg(`✓ Đã paste ${newItems.length} đối tượng từ clipboard.`);
-    } catch (e) { setStatusMsg(`✗ ${String(e)}`); }
-  }
-
+  // Wave 16.1 — Bỏ handlePasteTsv (legacy 9-category, gây clipboard permission popup).
+  // Người dùng dùng 9 tab mới với "📥 Nhập file" hoặc gõ trực tiếp.
   // -------------------------------------------------------------------
   // AutoCAD draw
   // -------------------------------------------------------------------
@@ -377,9 +334,21 @@ export function AtgtPanel(): JSX.Element {
       if (totalNew > 0) {
         const cacheRaw = typeof window !== 'undefined' ? window.localStorage.getItem('trishdesign:atgt-blocks-cache') : null;
         const blocks = cacheRaw ? JSON.parse(cacheRaw) : [];
-        const cmds = generateAtgtSegmentCommandsV2(activeSegment, blocks);
+        // Phase 43 wave 16.4 — Đọc folder chứa block .dwg đã sync, truyền vào engine
+        // để INSERT block với full path (0.LT.dwg + 9 loại tài sản).
+        const blocksFolder = typeof window !== 'undefined'
+          ? window.localStorage.getItem('trishdesign:atgt-blocks-folder') ?? undefined
+          : undefined;
+        // Phase 43 wave 16.6 — Lấy textPrefs từ project (user cấu hình qua modal "Cài đặt text")
+        const textPrefs = activeProject.textPrefs;
+        // Phase 43 wave 16.24 — Debug: log textPrefs giá trị engine đang dùng
+        const debugInfo = textPrefs
+          ? `ltLen=${textPrefs.lyTrinhBlockLength ?? 0}, bbH=${textPrefs.bienBaoHeight ?? 0}, blockScale=${textPrefs.blockScale ?? 1}`
+          : 'KHÔNG có textPrefs (chưa save Modal)';
+        console.log('[ATGT engine] textPrefs:', textPrefs, debugInfo);
+        const cmds = generateAtgtSegmentCommandsV2(activeSegment, blocks, blocksFolder ?? undefined, textPrefs);
         const sent = await autoCadSendCommands(cmds);
-        setStatusMsg(`✓ Đã gửi ${sent} lệnh vẽ ${totalNew} tài sản ATGT vào AutoCAD.`);
+        setStatusMsg(`✓ Đã gửi ${sent} lệnh vẽ ${totalNew} tài sản — ${debugInfo}`);
       } else {
         const cmds = generateAtgtCommands(activeProject);
         const sent = await autoCadSendCommands(cmds);
@@ -490,6 +459,11 @@ export function AtgtPanel(): JSX.Element {
                 title="Đồng bộ block ATGT từ Firestore — tải file mới/cập nhật về folder local">
                 {downloadingBlocks ? '⏳ Đang sync...' : '🔄 Đồng bộ block'}
               </button>
+              <button type="button" className="btn btn-ghost"
+                onClick={() => setShowTextPrefs(true)}
+                title="Phase 43 wave 16.6 — Cài đặt font, width, chiều cao text trước khi vẽ (giống HHMĐ)">
+                🔠 Cài đặt text
+              </button>
               <button type="button" className="btn btn-primary"
                 onClick={() => void handleDrawAcad()}
                 disabled={!acadRunning}
@@ -505,9 +479,6 @@ export function AtgtPanel(): JSX.Element {
                   }
                 }}
                 title="Xuất Excel 9 sheet (BienBao, VachSon, ...)">📊 Xuất Excel</button>
-              <button type="button" className="btn btn-ghost"
-                onClick={() => void handlePasteTsv()}
-                title="Paste TSV legacy 9-category">📋 Paste TSV (cũ)</button>
               <span className="atgt-status-msg">{statusMsg}</span>
             </div>
             <AtgtItemsTabs
@@ -544,6 +515,25 @@ export function AtgtPanel(): JSX.Element {
       <InlineDialog state={dialog} onClose={() => setDialog(null)} />
 
       {showDatabaseViewer && <AtgtDatabaseViewer onClose={() => setShowDatabaseViewer(false)} />}
+      {showTextPrefs && activeProject && (
+        <AtgtTextPrefsModal
+          project={activeProject}
+          onSave={(prefs) => {
+            // Phase 43 wave 16.24 — Debug log + verify save
+            console.log('[Modal Save] prefs to save:', prefs);
+            setDb((prev) => ({
+              ...prev,
+              projects: prev.projects.map((p) =>
+                p.id === activeProject.id ? { ...p, textPrefs: prefs, updatedAt: Date.now() } : p,
+              ),
+              updatedAt: Date.now(),
+            }));
+            setStatusMsg(`✓ Đã lưu Cài đặt text: ltLen=${prefs.lyTrinhBlockLength}, bbH=${prefs.bienBaoHeight}, scale=${prefs.blockScale}`);
+            setShowTextPrefs(false);
+          }}
+          onClose={() => setShowTextPrefs(false)}
+        />
+      )}
     </div>
   );
 }
@@ -1170,6 +1160,115 @@ function StatsPanel({ segment }: { segment: AtgtSegment }): JSX.Element {
             </div>
           );
         })}
+      </div>
+    </div>
+  );
+}
+
+// =====================================================================
+// Phase 43 wave 16.6 — AtgtTextPrefsModal (giống HHMĐ cài đặt font/text)
+// =====================================================================
+
+function AtgtTextPrefsModal({
+  project, onSave, onClose,
+}: {
+  project: AtgtProject;
+  onSave: (prefs: AtgtTextPrefs) => void;
+  onClose: () => void;
+}): JSX.Element {
+  const [draft, setDraft] = useState<AtgtTextPrefs>(project.textPrefs ?? defaultAtgtTextPrefs());
+
+  function patch(p: Partial<AtgtTextPrefs>): void { setDraft((d) => ({ ...d, ...p })); }
+  function handleReset(): void { setDraft(defaultAtgtTextPrefs()); }
+
+  return (
+    <div className="atgt-modal-backdrop" onClick={onClose}>
+      <div className="atgt-modal-content" onClick={(e) => e.stopPropagation()} style={{ minWidth: 460 }}>
+        <h2 style={{ margin: '0 0 16px', fontSize: 16, fontWeight: 700 }}>🔠 Cài đặt Text Style (vẽ AutoCAD)</h2>
+        <p style={{ fontSize: 12, color: 'var(--color-text-muted, #888)', margin: '0 0 14px' }}>
+          Cấu hình này áp dụng cho project: <strong>{project.name}</strong>. App sẽ chạy <code>_-STYLE</code> trong AutoCAD trước khi vẽ.
+        </p>
+        <div style={{ display: 'grid', gridTemplateColumns: '160px 1fr', gap: 10, alignItems: 'center' }}>
+          <label>Tên style:</label>
+          <input type="text" value={draft.styleName}
+            onChange={(e) => patch({ styleName: e.target.value })}
+            className="atgt-side-input" placeholder="ATGT_TEXT" />
+
+          <label>Font file:</label>
+          <FontPicker
+            value={draft.fontFile}
+            onChange={(v) => patch({ fontFile: v })}
+          />
+
+          <label>Width factor:</label>
+          <input type="number" step={0.05} min={0.1} max={3}
+            value={draft.widthFactor}
+            onChange={(e) => patch({ widthFactor: Number(e.target.value) || 0.7 })}
+            className="atgt-side-input" />
+
+          <label>Cao text lý trình:</label>
+          <input type="number" step={0.05} min={0.05}
+            value={draft.stationHeight}
+            onChange={(e) => patch({ stationHeight: Number(e.target.value) || 0.5 })}
+            className="atgt-side-input" />
+
+          <label>Cao text leader:</label>
+          <input type="number" step={0.05} min={0.05}
+            value={draft.blockTextHeight}
+            onChange={(e) => patch({ blockTextHeight: Number(e.target.value) || 0.4 })}
+            className="atgt-side-input" />
+
+          <label>Scale block (0.LT, biển báo...):</label>
+          <input type="number" step={0.5} min={0.01}
+            value={draft.blockScale}
+            onChange={(e) => patch({ blockScale: Number(e.target.value) || 1 })}
+            className="atgt-side-input"
+            title="Block design có size cố định. Polyline dài → tăng scale để block hiện đủ lớn. Vd polyline 144 unit → blockScale = 10-50" />
+
+          <label>Vị trí block 0.LT (cách tim, m):</label>
+          <input type="number" step={0.5}
+            value={draft.lyTrinhBlockOffset ?? 0}
+            onChange={(e) => patch({ lyTrinhBlockOffset: Number(e.target.value) || 0 })}
+            className="atgt-side-input"
+            title="0 = đặt tại tim đường. Dương = bên trái, âm = bên phải. Vd: 3.5 = đặt tại mép trái" />
+
+          <label>Chiều dài block 0.LT (m):</label>
+          <input type="number" step={0.5} min={0}
+            value={draft.lyTrinhBlockLength ?? 0}
+            onChange={(e) => patch({ lyTrinhBlockLength: Number(e.target.value) || 0 })}
+            className="atgt-side-input"
+            title="Biển báo/đèn/gương cầu sẽ offset thêm khoảng này từ tim. VD: block 0.LT dài 5m, cách tim 2m → biển báo cách tim thực = 2 + 5 = 7m" />
+
+          <label>Chiều cao block biển báo (m):</label>
+          <input type="number" step={0.5} min={0}
+            value={draft.bienBaoHeight ?? 0}
+            onChange={(e) => patch({ bienBaoHeight: Number(e.target.value) || 0 })}
+            className="atgt-side-input"
+            title="Áp dụng cho biển báo side=Phải: offset thêm chiều cao block để cột không chồng lên cọc 0.LT. VD: bbHeight=2 → biển báo bên phải cách tim thêm 2m so với bên trái" />
+        </div>
+        <div style={{ display: 'flex', gap: 8, marginTop: 20, justifyContent: 'space-between' }}>
+          <button type="button" className="btn btn-ghost" onClick={handleReset}>↺ Mặc định</button>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button type="button" className="btn btn-ghost" onClick={onClose}>Hủy</button>
+            <button type="button" className="btn btn-primary" onClick={() => onSave(draft)}>💾 Lưu</button>
+          </div>
+        </div>
+        <style>{`
+          .atgt-modal-backdrop {
+            position: fixed; inset: 0;
+            background: rgba(0,0,0,0.5);
+            display: flex; align-items: center; justify-content: center;
+            z-index: 1000;
+          }
+          .atgt-modal-content {
+            background: var(--color-bg-elevated, #1a1a1f);
+            padding: 24px;
+            border-radius: 10px;
+            border: 1px solid var(--color-border-subtle, #2a2a30);
+            max-width: 90vw; max-height: 90vh; overflow: auto;
+            box-shadow: 0 20px 50px rgba(0,0,0,0.4);
+          }
+        `}</style>
       </div>
     </div>
   );
