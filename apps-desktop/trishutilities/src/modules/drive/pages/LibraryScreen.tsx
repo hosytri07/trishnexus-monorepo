@@ -529,89 +529,259 @@ function RequestModal({ onClose }: { onClose: () => void }): JSX.Element {
     }
   }
 
+  // Wave 75.1 — Rewrite without Tailwind classes (chỉ inline styles + design system tokens)
   return (
     <div
       style={{
-        position: 'fixed', inset: 0, background: 'var(--color-surface-overlay)',
-        display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100, padding: 16,
+        position: 'fixed',
+        inset: 0,
+        background: 'rgba(15,14,12,0.55)',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        zIndex: 9999,
+        padding: 24,
+        backdropFilter: 'blur(2px)',
       }}
       onClick={onClose}
     >
-      <div className="card" style={{ maxWidth: 480, width: '100%' }} onClick={e => e.stopPropagation()}>
-        <div className="flex items-start justify-between">
-          <div>
-            <h2 className="card-title flex items-center gap-2">
-              <Send className="h-5 w-5" /> Yêu cầu admin upload file
-            </h2>
-            <p className="card-subtitle" style={{ marginTop: 4 }}>
+      <div
+        style={{
+          maxWidth: 520,
+          width: '100%',
+          background: 'var(--color-surface-card)',
+          border: '1px solid var(--color-border-subtle)',
+          borderRadius: 14,
+          boxShadow: '0 24px 70px rgba(0,0,0,0.28)',
+          maxHeight: '90vh',
+          overflowY: 'auto',
+        }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* Header */}
+        <header
+          style={{
+            display: 'flex',
+            alignItems: 'flex-start',
+            justifyContent: 'space-between',
+            gap: 12,
+            padding: '14px 18px',
+            borderBottom: '1px solid var(--color-border-subtle)',
+            background: 'var(--color-surface-muted)',
+            borderTopLeftRadius: 14,
+            borderTopRightRadius: 14,
+          }}
+        >
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <h3
+              style={{
+                margin: 0,
+                fontSize: 15,
+                fontWeight: 700,
+                color: 'var(--color-text-primary)',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 8,
+              }}
+            >
+              <Send style={{ width: 16, height: 16 }} />
+              Yêu cầu admin upload file
+            </h3>
+            <p
+              style={{
+                margin: '4px 0 0',
+                fontSize: 12,
+                color: 'var(--color-text-secondary)',
+                lineHeight: 1.5,
+              }}
+            >
               Admin sẽ xem xét và upload nếu phù hợp. Có thể mất vài ngày.
             </p>
           </div>
-          <button className="icon-btn" onClick={onClose}><X className="h-4 w-4" /></button>
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="Đóng"
+            style={{
+              background: 'transparent',
+              border: '1px solid var(--color-border-subtle)',
+              borderRadius: 6,
+              width: 28,
+              height: 28,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              cursor: 'pointer',
+              color: 'var(--color-text-secondary)',
+              flexShrink: 0,
+            }}
+          >
+            <X style={{ width: 14, height: 14 }} />
+          </button>
+        </header>
+
+        {/* Body */}
+        <div style={{ padding: 18 }}>
+          {success ? (
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'flex-start',
+                gap: 10,
+                padding: 14,
+                borderRadius: 10,
+                background: 'rgba(16,185,129,0.1)',
+                border: '1px solid rgba(16,185,129,0.3)',
+              }}
+            >
+              <CheckCircle2
+                style={{ width: 20, height: 20, color: '#10b981', flexShrink: 0, marginTop: 1 }}
+              />
+              <div>
+                <div style={{ fontSize: 13, fontWeight: 700, color: '#047857' }}>
+                  ✓ Đã gửi yêu cầu!
+                </div>
+                <div style={{ fontSize: 12, color: 'var(--color-text-secondary)', marginTop: 4 }}>
+                  Admin sẽ liên hệ qua email khi xử lý xong. Cảm ơn bạn!
+                </div>
+              </div>
+            </div>
+          ) : (
+            <>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+                <label style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+                  <span
+                    style={{
+                      fontSize: 11.5,
+                      fontWeight: 700,
+                      color: 'var(--color-text-secondary)',
+                      letterSpacing: 0.02,
+                      textTransform: 'uppercase',
+                    }}
+                  >
+                    Tên file / tài liệu cần <span style={{ color: '#ef4444' }}>*</span>
+                  </span>
+                  <input
+                    type="text"
+                    placeholder="VD: TCVN 4054:2005 Đường ô tô — Yêu cầu thiết kế"
+                    value={fileName}
+                    onChange={(e) => setFileName(e.target.value)}
+                    maxLength={200}
+                    autoFocus
+                    disabled={busy}
+                    style={{
+                      padding: '8px 10px',
+                      fontSize: 13,
+                      border: '1px solid var(--color-border-subtle)',
+                      borderRadius: 8,
+                      background: 'var(--color-surface-muted)',
+                      color: 'var(--color-text-primary)',
+                      fontFamily: 'inherit',
+                      width: '100%',
+                      boxSizing: 'border-box',
+                    }}
+                  />
+                </label>
+                <label style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+                  <span
+                    style={{
+                      fontSize: 11.5,
+                      fontWeight: 700,
+                      color: 'var(--color-text-secondary)',
+                      letterSpacing: 0.02,
+                      textTransform: 'uppercase',
+                    }}
+                  >
+                    Mô tả thêm (tùy chọn)
+                  </span>
+                  <textarea
+                    placeholder="Nguồn / phiên bản / lý do cần file này..."
+                    value={description}
+                    onChange={(e) => setDescription(e.target.value)}
+                    maxLength={1000}
+                    disabled={busy}
+                    rows={4}
+                    style={{
+                      padding: '8px 10px',
+                      fontSize: 13,
+                      border: '1px solid var(--color-border-subtle)',
+                      borderRadius: 8,
+                      background: 'var(--color-surface-muted)',
+                      color: 'var(--color-text-primary)',
+                      fontFamily: 'inherit',
+                      resize: 'vertical',
+                      minHeight: 88,
+                      width: '100%',
+                      boxSizing: 'border-box',
+                      lineHeight: 1.5,
+                    }}
+                  />
+                </label>
+              </div>
+
+              {err && (
+                <div
+                  style={{
+                    display: 'flex',
+                    alignItems: 'flex-start',
+                    gap: 8,
+                    marginTop: 12,
+                    padding: '10px 12px',
+                    borderRadius: 8,
+                    background: 'rgba(239,68,68,0.08)',
+                    border: '1px solid rgba(239,68,68,0.3)',
+                  }}
+                >
+                  <AlertCircle
+                    style={{ width: 16, height: 16, color: '#ef4444', flexShrink: 0, marginTop: 1 }}
+                  />
+                  <div style={{ fontSize: 12, color: '#dc2626', lineHeight: 1.5 }}>{err}</div>
+                </div>
+              )}
+
+              <div
+                style={{
+                  display: 'flex',
+                  justifyContent: 'flex-end',
+                  gap: 8,
+                  marginTop: 18,
+                  paddingTop: 14,
+                  borderTop: '1px solid var(--color-border-subtle)',
+                }}
+              >
+                <button
+                  type="button"
+                  className="btn-secondary"
+                  onClick={onClose}
+                  disabled={busy}
+                  style={{ padding: '7px 16px', fontSize: 13 }}
+                >
+                  Huỷ
+                </button>
+                <button
+                  type="button"
+                  className="btn-primary"
+                  onClick={submit}
+                  disabled={busy || !fileName.trim()}
+                  style={{
+                    padding: '7px 16px',
+                    fontSize: 13,
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: 6,
+                  }}
+                >
+                  {busy ? (
+                    <Loader2 className="animate-spin" style={{ width: 14, height: 14 }} />
+                  ) : (
+                    <Send style={{ width: 14, height: 14 }} />
+                  )}
+                  {busy ? 'Đang gửi...' : 'Gửi yêu cầu'}
+                </button>
+              </div>
+            </>
+          )}
         </div>
-
-        {success ? (
-          <div className="flex gap-2 items-start mt-4 p-4 rounded-xl" style={{ background: 'var(--color-accent-soft)', border: '1px solid rgba(16,185,129,0.2)' }}>
-            <CheckCircle2 className="h-5 w-5 flex-shrink-0 mt-0.5" style={{ color: 'var(--color-accent-primary)' }} />
-            <div>
-              <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--color-accent-primary)' }}>
-                ✓ Đã gửi yêu cầu!
-              </div>
-              <div style={{ fontSize: 12, color: 'var(--color-text-secondary)', marginTop: 4 }}>
-                Admin sẽ liên hệ qua email khi xử lý xong. Cảm ơn bạn!
-              </div>
-            </div>
-          </div>
-        ) : (
-          <>
-            <div className="space-y-3 mt-4">
-              <div>
-                <label style={{ fontSize: 12, fontWeight: 500, color: 'var(--color-text-muted)' }}>
-                  Tên file / tài liệu cần *
-                </label>
-                <input
-                  className="input-field"
-                  style={{ marginTop: 4 }}
-                  placeholder="VD: TCVN 4054:2005 Đường ô tô — Yêu cầu thiết kế"
-                  value={fileName}
-                  onChange={e => setFileName(e.target.value)}
-                  maxLength={200}
-                  autoFocus
-                  disabled={busy}
-                />
-              </div>
-              <div>
-                <label style={{ fontSize: 12, fontWeight: 500, color: 'var(--color-text-muted)' }}>
-                  Mô tả thêm (tùy chọn)
-                </label>
-                <textarea
-                  className="input-field"
-                  style={{ marginTop: 4, minHeight: 100, resize: 'vertical' }}
-                  placeholder="Nguồn / phiên bản / lý do cần file này..."
-                  value={description}
-                  onChange={e => setDescription(e.target.value)}
-                  maxLength={1000}
-                  disabled={busy}
-                />
-              </div>
-            </div>
-
-            {err && (
-              <div className="flex gap-2 items-start mt-3 p-3 rounded-xl" style={{ background: 'rgba(239,68,68,0.08)' }}>
-                <AlertCircle className="h-4 w-4 flex-shrink-0 mt-0.5" style={{ color: '#ef4444' }} />
-                <div style={{ fontSize: 12, color: '#dc2626' }}>{err}</div>
-              </div>
-            )}
-
-            <div className="flex gap-2 justify-end mt-5">
-              <button className="btn-secondary" onClick={onClose} disabled={busy}>Huỷ</button>
-              <button className="btn-primary" onClick={submit} disabled={busy || !fileName.trim()}>
-                {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
-                {busy ? 'Đang gửi...' : 'Gửi yêu cầu'}
-              </button>
-            </div>
-          </>
-        )}
       </div>
     </div>
   );

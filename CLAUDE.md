@@ -64,4 +64,32 @@ trishnexus-monorepo/
 
 - **Double-click `scripts/START.bat`**: pull code, chuan bi moi truong (bam moi sang)
 - **Double-click `scripts/END.bat`**: commit + push tu dong, nhac eject USB (bam moi toi)
-- **Double-click `scripts/SETUP.bat`**: setup may moi (chay 1 lan)
+- **Double-click `scripts/SETUP.bat`**: setup may moi - verify prerequisites (chay 1 lan)
+- **Double-click `scripts/SETUP-MAY-MOI.bat`** (Phase 77, MOI): 1-click bootstrap may trang. Cai winget: Git, gh, Node LTS, Rust, VS Build Tools, WebView2, VS Code + npm globals: firebase-tools, vercel + auto auth (gh/firebase/vercel) + clone repo + pnpm install. Mat 25-60 phut. Dung khi chuyen sang may co quan / may moi hoan toan.
+
+## Cau truc 4 app desktop (Phase 65-77 - 2026-05-25 - sau full polish)
+
+**TrishUtilities** la app dang polish nhat hien tai, 5 module deu da hoan thanh:
+
+| Module | Tab label | Status |
+|---|---|---|
+| Clean | Don dep | DiskHealthCard donut, pre-clean modal, scan progress realtime |
+| Check | Kiem tra may | Health Score donut, Live monitor 2s, MinSpec compare, Speed Test, GPU VRAM dung registry |
+| Drive | **Downloader** (rename tu "Cloud") | 4 sub-tab: Tai file / Tai video MXH / Google Drive (NEW) / Thu vien |
+| Font | Font | Empty states polish |
+| Shortcut | Shortcut | Dashboard widget, sidebar nhom + workspace |
+
+Cac tinh nang noi bat moi (Phase 65-77):
+- **Google Drive bulk downloader**: paste folder URL → scrape embeddedfolderview HTML → tai trang tiep qua drive.usercontent (KHONG dung yt-dlp). Hien progress per file qua event `gdrive:progress`.
+- **Network speed test**: Cloudflare /__down + /__up + 5 ping → MBps download/upload/jitter/latency.
+- **Lazy-load module**: `React.lazy()` + keep-mounted (display:contents/none) → tab switching instant lan 2+.
+- **MinSpec admin**: nut "+ Them phan mem" cho admin, luu localStorage `trishcheck:custom-specs:v1`.
+
+## Quy uoc code
+
+- TypeScript `strict: true`, `noUncheckedIndexedAccess: true`. Khong unsafe `any`.
+- Vietnamese comment + UI text. Class names lowercase-kebab.
+- CSS scoped via `:root[data-app="<id>"]` selector trong `packages/design-system/src/app-overlay.css` (~5900 dong).
+- Module dat ten chuc nang (Clean/Check/Drive/Font/Shortcut), khong bao gom "Trish" prefix trong code (chi label UI).
+- Tauri commands snake_case → Tauri auto-convert sang camelCase cho TS invoke.
+- Khong de "text vo hon" — moi empty state phai co icon + heading + sub + action neu co the.

@@ -88,9 +88,16 @@ export function ShortcutModule(): JSX.Element {
 
   const searchInputRef = useRef<HTMLInputElement>(null);
 
+  // Phase 51.1: Theme do App.tsx single-source-of-truth
+
+  // Phase 55.1 — Listen for "open shortcut settings" event từ UtilitiesSettingsModal
   useEffect(() => {
-    applyTheme(settings.theme);
-  }, [settings.theme]);
+    function onOpenSettings(): void {
+      setSettingsOpen(true);
+    }
+    window.addEventListener('trishutilities:open-shortcut-settings', onOpenSettings);
+    return () => window.removeEventListener('trishutilities:open-shortcut-settings', onOpenSettings);
+  }, []);
 
   // Phase 32.3.B — auto extract icons cho shortcut chưa có icon (lần đầu mở app
   // sau update). Chạy 1 lần lúc mount, không block UI.
@@ -145,8 +152,8 @@ export function ShortcutModule(): JSX.Element {
             setOverlayOpen((prev) => !prev);
           });
           registered.push(settings.overlay_hotkey);
-        } catch (e) {
-          console.warn('[hotkey] register overlay fail:', e);
+        } catch {
+          // Phase 56.1: global-shortcut plugin chưa được cài → silent skip
         }
       }
       // Per-shortcut hotkeys
@@ -561,16 +568,13 @@ export function ShortcutModule(): JSX.Element {
 
   return (
     <div className="shell">
-      {/* Topbar */}
-      <header className="topbar">
-        <div className="topbar-brand">
-          <img src={logoUrl} alt="TrishShortcut" />
-          <div>
-            <h1>TrishShortcut</h1>
-            <div className="subtitle">Quản lý shortcut Windows · apps · games · folders · URLs</div>
-          </div>
+      {/* Module sub-header */}
+      <header className="module-subheader">
+        <div className="module-title">
+          <strong>TrishShortcut</strong>
+          <div className="sub">Quản lý shortcut Windows · apps · games · folders · URLs</div>
         </div>
-        <div className="topbar-actions">
+        <div className="module-subheader-actions">
           <div className="search-bar">
             <Search size={14} style={{ color: 'var(--color-text-muted)' }} />
             <input
@@ -581,9 +585,6 @@ export function ShortcutModule(): JSX.Element {
               onChange={(e) => setSearch(e.target.value)}
             />
           </div>
-          <button className="btn btn-secondary btn-icon" onClick={toggleTheme} title="Đổi giao diện">
-            {settings.theme === 'dark' ? <Sun size={18} /> : <Moon size={18} />}
-          </button>
           <button
             className="btn btn-secondary"
             onClick={() => setScannerOpen(true)}
@@ -591,18 +592,9 @@ export function ShortcutModule(): JSX.Element {
           >
             <ScanLine size={14} /> Quét app
           </button>
-          <button
-            className="btn btn-secondary btn-icon"
-            onClick={() => setSettingsOpen(true)}
-            title="Cài đặt"
-            style={{ width: 40, height: 40 }}
-          >
-            <Settings size={20} />
-          </button>
           <button className="btn btn-primary" onClick={openAdd} title="Thêm shortcut mới">
             <Plus size={14} /> Thêm
           </button>
-          <UserMenu />
         </div>
       </header>
 

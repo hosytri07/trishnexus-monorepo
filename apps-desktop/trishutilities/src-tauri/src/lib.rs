@@ -14,6 +14,11 @@
 mod crypto;
 mod db;
 mod webdav;
+// Phase 60 — Migrate 4 module commands từ archive
+mod clean;
+mod check;
+mod font;
+mod shortcut;
 
 use rusqlite::params;
 use serde::{Deserialize, Serialize};
@@ -1332,6 +1337,475 @@ async fn install_deno(app: tauri::AppHandle) -> Result<String, String> {
     }
 }
 
+/// Wave 74.1 / 74.2 — List items trong Google Drive folder (public).
+///
+/// yt-dlp googledrive folder extractor có bug "expected string or bytes-like
+/// object" (issue đã biết). Thay vào đó scrape HTML từ endpoint chính thức:
+///
+///   https://drive.google.com/embeddedfolderview?id={FOLDER_ID}#list
+///
+/// Endpoint này trả về HTML đơn giản với links `/file/d/{ID}/view` cho từng
+/// file trong folder. Yêu cầu folder PUBLIC (share "Anyone with link").
+#[derive(Serialize, Deserialize)]
+pub struct GDriveItem {
+    pub id: String,
+    pub title: String,
+    pub url: String,
+}
+
+fn extract_folder_id(url: &str) -> Option<String> {
+    // Tìm "/drive/folders/" rồi lấy ID kế tiếp đến `?`, `/`, hoặc end.
+    let needle = "/drive/folders/";
+    let start = url.find(needle)? + needle.len();
+    let rest = &url[start..];
+    let end = rest
+        .find(|c: char| c == '?' || c == '/' || c == '&' || c == '#')
+        .unwrap_or(rest.len());
+    let id = &rest[..end];
+    if id.is_empty() {
+        None
+    } else {
+        Some(id.to_string())
+    }
+}
+
+/// Decode HTML entities cơ bản (&amp; &lt; &gt; &quot; &#39;).
+fn html_decode(s: &str) -> String {
+    s.replace("&amp;", "&")
+        .replace("&lt;", "<")
+        .replace("&gt;", ">")
+        .replace("&quot;", "\"")
+        .replace("&#39;", "'")
+        .replace("&#34;", "\"")
+}
+
+#[tauri::command]
+async fn list_gdrive_folder_items(url: String) -> Result<Vec<GDriveItem>, String> {
+    let folder_id = extract_folder_id(&url)
+        .ok_or_else(|| "Không trích xuất được folder ID từ URL".to_string())?;
+
+    let view_url = format!(
+        "https://drive.google.com/embeddedfolderview?id={}#list",
+        folder_id
+    );
+
+    let client = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(30))
+        .user_agent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) TrishDrive/1.0")
+        .build()
+        .map_err(|e| format!("HTTP client init fail: {}", e))?;
+
+    let resp = client
+        .get(&view_url)
+        .send()
+        .await
+        .map_err(|e| format!("Fetch folder fail: {}", e))?;
+
+    if !resp.status().is_success() {
+        return Err(format!(
+            "HTTP {} — folder có thể không public hoặc không tồn tại.",
+            resp.status().as_u16()
+        ));
+    }
+
+    let html = resp
+        .text()
+        .await
+        .map_err(|e| format!("Đọc HTML fail: {}", e))?;
+
+    // Page có chứa cụm "permission" nếu folder không public
+    if html.contains("permissionDenied") || html.contains("You need permission")
+        || html.contains("Truy cập bị từ chối") || html.contains("Bạn cần quyền")
+    {
+        return Err(
+            "Folder không public — hãy chia sẻ với \"Anyone with the link\" rồi thử lại."
+                .to_string(),
+        );
+    }
+
+    // Parse từng entry. HTML pattern cho mỗi file:
+    //   href="https://drive.google.com/file/d/<ID>/view?usp=drive_link"
+    //   ...
+    //   <div class="flip-entry-title">TITLE</div>
+    //
+    // Strategy: split theo href pattern, mỗi chunk chứa 1 file. Trong chunk
+    // tìm flip-entry-title nếu có.
+    let split_marker = "https://drive.google.com/file/d/";
+    let mut items: Vec<GDriveItem> = Vec::new();
+    let mut seen: std::collections::HashSet<String> = std::collections::HashSet::new();
+
+    for chunk in html.split(split_marker).skip(1) {
+        // chunk bắt đầu bằng FILE_ID, kết thúc bằng `/view...`
+        let id_end = chunk.find('/').unwrap_or(0);
+        if id_end == 0 || id_end > 80 {
+            continue;
+        }
+        let file_id = &chunk[..id_end];
+        // Validate file ID format (Google Drive IDs: alphanumeric + _ -)
+        if !file_id
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || c == '_' || c == '-')
+        {
+            continue;
+        }
+        if seen.contains(file_id) {
+            continue;
+        }
+        seen.insert(file_id.to_string());
+
+        // Tìm title trong cùng chunk (giới hạn 4000 ký tự sau href để tránh lấy từ entry kế)
+        let search_window_end = chunk.len().min(4000);
+        let window = &chunk[..search_window_end];
+        let title = extract_title(window).unwrap_or_else(|| format!("File {}", &file_id[..6.min(file_id.len())]));
+
+        items.push(GDriveItem {
+            id: file_id.to_string(),
+            title,
+            url: format!("https://drive.google.com/file/d/{}/view", file_id),
+        });
+    }
+
+    if items.is_empty() {
+        return Err(
+            "Không tìm thấy file nào trong folder. Có thể folder rỗng hoặc embeddedfolderview bị Google chặn — hãy thử mở folder trong incognito để kiểm tra public access."
+                .to_string(),
+        );
+    }
+
+    Ok(items)
+}
+
+fn extract_title(html_chunk: &str) -> Option<String> {
+    // Tìm `<div class="flip-entry-title">TITLE</div>`
+    let marker = "flip-entry-title\">";
+    let start = html_chunk.find(marker)? + marker.len();
+    let rest = &html_chunk[start..];
+    let end = rest.find("</div>")?;
+    let raw = rest[..end].trim();
+    if raw.is_empty() {
+        return None;
+    }
+    let decoded = html_decode(raw);
+    // Giới hạn 200 ký tự để tránh anomaly
+    Some(decoded.chars().take(200).collect())
+}
+
+/// Wave 74.3 — Tải Google Drive file trực tiếp qua drive.usercontent.google.com.
+///
+/// yt-dlp googledrive download có bug HTTP 400 với 1 số file. Endpoint
+/// `drive.usercontent.google.com/download?id=ID&export=download&confirm=t`
+/// ổn định hơn, hỗ trợ cả file nhỏ và file lớn (>100MB).
+///
+/// Emit event `gdrive:progress` mỗi 200ms với { item_id, percent, downloaded,
+/// total, speed, eta } để frontend cập nhật UI realtime.
+#[tauri::command]
+async fn download_gdrive_file(
+    app: tauri::AppHandle,
+    item_id: String,
+    file_id: String,
+    output_dir: String,
+    suggested_name: Option<String>,
+) -> Result<MediaDownloadResult, String> {
+    use futures_util::StreamExt;
+    use tokio::io::AsyncWriteExt;
+
+    // Tạo output dir nếu chưa tồn tại
+    let out_dir = std::path::PathBuf::from(&output_dir);
+    if !out_dir.exists() {
+        std::fs::create_dir_all(&out_dir)
+            .map_err(|e| format!("Tạo thư mục output fail: {}", e))?;
+    }
+
+    let primary_url = format!(
+        "https://drive.usercontent.google.com/download?id={}&export=download&confirm=t",
+        file_id
+    );
+
+    let client = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(3600))
+        .connect_timeout(std::time::Duration::from_secs(20))
+        .redirect(reqwest::redirect::Policy::limited(10))
+        .user_agent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) TrishDrive/1.0")
+        .build()
+        .map_err(|e| format!("HTTP client init fail: {}", e))?;
+
+    let mut resp = client
+        .get(&primary_url)
+        .send()
+        .await
+        .map_err(|e| format!("Request fail: {}", e))?;
+
+    // Nếu Google trả HTML confirm page (file >100MB), parse form và retry
+    let ct = resp
+        .headers()
+        .get("content-type")
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("")
+        .to_string();
+
+    if ct.contains("text/html") {
+        let html = resp
+            .text()
+            .await
+            .map_err(|e| format!("Đọc confirm page fail: {}", e))?;
+
+        // Parse form action + hidden inputs (id, export, authuser, confirm, uuid)
+        let confirm_url = parse_confirm_form_url(&html, &file_id);
+        let confirm_url = confirm_url.unwrap_or_else(|| {
+            // Fallback: append &confirm=1 (cũ) hoặc &acknowledgeAbuse=true
+            format!(
+                "https://drive.usercontent.google.com/download?id={}&export=download&confirm=t&acknowledgeAbuse=true",
+                file_id
+            )
+        });
+
+        resp = client
+            .get(&confirm_url)
+            .send()
+            .await
+            .map_err(|e| format!("Confirm request fail: {}", e))?;
+
+        let ct2 = resp
+            .headers()
+            .get("content-type")
+            .and_then(|v| v.to_str().ok())
+            .unwrap_or("")
+            .to_string();
+
+        if ct2.contains("text/html") {
+            return Err(format!(
+                "Google trả HTML thay vì binary — có thể file quá lớn / cần đăng nhập / không public. File ID: {}",
+                file_id
+            ));
+        }
+    }
+
+    if !resp.status().is_success() {
+        return Err(format!(
+            "HTTP {} từ Google Drive cho file {}",
+            resp.status().as_u16(),
+            file_id
+        ));
+    }
+
+    // Lấy filename: ưu tiên Content-Disposition, fallback suggested_name, fallback file_id.bin
+    let filename = extract_filename_from_headers(resp.headers())
+        .or(suggested_name)
+        .unwrap_or_else(|| format!("{}.bin", file_id));
+    let filename = sanitize_filename(&filename);
+
+    // Resolve conflict — append (1), (2) nếu trùng
+    let final_path = unique_path(&out_dir, &filename);
+
+    let total = resp.content_length().unwrap_or(0);
+    let mut downloaded: u64 = 0;
+    let start_time = std::time::Instant::now();
+    let mut last_emit = std::time::Instant::now();
+
+    let mut file = tokio::fs::File::create(&final_path)
+        .await
+        .map_err(|e| format!("Tạo file output fail: {}", e))?;
+
+    let mut stream = resp.bytes_stream();
+    while let Some(chunk_res) = stream.next().await {
+        let chunk = chunk_res.map_err(|e| format!("Stream chunk lỗi: {}", e))?;
+        file.write_all(&chunk)
+            .await
+            .map_err(|e| format!("Ghi file lỗi: {}", e))?;
+        downloaded += chunk.len() as u64;
+
+        if last_emit.elapsed().as_millis() >= 200 {
+            emit_gdrive_progress(&app, &item_id, downloaded, total, start_time);
+            last_emit = std::time::Instant::now();
+        }
+    }
+
+    file.flush()
+        .await
+        .map_err(|e| format!("Flush file lỗi: {}", e))?;
+
+    // Emit final 100%
+    emit_gdrive_progress(&app, &item_id, downloaded.max(total), total, start_time);
+
+    Ok(MediaDownloadResult {
+        ok: true,
+        output_path: Some(final_path.to_string_lossy().to_string()),
+        stdout: format!("Downloaded {} bytes", downloaded),
+        stderr: String::new(),
+    })
+}
+
+fn emit_gdrive_progress(
+    app: &tauri::AppHandle,
+    item_id: &str,
+    downloaded: u64,
+    total: u64,
+    start_time: std::time::Instant,
+) {
+    let elapsed = start_time.elapsed().as_secs_f64().max(0.001);
+    let speed_bps = downloaded as f64 / elapsed;
+    let percent = if total > 0 {
+        ((downloaded as f64 / total as f64) * 100.0).min(100.0)
+    } else {
+        0.0
+    };
+    let eta_sec = if speed_bps > 0.0 && total > downloaded {
+        (total - downloaded) as f64 / speed_bps
+    } else {
+        0.0
+    };
+    let speed_str = if speed_bps >= 1_000_000.0 {
+        format!("{:.1} MB/s", speed_bps / 1_000_000.0)
+    } else if speed_bps >= 1_000.0 {
+        format!("{:.0} KB/s", speed_bps / 1_000.0)
+    } else {
+        format!("{:.0} B/s", speed_bps)
+    };
+    let eta_str = if eta_sec >= 60.0 {
+        format!("{}m{}s", (eta_sec / 60.0) as u64, (eta_sec % 60.0) as u64)
+    } else {
+        format!("{:.0}s", eta_sec)
+    };
+    let _ = app.emit(
+        "gdrive:progress",
+        serde_json::json!({
+            "item_id": item_id,
+            "percent": format!("{:.1}%", percent),
+            "downloaded": downloaded,
+            "total": total,
+            "speed": speed_str,
+            "eta": eta_str,
+        }),
+    );
+}
+
+/// Parse confirm form URL từ HTML page (file lớn cần acknowledge).
+fn parse_confirm_form_url(html: &str, file_id: &str) -> Option<String> {
+    // Form pattern: <form id="download-form" action="..." method="get">
+    //   <input name="id" value="..."> ...
+    let form_start = html.find("id=\"download-form\"")?;
+    let after_form = &html[form_start..];
+    let action_marker = "action=\"";
+    let action_start = after_form.find(action_marker)? + action_marker.len();
+    let action_rest = &after_form[action_start..];
+    let action_end = action_rest.find('"')?;
+    let action = html_decode(&action_rest[..action_end]);
+
+    // Collect hidden inputs
+    let mut params: Vec<(String, String)> = Vec::new();
+    let mut search_pos = 0;
+    while let Some(input_start) = after_form[search_pos..].find("<input ") {
+        let abs = search_pos + input_start;
+        let input_end = after_form[abs..].find('>').map(|e| abs + e).unwrap_or(abs);
+        let input_tag = &after_form[abs..input_end];
+        // Extract name + value
+        let name = extract_attr(input_tag, "name");
+        let value = extract_attr(input_tag, "value");
+        if let (Some(n), Some(v)) = (name, value) {
+            params.push((n, html_decode(&v)));
+        }
+        search_pos = input_end + 1;
+        // Break nếu đến hết form
+        if let Some(form_end) = after_form[abs..].find("</form>") {
+            if form_end < input_end - abs {
+                break;
+            }
+        }
+    }
+
+    if params.is_empty() {
+        // Fallback: just append id + confirm
+        return Some(format!(
+            "{}?id={}&export=download&confirm=t",
+            action, file_id
+        ));
+    }
+
+    let qs: Vec<String> = params
+        .into_iter()
+        .map(|(k, v)| format!("{}={}", urlencode(&k), urlencode(&v)))
+        .collect();
+    Some(format!("{}?{}", action, qs.join("&")))
+}
+
+fn extract_attr(tag: &str, attr: &str) -> Option<String> {
+    let marker = format!("{}=\"", attr);
+    let start = tag.find(&marker)? + marker.len();
+    let rest = &tag[start..];
+    let end = rest.find('"')?;
+    Some(rest[..end].to_string())
+}
+
+fn urlencode(s: &str) -> String {
+    s.bytes()
+        .map(|b| match b {
+            b'A'..=b'Z' | b'a'..=b'z' | b'0'..=b'9' | b'-' | b'_' | b'.' | b'~' => {
+                (b as char).to_string()
+            }
+            _ => format!("%{:02X}", b),
+        })
+        .collect()
+}
+
+fn extract_filename_from_headers(headers: &reqwest::header::HeaderMap) -> Option<String> {
+    let cd = headers.get("content-disposition")?.to_str().ok()?;
+    // Format: `attachment; filename="..."` or `filename*=UTF-8''encoded`
+    if let Some(idx) = cd.find("filename*=UTF-8''") {
+        let rest = &cd[idx + "filename*=UTF-8''".len()..];
+        let end = rest.find(|c: char| c == ';' || c == '\n').unwrap_or(rest.len());
+        // URL-decode percent escapes
+        let raw = &rest[..end];
+        return Some(urldecode(raw));
+    }
+    if let Some(idx) = cd.find("filename=\"") {
+        let rest = &cd[idx + "filename=\"".len()..];
+        let end = rest.find('"')?;
+        return Some(rest[..end].to_string());
+    }
+    None
+}
+
+fn urldecode(s: &str) -> String {
+    let mut out = String::with_capacity(s.len());
+    let bytes = s.as_bytes();
+    let mut i = 0;
+    while i < bytes.len() {
+        if bytes[i] == b'%' && i + 2 < bytes.len() {
+            let hex = &s[i + 1..i + 3];
+            if let Ok(b) = u8::from_str_radix(hex, 16) {
+                out.push(b as char);
+                i += 3;
+                continue;
+            }
+        }
+        out.push(bytes[i] as char);
+        i += 1;
+    }
+    out
+}
+
+fn unique_path(dir: &std::path::Path, filename: &str) -> std::path::PathBuf {
+    let candidate = dir.join(filename);
+    if !candidate.exists() {
+        return candidate;
+    }
+    let stem = std::path::Path::new(filename)
+        .file_stem()
+        .map(|s| s.to_string_lossy().to_string())
+        .unwrap_or_else(|| filename.to_string());
+    let ext = std::path::Path::new(filename)
+        .extension()
+        .map(|s| format!(".{}", s.to_string_lossy()))
+        .unwrap_or_default();
+    for i in 1..1000 {
+        let candidate = dir.join(format!("{} ({}){}", stem, i, ext));
+        if !candidate.exists() {
+            return candidate;
+        }
+    }
+    dir.join(filename)
+}
+
 /// Update yt-dlp local bundled (gọi `yt-dlp -U`).
 #[tauri::command]
 async fn update_ytdlp(app: tauri::AppHandle) -> Result<String, String> {
@@ -1700,6 +2174,329 @@ async fn download_social_media(
     })
 }
 
+// ============================================================
+// Phase 60 — Real implementations migrate vào src/clean.rs, src/check.rs,
+// src/font.rs, src/shortcut.rs. Stubs Phase 56-57 đã bỏ.
+// ============================================================
+
+/// Phase 60 — HTTP GET text helper dùng cho Font manifest + Check specs-loader.
+#[tauri::command]
+async fn fetch_text(url: String) -> Result<String, String> {
+    let client = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(15))
+        .build()
+        .map_err(|e| format!("HTTP client init: {}", e))?;
+    let resp = client.get(&url).send().await.map_err(|e| format!("fetch {}: {}", url, e))?;
+    if !resp.status().is_success() {
+        return Err(format!("HTTP {} từ {}", resp.status(), url));
+    }
+    resp.text().await.map_err(|e| format!("body: {}", e))
+}
+
+#[cfg(any())] mod _placeholder_unused_keep_phase_60 {
+
+/// HTTP GET text (cho Font fetchManifest + Check specs-loader).
+#[tauri::command]
+async fn fetch_text(url: String) -> Result<String, String> {
+    let client = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(15))
+        .build()
+        .map_err(|e| format!("HTTP client init: {}", e))?;
+    let resp = client
+        .get(&url)
+        .send()
+        .await
+        .map_err(|e| format!("Fetch {}: {}", url, e))?;
+    if !resp.status().is_success() {
+        return Err(format!("HTTP {} từ {}", resp.status(), url));
+    }
+    resp.text().await.map_err(|e| format!("Đọc body: {}", e))
+}
+
+/// Disk usage stub — Clean module check disk free space.
+/// Phase 58.1: TS invoke không truyền args nên Rust không nhận param.
+#[tauri::command]
+fn disk_usage() -> serde_json::Value {
+    serde_json::json!({
+        "mount": "C:",
+        "total_bytes": 0u64,
+        "used_bytes": 0u64,
+        "free_bytes": 0u64,
+        "used_percent": 0.0,
+    })
+}
+
+/// Sys report stub — Check module hiển thị system info.
+#[tauri::command]
+fn sys_report() -> serde_json::Value {
+    serde_json::json!({
+        "os": { "name": "Windows", "version": "?" },
+        "cpu": { "brand": "N/A (dev mode)", "cores_physical": 0, "cores_logical": 0, "mhz": 0u64 },
+        "memory": { "total_bytes": 0u64, "used_bytes": 0u64, "swap_total_bytes": 0u64, "swap_used_bytes": 0u64 },
+        "disks": [],
+        "networks": [],
+        "gpus": [],
+        "hostname": "dev",
+        "uptime_secs": 0u64,
+    })
+}
+
+/// Battery info stub.
+#[tauri::command]
+fn battery_info() -> serde_json::Value {
+    serde_json::json!({
+        "has_battery": false,
+        "percent": 0,
+        "charging": false,
+        "time_remaining_secs": serde_json::Value::Null,
+    })
+}
+
+/// Top processes stub — Check module hiển thị top apps.
+#[tauri::command]
+fn top_processes(_limit: Option<usize>) -> serde_json::Value {
+    serde_json::json!({ "by_cpu": [], "by_memory": [] })
+}
+
+/// CPU benchmark stub — shape khớp BenchResult { throughput_mb_per_s, bytes_processed, elapsed_ms }.
+#[tauri::command]
+fn cpu_benchmark(rounds: Option<u32>) -> serde_json::Value {
+    let _ = rounds;
+    serde_json::json!({
+        "throughput_mb_per_s": 0.0,
+        "bytes_processed": 0u64,
+        "elapsed_ms": 0u64,
+    })
+}
+
+/// Memory bandwidth stub — cùng shape BenchResult.
+#[tauri::command]
+fn memory_bandwidth(rounds: Option<u32>) -> serde_json::Value {
+    let _ = rounds;
+    serde_json::json!({
+        "throughput_mb_per_s": 0.0,
+        "bytes_processed": 0u64,
+        "elapsed_ms": 0u64,
+    })
+}
+
+/// Disk benchmark stub — DiskBenchResult shape.
+#[tauri::command]
+fn disk_benchmark(size_mb: Option<u32>) -> Result<serde_json::Value, String> {
+    let _ = size_mb;
+    Ok(serde_json::json!({
+        "read_throughput_mb_per_s": 0.0,
+        "write_throughput_mb_per_s": 0.0,
+        "bytes_processed": 0u64,
+        "elapsed_ms": 0u64,
+    }))
+}
+
+/// Scan installed software stub — Check module check phần mềm cài đặt.
+#[tauri::command]
+fn scan_installed_software() -> Result<Vec<serde_json::Value>, String> {
+    Ok(Vec::new())
+}
+
+/// Save report stub — Check module xuất report.
+#[tauri::command]
+fn save_report(_path: String, _content: String) -> Result<(), String> {
+    Ok(())
+}
+
+/// Shortcut scan: Desktop / Start Menu / Installed apps — return empty.
+#[tauri::command]
+fn scan_desktop() -> Result<Vec<serde_json::Value>, String> {
+    Ok(Vec::new())
+}
+#[tauri::command]
+fn scan_start_menu() -> Result<Vec<serde_json::Value>, String> {
+    Ok(Vec::new())
+}
+#[tauri::command]
+fn scan_installed() -> Result<Vec<serde_json::Value>, String> {
+    Ok(Vec::new())
+}
+
+/// Font: list system fonts stub.
+#[tauri::command]
+fn list_system_fonts() -> Result<Vec<String>, String> {
+    Ok(Vec::new())
+}
+
+/// Font: download pack stub.
+#[tauri::command]
+async fn fetch_font_manifest(url: String) -> Result<String, String> {
+    fetch_text(url).await
+}
+
+// ============================================================
+// Phase 57.2 — Stub các commands còn thiếu (audit từ TS invoke list)
+// Tất cả return giá trị an toàn để TS code không crash.
+// Full implementations sẽ migrate từ archive sau Wave 58+.
+// ============================================================
+
+// ---- Font module ----
+#[tauri::command]
+fn is_admin() -> bool { false }
+
+#[tauri::command]
+fn scan_system_fonts() -> Result<Vec<serde_json::Value>, String> {
+    Ok(Vec::new())
+}
+
+#[tauri::command]
+fn scan_fonts(path: String) -> Result<Vec<serde_json::Value>, String> {
+    let _ = path;
+    Ok(Vec::new())
+}
+
+#[tauri::command]
+fn read_font(path: String) -> Result<serde_json::Value, String> {
+    let _ = path;
+    Ok(serde_json::json!({ "name": "", "family": "", "style": "", "size_bytes": 0u64 }))
+}
+
+#[tauri::command]
+fn install_fonts(paths: Vec<String>) -> Result<serde_json::Value, String> {
+    let _ = paths;
+    Ok(serde_json::json!({ "installed": 0, "skipped": 0, "errors": [] }))
+}
+
+#[tauri::command]
+fn install_shx_fonts(paths: Vec<String>, autocad_dir: String) -> Result<serde_json::Value, String> {
+    let _ = (paths, autocad_dir);
+    Ok(serde_json::json!({ "installed": 0, "errors": [] }))
+}
+
+#[tauri::command]
+fn export_fonts_to_folder(paths: Vec<String>, dest: String) -> Result<u64, String> {
+    let _ = (paths, dest);
+    Ok(0)
+}
+
+#[tauri::command]
+fn detect_autocad_dirs() -> Result<Vec<String>, String> {
+    Ok(Vec::new())
+}
+
+#[tauri::command]
+fn clear_all_packs() -> Result<(), String> { Ok(()) }
+
+#[tauri::command]
+fn delete_pack(pack_id: String) -> Result<(), String> {
+    let _ = pack_id;
+    Ok(())
+}
+
+#[tauri::command]
+fn download_and_install_pack(pack_id: String, url: String) -> Result<serde_json::Value, String> {
+    let _ = (pack_id, url);
+    Err("Chưa cấu hình Rust backend cho TrishFont. Tính năng sẽ có trong bản cập nhật tiếp theo.".to_string())
+}
+
+#[tauri::command]
+fn get_packs_folder_info() -> Result<serde_json::Value, String> {
+    Ok(serde_json::json!({ "path": "", "size_bytes": 0u64, "pack_count": 0 }))
+}
+
+#[tauri::command]
+fn list_pack_files(pack_id: String) -> Result<Vec<serde_json::Value>, String> {
+    let _ = pack_id;
+    Ok(Vec::new())
+}
+
+// ---- Clean module ----
+#[tauri::command]
+fn list_clean_presets() -> Result<Vec<serde_json::Value>, String> {
+    Ok(Vec::new())
+}
+
+#[tauri::command]
+fn list_trash_sessions() -> Result<Vec<serde_json::Value>, String> {
+    Ok(Vec::new())
+}
+
+#[tauri::command]
+fn move_to_trash(paths: Vec<String>) -> Result<serde_json::Value, String> {
+    let _ = paths;
+    // MoveToTrashResult { session_id, session_dir, items_moved, total_size_bytes, errors }
+    Ok(serde_json::json!({
+        "session_id": "",
+        "session_dir": "",
+        "items_moved": 0,
+        "total_size_bytes": 0u64,
+        "errors": [],
+    }))
+}
+
+#[tauri::command]
+fn purge_session(session_id: String) -> Result<u64, String> {
+    let _ = session_id;
+    Ok(0)
+}
+
+#[tauri::command]
+fn purge_old_sessions(retention_days: u32) -> Result<u64, String> {
+    let _ = retention_days;
+    Ok(0)
+}
+
+#[tauri::command]
+fn restore_session(session_id: String) -> Result<u64, String> {
+    let _ = session_id;
+    Ok(0)
+}
+
+#[tauri::command]
+fn scan_autocad_junk() -> Result<Vec<serde_json::Value>, String> {
+    Ok(Vec::new())
+}
+
+#[tauri::command]
+fn scan_dir(path: String, recursive: Option<bool>) -> Result<serde_json::Value, String> {
+    let _ = (path, recursive);
+    // ScanStats { entries, total_size_bytes, truncated, elapsed_ms, errors }
+    Ok(serde_json::json!({
+        "entries": [],
+        "total_size_bytes": 0u64,
+        "truncated": false,
+        "elapsed_ms": 0u64,
+        "errors": 0,
+    }))
+}
+
+// ---- Shortcut module ----
+#[tauri::command]
+fn scan_installed_apps() -> Result<Vec<serde_json::Value>, String> {
+    Ok(Vec::new())
+}
+
+#[tauri::command]
+fn launch_shortcut(target: String, args: Option<Vec<String>>) -> Result<(), String> {
+    let _ = (target, args);
+    Err("Chưa cấu hình Rust backend cho launch_shortcut.".to_string())
+}
+
+#[tauri::command]
+fn parse_lnk(path: String) -> Result<serde_json::Value, String> {
+    let _ = path;
+    Ok(serde_json::json!({ "target": "", "args": "", "icon_path": "", "working_dir": "" }))
+}
+
+#[tauri::command]
+fn extract_icon_from_exe(path: String) -> Result<Option<String>, String> {
+    let _ = path;
+    Ok(None)
+}
+
+#[tauri::command]
+fn open_in_explorer(path: String) -> Result<(), String> {
+    let _ = path;
+    Ok(())
+}
+} // end mod _placeholder_unused_keep_phase_60
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     use tauri::{
@@ -1731,6 +2528,8 @@ pub fn run() {
             check_deno_available,
             install_deno,
             download_social_media,
+            list_gdrive_folder_items,
+            download_gdrive_file,
             app_version,
             ping,
             exit_app,
@@ -1762,6 +2561,50 @@ pub fn run() {
             webdav_unmount_drive,
             // Phase 36.5 — Machine ID cho key concurrent control
             get_device_id,
+            // Phase 60 — Real commands từ archive (clean/check/font/shortcut modules)
+            fetch_text,
+            // ---- Clean ----
+            clean::scan_dir,
+            clean::list_clean_presets,
+            clean::move_to_trash,
+            clean::list_trash_sessions,
+            clean::restore_session,
+            clean::purge_session,
+            clean::purge_old_sessions,
+            clean::scan_autocad_junk,
+            clean::disk_usage,
+            // ---- Check ----
+            check::sys_report,
+            check::cpu_benchmark,
+            check::memory_bandwidth,
+            check::disk_benchmark,
+            check::battery_info,
+            check::top_processes,
+            check::save_report,
+            check::scan_installed_software,
+            check::network_speed_test,
+            // ---- Font ----
+            font::read_font,
+            font::scan_fonts,
+            font::scan_system_fonts,
+            font::install_fonts,
+            font::is_admin,
+            font::download_and_install_pack,
+            font::delete_pack,
+            font::list_pack_files,
+            font::detect_autocad_dirs,
+            font::install_shx_fonts,
+            font::export_fonts_to_folder,
+            font::clear_all_packs,
+            font::get_packs_folder_info,
+            // ---- Shortcut ----
+            shortcut::scan_desktop,
+            shortcut::scan_start_menu,
+            shortcut::scan_installed_apps,
+            shortcut::parse_lnk,
+            shortcut::launch_shortcut,
+            shortcut::extract_icon_from_exe,
+            shortcut::open_in_explorer,
         ])
         .on_window_event(|window, event| {
             // Phase 26.5.G — close button → emit event cho frontend quyết định

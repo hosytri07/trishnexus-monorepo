@@ -66,7 +66,9 @@ export async function getDefaultStoreLocation(): Promise<StoreLocation> {
       size_bytes: 0,
     };
   }
-  return invoke<StoreLocation>('default_store_location');
+  // Phase 51.5: Rust trả { dataDir, exists } — map sang StoreLocation cũ để tương thích
+  const raw = await invoke<{ dataDir: string; exists: boolean }>('default_store_location');
+  return { path: raw.dataDir, exists: raw.exists, size_bytes: 0 };
 }
 
 /**

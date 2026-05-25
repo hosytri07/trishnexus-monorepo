@@ -77,12 +77,41 @@ function isValidSoftwareFile(data: unknown): data is SoftwareFile {
   return Array.isArray(r.items);
 }
 
+/** Phase 67.9 — Parse JSON safely: strip BOM, extract first object/array nếu có chars dư */
+function safeParseJson(text: string): unknown {
+  // Strip BOM + trim
+  let clean = text.replace(/^﻿/, '').trim();
+  // Nếu response là HTML (404 page from server) → reject sớm
+  if (clean.startsWith('<') || clean.toLowerCase().includes('<!doctype')) {
+    throw new Error('Server trả HTML thay vì JSON (có thể 404)');
+  }
+  // Try parse trực tiếp
+  try {
+    return JSON.parse(clean);
+  } catch (err) {
+    // Có thể response có chars dư sau JSON object — tìm matching brace cuối object đầu tiên
+    if (clean.startsWith('{')) {
+      let depth = 0;
+      for (let i = 0; i < clean.length; i++) {
+        if (clean[i] === '{') depth++;
+        else if (clean[i] === '}') {
+          depth--;
+          if (depth === 0) {
+            return JSON.parse(clean.slice(0, i + 1));
+          }
+        }
+      }
+    }
+    throw err;
+  }
+}
+
 export async function loadTips(
   url: string = TIPS_URL,
 ): Promise<ContentLoadResult<TipsFile>> {
   try {
     const text = await fetchText(url);
-    const json = JSON.parse(text) as unknown;
+    const json = safeParseJson(text) as unknown;
     if (!isValidTipsFile(json)) throw new Error('tips schema mismatch');
     return { data: json, source: 'remote', fetchedAt: Date.now(), error: null };
   } catch (err) {
@@ -102,7 +131,7 @@ export async function loadSoftwareCollection(
 ): Promise<ContentLoadResult<SoftwareFile>> {
   try {
     const text = await fetchText(url);
-    const json = JSON.parse(text) as unknown;
+    const json = safeParseJson(text) as unknown;
     if (!isValidSoftwareFile(json)) throw new Error('software schema mismatch');
     return { data: json, source: 'remote', fetchedAt: Date.now(), error: null };
   } catch (err) {

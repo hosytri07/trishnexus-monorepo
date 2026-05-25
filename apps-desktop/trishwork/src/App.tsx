@@ -17,13 +17,16 @@
  *   - 44.3.3: Migrate trishiso -> modules/iso
  */
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   AppShell,
+  applyTheme,
   loadActiveModule,
+  loadTheme,
   type ModuleDef,
 } from '@trishteam/design-system';
-import { AuthGate, UserMenu } from '@trishteam/auth/react';
+import { AuthGate, AppTopbar } from '@trishteam/auth/react';
+import { WorkSettingsModal } from './components/WorkSettingsModal.js';
 import { DesignModule } from './modules/design/DesignModule.js';
 import { LibraryModule } from './modules/library/LibraryModule.js';
 import { IsoModule } from './modules/iso/IsoModule.js';
@@ -31,15 +34,30 @@ import { IsoModule } from './modules/iso/IsoModule.js';
 type WorkModuleId = 'design' | 'library' | 'iso';
 
 const MODULES: ReadonlyArray<ModuleDef<WorkModuleId>> = [
-  { id: 'design',  icon: 'TK', label: 'Thiết kế',  shortcut: 'Ctrl+1' },
-  { id: 'library', icon: 'TV', label: 'Thư viện',  shortcut: 'Ctrl+2' },
-  { id: 'iso',     icon: 'HS', label: 'Hồ sơ ISO', shortcut: 'Ctrl+3' },
+  { id: 'design',  icon: '', label: 'Khảo sát - Thiết kế', shortcut: 'Ctrl+1' },
+  { id: 'library', icon: '', label: 'Thư viện',            shortcut: 'Ctrl+2' },
+  { id: 'iso',     icon: '', label: 'ISO',                 shortcut: 'Ctrl+3' },
 ];
+
+const THEME_KEY = 'trishwork.theme';
 
 export function App(): JSX.Element {
   const [active, setActive] = useState<WorkModuleId>(() =>
     loadActiveModule('work', 'design'),
   );
+  // Sync DOM ngay tại initializer để click đầu không bị "set lại cùng giá trị"
+  const [theme, setTheme] = useState<'light' | 'dark'>(() => {
+    const t = loadTheme(THEME_KEY);
+    if (typeof document !== 'undefined') {
+      document.documentElement.setAttribute('data-theme', t);
+    }
+    return t;
+  });
+  const [showSettings, setShowSettings] = useState(false);
+
+  useEffect(() => {
+    applyTheme(theme, THEME_KEY);
+  }, [theme]);
 
   return (
     <AuthGate
@@ -54,12 +72,26 @@ export function App(): JSX.Element {
         modules={MODULES}
         active={active}
         onActiveChange={setActive}
-        topbarRight={<UserMenu />}
+        topbarRight={
+          <AppTopbar
+            theme={theme}
+            onThemeToggle={() => setTheme((t) => (t === 'light' ? 'dark' : 'light'))}
+            onSettings={() => setShowSettings(true)}
+          />
+        }
       >
         {active === 'design' && <DesignModule />}
         {active === 'library' && <LibraryModule />}
         {active === 'iso' && <IsoModule />}
       </AppShell>
+      {showSettings && (
+        <WorkSettingsModal
+          version="2.0.0"
+          theme={theme}
+          onThemeChange={setTheme}
+          onClose={() => setShowSettings(false)}
+        />
+      )}
     </AuthGate>
   );
 }

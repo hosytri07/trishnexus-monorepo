@@ -1,28 +1,13 @@
 /**
- * Phase 44.2 — AuthGate (replace KeyGate cũ).
+ * Phase 44.2 + 45.6 — AuthGate (refactor dùng components mới).
  *
- * Gate component cho 4 app mới (TrishWork / TrishUtilities / TrishFinance / TrishAdmin).
- *
- * Khác KeyGate cũ:
- * - Không có input "Nhập mã key" trong app. User KHÔNG nhập key tay.
- * - Chỉ check Firebase Auth + role + app_keys[appId] có binding chưa.
- * - Trial user (vừa signup) thấy màn "Liên hệ admin cấp quyền".
- * - Admin cấp quyền qua TrishAdmin panel → Firestore `/users/{uid}.app_keys[appId]`
- *   được set → user mở lại app vào bình thường.
- *
- * Flow:
- *   - chưa login → render <LoginScreen> (Google + email/pwd)
- *   - profile loading → render spinner
- *   - role='admin' → BYPASS toàn bộ check → render children
- *   - có app_keys[appId] còn hạn → render children
- *   - thiếu hoặc hết hạn → render <NoAccessScreen> ("Liên hệ admin")
- *
- * Dùng:
- *   import { AuthGate } from '@trishteam/auth/react';
- *
- *   <AuthGate appId="trishwork" appName="TrishWork">
- *     <AppShell ... />
- *   </AuthGate>
+ * Gate component cho 4 app mới. Flow:
+ *   - Đang load auth → spinner
+ *   - Chưa login → <LoginScreen>
+ *   - Có lỗi load profile → màn lỗi với nút Tải lại
+ *   - Role admin → BYPASS, render children
+ *   - Có app_keys[appId] → render children
+ *   - Thiếu/hết hạn → màn "Cần cấp quyền" với info chi tiết + nút Liên hệ admin/Đăng xuất
  */
 
 import { type ReactNode } from 'react';
@@ -31,17 +16,11 @@ import { useAuth } from './react.js';
 import { LoginScreen } from './login-screen.js';
 
 export interface AuthGateProps {
-  /** Data.AppId — vd 'trishwork', 'trishutilities', 'trishfinance', 'trishadmin'. */
   appId: AppId;
-  /** Phase 44 — AppShellId cho LoginScreen render AppLogo SVG (work/utilities/finance/admin). */
   appShellId?: 'work' | 'utilities' | 'finance' | 'admin';
-  /** Tên hiển thị app cho login / no-access screen. */
   appName: string;
-  /** Tagline ngắn — vd "Kỹ sư · Thư viện · ISO". */
   appTagline?: string;
-  /** Children render khi user có quyền. */
   children: ReactNode;
-  /** Override màn no-access (hiếm dùng). */
   noAccessFallback?: (user: TrishUser) => ReactNode;
 }
 
@@ -55,17 +34,12 @@ export function AuthGate({
 }: AuthGateProps): JSX.Element {
   const { loading, firebaseUser, profile, profileError, signOut } = useAuth();
 
-  // 1. Auth chưa ready → spinner
   if (loading) {
     return <GateLoading message="Đang khởi động..." />;
   }
-
-  // 2. Chưa login → LoginScreen (đã có sẵn — Google + email/pwd)
   if (!firebaseUser) {
     return <LoginScreen appName={appName} tagline={appTagline} appShellId={appShellId} />;
   }
-
-  // 3. Profile load lỗi (network / rules deny)
   if (profileError && !profile) {
     return (
       <GateError
@@ -75,28 +49,20 @@ export function AuthGate({
       />
     );
   }
-
-  // 4. Self-heal đã tạo trial profile synthetic — luôn có profile sau loading
   if (!profile) {
     return <GateLoading message="Đang khởi tạo hồ sơ..." />;
   }
-
-  // 5. Admin bypass tất cả check
   if (profile.role === 'admin') {
     return <>{children}</>;
   }
-
-  // 6. Có app access binding (active + còn hạn)
   if (userHasAppAccess(profile, appId)) {
     return <>{children}</>;
   }
-
-  // 7. Không có quyền → màn liên hệ admin (hoặc fallback custom)
   if (noAccessFallback) return <>{noAccessFallback(profile)}</>;
   return (
     <NoAccessScreen
       appName={appName}
-      reason={profile.role}
+      role={profile.role}
       user={profile}
       email={firebaseUser.email}
       onSignOut={() => void signOut()}
@@ -105,23 +71,28 @@ export function AuthGate({
 }
 
 // ============================================================
-// Internal screens
+// Internal screens (dùng inline styles — tránh circular dep với design-system)
 // ============================================================
 
 function GateLoading({ message }: { message: string }): JSX.Element {
   return (
-    <div
-      style={{
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        minHeight: '100vh',
-        background: 'var(--color-surface-bg, #f4f3f0)',
-        color: 'var(--color-text-muted, #6b6877)',
-        fontSize: 14,
-      }}
-    >
-      <span style={{ marginRight: 10 }}>⏳</span> {message}
+    <div style={centerScreenStyle}>
+      <div style={{ textAlign: 'center', color: 'var(--color-text-muted)', fontSize: 13 }}>
+        <div
+          style={{
+            display: 'inline-block',
+            width: 24,
+            height: 24,
+            border: '3px solid var(--color-border-default)',
+            borderTopColor: 'var(--color-accent-primary)',
+            borderRadius: '50%',
+            animation: 'app-spin 0.7s linear infinite',
+            marginBottom: 12,
+          }}
+          aria-hidden="true"
+        />
+        <div>{message}</div>
+      </div>
     </div>
   );
 }
@@ -136,152 +107,176 @@ function GateError({
   onRetry: () => void;
 }): JSX.Element {
   return (
-    <div
-      style={{
-        display: 'flex',
-        flexDirection: 'column',
-        alignItems: 'center',
-        justifyContent: 'center',
-        minHeight: '100vh',
-        background: 'var(--color-surface-bg, #f4f3f0)',
-        color: 'var(--color-text-primary, #1c1b22)',
-        padding: 24,
-      }}
-    >
-      <h1 style={{ fontSize: 20, marginBottom: 12 }}>⚠ {title}</h1>
-      <p style={{ color: 'var(--color-text-muted, #6b6877)', marginBottom: 16, maxWidth: 480 }}>
-        {message}
-      </p>
-      <button
-        type="button"
-        onClick={onRetry}
-        style={{
-          padding: '10px 18px',
-          background: 'var(--color-accent-primary, #059669)',
-          color: 'white',
-          border: 'none',
-          borderRadius: 8,
-          cursor: 'pointer',
-          fontSize: 14,
-          fontWeight: 500,
-        }}
-      >
-        Tải lại
-      </button>
+    <div style={centerScreenStyle}>
+      <div style={cardStyle}>
+        <div style={{ fontSize: 36, marginBottom: 12, textAlign: 'center' }}>⚠</div>
+        <h1 style={{ fontSize: 18, fontWeight: 600, marginBottom: 8, textAlign: 'center', color: 'var(--color-text-primary)' }}>
+          {title}
+        </h1>
+        <p style={{ color: 'var(--color-text-muted)', fontSize: 13, textAlign: 'center', marginBottom: 18, lineHeight: 1.6 }}>
+          {message}
+        </p>
+        <button type="button" onClick={onRetry} style={primaryBtnStyle}>
+          🔄 Tải lại
+        </button>
+      </div>
     </div>
   );
 }
 
 function NoAccessScreen({
   appName,
-  reason,
+  role,
   user,
   email,
   onSignOut,
 }: {
   appName: string;
-  reason: string;
+  role: string;
   user: TrishUser | null;
   email: string | null;
   onSignOut: () => void;
 }): JSX.Element {
   const reasonText: Record<string, string> = {
     trial: 'Tài khoản của bạn đang ở chế độ Dùng thử. Liên hệ quản trị viên để được cấp quyền truy cập.',
-    demo:  'Tài khoản Demo của bạn đã hết hạn hoặc chưa được kích hoạt cho ứng dụng này.',
+    demo:  'Tài khoản Demo đã hết hạn hoặc chưa được kích hoạt cho ứng dụng này.',
     user:  'Bạn chưa có quyền dùng ứng dụng này. Vui lòng liên hệ quản trị viên.',
-    admin: 'Lỗi nội bộ: admin thì luôn có quyền, sao lại vào màn này?',
   };
-  const note = reasonText[reason] ?? reasonText.user;
+  const roleLabel: Record<string, { label: string; bg: string; fg: string }> = {
+    trial: { label: '✨ Trial', bg: 'rgba(245,158,11,0.12)', fg: '#b45309' },
+    demo:  { label: '⏳ Demo', bg: 'rgba(59,130,246,0.12)', fg: '#1e40af' },
+    user:  { label: '✅ User', bg: 'rgba(16,185,129,0.12)', fg: '#047857' },
+    admin: { label: '🛡 Admin', bg: 'rgba(239,68,68,0.12)', fg: '#b91c1c' },
+  };
+  const note = reasonText[role] ?? reasonText.user;
+  const roleBadge = roleLabel[role] ?? roleLabel.user;
+
   return (
-    <div
-      style={{
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        minHeight: '100vh',
-        background: 'var(--color-surface-bg, #f4f3f0)',
-        padding: 24,
-      }}
-    >
-      <div
-        style={{
-          background: 'var(--color-surface-card, #ffffff)',
-          padding: '40px 48px',
-          borderRadius: 14,
-          border: '1px solid var(--color-border-subtle, rgba(0,0,0,0.08))',
-          maxWidth: 480,
-          boxShadow: '0 10px 25px rgba(0,0,0,0.06)',
-        }}
-      >
-        <h1
-          style={{
-            fontSize: 22,
-            fontWeight: 600,
-            marginBottom: 8,
-            color: 'var(--color-text-primary, #1c1b22)',
-          }}
-        >
-          🔒 Cần cấp quyền
+    <div style={centerScreenStyle}>
+      <div style={{ ...cardStyle, maxWidth: 460 }}>
+        {/* Icon */}
+        <div style={{ fontSize: 48, marginBottom: 12, textAlign: 'center' }}>🔒</div>
+
+        {/* Title */}
+        <h1 style={{ fontSize: 20, fontWeight: 700, marginBottom: 8, textAlign: 'center', color: 'var(--color-text-primary)', letterSpacing: '-0.01em' }}>
+          Cần cấp quyền truy cập
         </h1>
-        <p
-          style={{
-            color: 'var(--color-text-muted, #6b6877)',
-            fontSize: 14,
-            marginBottom: 20,
-            lineHeight: 1.6,
-          }}
-        >
+
+        {/* Description */}
+        <p style={{ color: 'var(--color-text-muted)', fontSize: 13.5, textAlign: 'center', marginBottom: 22, lineHeight: 1.65 }}>
           {note}
         </p>
 
+        {/* Info card */}
         <div
           style={{
-            background: 'var(--color-surface-muted, #ebe9e3)',
-            padding: '14px 16px',
+            background: 'var(--color-surface-muted)',
             borderRadius: 10,
+            padding: '14px 16px',
             marginBottom: 20,
-            fontSize: 13,
-            color: 'var(--color-text-secondary, #3f3d4a)',
+            fontSize: 12.5,
+            color: 'var(--color-text-secondary)',
           }}
         >
-          <div style={{ marginBottom: 4 }}>
-            <strong>Ứng dụng:</strong> {appName}
-          </div>
-          <div style={{ marginBottom: 4 }}>
-            <strong>Email:</strong> {email ?? '(unknown)'}
-          </div>
-          <div>
-            <strong>Vai trò:</strong> {user?.role ?? 'trial'}
-          </div>
+          <InfoRow label="📱 Ứng dụng" value={<strong style={{ color: 'var(--color-text-primary)' }}>{appName}</strong>} />
+          <InfoRow label="📧 Email" value={email ?? '(unknown)'} />
+          <InfoRow
+            label="👤 Vai trò"
+            value={
+              <span
+                style={{
+                  display: 'inline-flex',
+                  padding: '2px 8px',
+                  borderRadius: 999,
+                  fontSize: 11,
+                  fontWeight: 600,
+                  background: roleBadge.bg,
+                  color: roleBadge.fg,
+                }}
+              >
+                {roleBadge.label}
+              </span>
+            }
+          />
         </div>
 
-        <p
+        {/* Admin contact */}
+        <div
           style={{
-            color: 'var(--color-text-muted, #6b6877)',
-            fontSize: 13,
-            marginBottom: 16,
-          }}
-        >
-          Liên hệ quản trị viên qua email: <strong>trishteam.official@gmail.com</strong>
-        </p>
-
-        <button
-          type="button"
-          onClick={onSignOut}
-          style={{
-            padding: '10px 18px',
-            background: 'transparent',
-            color: 'var(--color-text-secondary, #3f3d4a)',
-            border: '1px solid var(--color-border-default, rgba(0,0,0,0.12))',
+            background: 'var(--color-accent-soft)',
+            border: '1px solid var(--color-accent-primary)',
             borderRadius: 8,
-            cursor: 'pointer',
-            fontSize: 13,
-            fontWeight: 500,
+            padding: '10px 12px',
+            marginBottom: 18,
+            fontSize: 12,
+            color: 'var(--color-accent-primary)',
+            textAlign: 'center',
+            lineHeight: 1.5,
           }}
         >
-          Đăng xuất
+          📞 Liên hệ admin để xin cấp quyền:<br/>
+          <strong>trishteam.official@gmail.com</strong>
+        </div>
+
+        {/* Sign out button */}
+        <button type="button" onClick={onSignOut} style={secondaryBtnStyle}>
+          ← Đăng xuất
         </button>
       </div>
     </div>
   );
 }
+
+function InfoRow({ label, value }: { label: string; value: ReactNode }): JSX.Element {
+  return (
+    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '4px 0' }}>
+      <span style={{ color: 'var(--color-text-muted)' }}>{label}</span>
+      <span>{value}</span>
+    </div>
+  );
+}
+
+// ============ Styles ============
+const centerScreenStyle: React.CSSProperties = {
+  minHeight: '100vh',
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  padding: 24,
+  background: 'var(--color-surface-bg)',
+};
+
+const cardStyle: React.CSSProperties = {
+  width: '100%',
+  maxWidth: 440,
+  background: 'var(--color-surface-card)',
+  border: '1px solid var(--color-border-subtle)',
+  borderRadius: 16,
+  boxShadow: '0 10px 40px rgba(0,0,0,0.08)',
+  padding: '32px 36px',
+};
+
+const primaryBtnStyle: React.CSSProperties = {
+  width: '100%',
+  padding: '11px 18px',
+  background: 'var(--color-accent-gradient, var(--color-accent-primary))',
+  color: 'white',
+  border: 'none',
+  borderRadius: 10,
+  fontSize: 14,
+  fontWeight: 600,
+  cursor: 'pointer',
+};
+
+const secondaryBtnStyle: React.CSSProperties = {
+  width: '100%',
+  padding: '10px 16px',
+  background: 'transparent',
+  color: 'var(--color-text-secondary)',
+  border: '1px solid var(--color-border-default)',
+  borderRadius: 10,
+  fontSize: 13,
+  fontWeight: 500,
+  cursor: 'pointer',
+  transition: 'background 150ms',
+};

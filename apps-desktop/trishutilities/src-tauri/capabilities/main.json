@@ -19,10 +19,16 @@
     "dialog:allow-open",
     "dialog:allow-save",
     "opener:default",
-    "opener:allow-open-path",
+    {
+      "identifier": "opener:allow-open-path",
+      "allow": [{ "path": "**" }]
+    },
+    {
+      "identifier": "opener:allow-reveal-item-in-dir",
+      "allow": [{ "path": "**" }]
+    },
     "opener:allow-open-url",
     "opener:allow-default-urls",
-    "opener:allow-reveal-item-in-dir",
     "process:default",
     "process:allow-restart",
     "updater:default"

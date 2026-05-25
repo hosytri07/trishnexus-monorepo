@@ -355,10 +355,7 @@ function MainApp() {
   const [theme, setTheme] = useState<'light' | 'dark'>(() => {
     try { return (localStorage.getItem('iso_theme') as 'light' | 'dark') || 'light'; } catch { return 'light'; }
   });
-  useEffect(() => {
-    document.documentElement.setAttribute('data-theme', theme);
-    try { localStorage.setItem('iso_theme', theme); } catch {}
-  }, [theme]);
+  // Phase 51.1: Theme do App.tsx single-source-of-truth, KHÔNG override ở module
 
   // Phase 22.4.B — Dynamic app version từ Tauri command (fallback "1.0.0" cho web preview)
   const [appVersion, setAppVersion] = useState('1.0.0');
@@ -773,6 +770,15 @@ function MainApp() {
     return () => window.removeEventListener('keydown', onKey);
   }, []);
 
+  // Phase 54.1 — Listen for "open iso settings" event từ WorkSettingsModal
+  useEffect(() => {
+    function onOpenSettings(): void {
+      setShowSettings(true);
+    }
+    window.addEventListener('trishwork:open-iso-settings', onOpenSettings);
+    return () => window.removeEventListener('trishwork:open-iso-settings', onOpenSettings);
+  }, []);
+
 
   function openCreateLoan(projectId?: string) {
     setLoanForm({ ...emptyLoan, hoSoId: projectId || selectedId || projects[0]?.id || '', ngayMuon: today(), hanTra: today(), trangThai: 'Đang mượn' });
@@ -966,13 +972,6 @@ function MainApp() {
 
   return <div className="min-h-screen" style={{ background: 'var(--color-surface-bg)', color: 'var(--color-text-primary)' }}>
     <aside className="fixed inset-y-0 left-0 w-64" style={{ background: 'var(--color-surface-card)', borderRight: '1px solid var(--color-border-subtle)', padding: '16px', overflowY: 'auto' }}>
-      <div className="mb-5 flex items-center gap-3" style={{ background: 'var(--color-surface-row)', border: '1px solid var(--color-border-subtle)', borderRadius: '14px', padding: '10px' }}>
-        <img src={logoUrl} alt="TrishISO" style={{ width: 40, height: 40, borderRadius: 10, objectFit: 'cover', flexShrink: 0 }} />
-        <div className="min-w-0">
-          <div style={{ fontSize: '14px', fontWeight: 600, letterSpacing: '-0.01em', color: 'var(--color-text-primary)' }}>TrishISO</div>
-          <div style={{ fontSize: '11px', color: 'var(--color-text-muted)' }}>v{appVersion}</div>
-        </div>
-      </div>
       <nav className="space-y-1">
         {[
           ['dashboard', Home, 'Tổng quan'], ['projects', FolderOpen, 'Hồ sơ tổng quát'], ['equipment', PackageCheck, 'Thiết bị nội bộ'], ['calendar', CalendarDays, 'Lịch bảo trì'], ['loans', UserCheck, 'Mượn/trả hồ sơ'], ['isoStorage', FolderOpen, 'Lưu trữ ISO'], ['formLinks', FileCheck2, 'Liên kết BM-HS'], ['approvals', CheckCircle2, 'Duyệt hồ sơ'], ['hoanCong', ClipboardList, 'Checklist hoàn công'], ['imports', FileSpreadsheet, 'Nhập Excel'], ['templates', ClipboardList, 'Mẫu mục lục'], ['storage', Archive, 'Kho lưu trữ'], ['reports', BarChart3, 'Báo cáo'],
@@ -1013,36 +1012,6 @@ function MainApp() {
               <Search className="h-4 w-4" /> <span style={{ fontSize: 11, color: 'var(--color-text-muted)', marginLeft: 4 }}>Ctrl+K</span>
             </button>
             <button className="btn-primary" onClick={openCreateProject}><Plus className="h-4 w-4" /> Thêm hồ sơ</button>
-            <button className="btn-secondary" onClick={toggleTheme} title="Đổi giao diện sáng/tối" style={{ padding: '6px 10px' }}>
-              {theme === 'light' ? <Moon className="h-4 w-4" /> : <Sun className="h-4 w-4" />}
-            </button>
-            <button className="btn-secondary" onClick={() => setShowSettings(true)} title="Cài đặt" style={{ padding: '6px 10px' }}>
-              <SettingsIcon className="h-4 w-4" />
-            </button>
-            <div className="flex items-center gap-2" style={{ background: 'var(--color-surface-row)', borderRadius: 10, padding: 6 }}>
-              <div style={{ width: 28, height: 28, borderRadius: '50%', background: 'var(--color-accent-gradient, var(--color-accent-primary))', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', fontSize: 11, fontWeight: 600 }}>
-                {(profile?.display_name || firebaseUser?.email || '?').charAt(0).toUpperCase()}
-              </div>
-              <div style={{ minWidth: 0 }}>
-                <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--color-text-primary)', display: 'flex', alignItems: 'center', gap: 6 }}>
-                  <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 140 }}>{profile?.display_name || firebaseUser?.email}</span>
-                  <span
-                    style={{
-                      display: 'inline-flex', alignItems: 'center', gap: 3,
-                      padding: '1px 6px', borderRadius: 5,
-                      fontSize: 10, fontWeight: 700, letterSpacing: 0.3,
-                      background: r.bg, color: r.color,
-                    }}
-                    title={`Role: ${role}`}
-                  >
-                    <Shield className="h-2.5 w-2.5" /> {r.label}
-                  </span>
-                </div>
-              </div>
-            </div>
-            <button className="btn-secondary" onClick={() => void signOut()} title="Đăng xuất" style={{ padding: '6px 10px', color: '#ef4444', borderColor: '#ef4444' }}>
-              <LogOut className="h-3.5 w-3.5" />
-            </button>
           </div>
         </div>
       </header>
@@ -1070,6 +1039,7 @@ function MainApp() {
     {equipmentModal && <EquipmentModal form={equipmentForm} setForm={setEquipmentForm} onClose={() => setEquipmentModal(false)} onSubmit={saveEquipment} />}
     {folderModal && <FolderModal form={folderForm} setForm={setFolderForm} folders={isoFolders} onClose={() => setFolderModal(false)} onSubmit={saveFolder} />}
     {bieuMauModal && <BieuMauModal form={bieuMauForm} setForm={setBieuMauForm} folders={isoFolders} onClose={() => setBieuMauModal(false)} onSubmit={saveBieuMau} />}
+    {/* Phase 54.1: Khôi phục SettingsModal — trigger bởi event 'trishwork:open-iso-settings' từ WorkSettingsModal */}
     {showSettings && (
       <SettingsModal
         theme={theme}

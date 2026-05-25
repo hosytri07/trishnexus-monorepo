@@ -318,8 +318,25 @@ export function Scanner({ groups, onClose, onImport }: Props): JSX.Element {
           ) : err ? (
             <div style={{ padding: 14, color: '#dc2626', fontSize: 13 }}>{err}</div>
           ) : currentList.length === 0 ? (
-            <div style={{ padding: 60, textAlign: 'center', color: 'var(--color-text-muted)', fontSize: 13 }}>
-              {search ? 'Không có mục nào khớp filter' : 'Không tìm thấy mục nào ở vị trí này'}
+            <div style={{
+              display: 'flex', flexDirection: 'column', alignItems: 'center',
+              padding: '48px 20px', textAlign: 'center', gap: 6,
+            }}>
+              <div style={{ fontSize: 36, opacity: 0.55 }}>
+                {search ? '🔍' : tab === 'desktop' ? '🖥' : tab === 'start' ? '📁' : '📦'}
+              </div>
+              <div style={{ fontSize: 13.5, fontWeight: 700, color: 'var(--color-text-primary)' }}>
+                {search ? 'Không có mục nào khớp' : 'Không tìm thấy mục nào'}
+              </div>
+              <div style={{ fontSize: 12, color: 'var(--color-text-secondary)', lineHeight: 1.5, maxWidth: 360 }}>
+                {search
+                  ? `Đổi từ khoá tìm "${search}" hoặc bỏ filter để xem tất cả.`
+                  : tab === 'desktop'
+                    ? 'Desktop của bạn không có .lnk hoặc .exe. Thử tab "Start Menu" hoặc "Đã cài".'
+                    : tab === 'start'
+                      ? 'Start Menu trống. Thử tab "Đã cài" để lấy từ registry Uninstall keys.'
+                      : 'Không đọc được registry. Cần quyền user (không cần admin).'}
+              </div>
             </div>
           ) : (
             <div>

@@ -4,12 +4,267 @@
 >
 > **🔴 ĐỌC SECTION `📍 PHIÊN HIỆN TẠI` NGAY DƯỚI — TẤT CẢ SECTION CŨ PHÍA DƯỚI LÀ LỊCH SỬ ARCHIVE, ĐỪNG NHẦM!**
 >
-> **Cập nhật:** 2026-05-23 (chiều) — **Phase 44 plan: gộp 12 app desktop → 4 app mới** (TrishWork / TrishUtilities / TrishFinance / TrishAdmin). Bỏ Launcher + Office. Đổi auth: bỏ KeyGate key tay → Firebase login + role admin cấp.
+> **Cập nhật:** 2026-05-25 — **Phase 65-77: TrishUtilities full polish** (5 module: Clean/Check/Drive[Downloader]/Font/Shortcut) + Google Drive bulk downloader + Network speed test + setup script máy mới. Tất cả 121 task hoàn thành.
 > **Chủ dự án:** Trí (hosytri77@gmail.com / trishteam.official@gmail.com) — kỹ sư hạ tầng giao thông Đà Nẵng. Không phải dev. Giao tiếp tiếng Việt, tránh jargon.
 
 ---
 
-## 📍 PHIÊN HIỆN TẠI — 2026-05-23 (chiều) — Phase 44 ECOSYSTEM REFACTOR: 12 → 4 app
+## 📍 PHIÊN HIỆN TẠI — 2026-05-25 — Phase 65-77: TrishUtilities full polish
+
+### 🎯 Tóm tắt: TrishUtilities (5 module) đã polish hoàn chỉnh + setup máy mới sẵn sàng
+
+**Phase 65-66 — TrishClean polish**: DiskHealthCard (gauge donut), pre-clean preview modal (top 50 file), scan progress real-time, compare last clean card, UtilitiesSettingsModal refactor embed inline (không link đi modal khác).
+
+**Phase 67-69 — TrishCheck polish**:
+- HealthScoreCard với conic-gradient donut + tier breakdown CPU/RAM/Disk
+- LiveResourceMonitor poll 2s với sparkline SVG 60s history
+- 3 BenchCard grid 3 cols + baseline comparison
+- MinSpec compare badges (Pass/Marginal/Fail) + filter chips + search + upgrade suggestions
+- Software card với 2 cấu hình side-by-side + %compare
+- Fix CPU realtime calc (cap 100%, normalize multi-core)
+- Wave 71.1 fix top-process widget CSS (`ul > li` không phải `> div`)
+- Wave 71.2 fix GPU VRAM: đọc registry `HardwareInformation.qwMemorySize` (QWORD) thay vì `Win32_VideoController.AdapterRAM` (DWORD cap 4GB)
+- Wave 71.3 override bundled TrishTEAM ecosystem khi remote stale (chỉ 4 app: Work/Utilities/Finance/Admin)
+- Wave 72.1 **Network speed test** card mới: download/upload/ping/jitter qua Cloudflare endpoint
+
+**Phase 70 — MinSpec ecosystem update**:
+- Xoá 9 app cũ (TrishLauncher/Check/Font/Note/Clean/Image/Type/Library/Search)
+- Chỉ giữ 4 app hiện tại với spec đầy đủ OS/CPU model/GPU/SSD/notes
+- Click card → SoftwareDetailModal với 2 cột Min vs Recommended full spec + tier color
+- Admin "+ Thêm phần mềm" button + form modal lưu localStorage (`trishcheck:custom-specs:v1`)
+- `mergeSpecs()` để base + custom merge không trùng ID
+
+**Phase 72-74 — TrishDrive → "Downloader"** (rename label):
+- Rename tab "Cloud" → "Downloader" trong `App.tsx`
+- Polish LibrariesGrid (3 card yt-dlp/ffmpeg/Deno) compact (size cards ~1/3 ban đầu)
+- **Google Drive bulk downloader** tab mới (`apps-desktop/trishutilities/src/modules/drive/pages/GoogleDriveDownloadScreen.tsx`):
+  - Textarea paste nhiều link cùng lúc (1 dòng/link hoặc cách dấu phẩy/space)
+  - Detect folder URL → expand thành nhiều queue items qua `list_gdrive_folder_items` (scrape `embeddedfolderview` HTML, KHÔNG dùng yt-dlp vì bug `expected string or bytes-like object`)
+  - Download trực tiếp qua `download_gdrive_file` (drive.usercontent.google.com/download?id=X&export=download&confirm=t), KHÔNG yt-dlp (yt-dlp HTTP 400 với file .bin)
+  - Emit `gdrive:progress` event 200ms với percent/speed/eta
+  - Filename gốc từ Content-Disposition, sanitize Windows-invalid chars, resolve conflict `(1)`
+  - Hỗ trợ file public + folder public + file >100MB (parse confirm form)
+  - Output path hiển thị rõ ràng trong UI + nút "Mở" (openPath với scope `**`)
+- Wave 73.3 **Tab switching performance**: lazy-load 5 module với `React.lazy()` + keep-mounted strategy (`display: contents | none`) → switch tab lần 2+ instant, state preserved
+
+**Phase 75-76 — Final polish**:
+- RequestAdminModal trong LibraryScreen rewrite hoàn toàn inline styles (Tailwind classes không apply do scope `.ts-app`)
+- Font module empty states: icon lớn + heading + sub + actions (4 chỗ)
+- Pack detail empty card với border dashed + icon + title + sub
+- Shortcut module Scanner empty state polish theo tab context
+
+**Phase 77 — Setup máy mới**:
+- Tạo `SETUP-MAY-MOI.bat` (cả ở repo root copy và ở folder cha `C:\Users\TRI\Documents\Claude\Projects\TrishTEAM\`)
+- 1-click install: Git, GitHub CLI, Node LTS, Rust, VS Build Tools (C++), WebView2, VS Code, Firebase CLI, Vercel CLI
+- Interactive auth: gh / firebase / vercel login
+- Auto clone repo + pnpm install
+- Hard-coded config: repo URL `hosytri07/trishnexus-monorepo`, Firebase project `trishteam-17c2d`, target folder `~/Documents/Claude/Projects/TrishTEAM/`
+
+### 🛠 Backend Rust commands mới (Phase 65-77)
+
+Trong `apps-desktop/trishutilities/src-tauri/src/`:
+
+| Command | File | Purpose |
+|---|---|---|
+| `network_speed_test` | `check.rs` | Cloudflare /__down + /__up + 5x HEAD ping → SpeedTestResult |
+| `list_gdrive_folder_items` | `lib.rs` | Scrape embeddedfolderview HTML → Vec<GDriveItem> |
+| `download_gdrive_file` | `lib.rs` | drive.usercontent direct + confirm form + progress events |
+
+GPU detection refactor (`check.rs::collect_gpus_windows`): merge `Win32_VideoController` (name+driver) + registry `HKLM\SYSTEM\CurrentControlSet\Control\Class\{4d36e968-...}\*\HardwareInformation.qwMemorySize` (VRAM thực, không cap 4GB).
+
+### 📦 Capabilities cập nhật
+
+`apps-desktop/trishutilities/src-tauri/capabilities/main.json`:
+- `opener:allow-open-path` đổi từ string → object với `allow: [{ path: "**" }]` scope (để `openPath` mở folder local).
+- `opener:allow-reveal-item-in-dir` cũng có scope.
+
+### ⏳ Còn lại (pending)
+
+| Task | Note |
+|---|---|
+| **Wave 44.8** — Test pick polyline AutoCAD trong TrishWork.Design | Cần Trí ngồi máy thật test, đã pending nhiều phiên |
+| Audit TrishWork (Design/Library/ISO) text-vô-hồn | Chưa làm — đã focus TrishUtilities |
+| Audit TrishFinance + TrishAdmin UI polish | Chưa làm |
+| Build .exe release 4 app | Khi UI ổn định |
+
+### 🚀 Trí test thế nào
+
+```bat
+:: Đã commit chưa? END.bat để push:
+cd C:\Users\TRI\Documents\Claude\Projects\TrishTEAM\trishnexus-monorepo
+scripts\END.bat
+
+:: Test TrishUtilities:
+cd apps-desktop\trishutilities
+pnpm tauri:dev
+```
+
+Thử lần lượt:
+1. **Tab Dọn dẹp** → Quick Clean với DiskHealthCard donut + preset list + pre-clean modal (Wave 65)
+2. **Tab Kiểm tra máy** → System info, Health Score donut, Live monitor 2s, **Speed Test card** ⚡ ở section Mạng, MinSpec với filter + click card → detail modal
+3. **Tab Downloader** (rename từ "Cloud") → 4 sub-tab:
+   - Tải file (TrishDrive share)
+   - Tải video MXH (yt-dlp + LibrariesGrid compact)
+   - **Google Drive** (NEW — paste folder URL → expand 24 file → tải tuần tự với progress)
+   - Thư viện TrishTEAM
+4. **Tab Font** → empty state mới với icon + actions
+5. **Tab Shortcut** → Dashboard widget với 4 stat card
+
+### 🆕 Workflow máy mới (cơ quan)
+
+Trí copy file `SETUP-MAY-MOI.bat` qua USB sang máy mới rồi:
+```
+Right-click → Run as administrator
+```
+
+Script tự cài 13 thứ + clone repo + pnpm install. Mất 25-60 phút tổng. Sau đó:
+```
+cd C:\Users\TRI\Documents\Claude\Projects\TrishTEAM\trishnexus-monorepo
+scripts\START.bat
+```
+
+Xem chi tiết: `docs/COWORK-MAY-MOI.md`.
+
+### 📦 Files trong phiên này
+
+**NEW:**
+- `apps-desktop/trishutilities/src/modules/drive/pages/GoogleDriveDownloadScreen.tsx` (Wave 73.2/74.x)
+- `scripts/SETUP-MAY-MOI.bat` + `C:\Users\TRI\Documents\Claude\Projects\TrishTEAM\SETUP-MAY-MOI.bat` (Wave 77)
+- `docs/COWORK-MAY-MOI.md` (hướng dẫn dùng Cowork máy mới)
+
+**MODIFIED (chính):**
+- `apps-desktop/trishutilities/src/App.tsx` — lazy-load 5 module + keep-mounted (Wave 73.3)
+- `apps-desktop/trishutilities/src/modules/check/CheckModule.tsx` — SpeedTestCard + LiveResourceMonitor + HealthScoreCard
+- `apps-desktop/trishutilities/src/modules/check/components/MinSpecTable.tsx` — detail modal + add software modal
+- `apps-desktop/trishutilities/src/modules/check/data/min-specs.ts` — 4 app TrishTEAM + custom specs + mergeSpecs
+- `apps-desktop/trishutilities/src/modules/check/lib/specs-loader.ts` — mergeTrishteamFromBundled override
+- `apps-desktop/trishutilities/src/modules/drive/DriveModule.tsx` — thêm tab gdrive
+- `apps-desktop/trishutilities/src/modules/drive/pages/MediaDownloadScreen.tsx` — LibrariesGrid replace 3 banner
+- `apps-desktop/trishutilities/src/modules/drive/pages/LibraryScreen.tsx` — RequestAdminModal rewrite inline styles
+- `apps-desktop/trishutilities/src/modules/font/FontModule.tsx` — empty states polish
+- `apps-desktop/trishutilities/src/modules/shortcut/components/Scanner.tsx` — empty state per tab
+- `apps-desktop/trishutilities/src-tauri/src/check.rs` — `collect_gpus_windows` registry + `network_speed_test`
+- `apps-desktop/trishutilities/src-tauri/src/lib.rs` — `list_gdrive_folder_items` + `download_gdrive_file`
+- `apps-desktop/trishutilities/src-tauri/capabilities/main.json` — opener path scope
+- `packages/design-system/src/app-overlay.css` — +800 dòng CSS cho SpeedTest, GDrive, LibrariesGrid, lib-card, pack-detail-empty, software-detail-modal, add-software-modal
+
+---
+
+## 📍 PHIÊN CŨ — 2026-05-23 (tối) — Phase 45 DESIGN SYSTEM REFACTOR
+
+### 🎯 Tóm tắt Phase 45 đã làm
+
+**Component library v1 (10 component, ~1520 LoC) trong `packages/design-system/src/components/`:**
+
+| File | Components | Mục đích |
+|---|---|---|
+| AppCard.tsx | AppCard | Container card với header + body + footer + variants |
+| AppButton.tsx | AppButton | 4 variant (primary/secondary/ghost/danger) × 3 size + loading spinner |
+| AppPageHeader.tsx | AppPageHeader | Header page với title + subtitle + breadcrumb + actions + tabs |
+| AppEmpty.tsx | AppEmpty | Empty state với icon + title + description + CTA |
+| AppForm.tsx | AppLabel/AppInput/AppSelect/AppTextarea/AppCheckbox/AppFormGroup/AppFieldset | Form primitives |
+| AppTable.tsx | AppTable<T> generic | Table với sort + hover + sticky + empty + density |
+| AppBadge.tsx | AppBadge / AppPill / AppTag | 3 visual tag types |
+| AppSidebar.tsx | AppSidebar | Vertical nav với section groups + badge + collapsed |
+| AppModal.tsx | AppModal | Modal overlay với ESC + backdrop + size + footer |
+| AppTabs.tsx | AppTabs | Tabs ngang/dọc với pill/underline/minimal |
+
+**3 file pilot refactor** (chứng minh components work + áp dụng UI mới):
+
+1. `packages/auth/src/login-screen.tsx` — Login form đẹp cho 4 app (Google button có SVG logo, form fields có focus ring đúng accent app).
+2. `packages/auth/src/auth-gate.tsx` — Màn "Cần cấp quyền" với card + badge role + email info + spinner animation.
+3. `apps-desktop/trishadmin/src/components/AppAccessPanel.tsx` — Bảng cấp quyền user dùng AppPageHeader + AppTable + AppInput search + AppBadge tones + AppEmpty.
+
+**CSS animations** thêm vào theme.css: `@keyframes app-spin` + `@keyframes app-modal-fade`.
+
+**Docs:** `docs/PHASE45-DESIGN-SYSTEM.md` đầy đủ component catalog + ví dụ usage.
+
+### ⏸ Phase 45 còn dở (defer Phase 46+)
+
+UI bên trong 8 module SAU VẪN DÙNG CODE CŨ (chưa refactor sang Phase 45 components):
+- TrishWork: Design + Library + ISO module
+- TrishUtilities: Clean + Check + Drive + Font + Shortcut module
+- TrishFinance main app
+- TrishAdmin các panel cũ (Users / Keys / Sessions / ...) — chỉ AppAccessPanel mới đã refactor
+
+Lý do defer: 60k+ LoC code copy nguyên si từ app cũ, refactor sẽ break logic. Cần làm dần 1 module/phiên ở Phase 46+.
+
+### 🚀 Trí test thế nào
+
+```powershell
+# 1. Commit Phase 45 component library
+cd C:\Users\TRI\Documents\Claude\Projects\TrishTEAM\trishnexus-monorepo
+.\scripts\END.bat
+
+# 2. Sau commit OK, restart 4 app để Vite re-bundle:
+cd apps-desktop\trishadmin
+pnpm tauri:dev
+# → Sidebar → "🔑 Cấp quyền App" → BẢNG MỚI dùng AppTable + filter + badge role
+
+cd ..\trishwork  # terminal mới
+pnpm tauri:dev
+# → Login screen → form ĐẸP với card + Google logo SVG
+# → User trial → màn "Cần cấp quyền" dùng card mới với badge role
+```
+
+3 vùng có UI mới sau refactor:
+- ✅ Login screen (cả 4 app dùng chung, chỉ khác accent color)
+- ✅ Màn "Cần cấp quyền" của AuthGate (cả 4 app)
+- ✅ Bảng cấp quyền user trong TrishAdmin (panel mới Phase 44)
+
+Các module bên trong tab (Design/Library/ISO trong TrishWork; 5 module trong TrishUtilities; Finance UI; Admin panels cũ) — VẪN UI CŨ, chờ Phase 46+.
+
+### 📦 Files trong phiên này
+
+**NEW (13 file):**
+- `packages/design-system/src/components/AppCard.tsx`
+- `packages/design-system/src/components/AppButton.tsx`
+- `packages/design-system/src/components/AppPageHeader.tsx`
+- `packages/design-system/src/components/AppEmpty.tsx`
+- `packages/design-system/src/components/AppForm.tsx`
+- `packages/design-system/src/components/AppTable.tsx`
+- `packages/design-system/src/components/AppBadge.tsx`
+- `packages/design-system/src/components/AppSidebar.tsx`
+- `packages/design-system/src/components/AppModal.tsx`
+- `packages/design-system/src/components/AppTabs.tsx`
+- `packages/design-system/src/components/index.ts`
+- `packages/design-system/src/app-overlay.css` (Phase 46 — 641 dòng CSS đồng bộ legacy class)
+- `docs/PHASE45-DESIGN-SYSTEM.md`
+
+### 🎨 Phase 46 — App-overlay CSS đồng bộ 4 app legacy
+
+`packages/design-system/src/app-overlay.css` (641 dòng) import sau theme.css. Override:
+
+**Generic (Wave 46.1):**
+- `.ts-app input/select/textarea` — padding 8/12, border 8, focus ring accent app
+- `.module-content h1-h4/p` — typography hierarchy chuẩn (22/18/15/13/13px)
+- `.module-content table` — header bg muted bold, hover row, padding 10/12
+- `.ts-app *::-webkit-scrollbar` — scrollbar mỏng 10px theme-aware
+- `.module-content code/pre` — monospace JetBrains Mono
+- `.module-content a` — accent color, hover underline
+- `:focus-visible` — accent outline 2px
+- `@keyframes app-fade-in` — mỗi card mount fade in 200ms
+
+**Deep legacy class (Wave 46.2):**
+- `.admin-shell / .admin-sidebar / .admin-brand / .admin-nav-item` — TrishAdmin sidebar dùng accent đỏ thay vì dark cũ. Active item có `border-left` accent.
+- `.lib-panel / .lib-sidebar / .lib-card / .lib-header` — TrishLibrary card với border + radius chuẩn
+- `.td-panel / .td-sidebar / .td-nav-item` — TrishDesign sidebar 220px, nav-item có active border-left
+- `.boot-screen / .td-boot-spinner / .td-boot-text` — loading screen 4 app đồng bộ
+- `.user-avatar / .user-panel` — avatar tròn 32px với accent soft bg
+- `.panel-header / .filter-bar` — header layout chuẩn 16/22 padding
+- `[class*="badge"]` — generic badge legacy → pill style
+- `.finance-shell` — TrishFinance app bg theme aware
+
+**MODIFIED:**
+- `packages/design-system/src/index.ts` (+1 re-export line)
+- `packages/design-system/src/theme.css` (+2 keyframes)
+- `packages/auth/src/login-screen.tsx` (full rewrite ~430 dòng)
+- `packages/auth/src/auth-gate.tsx` (full rewrite ~280 dòng)
+- `apps-desktop/trishadmin/src/components/AppAccessPanel.tsx` (full rewrite ~280 dòng dùng components mới)
+
+---
+
+## 📍 PHIÊN CŨ — 2026-05-23 (chiều) — Phase 44 ECOSYSTEM REFACTOR: 12 → 4 app
 
 ### 🎯 Quyết định lớn (Trí chốt 2026-05-23 chiều)
 

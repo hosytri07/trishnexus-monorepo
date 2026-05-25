@@ -483,6 +483,33 @@ fn read_text_file(path: String) -> Result<String, String> {
     fs::read_to_string(&p).map_err(|e| format!("Đọc file: {}", e))
 }
 
+/// Phase 52.1 — Note module commands (read/write text + list fonts).
+/// Read text string (alias của read_text_file để NoteModule tương thích).
+#[tauri::command]
+fn read_text_string(path: String) -> Result<String, String> {
+    read_text_file(path)
+}
+
+/// Write text string to file (atomic, tạo parent dir nếu cần).
+#[tauri::command]
+fn write_text_string(path: String, content: String) -> Result<(), String> {
+    let p = PathBuf::from(&path);
+    if let Some(parent) = p.parent() {
+        if !parent.exists() {
+            fs::create_dir_all(parent)
+                .map_err(|e| format!("Tạo thư mục {}: {}", parent.display(), e))?;
+        }
+    }
+    fs::write(&p, content.as_bytes()).map_err(|e| format!("Ghi file: {}", e))
+}
+
+/// List system fonts — TrishWork chưa có font enumeration, return empty.
+/// Note module sẽ fallback web-safe fonts (Arial, Times New Roman, ...) từ TS side.
+#[tauri::command]
+fn list_system_fonts() -> Result<Vec<String>, String> {
+    Ok(Vec::new())
+}
+
 /// Tìm tất cả file acaddoc.lsp trong %APPDATA%\Autodesk\AutoCAD * folders.
 /// Returns list of paths.
 #[tauri::command]
@@ -1163,10 +1190,112 @@ fn default_atgt_blocks_folder() -> Result<String, String> {
 }
 
 
+// ============================================================
+// Phase 53.2 — System tray helpers
+// ============================================================
+
+/// Toggle main window visibility (từ tray click).
+fn toggle_main_window<R: tauri::Runtime>(app: &tauri::AppHandle<R>) {
+    if let Some(win) = app.get_webview_window("main") {
+        let visible = win.is_visible().unwrap_or(false);
+        if visible {
+            let _ = win.hide();
+        } else {
+            let _ = win.show();
+            let _ = win.set_focus();
+        }
+    }
+}
+
+/// Toggle sticky widget visibility (từ tray menu).
+fn toggle_sticky_window<R: tauri::Runtime>(app: &tauri::AppHandle<R>) {
+    if let Some(win) = app.get_webview_window("sticky") {
+        let visible = win.is_visible().unwrap_or(false);
+        if visible {
+            let _ = win.hide();
+        } else {
+            let _ = win.show();
+            let _ = win.set_focus();
+        }
+    }
+}
+
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_opener::init())
+        .setup(|app| {
+            // Phase 53.2 — Tray icon: hiện ở góc đồng hồ, menu show/hide/quit
+            use tauri::menu::{Menu, MenuItem, PredefinedMenuItem};
+            use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
+            use tauri::Manager;
+
+            let show_main_item = MenuItem::with_id(
+                app, "show_main", "Hiện cửa sổ TrishWork", true, None::<&str>,
+            )?;
+            let toggle_sticky_item = MenuItem::with_id(
+                app, "toggle_sticky", "Hiện / Ẩn Ghi nhanh", true, None::<&str>,
+            )?;
+            let quit_item = MenuItem::with_id(
+                app, "quit_app", "Thoát hoàn toàn", true, None::<&str>,
+            )?;
+            let tray_menu = Menu::with_items(
+                app,
+                &[
+                    &show_main_item,
+                    &toggle_sticky_item,
+                    &PredefinedMenuItem::separator(app)?,
+                    &quit_item,
+                ],
+            )?;
+
+            let _tray = TrayIconBuilder::with_id("main-tray")
+                .icon(app.default_window_icon().unwrap().clone())
+                .tooltip("TrishWork — Kỹ sư · Thư viện · ISO (click để hiện)")
+                .menu(&tray_menu)
+                .show_menu_on_left_click(false)
+                .on_menu_event(|app, event| match event.id.as_ref() {
+                    "show_main" => {
+                        if let Some(win) = app.get_webview_window("main") {
+                            let _ = win.show();
+                            let _ = win.set_focus();
+                            let _ = win.unminimize();
+                        }
+                    }
+                    "toggle_sticky" => toggle_sticky_window(app),
+                    "quit_app" => {
+                        app.exit(0);
+                    }
+                    _ => {}
+                })
+                .on_tray_icon_event(|tray, event| {
+                    if let TrayIconEvent::Click {
+                        button: MouseButton::Left,
+                        button_state: MouseButtonState::Up,
+                        ..
+                    } = event
+                    {
+                        toggle_main_window(tray.app_handle());
+                    }
+                })
+                .build(app)?;
+
+            // Override main window close → hide vào tray thay vì quit
+            // (sticky widget vẫn sống, app chạy nền — click tray để mở lại)
+            if let Some(main_win) = app.get_webview_window("main") {
+                let app_handle = app.handle().clone();
+                main_win.on_window_event(move |event| {
+                    if let tauri::WindowEvent::CloseRequested { api, .. } = event {
+                        api.prevent_close();
+                        if let Some(win) = app_handle.get_webview_window("main") {
+                            let _ = win.hide();
+                        }
+                    }
+                });
+            }
+
+            Ok(())
+        })
         .invoke_handler(tauri::generate_handler![
             default_store_location,
             load_design_file,
@@ -1211,6 +1340,10 @@ pub fn run() {
             list_local_atgt_files,
             download_atgt_file,
             default_atgt_blocks_folder,
+            // Phase 52.1 — Note module support (read/write text + fonts)
+            read_text_string,
+            write_text_string,
+            list_system_fonts,
         ])
         .run(tauri::generate_context!())
         .expect("error while running TrishDesign");

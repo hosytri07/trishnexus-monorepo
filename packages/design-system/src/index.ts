@@ -4,15 +4,19 @@
  * Side-effect: import font + theme.css. Re-exports AppShell, AppLogo, helpers.
  *
  * Phase 44.1 per-app accent overrides via <html data-app="...">:
- *   work -> #34D399, utilities -> #A78BFA, finance -> #FBBF24, admin -> #F87171
+ *   work -> #34D399 (xanh la), utilities -> #FBBF24 (vang),
+ *   finance -> #2563EB (xanh duong), admin -> #F87171 (do)
  *
  * Theme: <html data-theme="light"|"dark">.
  */
 
 import './fonts';
 import './theme.css';
+import './app-overlay.css';
 
 export { AppShell, loadActiveModule } from './AppShell.js';
+export { AppShellSidebar } from './AppShellSidebar.js';
+export type { AppShellSidebarProps } from './AppShellSidebar.js';
 export type { AppShellProps, ModuleDef } from './AppShell.js';
 export { AppLogo, getAppAccentColor } from './AppLogo.js';
 export type { AppShellId, AppLogoProps } from './AppLogo.js';
@@ -45,3 +49,4 @@ export function loadTheme(persistKey: string): ThemeMode {
 
 // Phase 45 — Component library
 export * from './components/index.js';
+

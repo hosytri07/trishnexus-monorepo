@@ -42,6 +42,20 @@ function isValidSpecsFile(data: unknown): data is RemoteSpecsFile {
   return true;
 }
 
+/**
+ * Wave 71.3 — Override category 'trishteam' với bundled (canonical truth).
+ *
+ * Remote JSON trên server có thể còn các app cũ (TrishLauncher, TrishCheck,
+ * TrishFont...) vì admin chưa publish lại. Để client luôn hiển thị 4 app
+ * hiện tại (Work / Utilities / Finance / Admin), ta strip TrishTEAM apps
+ * khỏi remote và replace bằng bundled. Các category khác vẫn dùng remote.
+ */
+function mergeTrishteamFromBundled(remote: SoftwareSpec[]): SoftwareSpec[] {
+  const nonTrishteam = remote.filter((s) => s.category !== 'trishteam');
+  const bundledTrishteam = SOFTWARE_SPECS.filter((s) => s.category === 'trishteam');
+  return [...bundledTrishteam, ...nonTrishteam];
+}
+
 export async function loadMinSpecs(
   url: string = DEFAULT_SPECS_URL,
 ): Promise<SpecsLoadResult> {
@@ -51,8 +65,10 @@ export async function loadMinSpecs(
     if (!isValidSpecsFile(json)) {
       throw new Error('min-specs shape mismatch');
     }
+    // Wave 71.3 — Override TrishTEAM ecosystem bằng bundled (4 app hiện tại)
+    const merged = mergeTrishteamFromBundled(json.specs);
     return {
-      specs: json.specs,
+      specs: merged,
       source: 'remote',
       fetchedAt: Date.now(),
       error: null,

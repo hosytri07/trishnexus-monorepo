@@ -199,6 +199,29 @@ export async function getTopProcesses(limit = 5): Promise<TopProcesses> {
   }
 }
 
+/** Wave 72.1 — Network speed test result (Cloudflare endpoint) */
+export interface SpeedTestResult {
+  download_mbps: number;
+  upload_mbps: number;
+  latency_ms: number;
+  jitter_ms: number;
+  bytes_downloaded: number;
+  bytes_uploaded: number;
+  total_ms: number;
+  server: string;
+}
+
+/**
+ * Wave 72.1 — Đo tốc độ mạng thực tế qua Cloudflare /__down /__up.
+ * Mất ~10-25s tuỳ tốc độ mạng. Throw nếu offline / fail.
+ */
+export async function networkSpeedTest(): Promise<SpeedTestResult> {
+  if (!isInTauri()) {
+    throw new Error('Cần Tauri runtime để test tốc độ mạng');
+  }
+  return invoke<SpeedTestResult>('network_speed_test');
+}
+
 export async function getAppVersion(): Promise<string> {
   if (!isInTauri()) return 'dev';
   try {

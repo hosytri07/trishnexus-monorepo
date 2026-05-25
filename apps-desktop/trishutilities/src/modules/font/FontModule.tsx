@@ -132,6 +132,48 @@ export function FontModule(): JSX.Element {
     total: number;
   } | null>(null);
 
+  // Phase 63 — Real-time download progress mỗi pack (event 'font:download-progress')
+  const [downloadProgress, setDownloadProgress] = useState<
+    Map<
+      string,
+      {
+        downloaded_bytes: number;
+        total_bytes: number;
+        speed_mb_per_s: number;
+        eta_sec: number;
+        phase: 'download' | 'extract';
+      }
+    >
+  >(new Map());
+
+  useEffect(() => {
+    let unlisten: (() => void) | undefined;
+    void (async () => {
+      try {
+        const { listen } = await import('@tauri-apps/api/event');
+        unlisten = await listen<{
+          pack_id: string;
+          downloaded_bytes: number;
+          total_bytes: number;
+          speed_mb_per_s: number;
+          eta_sec: number;
+          phase: 'download' | 'extract';
+        }>('font:download-progress', (event) => {
+          setDownloadProgress((prev) => {
+            const next = new Map(prev);
+            next.set(event.payload.pack_id, event.payload);
+            return next;
+          });
+        });
+      } catch {
+        // Tauri event API không khả dụng (browser dev mode)
+      }
+    })();
+    return () => {
+      if (unlisten) unlisten();
+    };
+  }, []);
+
   // Phase 15.1.l — Export selection cho Library + System tab
   const [exportSelection, setExportSelection] = useState<Set<string>>(new Set());
 
@@ -291,9 +333,16 @@ export function FontModule(): JSX.Element {
     setInstallLog([]);
   }
 
+  // Phase 51.1: Theme do App.tsx single-source-of-truth
+
+  // Phase 55.1 — Listen for "open font settings" event từ UtilitiesSettingsModal
   useEffect(() => {
-    applyTheme(settings.theme);
-  }, [settings.theme]);
+    function onOpenSettings(): void {
+      setSettingsOpen(true);
+    }
+    window.addEventListener('trishutilities:open-font-settings', onOpenSettings);
+    return () => window.removeEventListener('trishutilities:open-font-settings', onOpenSettings);
+  }, []);
 
   useEffect(() => {
     void getAppVersion().then(setVersion);
@@ -641,23 +690,13 @@ export function FontModule(): JSX.Element {
 
   return (
     <div className="shell">
-      <header className="topbar">
-        <div className="brand">
-          <img
-            className="brand-logo"
-            src={logoUrl}
-            alt=""
-            aria-hidden
-            width={40}
-            height={40}
-          />
-          <div>
-            <strong>TrishFont</strong>
-            <div className="sub">{tr('topbar.tagline')}</div>
-          </div>
+      <header className="module-subheader">
+        <div className="module-title">
+          <strong>TrishFont</strong>
+          <div className="sub">{tr('topbar.tagline')}</div>
         </div>
-        <div className="topbar-actions">
-          {/* Phase 15.1.n — Admin badge thay scan buttons (đã move xuống filter bar mỗi tab) */}
+        <div className="module-subheader-actions">
+          {/* Admin status — module-specific, GIỮ */}
           <span
             className={`admin-badge admin-badge-${isAdmin ? 'ok' : 'warn'}`}
             title={
@@ -668,47 +707,6 @@ export function FontModule(): JSX.Element {
           >
             {isAdmin ? '🛡 Admin' : '⚠ Không Admin'}
           </span>
-          <button
-            className="btn btn-ghost"
-            onClick={() => {
-              const cur =
-                settings.theme === 'system'
-                  ? window.matchMedia('(prefers-color-scheme: dark)').matches
-                    ? 'dark'
-                    : 'light'
-                  : settings.theme;
-              const next: 'light' | 'dark' = cur === 'dark' ? 'light' : 'dark';
-              const upd = { ...settings, theme: next };
-              applyTheme(next);
-              setSettings(upd);
-              saveSettings(upd);
-            }}
-            type="button"
-            title={
-              settings.theme === 'dark'
-                ? 'Chuyển sang Light'
-                : 'Chuyển sang Dark'
-            }
-            aria-label="Toggle theme"
-            style={{ padding: '8px 12px', fontSize: 16 }}
-          >
-            {(settings.theme === 'system'
-              ? window.matchMedia('(prefers-color-scheme: dark)').matches
-                ? 'dark'
-                : 'light'
-              : settings.theme) === 'dark'
-              ? '☀'
-              : '🌙'}
-          </button>
-          <button
-            className="btn btn-ghost"
-            onClick={() => setSettingsOpen(true)}
-            type="button"
-          >
-            ⚙ {tr('topbar.settings')}
-          </button>
-          <span className="muted small">v{version}</span>
-          <UserMenu />
         </div>
       </header>
 
@@ -783,6 +781,7 @@ export function FontModule(): JSX.Element {
             loading={manifestLoading}
             installedPacks={installedPacks}
             installing={packInstalling}
+            downloadProgress={downloadProgress}
             onDownloadPack={(p) => void handleInstallPack(p)}
             onDeletePack={(id) => void handleDeletePack(id)}
             onRefresh={() => void handleRefreshManifest()}
@@ -802,7 +801,17 @@ export function FontModule(): JSX.Element {
         )}
         {tab !== 'packs' && !currentStats && (
           <div className="empty-state">
-            <p>{tr('preview.empty')}</p>
+            <div className="big">{tab === 'library' ? '📂' : '🖥'}</div>
+            <h3>
+              {tab === 'library'
+                ? 'Chưa quét thư viện font'
+                : 'Chưa quét font hệ thống'}
+            </h3>
+            <p>
+              {tab === 'library'
+                ? 'Chọn 1 folder chứa font (.ttf / .otf / .shx) để quét, hiển thị danh sách + cài đặt vào Windows.'
+                : 'Quét toàn bộ font đang cài trong Windows (C:\\Windows\\Fonts + user fonts) để xem, lọc, xuất ra folder.'}
+            </p>
             <div className="empty-actions">
               <button
                 className="btn btn-primary"
@@ -1194,11 +1203,20 @@ function PackTabFontCardImpl({
 // Phase 15.1.h/i — PacksTab (2-column: pack list + detail panel)
 // ============================================================
 
+export interface DownloadProgressInfo {
+  downloaded_bytes: number;
+  total_bytes: number;
+  speed_mb_per_s: number;
+  eta_sec: number;
+  phase: 'download' | 'extract';
+}
+
 interface PacksTabProps {
   manifest: PackManifest | null;
   loading: boolean;
   installedPacks: InstalledPackRecord[];
   installing: Set<string>;
+  downloadProgress: Map<string, DownloadProgressInfo>;
   onDownloadPack: (pack: FontPack) => void;
   onDeletePack: (packId: string) => void;
   onRefresh: () => void;
@@ -1221,6 +1239,7 @@ function PacksTab({
   loading,
   installedPacks,
   installing,
+  downloadProgress,
   onDownloadPack,
   onDeletePack,
   onRefresh,
@@ -1266,9 +1285,19 @@ function PacksTab({
         </button>
       </header>
 
-      {!manifest && loading && <p className="muted">{trKey('packs.loading')}</p>}
+      {!manifest && loading && (
+        <div className="empty-state">
+          <div className="big" style={{ animation: 'pulse 1.5s ease-in-out infinite' }}>⟳</div>
+          <h3>Đang tải danh sách pack</h3>
+          <p>Kết nối GitHub để fetch manifest mới nhất...</p>
+        </div>
+      )}
       {manifest && manifest.packs.length === 0 && (
-        <p className="muted">{trKey('packs.empty')}</p>
+        <div className="empty-state">
+          <div className="big">📦</div>
+          <h3>Chưa có pack nào</h3>
+          <p>Manifest trống — liên hệ admin để publish pack font mới.</p>
+        </div>
       )}
 
       {manifest && manifest.packs.length > 0 && (
@@ -1282,6 +1311,7 @@ function PacksTab({
                 installed={installedMap.get(pack.id) ?? null}
                 installing={installing.has(pack.id)}
                 selected={selectedPackId === pack.id}
+                progress={downloadProgress.get(pack.id) ?? null}
                 onClick={() => onSelectPack(pack.id)}
                 onDownload={() => onDownloadPack(pack)}
                 onDelete={() => onDeletePack(pack.id)}
@@ -1293,13 +1323,21 @@ function PacksTab({
           {/* Right: detail panel */}
           <div className="pack-detail-col">
             {!selectedPack && (
-              <div className="pack-detail-empty muted">
-                {trKey('packs.detail_empty')}
+              <div className="pack-detail-empty">
+                <div className="pack-detail-empty-icon">👈</div>
+                <div className="pack-detail-empty-title">Chọn pack để xem chi tiết</div>
+                <div className="pack-detail-empty-sub">
+                  {trKey('packs.detail_empty')}
+                </div>
               </div>
             )}
             {selectedPack && !selectedInstalled && (
-              <div className="pack-detail-empty muted">
-                {trKey('packs.detail_not_downloaded')}
+              <div className="pack-detail-empty">
+                <div className="pack-detail-empty-icon">⬇</div>
+                <div className="pack-detail-empty-title">Pack chưa tải</div>
+                <div className="pack-detail-empty-sub">
+                  {trKey('packs.detail_not_downloaded')}
+                </div>
               </div>
             )}
             {selectedPack && selectedInstalled && (
@@ -1329,6 +1367,7 @@ interface PackCardProps {
   installed: InstalledPackRecord | null;
   installing: boolean;
   selected: boolean;
+  progress: DownloadProgressInfo | null;
   onClick: () => void;
   onDownload: () => void;
   onDelete: () => void;
@@ -1340,6 +1379,7 @@ function PackCard({
   installed,
   installing,
   selected,
+  progress,
   onClick,
   onDownload,
   onDelete,
@@ -1391,6 +1431,52 @@ function PackCard({
           )}
         </div>
       )}
+      {/* Phase 63 — Download progress bar */}
+      {installing && progress && (
+        <div className="download-progress">
+          <div className="download-progress-stats">
+            <span className="download-progress-phase">
+              {progress.phase === 'extract' ? '📦 Đang giải nén...' : '⬇ Đang tải'}
+            </span>
+            <span className="download-progress-pct">
+              {progress.total_bytes > 0
+                ? Math.min(
+                    100,
+                    Math.round((progress.downloaded_bytes / progress.total_bytes) * 100),
+                  )
+                : 0}
+              %
+            </span>
+          </div>
+          <div className="download-progress-bar">
+            <div
+              className="download-progress-fill"
+              style={{
+                width:
+                  progress.total_bytes > 0
+                    ? `${Math.min(
+                        100,
+                        (progress.downloaded_bytes / progress.total_bytes) * 100,
+                      )}%`
+                    : '0%',
+              }}
+            />
+          </div>
+          <div className="download-progress-meta">
+            <span>
+              {(progress.downloaded_bytes / 1_048_576).toFixed(1)} /{' '}
+              {(progress.total_bytes / 1_048_576).toFixed(1)} MB
+            </span>
+            <span>{progress.speed_mb_per_s.toFixed(1)} MB/s</span>
+            <span>
+              {progress.eta_sec > 0
+                ? `~${Math.round(progress.eta_sec)}s còn lại`
+                : 'gần xong...'}
+            </span>
+          </div>
+        </div>
+      )}
+
       <div className="pack-card-foot">
         <button
           type="button"

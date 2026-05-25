@@ -16,7 +16,6 @@
  */
 
 import { useEffect, useMemo, useState } from 'react';
-import { UserMenu } from '@trishteam/auth/react';
 import {
   classifyPath,
   summarizeScan,
@@ -43,7 +42,6 @@ import {
 } from './tauri-bridge.js';
 import { SettingsModal } from './SettingsModal.js';
 import { loadSettings, saveSettings, applyTheme, type AppSettings } from './settings.js';
-import logoUrl from './assets/logo.png';
 
 type Tab = 'quick' | 'scan' | 'history';
 type Status = 'idle' | 'scanning' | 'cleaning' | 'done' | 'error';
@@ -165,7 +163,9 @@ export function CleanModule(): JSX.Element {
   const [lifetime, setLifetime] = useState<{
     sessionsActive: number;
     totalCleaned: number;
-  }>({ sessionsActive: 0, totalCleaned: 0 });
+    lastCleanTime: number | null; // Phase 65.4 — ms timestamp
+    lastCleanSize: number; // Phase 65.4 — size session gần nhất
+  }>({ sessionsActive: 0, totalCleaned: 0, lastCleanTime: null, lastCleanSize: 0 });
 
   // Disk usage (Phase 17.1.h)
   const [disk, setDisk] = useState<DiskInfo | null>(null);
@@ -183,12 +183,35 @@ export function CleanModule(): JSX.Element {
   async function refreshLifetimeStats(): Promise<void> {
     const sessions = await listTrashSessions();
     const total = sessions.reduce((sum, s) => sum + s.total_size_bytes, 0);
-    setLifetime({ sessionsActive: sessions.length, totalCleaned: total });
+    // Phase 65.4 — Tìm session mới nhất (created_at_ms lớn nhất)
+    const latest = sessions.reduce<{ time: number; size: number } | null>(
+      (acc, s) => {
+        if (!acc || s.created_at_ms > acc.time) {
+          return { time: s.created_at_ms, size: s.total_size_bytes };
+        }
+        return acc;
+      },
+      null,
+    );
+    setLifetime({
+      sessionsActive: sessions.length,
+      totalCleaned: total,
+      lastCleanTime: latest?.time ?? null,
+      lastCleanSize: latest?.size ?? 0,
+    });
   }
 
-  // App init
+  // Phase 55.1 — Listen for "open clean settings" event từ UtilitiesSettingsModal
   useEffect(() => {
-    applyTheme(settings.theme);
+    function onOpenSettings(): void {
+      setShowSettings(true);
+    }
+    window.addEventListener('trishutilities:open-clean-settings', onOpenSettings);
+    return () => window.removeEventListener('trishutilities:open-clean-settings', onOpenSettings);
+  }, []);
+
+  // App init — Phase 51.1: KHÔNG gọi applyTheme nữa, theme do App.tsx single-source-of-truth
+  useEffect(() => {
     void (async () => {
       const v = await getAppVersion();
       setAppVersion(v);
@@ -213,91 +236,20 @@ export function CleanModule(): JSX.Element {
 
   return (
     <div className="shell">
-      <header className="topbar">
-        <div className="brand">
-          <img src={logoUrl} alt="TrishClean" className="brand-logo" />
-          <div>
-            <strong>TrishClean</strong>
-            <div className="sub">Dọn dẹp máy an toàn · undo {settings.retentionDays} ngày</div>
-          </div>
+      <header className="module-subheader">
+        <div className="module-title">
+          <strong>TrishClean</strong>
+          <div className="sub">Dọn dẹp máy an toàn · undo {settings.retentionDays} ngày</div>
         </div>
 
-        {/* Topbar mid: lifetime + disk stats */}
-        <div className="topbar-stats">
-          {disk && (
-            <div
-              className={`stat-pill stat-pill-disk ${
-                disk.used_percent > 90 ? 'stat-pill-warn' : ''
-              }`}
-              title={`${disk.mount} — ${formatBytes(disk.used_bytes)} / ${formatBytes(disk.total_bytes)} đã dùng (${disk.used_percent.toFixed(0)}%)`}
-            >
-              <div className="stat-pill-label">
-                💽 {disk.mount} còn
-              </div>
-              <div className="stat-pill-value">
-                {formatBytes(disk.free_bytes)}
-              </div>
-              <div className="disk-bar">
-                <div
-                  className="disk-bar-fill"
-                  style={{ width: `${Math.min(100, disk.used_percent)}%` }}
-                />
-              </div>
-            </div>
-          )}
-          <div className="stat-pill">
-            <div className="stat-pill-label">Đã dọn</div>
-            <div className="stat-pill-value">{formatBytes(lifetime.totalCleaned)}</div>
-          </div>
-          <div className="stat-pill">
-            <div className="stat-pill-label">Trash session</div>
-            <div className="stat-pill-value">{lifetime.sessionsActive}</div>
-          </div>
-        </div>
-
-        <div className="topbar-right">
-          <button
-            type="button"
-            className="btn btn-ghost btn-icon"
-            onClick={() => {
-              const cur =
-                settings.theme === 'auto'
-                  ? window.matchMedia('(prefers-color-scheme: dark)').matches
-                    ? 'dark'
-                    : 'light'
-                  : settings.theme;
-              const next: 'light' | 'dark' = cur === 'dark' ? 'light' : 'dark';
-              const upd = { ...settings, theme: next };
-              applyTheme(next);
-              setSettings(upd);
-              saveSettings(upd);
-            }}
-            title={
-              settings.theme === 'dark'
-                ? 'Chuyển sang Light'
-                : 'Chuyển sang Dark'
-            }
-            aria-label="Toggle theme"
-          >
-            {(settings.theme === 'auto'
-              ? window.matchMedia('(prefers-color-scheme: dark)').matches
-                ? 'dark'
-                : 'light'
-              : settings.theme) === 'dark'
-              ? '☀'
-              : '🌙'}
-          </button>
-          <button
-            type="button"
-            className="btn btn-ghost btn-icon"
-            onClick={() => setShowSettings(true)}
-            title="Cài đặt"
-          >
-            ⚙
-          </button>
-          <span className="version-tag">v{appVersion}</span>
-          <UserMenu />
-        </div>
+        {/* Phase 65.1 — DiskHealthCard: gauge donut + smart suggestion */}
+        <DiskHealthCard
+          disk={disk}
+          cleanedTotal={lifetime.totalCleaned}
+          activeSessions={lifetime.sessionsActive}
+          lastCleanTime={lifetime.lastCleanTime}
+          lastCleanSize={lifetime.lastCleanSize}
+        />
       </header>
 
       <nav className="tabs">
@@ -357,6 +309,8 @@ export function CleanModule(): JSX.Element {
           onSave={(s) => setSettings(s)}
         />
       )}
+
+      {/* Phase 65.2 — Pre-clean preview modal render INSIDE QuickCleanTab (state scope) */}
 
       {toast && (
         <div
@@ -432,7 +386,20 @@ function QuickCleanTab({ showToast, settings, onCleaned }: QuickCleanProps): JSX
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [phase, setPhase] = useState<QuickPhase>('idle');
   const [analysis, setAnalysis] = useState<Map<string, PresetAnalysis>>(new Map());
-  const [analyzeProgress, setAnalyzeProgress] = useState<string | null>(null);
+  // Phase 65.3 — Track progress real-time {current, total, label}
+  const [analyzeProgress, setAnalyzeProgress] = useState<{
+    current: number;
+    total: number;
+    label: string;
+  } | null>(null);
+
+  // Phase 65.2 — Pre-clean preview modal data
+  const [preCleanModal, setPreCleanModal] = useState<{
+    ready: CleanPreset[];
+    totalFiles: number;
+    totalBytes: number;
+    topFiles: Array<{ path: string; size: number; presetLabel: string }>;
+  } | null>(null);
   const [expandedId, setExpandedId] = useState<string | null>(null);
 
   // Combine built-in presets + custom folders thành 1 list duy nhất
@@ -526,8 +493,10 @@ function QuickCleanTab({ showToast, settings, onCleaned }: QuickCleanProps): JSX
     setAnalysis(new Map());
     const newAnalysis = new Map<string, PresetAnalysis>();
 
+    let idx = 0;
     for (const p of targets) {
-      setAnalyzeProgress(`Đang quét: ${p.label}…`);
+      setAnalyzeProgress({ current: idx, total: targets.length, label: p.label });
+      idx++;
       try {
         // Phase 17.1.i — preset autocad_junk dùng command riêng (scan recursive
         // nhiều roots với extension filter)
@@ -666,15 +635,26 @@ function QuickCleanTab({ showToast, settings, onCleaned }: QuickCleanProps): JSX
     );
 
     if (settings.confirmBeforeClean) {
-      const ok = window.confirm(
-        `Dọn TẤT CẢ ${ready.length} preset?\n\n` +
-          `Tổng: ${totalFiles.toLocaleString('vi-VN')} file (${formatBytes(totalBytes)})\n\n` +
-          ready.map((p) => `• ${p.label} — ${analysis.get(p.id)!.fileCount} file`).join('\n') +
-          `\n\nFile chuyển sang trash, giữ ${settings.retentionDays} ngày.`,
-      );
-      if (!ok) return;
+      // Phase 65.2 — Mở pre-clean preview modal thay window.confirm
+      const allFiles: Array<{ path: string; size: number; presetLabel: string }> = [];
+      for (const p of ready) {
+        const a = analysis.get(p.id)!;
+        for (const f of a.files) {
+          allFiles.push({ path: f.path, size: f.size, presetLabel: p.label });
+        }
+      }
+      // Top 50 file lớn nhất
+      const topFiles = allFiles.sort((a, b) => b.size - a.size).slice(0, 50);
+      setPreCleanModal({ ready, totalFiles, totalBytes, topFiles });
+      return; // chờ user confirm trong modal
     }
 
+    await executeCleanAll(ready);
+  }
+
+  /** Thực thi dọn sau khi user confirm modal */
+  async function executeCleanAll(ready: CleanPreset[]): Promise<void> {
+    setPreCleanModal(null);
     setPhase('cleaning');
     let cleaned = 0;
     let cleanedBytes = 0;
@@ -758,7 +738,10 @@ function QuickCleanTab({ showToast, settings, onCleaned }: QuickCleanProps): JSX
           <p className="muted">
             {phase === 'idle' &&
               `${availableCount} preset có sẵn${customFolders.length > 0 ? ` + ${customFolders.length} folder tùy chỉnh` : ''} → bấm "Phân tích" xem chi tiết.`}
-            {phase === 'analyzing' && (analyzeProgress ?? 'Đang quét…')}
+            {phase === 'analyzing' &&
+              (analyzeProgress
+                ? `Đang quét: ${analyzeProgress.label} (${analyzeProgress.current + 1}/${analyzeProgress.total})…`
+                : 'Đang quét…')}
             {isAnalyzed &&
               `${totalAnalyzedFiles.toLocaleString('vi-VN')} file (${formatBytes(totalAnalyzedBytes)}) sẵn sàng dọn.`}
           </p>
@@ -940,11 +923,31 @@ function QuickCleanTab({ showToast, settings, onCleaned }: QuickCleanProps): JSX
             </button>
           </>
         )}
-        {phase === 'analyzing' && (
+        {phase === 'analyzing' && analyzeProgress && (
           <>
-            <span className="action-info">
-              ⏳ {analyzeProgress ?? 'Đang quét…'}
-            </span>
+            <div className="scan-progress-card">
+              <div className="scan-progress-header">
+                <span className="scan-progress-spinner">⏳</span>
+                <span className="scan-progress-text">
+                  Đang quét: <strong>{analyzeProgress.label}</strong>
+                </span>
+                <span className="scan-progress-count">
+                  {analyzeProgress.current + 1}/{analyzeProgress.total}
+                </span>
+              </div>
+              <div className="scan-progress-bar">
+                <div
+                  className="scan-progress-fill"
+                  style={{
+                    width: `${
+                      analyzeProgress.total > 0
+                        ? ((analyzeProgress.current + 1) / analyzeProgress.total) * 100
+                        : 0
+                    }%`,
+                  }}
+                />
+              </div>
+            </div>
           </>
         )}
         {isAnalyzed && totalAnalyzedFiles > 0 && (
@@ -966,6 +969,16 @@ function QuickCleanTab({ showToast, settings, onCleaned }: QuickCleanProps): JSX
           </>
         )}
       </div>
+
+      {/* Phase 65.2 — Pre-clean preview modal */}
+      {preCleanModal && (
+        <PreCleanModal
+          data={preCleanModal}
+          retentionDays={settings.retentionDays}
+          onCancel={() => setPreCleanModal(null)}
+          onConfirm={() => void executeCleanAll(preCleanModal.ready)}
+        />
+      )}
     </section>
   );
 }
@@ -2172,4 +2185,238 @@ function formatBytes(bytes: number): string {
   const kb = bytes / 1024;
   if (kb >= 1) return `${kb.toFixed(0)} KB`;
   return `${bytes} B`;
+}
+
+// ============================================================
+// Phase 65.1 — DiskHealthCard
+// Hero card với donut gauge % used + smart suggestion + secondary stats.
+// ============================================================
+interface DiskHealthCardProps {
+  disk: DiskInfo | null;
+  cleanedTotal: number;
+  activeSessions: number;
+  lastCleanTime: number | null;
+  lastCleanSize: number;
+}
+
+function formatRelativeTime(ms: number): string {
+  const diffMs = Date.now() - ms;
+  const sec = Math.floor(diffMs / 1000);
+  if (sec < 60) return `${sec}s trước`;
+  const min = Math.floor(sec / 60);
+  if (min < 60) return `${min} phút trước`;
+  const hr = Math.floor(min / 60);
+  if (hr < 24) return `${hr} giờ trước`;
+  const day = Math.floor(hr / 24);
+  if (day < 7) return `${day} ngày trước`;
+  const week = Math.floor(day / 7);
+  if (week < 4) return `${week} tuần trước`;
+  const month = Math.floor(day / 30);
+  return `${month} tháng trước`;
+}
+
+function DiskHealthCard({
+  disk,
+  cleanedTotal,
+  activeSessions,
+  lastCleanTime,
+  lastCleanSize,
+}: DiskHealthCardProps): JSX.Element {
+  const used = disk?.used_percent ?? 0;
+  const isWarn = used > 80;
+  const isCritical = used > 90;
+  const gaugeColor = isCritical ? '#ef4444' : isWarn ? '#f59e0b' : '#10b981';
+
+  // Donut conic-gradient: từ 0deg đến `used%` deg
+  const usedDeg = (used / 100) * 360;
+  const bg = `conic-gradient(${gaugeColor} 0deg ${usedDeg}deg, rgba(0,0,0,0.08) ${usedDeg}deg 360deg)`;
+
+  return (
+    <div className="disk-health-card">
+      {/* Gauge donut */}
+      <div className="dhc-gauge" style={{ background: bg }}>
+        <div className="dhc-gauge-hole">
+          <div className="dhc-gauge-pct" style={{ color: gaugeColor }}>
+            {disk ? `${Math.round(used)}%` : '—'}
+          </div>
+          <div className="dhc-gauge-label">đã dùng</div>
+        </div>
+      </div>
+
+      {/* Disk info + suggestion */}
+      <div className="dhc-info">
+        <div className="dhc-info-head">
+          <span className="dhc-mount">{disk?.mount ?? 'Disk'}</span>
+          {disk && (
+            <span className="dhc-detail">
+              <strong>{formatBytes(disk.free_bytes)}</strong> còn /{' '}
+              {formatBytes(disk.total_bytes)}
+            </span>
+          )}
+        </div>
+        {isCritical && (
+          <div className="dhc-warning dhc-warning-critical">
+            ⚠ Ổ đĩa gần đầy — nên dọn ngay
+          </div>
+        )}
+        {isWarn && !isCritical && (
+          <div className="dhc-warning dhc-warning-warn">
+            ⚠ Ổ đĩa đầy {Math.round(used)}% — cân nhắc dọn
+          </div>
+        )}
+        {!isWarn && (
+          <div className="dhc-hint">
+            💡 Bấm <strong>Phân tích</strong> ở Quick Clean để tìm file rác
+          </div>
+        )}
+      </div>
+
+      {/* Secondary stats */}
+      <div className="dhc-secondary">
+        {lastCleanTime ? (
+          <div className="dhc-stat dhc-stat-highlight">
+            <div className="dhc-stat-label">Lần dọn cuối</div>
+            <div className="dhc-stat-value">
+              {formatBytes(lastCleanSize)}
+            </div>
+            <div className="dhc-stat-sub">{formatRelativeTime(lastCleanTime)}</div>
+          </div>
+        ) : (
+          <div className="dhc-stat">
+            <div className="dhc-stat-label">Đã dọn (tổng)</div>
+            <div className="dhc-stat-value">{formatBytes(cleanedTotal)}</div>
+          </div>
+        )}
+        <div className="dhc-stat">
+          <div className="dhc-stat-label">Trash session</div>
+          <div className="dhc-stat-value">{activeSessions}</div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ============================================================
+// Phase 65.2 — PreCleanModal
+// Confirm modal trước khi dọn — hiện top 50 file lớn nhất + tổng + undo timer
+// ============================================================
+interface PreCleanModalProps {
+  data: {
+    ready: CleanPreset[];
+    totalFiles: number;
+    totalBytes: number;
+    topFiles: Array<{ path: string; size: number; presetLabel: string }>;
+  };
+  retentionDays: number;
+  onCancel: () => void;
+  onConfirm: () => void;
+}
+
+function PreCleanModal({
+  data,
+  retentionDays,
+  onCancel,
+  onConfirm,
+}: PreCleanModalProps): JSX.Element {
+  // ESC → cancel
+  useEffect(() => {
+    function onKey(e: KeyboardEvent): void {
+      if (e.key === 'Escape') onCancel();
+    }
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [onCancel]);
+
+  return (
+    <div className="modal-overlay" onClick={onCancel}>
+      <div
+        className="modal-content pre-clean-modal"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="pre-clean-modal-head">
+          <div>
+            <h2>Xác nhận dọn dẹp</h2>
+            <p className="muted small">
+              File sẽ chuyển vào Trash, có thể khôi phục trong{' '}
+              <strong>{retentionDays} ngày</strong>.
+            </p>
+          </div>
+          <button
+            type="button"
+            className="modal-close"
+            onClick={onCancel}
+            title="Đóng"
+            aria-label="Đóng"
+          >
+            ×
+          </button>
+        </div>
+
+        <div className="pre-clean-stats">
+          <div className="pre-clean-stat">
+            <div className="pre-clean-stat-label">Tổng size</div>
+            <div className="pre-clean-stat-value pre-clean-stat-accent">
+              {formatBytes(data.totalBytes)}
+            </div>
+          </div>
+          <div className="pre-clean-stat">
+            <div className="pre-clean-stat-label">Tổng file</div>
+            <div className="pre-clean-stat-value">
+              {data.totalFiles.toLocaleString('vi-VN')}
+            </div>
+          </div>
+          <div className="pre-clean-stat">
+            <div className="pre-clean-stat-label">Số preset</div>
+            <div className="pre-clean-stat-value">{data.ready.length}</div>
+          </div>
+        </div>
+
+        <div className="pre-clean-presets">
+          <div className="pre-clean-section-title">Sẽ dọn các preset:</div>
+          {data.ready.map((p, i) => (
+            <div key={p.id + i} className="pre-clean-preset-row">
+              <span className="pre-clean-preset-icon">{p.icon}</span>
+              <span className="pre-clean-preset-name">{p.label}</span>
+            </div>
+          ))}
+        </div>
+
+        <div className="pre-clean-topfiles">
+          <div className="pre-clean-section-title">
+            Top {Math.min(50, data.topFiles.length)} file lớn nhất:
+          </div>
+          <div className="pre-clean-topfiles-list">
+            {data.topFiles.map((f, i) => (
+              <div key={i} className="pre-clean-topfile-row">
+                <span className="pre-clean-topfile-preset">{f.presetLabel}</span>
+                <span className="pre-clean-topfile-path" title={f.path}>
+                  {f.path}
+                </span>
+                <span className="pre-clean-topfile-size">
+                  {formatBytes(f.size)}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div className="pre-clean-foot">
+          <button
+            type="button"
+            className="btn btn-ghost"
+            onClick={onCancel}
+          >
+            Hủy
+          </button>
+          <button
+            type="button"
+            className="btn btn-primary"
+            onClick={onConfirm}
+          >
+            🗑 Dọn {formatBytes(data.totalBytes)}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
 }

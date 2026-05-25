@@ -29,8 +29,9 @@ export function notesFilenameForUid(uid: string): string {
 export async function loadNoteStore(uid: string): Promise<NoteStore> {
   if (!isInTauri()) return emptyStore();
   try {
-    const loc = await invoke<{ path: string }>('default_store_location');
-    const dir = loc.path.replace(/[\\/][^\\/]+$/, ''); // strip filename
+    // Phase 51.5: Rust command trả { dataDir, exists } (camelCase) — KHÔNG phải { path }
+    const loc = await invoke<{ dataDir: string }>('default_store_location');
+    const dir = loc.dataDir;
     const sep = dir.includes('\\') ? '\\' : '/';
     const filePath = `${dir}${sep}${notesFilenameForUid(uid)}`;
     try {
@@ -58,8 +59,9 @@ export async function loadNoteStore(uid: string): Promise<NoteStore> {
 export async function saveNoteStore(uid: string, store: NoteStore): Promise<void> {
   if (!isInTauri()) return;
   try {
-    const loc = await invoke<{ path: string }>('default_store_location');
-    const dir = loc.path.replace(/[\\/][^\\/]+$/, '');
+    // Phase 51.5: Rust command trả { dataDir, exists } (camelCase) — KHÔNG phải { path }
+    const loc = await invoke<{ dataDir: string }>('default_store_location');
+    const dir = loc.dataDir;
     const sep = dir.includes('\\') ? '\\' : '/';
     const filePath = `${dir}${sep}${notesFilenameForUid(uid)}`;
     const content = JSON.stringify(store, null, 2);

@@ -102,12 +102,14 @@ export function LibraryModule(): JSX.Element {
 
   // Sticky note: cửa sổ riêng (label='sticky') alwaysOnTop, skipTaskbar
   // → ẩn app chính vẫn nổi trên desktop, giống Windows Sticky Notes.
+  // Phase 52.2 — TrishWork chưa khai báo sticky window trong tauri.conf.json.
+  // Silent fallback để tránh console spam (sẽ implement sau).
   async function toggleStickyWindow(): Promise<void> {
     try {
       const { Window } = await import('@tauri-apps/api/window');
       const win = await Window.getByLabel('sticky');
       if (!win) {
-        console.warn('[sticky] window not found');
+        // Sticky window chưa được cấu hình — silent return, không log warn
         return;
       }
       const visible = await win.isVisible();
@@ -117,8 +119,8 @@ export function LibraryModule(): JSX.Element {
         await win.show();
         await win.setFocus();
       }
-    } catch (err) {
-      console.warn('[sticky] toggle fail:', err);
+    } catch {
+      // Silent — sticky window optional feature
     }
   }
 
@@ -171,7 +173,7 @@ export function LibraryModule(): JSX.Element {
     void invoke<string>('app_version')
       .then(setAppVersion)
       .catch(() => {});
-    applyTheme(settings.theme);
+    // Phase 51.1: KHÔNG applyTheme — theme do App.tsx single-source-of-truth
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -187,10 +189,16 @@ export function LibraryModule(): JSX.Element {
     return () => window.removeEventListener('trishlibrary:switch-module', onSwitch);
   }, []);
 
-  // Re-apply theme khi user đổi
+  // Phase 54.1 — Listen for "open library settings" event từ WorkSettingsModal
   useEffect(() => {
-    applyTheme(settings.theme);
-  }, [settings.theme]);
+    function onOpenSettings(): void {
+      setShowSettings(true);
+    }
+    window.addEventListener('trishwork:open-library-settings', onOpenSettings);
+    return () => window.removeEventListener('trishwork:open-library-settings', onOpenSettings);
+  }, []);
+
+  // Phase 51.1: Theme do App.tsx single-source-of-truth
 
   // Phase 18.4.e — Auto-backup periodic checker. Chạy mỗi 5 phút,
   // hàm runAutoBackupIfDue tự check enabled + interval before doing work.
@@ -267,12 +275,8 @@ export function LibraryModule(): JSX.Element {
   return (
     <DialogProvider>
     <div className="app-shell">
-      <nav className="module-nav">
-        <div className="module-nav-brand">
-          <img src={logoUrl} alt="TrishLibrary" className="module-nav-logo" />
-          <strong>TrishLibrary</strong>
-          <span className="module-nav-version">v1.0</span>
-        </div>
+      {/* Phase 47.3 / 51.3 — Sub-nav module (logo + tên TrishLibrary đã chuyển lên AppShell topbar) */}
+      <nav className="module-subnav">
         <div className="module-nav-tabs">
           {MODULE_DEFS.map((m) => (
             <button
@@ -292,14 +296,13 @@ export function LibraryModule(): JSX.Element {
         <div className="module-nav-actions">
           <button
             type="button"
-            className="module-nav-search-btn"
+            className="btn btn-secondary"
             onClick={() => setShowGlobalSearch(true)}
             title={tr('shortcut.global_search') + ' (Ctrl+K)'}
+            style={{ padding: '6px 10px' }}
           >
-            🔍 <span style={{ fontSize: 12 }}>Tìm</span>{' '}
-            <kbd className="module-nav-kbd">Ctrl+K</kbd>
+            🔍 <span style={{ fontSize: 11, color: 'var(--color-text-muted)', marginLeft: 4 }}>Ctrl+K</span>
           </button>
-          <UserPanel trKey={tr} />
           <button
             type="button"
             className="module-nav-icon"
@@ -324,26 +327,6 @@ export function LibraryModule(): JSX.Element {
           >
             ⌨
           </button>
-          <button
-            type="button"
-            className="module-nav-icon"
-            onClick={toggleTheme}
-            title={
-              getEffectiveTheme() === 'dark'
-                ? 'Chuyển sang giao diện sáng'
-                : 'Chuyển sang giao diện tối'
-            }
-          >
-            {getEffectiveTheme() === 'dark' ? '☀' : '🌙'}
-          </button>
-          <button
-            type="button"
-            className="module-nav-icon"
-            onClick={() => setShowSettings(true)}
-            title="Cài đặt (Ctrl+,)"
-          >
-            ⚙
-          </button>
         </div>
       </nav>
 
@@ -355,6 +338,7 @@ export function LibraryModule(): JSX.Element {
         {active === 'trishteam' && <TrishteamModule />}
       </main>
 
+      {/* Phase 54.1: Khôi phục AppSettingsModal — trigger bởi event 'trishwork:open-library-settings' từ WorkSettingsModal */}
       {showSettings && (
         <AppSettingsModal
           appVersion={appVersion}

@@ -16,6 +16,8 @@ import { signOut } from '@trishteam/auth';
 import { DashboardPanel } from './components/DashboardPanel.js';
 import { UsersPanel } from './components/UsersPanel.js';
 import { AppAccessPanel } from './components/AppAccessPanel.js';
+// Phase 46.3 — AppShellSidebar layout chung topbar + sidebar
+import { AppShellSidebar, AppSidebar, AppButton, type AppSidebarGroup } from '@trishteam/design-system';
 import { KeysPanel } from './components/KeysPanel.js';
 import { PromoCodesPanel } from './components/PromoCodesPanel.js';
 import { ActiveSessionsPanel } from './components/ActiveSessionsPanel.js';
@@ -210,58 +212,61 @@ export function App(): JSX.Element {
     return () => window.removeEventListener('keydown', onKey);
   }, []);
 
+  // Phase 46.3 — Convert NAV_GROUPS sang AppSidebarGroup format
+  const sidebarGroups: AppSidebarGroup[] = NAV_GROUPS.map((g) => ({
+    label: g.label,
+    items: g.items.map((it) => ({ id: it.id, label: it.label })),
+  }));
+
+  const sidebarFooter = (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+        <div
+          style={{
+            width: 32,
+            height: 32,
+            borderRadius: '50%',
+            background: 'var(--color-accent-soft)',
+            color: 'var(--color-accent-primary)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            fontWeight: 600,
+            fontSize: 12,
+            flexShrink: 0,
+          }}
+        >
+          {(profile?.display_name ?? firebaseUser?.email ?? '?').charAt(0).toUpperCase()}
+        </div>
+        <div style={{ minWidth: 0, flex: 1 }}>
+          <div style={{ fontSize: 12.5, fontWeight: 600, color: 'var(--color-text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            {profile?.display_name ?? 'Admin'}
+          </div>
+          <div style={{ fontSize: 10.5, color: 'var(--color-text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            {firebaseUser?.email}
+          </div>
+        </div>
+      </div>
+      <AppButton variant="ghost" size="sm" fullWidth onClick={() => void signOut()}>
+        🚪 Đăng xuất
+      </AppButton>
+    </div>
+  );
+
   return (
-    <div className="admin-shell">
-      <aside className="admin-sidebar">
-        <div className="admin-brand">
-          <img src={logoUrl} alt="TrishAdmin" className="admin-brand-logo" />
-          <div>
-            <strong>TrishAdmin</strong>
-            <span className="muted small">v{version}</span>
-          </div>
-        </div>
-
-        <nav className="admin-nav">
-          {NAV_GROUPS.map((group) => (
-            <div key={group.label} className="admin-nav-group">
-              <div className="admin-nav-group-label">{group.label}</div>
-              {group.items.map((n) => (
-                <button
-                  key={n.id}
-                  type="button"
-                  className={`admin-nav-item ${active === n.id ? 'active' : ''}`}
-                  onClick={() => setActive(n.id)}
-                >
-                  <span>{n.label}</span>
-                </button>
-              ))}
-            </div>
-          ))}
-        </nav>
-
-        <div className="admin-sidebar-foot">
-          <div className="admin-user">
-            <div className="admin-user-avatar">
-              {(profile?.display_name ?? firebaseUser?.email ?? '?')
-                .charAt(0)
-                .toUpperCase()}
-            </div>
-            <div className="admin-user-info">
-              <strong>{profile?.display_name ?? 'Admin'}</strong>
-              <span className="muted small">{firebaseUser?.email}</span>
-            </div>
-          </div>
-          <button
-            type="button"
-            className="btn btn-ghost btn-sm"
-            onClick={() => void signOut()}
-            title="Đăng xuất"
-          >
-            🚪 Đăng xuất
-          </button>
-        </div>
-      </aside>
-
+    <AppShellSidebar
+      appId="admin"
+      version={version}
+      sidebar={
+        <AppSidebar
+          groups={sidebarGroups}
+          activeId={active}
+          onSelect={(id) => setActive(id as Panel)}
+          width={240}
+          footer={sidebarFooter}
+        />
+      }
+    >
       <main className="admin-main">
         {active === 'dashboard' && <DashboardPanel />}
         {active === 'users' && <UsersPanel />}
@@ -303,6 +308,6 @@ export function App(): JSX.Element {
         {active === 'finance_admin' && <FinanceAdminPanel />}
         {active === 'settings' && <SettingsPanel />}
       </main>
-    </div>
+    </AppShellSidebar>
   );
 }

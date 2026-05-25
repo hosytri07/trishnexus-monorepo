@@ -115,6 +115,15 @@ export function DesignModule(): JSX.Element {
     }
   }, [collapsed]);
 
+  // Phase 54.1 — Listen for "open design settings" event từ WorkSettingsModal
+  useEffect(() => {
+    function onOpenSettings(): void {
+      setActive(SETTINGS_ITEM.id);
+    }
+    window.addEventListener('trishwork:open-design-settings', onOpenSettings);
+    return () => window.removeEventListener('trishwork:open-design-settings', onOpenSettings);
+  }, []);
+
   const activeItem = useMemo(
     () => [...NAV_ITEMS, SETTINGS_ITEM].find((i) => i.id === active) ?? NAV_ITEMS[0],
     [active],
@@ -152,16 +161,13 @@ export function DesignModule(): JSX.Element {
     <div className={`td-shell${collapsed ? ' td-shell-collapsed' : ''}`}>
       <aside className="td-sidebar">
         <header className="td-sidebar-head">
-          <div className="td-logo-wrap">
-            <img src={logoUrl} alt="" className="td-sidebar-logo" />
-            {!collapsed && <span className="td-sidebar-name">TrishDesign</span>}
-          </div>
           <button
             type="button"
             className="td-collapse-btn"
             onClick={() => setCollapsed((v) => !v)}
             title={collapsed ? 'Mở sidebar' : 'Thu sidebar'}
             aria-label={collapsed ? 'Mở sidebar' : 'Thu sidebar'}
+            style={{ marginLeft: 'auto' }}
           >
             {collapsed ? '»' : '«'}
           </button>
@@ -189,6 +195,7 @@ export function DesignModule(): JSX.Element {
             ))}
           </div>
 
+          {/* Phase 54.1: Khôi phục Cài đặt — trigger từ Settings TỔNG (tab "Khảo sát - Thiết kế") */}
           <div className="td-nav-group">
             {!collapsed && (
               <div className="td-nav-group-label">
@@ -209,7 +216,6 @@ export function DesignModule(): JSX.Element {
         </nav>
 
         <div className="td-sidebar-foot-wrap">
-          <UserPanel collapsed={collapsed} />
           {!collapsed && (
             <p className="td-sidebar-foot muted small">v2.0.0-alpha</p>
           )}

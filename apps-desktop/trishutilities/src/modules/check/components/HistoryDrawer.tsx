@@ -122,18 +122,30 @@ function SnapshotItem({
         <div>
           <dt>OS</dt>
           <dd>
-            {snapshot.sys.os} {snapshot.sys.os_version}
+            {/* Phase 60: snapshot cũ có thể lưu os là object {name, version}; render safely */}
+            {typeof snapshot.sys.os === 'string'
+              ? `${snapshot.sys.os} ${snapshot.sys.os_version ?? ''}`
+              : `${(snapshot.sys.os as any)?.name ?? '?'} ${(snapshot.sys.os as any)?.version ?? ''}`}
           </dd>
         </div>
         <div>
           <dt>CPU</dt>
           <dd>
-            {snapshot.sys.cpu_brand} ({snapshot.sys.cpu_cores}C)
+            {typeof snapshot.sys.cpu_brand === 'string'
+              ? snapshot.sys.cpu_brand
+              : (snapshot.sys as any).cpu?.brand ?? '?'}{' '}
+            ({snapshot.sys.cpu_cores ?? (snapshot.sys as any).cpu?.cores_physical ?? '?'}C)
           </dd>
         </div>
         <div>
           <dt>RAM</dt>
-          <dd>{formatBytes(snapshot.sys.total_memory_bytes)}</dd>
+          <dd>
+            {formatBytes(
+              typeof snapshot.sys.total_memory_bytes === 'number'
+                ? snapshot.sys.total_memory_bytes
+                : (snapshot.sys as any).memory?.total_bytes ?? 0,
+            )}
+          </dd>
         </div>
         {snapshot.cpu_bench && (
           <div>

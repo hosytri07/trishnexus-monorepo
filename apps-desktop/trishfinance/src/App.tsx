@@ -23,6 +23,8 @@ import { DialogProvider } from './components/DialogProvider';
 import { InstallPWA } from './components/InstallPWA';
 import { useFinanceDb, dateVN, daysUntil, money, today } from './state';
 import logoUrl from './assets/logo.png';
+// Phase 46.4 — AppShellSidebar đồng bộ với TrishAdmin
+import { AppShellSidebar } from '@trishteam/design-system';
 import { SanTheThaoModule } from './modules/santhethao/SanTheThaoModule';
 import { KhoDienTuModule } from './modules/khodientu/KhoDienTuModule';
 import { PhotocopyModule } from './modules/photocopy/PhotocopyModule';
@@ -202,124 +204,123 @@ function MainShell(): JSX.Element {
     { id: 'bank', icon: CreditCard, label: 'Import sao kê', sub: 'CSV VCB · TCB · MB Bank' },
   ];
 
-  return (
-    <div className="min-h-screen" style={{ background: 'var(--color-surface-bg)', color: 'var(--color-text-primary)' }}>
-      <aside className="fixed inset-y-0 left-0 w-64" style={{ background: 'var(--color-surface-card)', borderRight: '1px solid var(--color-border-subtle)', padding: '16px', overflowY: 'auto' }}>
-        <div className="mb-5 flex items-center gap-3" style={{ background: 'var(--color-surface-row)', border: '1px solid var(--color-border-subtle)', borderRadius: 14, padding: 10 }}>
-          <img src={logoUrl} alt="TrishFinance" style={{ width: 40, height: 40, borderRadius: 10, objectFit: 'cover', flexShrink: 0 }} />
-          <div className="min-w-0">
-            <div style={{ fontSize: 14, fontWeight: 600, letterSpacing: '-0.01em', color: 'var(--color-text-primary)' }}>TrishFinance</div>
-            <div style={{ fontSize: 11, color: 'var(--color-text-muted)' }}>v{appVersion}</div>
+  // Phase 46.4 — Sidebar JSX cũ rút gọn (KHÔNG có logo nữa — đã chuyển lên AppShellSidebar topbar)
+  const sidebarContent = (
+    <div style={{ padding: '14px 12px', overflowY: 'auto', height: '100%' }}>
+      <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: 0.6, padding: '0 8px 6px' }}>Phân hệ</div>
+      <nav style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+        {MODULES.map((m) => {
+          const isActive = active === m.id;
+          const Icon = m.icon;
+          return (
+            <button
+              key={m.id}
+              onClick={() => setActive(m.id)}
+              style={{
+                display: 'flex', width: '100%', alignItems: 'flex-start', gap: 10,
+                padding: '10px 12px', borderRadius: 10, fontSize: 13, fontWeight: 500,
+                textAlign: 'left', transition: 'background 150ms, color 150ms',
+                border: 'none', cursor: 'pointer', fontFamily: 'inherit',
+                background: isActive ? 'var(--color-accent-soft)' : 'transparent',
+                color: isActive ? 'var(--color-accent-primary)' : 'var(--color-text-secondary)',
+              }}
+              onMouseEnter={(e) => { if (!isActive) e.currentTarget.style.background = 'var(--color-surface-muted)'; }}
+              onMouseLeave={(e) => { if (!isActive) e.currentTarget.style.background = 'transparent'; }}
+            >
+              <Icon style={{ width: 18, height: 18, flexShrink: 0, marginTop: 1 }} />
+              <div style={{ minWidth: 0, flex: 1 }}>
+                <div style={{ fontWeight: 600 }}>{m.label}</div>
+                <div style={{ fontSize: 11, color: 'var(--color-text-muted)', marginTop: 1 }}>{m.sub}</div>
+              </div>
+            </button>
+          );
+        })}
+      </nav>
+    </div>
+  );
+
+  // Topbar right actions (notif + theme toggle + settings + user + logout)
+  const topbarRight = (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+      <div style={{ position: 'relative' }}>
+        <button className="btn-secondary" onClick={() => setShowNotifs(v => !v)} title="Thông báo" style={{ padding: '6px 10px' }}>
+          <Bell className="h-4 w-4" />
+          {notifications.length > 0 && (
+            <span style={{ position: 'absolute', top: -4, right: -4, background: '#ef4444', color: 'white', fontSize: 10, fontWeight: 700, borderRadius: 10, minWidth: 18, height: 18, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '0 4px' }}>
+              {notifications.length > 9 ? '9+' : notifications.length}
+            </span>
+          )}
+        </button>
+        {showNotifs && (
+          <div style={{ position: 'absolute', top: 'calc(100% + 8px)', right: 0, width: 360, maxHeight: 480, overflow: 'auto', background: 'var(--color-surface-card)', border: '1px solid var(--color-border-subtle)', borderRadius: 12, boxShadow: '0 8px 32px rgba(0,0,0,0.15)', zIndex: 50 }}>
+            <div style={{ padding: 12, borderBottom: '1px solid var(--color-border-subtle)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <b>Thông báo ({notifications.length})</b>
+              <button className="icon-btn" onClick={() => setShowNotifs(false)}>×</button>
+            </div>
+            {notifications.length === 0 ? (
+              <div style={{ padding: 24, textAlign: 'center', fontSize: 13, color: 'var(--color-text-muted)' }}>
+                ✓ Mọi thứ ổn — không có cảnh báo nào.
+              </div>
+            ) : (
+              <div>
+                {notifications.map(n => (
+                  <button key={n.id} type="button" onClick={() => { setActive(n.module); setShowNotifs(false); }} style={{ width: '100%', textAlign: 'left', padding: '10px 12px', borderBottom: '1px solid var(--color-border-subtle)', background: 'transparent', border: 'none', borderTop: 'none', borderLeft: 'none', borderRight: 'none', cursor: 'pointer', display: 'flex', alignItems: 'flex-start', gap: 8 }}
+                    onMouseEnter={e => { e.currentTarget.style.background = 'var(--color-surface-row)'; }}
+                    onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; }}>
+                    <div style={{ width: 8, height: 8, borderRadius: '50%', marginTop: 6, background: n.severity === 'high' ? '#ef4444' : '#f59e0b', flexShrink: 0 }} />
+                    <div style={{ minWidth: 0, flex: 1 }}>
+                      <div style={{ fontSize: 13, fontWeight: 600 }}>{n.title}</div>
+                      <div style={{ fontSize: 11, color: 'var(--color-text-muted)', marginTop: 2 }}>{n.sub}</div>
+                    </div>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+      <button className="btn-secondary" onClick={() => setTheme(theme === 'light' ? 'dark' : 'light')} title="Đổi giao diện" style={{ padding: '6px 10px' }}>
+        {theme === 'light' ? <Moon className="h-4 w-4" /> : <Sun className="h-4 w-4" />}
+      </button>
+      <button className="btn-secondary" onClick={() => setShowSettings(true)} title="Cài đặt" style={{ padding: '6px 10px' }}>
+        <SettingsIcon className="h-4 w-4" />
+      </button>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'var(--color-surface-row)', borderRadius: 10, padding: 6 }}>
+        <div style={{ width: 28, height: 28, borderRadius: '50%', background: 'var(--color-accent-primary)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', fontSize: 11, fontWeight: 600 }}>
+          {(profile?.display_name || firebaseUser?.email || '?').charAt(0).toUpperCase()}
+        </div>
+        <div style={{ minWidth: 0 }}>
+          <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--color-text-primary)', display: 'flex', alignItems: 'center', gap: 6 }}>
+            <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 140 }}>{profile?.display_name || firebaseUser?.email}</span>
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3, padding: '1px 6px', borderRadius: 5, fontSize: 10, fontWeight: 700, letterSpacing: 0.3, background: r.bg, color: r.color }} title={`Role: ${r.label}`}>
+              <Shield className="h-2.5 w-2.5" /> {r.label}
+            </span>
           </div>
         </div>
+      </div>
+      <button className="btn-secondary" onClick={() => void signOut()} title="Đăng xuất" style={{ padding: '6px 10px', color: '#ef4444', borderColor: '#ef4444' }}>
+        <LogOut className="h-3.5 w-3.5" />
+      </button>
+    </div>
+  );
 
-        <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: 0.04, padding: '0 8px', marginBottom: 6 }}>Phân hệ</div>
-        <nav className="space-y-1">
-          {MODULES.map((m) => {
-            const isActive = active === m.id;
-            const Icon = m.icon;
-            return (
-              <button
-                key={m.id}
-                onClick={() => setActive(m.id)}
-                style={{
-                  display: 'flex', width: '100%', alignItems: 'flex-start', gap: 10,
-                  padding: '10px 12px', borderRadius: 10, fontSize: 13, fontWeight: 500,
-                  textAlign: 'left', transition: 'background 150ms, color 150ms',
-                  border: 'none', cursor: 'pointer',
-                  background: isActive ? 'var(--color-accent-soft)' : 'transparent',
-                  color: isActive ? 'var(--color-accent-primary)' : 'var(--color-text-secondary)',
-                }}
-                onMouseEnter={(e) => { if (!isActive) e.currentTarget.style.background = 'var(--color-surface-row)'; }}
-                onMouseLeave={(e) => { if (!isActive) e.currentTarget.style.background = 'transparent'; }}
-              >
-                <Icon style={{ width: 18, height: 18, flexShrink: 0, marginTop: 1 }} />
-                <div style={{ minWidth: 0, flex: 1 }}>
-                  <div style={{ fontWeight: 600 }}>{m.label}</div>
-                  <div style={{ fontSize: 11, color: 'var(--color-text-muted)', marginTop: 1 }}>{m.sub}</div>
-                </div>
-              </button>
-            );
-          })}
-        </nav>
-      </aside>
-
-      <main style={{ paddingLeft: 256 }}>
-        <header className="sticky top-0 z-10" style={{ background: 'var(--color-surface-bg-elevated)', borderBottom: '1px solid var(--color-border-subtle)', padding: '12px 22px', backdropFilter: 'blur(8px)' }}>
-          <div className="flex items-center justify-between gap-3">
-            <div className="flex items-center gap-3" style={{ minWidth: 0 }}>
-              <button className="btn-secondary mobile-hamburger" onClick={() => setSidebarOpen(v => !v)} title="Menu" style={{ padding: '6px 10px' }}>
-                <Menu className="h-4 w-4" />
-              </button>
-              <div style={{ minWidth: 0 }}>
-                <h1 style={{ fontSize: 18, fontWeight: 600, letterSpacing: '-0.02em', color: 'var(--color-text-primary)', margin: 0 }}>
-                  {MODULES.find(m => m.id === active)?.label || ''}
-                </h1>
-                <p style={{ fontSize: 12, color: 'var(--color-text-muted)', margin: 0, marginTop: 2 }}>
-                  {MODULES.find(m => m.id === active)?.sub || ''}
-                </p>
-              </div>
-            </div>
-            <div className="flex items-center gap-2">
-              <div style={{ position: 'relative' }}>
-                <button className="btn-secondary" onClick={() => setShowNotifs(v => !v)} title="Thông báo" style={{ padding: '6px 10px' }}>
-                  <Bell className="h-4 w-4" />
-                  {notifications.length > 0 && (
-                    <span style={{ position: 'absolute', top: -4, right: -4, background: '#ef4444', color: 'white', fontSize: 10, fontWeight: 700, borderRadius: 10, minWidth: 18, height: 18, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '0 4px' }}>
-                      {notifications.length > 9 ? '9+' : notifications.length}
-                    </span>
-                  )}
-                </button>
-                {showNotifs && (
-                  <div style={{ position: 'absolute', top: 'calc(100% + 8px)', right: 0, width: 360, maxHeight: 480, overflow: 'auto', background: 'var(--color-surface-card)', border: '1px solid var(--color-border-subtle)', borderRadius: 12, boxShadow: '0 8px 32px rgba(0,0,0,0.15)', zIndex: 50 }}>
-                    <div style={{ padding: 12, borderBottom: '1px solid var(--color-border-subtle)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                      <b>Thông báo ({notifications.length})</b>
-                      <button className="icon-btn" onClick={() => setShowNotifs(false)}>×</button>
-                    </div>
-                    {notifications.length === 0 ? (
-                      <div style={{ padding: 24, textAlign: 'center', fontSize: 13, color: 'var(--color-text-muted)' }}>
-                        ✓ Mọi thứ ổn — không có cảnh báo nào.
-                      </div>
-                    ) : (
-                      <div>
-                        {notifications.map(n => (
-                          <button key={n.id} type="button" onClick={() => { setActive(n.module); setShowNotifs(false); }} style={{ width: '100%', textAlign: 'left', padding: '10px 12px', borderBottom: '1px solid var(--color-border-subtle)', background: 'transparent', border: 'none', borderTop: 'none', borderLeft: 'none', borderRight: 'none', cursor: 'pointer', display: 'flex', alignItems: 'flex-start', gap: 8 }}
-                            onMouseEnter={e => { e.currentTarget.style.background = 'var(--color-surface-row)'; }}
-                            onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; }}>
-                            <div style={{ width: 8, height: 8, borderRadius: '50%', marginTop: 6, background: n.severity === 'high' ? '#ef4444' : '#f59e0b', flexShrink: 0 }} />
-                            <div style={{ minWidth: 0, flex: 1 }}>
-                              <div style={{ fontSize: 13, fontWeight: 600 }}>{n.title}</div>
-                              <div style={{ fontSize: 11, color: 'var(--color-text-muted)', marginTop: 2 }}>{n.sub}</div>
-                            </div>
-                          </button>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                )}
-              </div>
-              <button className="btn-secondary" onClick={() => setTheme(theme === 'light' ? 'dark' : 'light')} title="Đổi giao diện" style={{ padding: '6px 10px' }}>
-                {theme === 'light' ? <Moon className="h-4 w-4" /> : <Sun className="h-4 w-4" />}
-              </button>
-              <button className="btn-secondary" onClick={() => setShowSettings(true)} title="Cài đặt" style={{ padding: '6px 10px' }}>
-                <SettingsIcon className="h-4 w-4" />
-              </button>
-              <div className="flex items-center gap-2" style={{ background: 'var(--color-surface-row)', borderRadius: 10, padding: 6 }}>
-                <div style={{ width: 28, height: 28, borderRadius: '50%', background: 'var(--color-accent-primary)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', fontSize: 11, fontWeight: 600 }}>
-                  {(profile?.display_name || firebaseUser?.email || '?').charAt(0).toUpperCase()}
-                </div>
-                <div style={{ minWidth: 0 }}>
-                  <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--color-text-primary)', display: 'flex', alignItems: 'center', gap: 6 }}>
-                    <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 140 }}>{profile?.display_name || firebaseUser?.email}</span>
-                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3, padding: '1px 6px', borderRadius: 5, fontSize: 10, fontWeight: 700, letterSpacing: 0.3, background: r.bg, color: r.color }} title={`Role: ${r.label}`}>
-                      <Shield className="h-2.5 w-2.5" /> {r.label}
-                    </span>
-                  </div>
-                </div>
-              </div>
-              <button className="btn-secondary" onClick={() => void signOut()} title="Đăng xuất" style={{ padding: '6px 10px', color: '#ef4444', borderColor: '#ef4444' }}>
-                <LogOut className="h-3.5 w-3.5" />
-              </button>
+  return (
+    <AppShellSidebar
+      appId="finance"
+      version={appVersion}
+      sidebar={sidebarContent}
+      topbarRight={topbarRight}
+    >
+      <main style={{ background: 'var(--color-surface-bg)', minHeight: '100%' }}>
+        <header style={{ background: 'var(--color-surface-card)', borderBottom: '1px solid var(--color-border-subtle)', padding: '14px 22px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <div style={{ minWidth: 0 }}>
+              <h1 style={{ fontSize: 18, fontWeight: 600, letterSpacing: '-0.02em', color: 'var(--color-text-primary)', margin: 0 }}>
+                {MODULES.find(m => m.id === active)?.label || ''}
+              </h1>
+              <p style={{ fontSize: 12, color: 'var(--color-text-muted)', margin: '2px 0 0', lineHeight: 1.45 }}>
+                {MODULES.find(m => m.id === active)?.sub || ''}
+              </p>
             </div>
           </div>
         </header>
@@ -332,7 +333,6 @@ function MainShell(): JSX.Element {
           {active === 'santhethao' && <SanTheThaoModule />}
           {active === 'khodientu' && <KhoDienTuModule />}
           {active === 'photocopy' && <PhotocopyModule />}
-          {/* Phase 40.12 — 4 module ngành dịch vụ mới */}
           {active === 'karaoke' && <KaraokeModule />}
           {active === 'spa' && <SpaModule />}
           {active === 'cafe' && <CafeModule />}
@@ -381,7 +381,7 @@ function MainShell(): JSX.Element {
 
       {/* Phase 27.3.C — Install PWA banner (Android Chrome / iOS Safari hint) */}
       <InstallPWA />
-    </div>
+    </AppShellSidebar>
   );
 }
 

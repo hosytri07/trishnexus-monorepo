@@ -1084,153 +1084,213 @@ winget install yt-dlp.yt-dlp
           </details>
         </div>
       )}
+      {/* Wave 72.3 — Library grid (yt-dlp / ffmpeg / Deno) — thay 3 banner rời */}
       {ytdlpAvailable === true && (
-        <div
-          style={{
-            marginTop: 8,
-            padding: 12,
-            borderRadius: 10,
-            background: 'rgba(16,185,129,0.08)',
-            border: '1px solid rgba(16,185,129,0.3)',
-            fontSize: 12,
-            color: '#065F46',
-            display: 'flex',
-            justifyContent: 'space-between',
-            alignItems: 'center',
-            gap: 8,
-            flexWrap: 'wrap',
-          }}
-        >
-          <div>
-            <CheckCircle2 style={{ width: 14, height: 14, display: 'inline', verticalAlign: -2 }} />{' '}
-            yt-dlp sẵn sàng · {ffmpegAvailable ? '✅ ffmpeg' : '⚠ ffmpeg thiếu'} · {denoAvailable ? '✅ Deno' : '⚠ Deno thiếu'}
-          </div>
-          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-            <button
-              type="button"
-              onClick={() => void handleUpdateYtdlp()}
-              disabled={updatingYtdlp}
-              className="btn-secondary"
-              style={{ padding: '4px 10px', fontSize: 11 }}
-              title="Gọi yt-dlp -U để self-update"
-            >
-              {updatingYtdlp ? <Loader2 className="animate-spin" style={{ width: 12, height: 12 }} /> : '🔄'} Update
-            </button>
-            <button
-              type="button"
-              onClick={() => void handleInstallYtdlp()}
-              disabled={installing}
-              className="btn-secondary"
-              style={{ padding: '4px 10px', fontSize: 11 }}
-              title="Tải lại bản LATEST từ GitHub (bypass system yt-dlp)"
-            >
-              {installing ? <Loader2 className="animate-spin" style={{ width: 12, height: 12 }} /> : '📥'} Cài LẠI bundled
-            </button>
-            <button
-              type="button"
-              onClick={() => void openUrl(outputDir)}
-              className="btn-secondary"
-              style={{ padding: '4px 10px', fontSize: 11 }}
-              title="Mở thư mục lưu"
-            >
-              <FolderOpen style={{ width: 12, height: 12 }} /> Thư mục
-            </button>
+        <LibrariesGrid
+          ytdlpReady
+          ffmpegReady={ffmpegAvailable === true}
+          denoReady={denoAvailable === true}
+          updatingYtdlp={updatingYtdlp}
+          installingYtdlp={installing}
+          installingFfmpeg={installingFfmpeg}
+          installingDeno={installingDeno}
+          outputDir={outputDir}
+          onUpdateYtdlp={() => void handleUpdateYtdlp()}
+          onInstallYtdlp={() => void handleInstallYtdlp()}
+          onInstallFfmpeg={() => void handleInstallFfmpeg()}
+          onInstallDeno={() => void handleInstallDeno()}
+          onOpenFolder={() => void openUrl(outputDir)}
+        />
+      )}
+    </div>
+  );
+}
+
+/* ─────────────────────────────────────────────────────────────────────
+ * Wave 72.3 — LibrariesGrid: hiển thị 3 thư viện cần thiết dạng card
+ * grid với status (Đã cài / Chưa cài), nút Cài / Update / Mở thư mục.
+ * ───────────────────────────────────────────────────────────────────── */
+
+interface LibrariesGridProps {
+  ytdlpReady: boolean;
+  ffmpegReady: boolean;
+  denoReady: boolean;
+  updatingYtdlp: boolean;
+  installingYtdlp: boolean;
+  installingFfmpeg: boolean;
+  installingDeno: boolean;
+  outputDir: string;
+  onUpdateYtdlp: () => void;
+  onInstallYtdlp: () => void;
+  onInstallFfmpeg: () => void;
+  onInstallDeno: () => void;
+  onOpenFolder: () => void;
+}
+
+function LibrariesGrid(props: LibrariesGridProps): JSX.Element {
+  const libs: LibCardData[] = [
+    {
+      id: 'yt-dlp',
+      icon: '🎞',
+      name: 'yt-dlp',
+      desc: 'Engine tải video YouTube / TikTok / Facebook / Instagram / Twitter.',
+      size: '~17 MB',
+      required: true,
+      installed: props.ytdlpReady,
+      installing: props.installingYtdlp,
+      primary: props.updatingYtdlp
+        ? { label: 'Đang update...', loading: true, onClick: () => {} }
+        : { label: '🔄 Update', onClick: props.onUpdateYtdlp },
+      secondary: props.installingYtdlp
+        ? { label: 'Đang cài lại...', loading: true, onClick: () => {} }
+        : { label: '📥 Cài lại bundled', onClick: props.onInstallYtdlp },
+      accent: '#10b981',
+    },
+    {
+      id: 'ffmpeg',
+      icon: '🎬',
+      name: 'ffmpeg',
+      desc: 'Convert MP3/MP4/MKV + merge video + audio (cần cho YT 1080p+).',
+      size: '~100 MB',
+      required: false,
+      installed: props.ffmpegReady,
+      installing: props.installingFfmpeg,
+      primary: props.installingFfmpeg
+        ? { label: 'Đang tải ffmpeg (1-3 phút)...', loading: true, onClick: () => {} }
+        : props.ffmpegReady
+          ? null
+          : { label: '📥 Cài ffmpeg', onClick: props.onInstallFfmpeg },
+      secondary: null,
+      accent: '#f59e0b',
+    },
+    {
+      id: 'deno',
+      icon: '🦕',
+      name: 'Deno',
+      desc: 'JS runtime — bypass YouTube anti-bot "n challenge" cho video private / age-gated.',
+      size: '~40 MB',
+      required: false,
+      installed: props.denoReady,
+      installing: props.installingDeno,
+      primary: props.installingDeno
+        ? { label: 'Đang tải Deno (30-60s)...', loading: true, onClick: () => {} }
+        : props.denoReady
+          ? null
+          : { label: '📥 Cài Deno', onClick: props.onInstallDeno },
+      secondary: null,
+      accent: '#7c3aed',
+    },
+  ];
+
+  const installedCount = libs.filter((l) => l.installed).length;
+  const totalRequired = libs.length;
+
+  return (
+    <section className="lib-grid-section" style={{ marginTop: 10 }}>
+      <header className="lib-grid-header">
+        <div>
+          <div className="lib-grid-title">📚 Thư viện downloader</div>
+          <div className="lib-grid-subtitle">
+            Đã cài <strong>{installedCount}/{totalRequired}</strong> thư viện — bấm "Cài đặt" để bổ sung khi thiếu.
           </div>
         </div>
-      )}
-
-      {/* Phase 40.22 — Deno banner (bypass YouTube n-sig challenge) */}
-      {ytdlpAvailable === true && denoAvailable === false && (
-        <div
-          style={{
-            marginTop: 8,
-            padding: 14,
-            borderRadius: 10,
-            background: 'rgba(124,58,237,0.08)',
-            border: '1px solid rgba(124,58,237,0.3)',
-            fontSize: 13,
-            color: '#5B21B6',
-            lineHeight: 1.6,
-          }}
+        <button
+          type="button"
+          onClick={props.onOpenFolder}
+          className="btn-secondary lib-grid-folder"
+          title="Mở thư mục lưu video"
         >
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
-            <AlertCircle style={{ width: 18, height: 18 }} />
-            <strong>Cần cài Deno để bypass YouTube anti-bot "n challenge"</strong>
+          <FolderOpen style={{ width: 13, height: 13 }} /> Thư mục lưu
+        </button>
+      </header>
+      <div className="lib-grid">
+        {libs.map((lib) => (
+          <LibCard key={lib.id} lib={lib} />
+        ))}
+      </div>
+    </section>
+  );
+}
+
+interface LibAction {
+  label: string;
+  loading?: boolean;
+  onClick: () => void;
+}
+interface LibCardData {
+  id: string;
+  icon: string;
+  name: string;
+  desc: string;
+  size: string;
+  required: boolean;
+  installed: boolean;
+  installing: boolean;
+  primary: LibAction | null;
+  secondary: LibAction | null;
+  accent: string;
+}
+
+function LibCard({ lib }: { lib: LibCardData }): JSX.Element {
+  const status = lib.installing ? 'installing' : lib.installed ? 'ok' : 'missing';
+  const statusLabel =
+    status === 'installing' ? 'Đang cài...' : status === 'ok' ? 'Đã cài' : 'Chưa cài';
+  const statusIcon =
+    status === 'installing' ? '⏳' : status === 'ok' ? '✓' : '⚠';
+
+  return (
+    <div className={`lib-card lib-card-${status}`} style={{ borderTopColor: lib.accent }}>
+      <div className="lib-card-head">
+        <span className="lib-card-icon" style={{ background: `${lib.accent}1a`, color: lib.accent }}>
+          {lib.icon}
+        </span>
+        <div className="lib-card-title">
+          <div className="lib-card-name">
+            {lib.name}
+            {lib.required && <span className="lib-card-required">BẮT BUỘC</span>}
           </div>
-          <p style={{ fontSize: 12, margin: '0 0 8px' }}>
-            YouTube chặn 1 số video (private/restricted/age-gated) bằng JavaScript challenge.
-            Deno là JS runtime gọn nhẹ (~40MB) — yt-dlp sẽ tự dùng để decode.
-            Không cài thì: tải public OK nhưng video private/restricted có thể fail với lỗi
-            "<em>nsig extraction failed</em>" / "<em>Only images are available</em>".
-          </p>
-          <button
-            type="button"
-            onClick={() => void handleInstallDeno()}
-            disabled={installingDeno}
-            className="btn-primary"
-            style={{
-              width: '100%',
-              padding: '12px',
-              fontSize: 14,
-              fontWeight: 700,
-              justifyContent: 'center',
-              background: installingDeno ? 'var(--color-border-default)' : '#7C3AED',
-            }}
-          >
-            {installingDeno ? (
-              <>
-                <Loader2 className="animate-spin h-4 w-4" /> Đang tải Deno (~40MB, có thể mất 30-60 giây)...
-              </>
-            ) : (
-              <>📥 Cài Deno tự động (1 click)</>
-            )}
-          </button>
+          <div className="lib-card-size">{lib.size}</div>
         </div>
-      )}
-
-      {/* Phase 40.18 — ffmpeg banner */}
-      {ytdlpAvailable === true && ffmpegAvailable === false && (
-        <div
-          style={{
-            marginTop: 8,
-            padding: 14,
-            borderRadius: 10,
-            background: 'rgba(245,158,11,0.08)',
-            border: '1px solid rgba(245,158,11,0.3)',
-            fontSize: 13,
-            color: '#92400E',
-            lineHeight: 1.6,
-          }}
-        >
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
-            <AlertCircle style={{ width: 18, height: 18 }} />
-            <strong>Cần cài ffmpeg để convert MP3/MP4/MKV + merge video+audio</strong>
-          </div>
-          <p style={{ fontSize: 12, margin: '0 0 8px' }}>
-            ffmpeg ~100MB, tải 1 lần dùng mãi. Không cài thì: chọn MP3/format khác sẽ fail · Video 1080p+ không có audio (vì YT tách stream).
-          </p>
-          <button
-            type="button"
-            onClick={() => void handleInstallFfmpeg()}
-            disabled={installingFfmpeg}
-            className="btn-primary"
-            style={{
-              width: '100%',
-              padding: '12px',
-              fontSize: 14,
-              fontWeight: 700,
-              justifyContent: 'center',
-              background: installingFfmpeg ? 'var(--color-border-default)' : '#F59E0B',
-            }}
-          >
-            {installingFfmpeg ? (
-              <>
-                <Loader2 className="animate-spin h-4 w-4" /> Đang tải ffmpeg (~100MB, có thể mất 1-3 phút)...
-              </>
-            ) : (
-              <>📥 Cài ffmpeg tự động (1 click)</>
-            )}
-          </button>
+        <span className={`lib-card-status lib-card-status-${status}`}>
+          {statusIcon} {statusLabel}
+        </span>
+      </div>
+      <div className="lib-card-desc">{lib.desc}</div>
+      {(lib.primary || lib.secondary) && (
+        <div className="lib-card-actions">
+          {lib.primary && (
+            <button
+              type="button"
+              onClick={lib.primary.onClick}
+              disabled={lib.primary.loading || lib.installing}
+              className={status === 'missing' ? 'btn-primary' : 'btn-secondary'}
+              style={status === 'missing' ? { background: lib.accent, borderColor: lib.accent } : {}}
+            >
+              {lib.primary.loading ? (
+                <>
+                  <Loader2 className="animate-spin" style={{ width: 13, height: 13 }} /> {lib.primary.label}
+                </>
+              ) : (
+                lib.primary.label
+              )}
+            </button>
+          )}
+          {lib.secondary && (
+            <button
+              type="button"
+              onClick={lib.secondary.onClick}
+              disabled={lib.secondary.loading || lib.installing}
+              className="btn-secondary"
+            >
+              {lib.secondary.loading ? (
+                <>
+                  <Loader2 className="animate-spin" style={{ width: 13, height: 13 }} /> {lib.secondary.label}
+                </>
+              ) : (
+                lib.secondary.label
+              )}
+            </button>
+          )}
         </div>
       )}
     </div>

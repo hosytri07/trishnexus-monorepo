@@ -1,5 +1,4 @@
 import { useEffect, useMemo, useState } from 'react';
-import { UserMenu } from '@trishteam/auth/react';
 import {
   getSysReport,
   getAppVersion,
@@ -8,12 +7,14 @@ import {
   runDiskBenchmark,
   getBatteryInfo,
   getTopProcesses,
+  networkSpeedTest,
   type SysReport,
   type BenchResult,
   type DiskBenchResult,
   type BatteryInfo,
   type TopProcesses,
   type ProcessInfo,
+  type SpeedTestResult,
 } from './tauri-bridge.js';
 import {
   formatBytes,
@@ -44,8 +45,15 @@ import {
 import { downloadReport, type ExportPayload } from './lib/exporters.js';
 import { copyReportToClipboard } from './lib/clipboard.js';
 import { loadMinSpecs, type SpecsLoadResult } from './lib/specs-loader.js';
-import { SOFTWARE_SPECS, type MachineSpec } from './data/min-specs.js';
-import logoUrl from './assets/logo.png';
+import {
+  SOFTWARE_SPECS,
+  loadCustomSpecs,
+  saveCustomSpecs,
+  mergeSpecs,
+  type MachineSpec,
+  type SoftwareSpec,
+} from './data/min-specs.js';
+import { useAuth } from '@trishteam/auth/react';
 
 /**
  * Phase 15.0 — TrishCheck v2 root component.
@@ -98,10 +106,43 @@ export function CheckModule(): JSX.Element {
   }));
   const [specsRefreshing, setSpecsRefreshing] = useState(false);
 
-  // Apply theme khi mount + thay đổi
+  // Wave 70.3 — Custom specs admin thêm (lưu localStorage)
+  const [customSpecs, setCustomSpecs] = useState<SoftwareSpec[]>(() => loadCustomSpecs());
+  const { profile } = useAuth();
+  const isAdmin = (profile as { role?: string } | null)?.role === 'admin';
+
+  // Merge base specs với custom — đưa vào MinSpecTable
+  const mergedSpecs = useMemo(
+    () => mergeSpecs(specsResult.specs, customSpecs),
+    [specsResult.specs, customSpecs],
+  );
+
+  function handleAddCustom(spec: SoftwareSpec): void {
+    setCustomSpecs((prev) => {
+      const next = [...prev, spec];
+      saveCustomSpecs(next);
+      return next;
+    });
+  }
+
+  function handleDeleteCustom(id: string): void {
+    setCustomSpecs((prev) => {
+      const next = prev.filter((s) => s.id !== id);
+      saveCustomSpecs(next);
+      return next;
+    });
+  }
+
+  // Phase 51.1: Theme do App.tsx single-source-of-truth, KHÔNG override ở module
+
+  // Phase 55.1 — Listen for "open check settings" event từ UtilitiesSettingsModal
   useEffect(() => {
-    applyTheme(settings.theme);
-  }, [settings.theme]);
+    function onOpenSettings(): void {
+      setSettingsOpen(true);
+    }
+    window.addEventListener('trishutilities:open-check-settings', onOpenSettings);
+    return () => window.removeEventListener('trishutilities:open-check-settings', onOpenSettings);
+  }, []);
 
   // Initial fetch
   useEffect(() => {
@@ -223,63 +264,13 @@ export function CheckModule(): JSX.Element {
 
   return (
     <div className="shell">
-      <header className="topbar">
-        <div className="brand">
-          <img
-            className="brand-logo"
-            src={logoUrl}
-            alt=""
-            aria-hidden
-            width={40}
-            height={40}
-          />
-          <div>
-            <strong>TrishCheck</strong>
-            <div className="sub">{tr('topbar.tagline')}</div>
-          </div>
+      <header className="module-subheader">
+        <div className="module-title">
+          <strong>TrishCheck</strong>
+          <div className="sub">{tr('topbar.tagline')}</div>
         </div>
-        <div className="topbar-actions">
-          <button
-            className="btn-topbar btn-icon"
-            onClick={() => {
-              const cur =
-                settings.theme === 'system'
-                  ? window.matchMedia('(prefers-color-scheme: dark)').matches
-                    ? 'dark'
-                    : 'light'
-                  : settings.theme;
-              const next: 'light' | 'dark' = cur === 'dark' ? 'light' : 'dark';
-              const upd = { ...settings, theme: next };
-              applyTheme(next);
-              setSettings(upd);
-              saveSettings(upd);
-            }}
-            type="button"
-            title={
-              settings.theme === 'dark'
-                ? 'Chuyển sang Light'
-                : 'Chuyển sang Dark'
-            }
-            aria-label="Toggle theme"
-          >
-            {(settings.theme === 'system'
-              ? window.matchMedia('(prefers-color-scheme: dark)').matches
-                ? 'dark'
-                : 'light'
-              : settings.theme) === 'dark'
-              ? '☀'
-              : '🌙'}
-          </button>
-          <button
-            className="btn-topbar"
-            onClick={() => setSettingsOpen(true)}
-            type="button"
-          >
-            ⚙ {tr('topbar.settings')}
-          </button>
-          <span className="muted small">v{version}</span>
-          <UserMenu />
-        </div>
+        {/* Phase 67.3 — Live CPU/RAM monitor */}
+        <LiveResourceMonitor />
       </header>
 
       <ActionsToolbar
@@ -349,10 +340,13 @@ export function CheckModule(): JSX.Element {
           <MinSpecTable
             language={settings.language}
             machine={machineSpec}
-            specs={specsResult.specs}
+            specs={mergedSpecs}
             source={specsResult.source}
             onRefresh={() => void handleRefreshSpecs()}
             refreshing={specsRefreshing}
+            isAdmin={isAdmin}
+            onAddCustom={handleAddCustom}
+            onDeleteCustom={handleDeleteCustom}
           />
         )}
         {tab === 'minspec' && !machineSpec && (
@@ -445,6 +439,9 @@ function SystemView({
 
   return (
     <>
+      {/* Phase 67.2 — Health Score Card (hero) */}
+      <HealthScoreCard sys={sys} cpuBench={cpuBench} memBench={memBench} />
+
       {/* System info */}
       <section className="panel">
         <h2>{tr('section.system')}</h2>
@@ -543,10 +540,11 @@ function SystemView({
         </section>
       )}
 
-      {/* Networks */}
+      {/* Networks + Speed Test (Wave 72.1) */}
       {sys.networks.length > 0 && (
         <section className="panel">
           <h2>{tr('section.network')}</h2>
+          <SpeedTestCard />
           <div className="network-grid">
             {sys.networks.slice(0, 6).map((n) => (
               <NetworkCard key={n.name} adapter={n} />
@@ -560,29 +558,33 @@ function SystemView({
         </section>
       )}
 
-      {/* Benchmark — số liệu kỹ thuật, không đánh giá */}
+      {/* Benchmark — số liệu kỹ thuật, không đánh giá. Phase 67.6: grid 3 cols compact */}
       <section className="panel">
         <div className="panel-head">
           <h2>{tr('section.benchmark')}</h2>
         </div>
         <p className="muted small">{tr('bench.note')}</p>
-        <BenchCard
-          title={tr('bench.cpu')}
-          result={cpuBench}
-          unit={tr('bench.unit')}
-          emptyLabel={tr('bench.empty')}
-        />
-        <BenchCard
-          title={tr('bench.memory')}
-          result={memBench}
-          unit={tr('bench.unit')}
-          emptyLabel={tr('bench.empty')}
-        />
-        <DiskBenchCard
-          title={tr('bench.disk')}
-          result={diskBench}
-          emptyLabel={tr('bench.empty')}
-        />
+        <div className="bench-grid">
+          <BenchCard
+            title={tr('bench.cpu')}
+            result={cpuBench}
+            unit={tr('bench.unit')}
+            emptyLabel={tr('bench.empty')}
+            baseline={600}
+          />
+          <BenchCard
+            title={tr('bench.memory')}
+            result={memBench}
+            unit={tr('bench.unit')}
+            emptyLabel={tr('bench.empty')}
+            baseline={8000}
+          />
+          <DiskBenchCard
+            title={tr('bench.disk')}
+            result={diskBench}
+            emptyLabel={tr('bench.empty')}
+          />
+        </div>
       </section>
     </>
   );
@@ -815,6 +817,166 @@ function NetworkCard({ adapter }: NetworkCardProps): JSX.Element {
   );
 }
 
+/* ─────────────────────────────────────────────────────────────────────
+ * Wave 72.1 — SpeedTestCard
+ * Đo download / upload / latency / jitter qua Cloudflare endpoint.
+ * ───────────────────────────────────────────────────────────────────── */
+
+function SpeedTestCard(): JSX.Element {
+  const [result, setResult] = useState<SpeedTestResult | null>(null);
+  const [running, setRunning] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [phase, setPhase] = useState<'idle' | 'latency' | 'download' | 'upload'>('idle');
+
+  async function handleRun(): Promise<void> {
+    if (running) return;
+    setRunning(true);
+    setError(null);
+    setResult(null);
+    // Phase chỉ là visual hint — Rust chạy tuần tự latency → download → upload
+    setPhase('latency');
+    const seq: Array<typeof phase> = ['latency', 'download', 'upload'];
+    let i = 0;
+    const tick = setInterval(() => {
+      i = (i + 1) % seq.length;
+      setPhase(seq[i] ?? 'idle');
+    }, 4000);
+    try {
+      const r = await networkSpeedTest();
+      setResult(r);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      clearInterval(tick);
+      setPhase('idle');
+      setRunning(false);
+    }
+  }
+
+  function speedTier(mbps: number): { label: string; color: string } {
+    if (mbps >= 100) return { label: 'Rất nhanh', color: '#10b981' };
+    if (mbps >= 50) return { label: 'Nhanh', color: '#22c55e' };
+    if (mbps >= 20) return { label: 'Ổn', color: '#f59e0b' };
+    if (mbps >= 5) return { label: 'Chậm', color: '#f97316' };
+    return { label: 'Rất chậm', color: '#ef4444' };
+  }
+  function latencyTier(ms: number): { label: string; color: string } {
+    if (ms < 30) return { label: 'Cực thấp', color: '#10b981' };
+    if (ms < 80) return { label: 'Tốt', color: '#22c55e' };
+    if (ms < 150) return { label: 'Trung bình', color: '#f59e0b' };
+    return { label: 'Cao', color: '#ef4444' };
+  }
+
+  const phaseLabel =
+    phase === 'latency' ? '⏱ Đo độ trễ (ping)...'
+      : phase === 'download' ? '⬇ Đang đo download (~25 MB)...'
+      : phase === 'upload' ? '⬆ Đang đo upload (~8 MB)...'
+      : '';
+
+  return (
+    <div className="speedtest-card">
+      <div className="speedtest-head">
+        <div>
+          <div className="speedtest-title">⚡ Đo tốc độ mạng</div>
+          <div className="speedtest-subtitle">
+            {result
+              ? `Server: ${result.server} · Tổng ${(result.total_ms / 1000).toFixed(1)}s`
+              : 'Đo download / upload / ping thực tế qua Cloudflare endpoint (không bias quảng cáo).'}
+          </div>
+        </div>
+        <button
+          type="button"
+          className={running ? 'btn-ghost' : 'btn-primary'}
+          onClick={() => void handleRun()}
+          disabled={running}
+        >
+          {running ? '⟳ Đang đo...' : result ? '↻ Đo lại' : '▶ Bắt đầu test'}
+        </button>
+      </div>
+
+      {running && phaseLabel && (
+        <div className="speedtest-phase">
+          <div className="speedtest-phase-bar">
+            <div className="speedtest-phase-bar-fill" />
+          </div>
+          <div className="speedtest-phase-label">{phaseLabel}</div>
+        </div>
+      )}
+
+      {error && (
+        <div className="speedtest-error">⚠ {error}</div>
+      )}
+
+      {result && !running && (
+        <div className="speedtest-result">
+          <SpeedMetric
+            icon="⬇"
+            label="Download"
+            value={result.download_mbps.toFixed(1)}
+            unit="Mbps"
+            tier={speedTier(result.download_mbps)}
+          />
+          <SpeedMetric
+            icon="⬆"
+            label="Upload"
+            value={result.upload_mbps.toFixed(1)}
+            unit="Mbps"
+            tier={speedTier(result.upload_mbps)}
+          />
+          <SpeedMetric
+            icon="📡"
+            label="Ping"
+            value={result.latency_ms.toFixed(0)}
+            unit="ms"
+            tier={latencyTier(result.latency_ms)}
+          />
+          <SpeedMetric
+            icon="📶"
+            label="Jitter"
+            value={result.jitter_ms.toFixed(1)}
+            unit="ms"
+            tier={
+              result.jitter_ms < 5
+                ? { label: 'Ổn định', color: '#10b981' }
+                : result.jitter_ms < 20
+                  ? { label: 'Hơi rung', color: '#f59e0b' }
+                  : { label: 'Không ổn', color: '#ef4444' }
+            }
+          />
+        </div>
+      )}
+    </div>
+  );
+}
+
+function SpeedMetric({
+  icon,
+  label,
+  value,
+  unit,
+  tier,
+}: {
+  icon: string;
+  label: string;
+  value: string;
+  unit: string;
+  tier: { label: string; color: string };
+}): JSX.Element {
+  return (
+    <div className="speedtest-metric" style={{ borderTopColor: tier.color }}>
+      <div className="speedtest-metric-icon">{icon}</div>
+      <div className="speedtest-metric-label">{label}</div>
+      <div className="speedtest-metric-value">
+        <span className="speedtest-metric-number" style={{ color: tier.color }}>{value}</span>
+        <span className="speedtest-metric-unit">{unit}</span>
+      </div>
+      <div className="speedtest-metric-tier" style={{ color: tier.color }}>
+        {tier.label}
+      </div>
+    </div>
+  );
+}
+
 interface GpuCardProps {
   gpu: SysReport['gpus'][number];
 }
@@ -869,6 +1031,8 @@ interface BenchCardProps {
   result: BenchResult | null;
   unit: string;
   emptyLabel: string;
+  /** Phase 67.5 — baseline avg market để so sánh (MB/s) */
+  baseline?: number;
 }
 
 function BenchCard({
@@ -876,6 +1040,7 @@ function BenchCard({
   result,
   unit,
   emptyLabel,
+  baseline,
 }: BenchCardProps): JSX.Element {
   if (!result) {
     return (
@@ -884,6 +1049,18 @@ function BenchCard({
         <p className="muted small">{emptyLabel}</p>
       </div>
     );
+  }
+  // Phase 67.5 — Compute percentile/comparison
+  const userVal = result.throughput_mb_per_s;
+  const bl = baseline ?? 0;
+  let comparison: { pct: number; label: string; color: string } | null = null;
+  if (bl > 0) {
+    const ratio = userVal / bl;
+    if (ratio >= 1.5) comparison = { pct: 90, label: '🚀 Top 10% thị trường', color: '#10b981' };
+    else if (ratio >= 1.2) comparison = { pct: 75, label: '💪 Trên trung bình', color: '#10b981' };
+    else if (ratio >= 0.9) comparison = { pct: 50, label: '⚖ Trung bình thị trường', color: '#3b82f6' };
+    else if (ratio >= 0.6) comparison = { pct: 30, label: '📉 Dưới trung bình', color: '#f59e0b' };
+    else comparison = { pct: 10, label: '⚠ Thấp hơn nhiều', color: '#ef4444' };
   }
   return (
     <div className="bench-card">
@@ -900,6 +1077,280 @@ function BenchCard({
           {result.elapsed_ms} ms
         </div>
       </div>
+      {comparison && (
+        <div className="bench-comparison">
+          <div className="bench-comparison-row">
+            <span className="bench-comparison-label" style={{ color: comparison.color }}>
+              {comparison.label}
+            </span>
+            <span className="bench-comparison-baseline">
+              avg: {bl.toFixed(0)} {unit}
+            </span>
+          </div>
+          <div className="bench-comparison-track">
+            <div
+              className="bench-comparison-fill"
+              style={{
+                width: `${Math.min(100, comparison.pct)}%`,
+                background: comparison.color,
+              }}
+            />
+            <div className="bench-comparison-marker" style={{ left: `${Math.min(95, (bl / Math.max(userVal, bl * 2)) * 100)}%` }} title={`Trung bình: ${bl.toFixed(0)} ${unit}`} />
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ============================================================
+// Phase 67.2 — HealthScoreCard: gauge tổng + breakdown CPU/RAM/Disk
+// ============================================================
+
+interface HealthScoreCardProps {
+  sys: SysReport;
+  cpuBench: BenchResult | null;
+  memBench: BenchResult | null;
+}
+
+function HealthScoreCard({ sys, cpuBench, memBench }: HealthScoreCardProps): JSX.Element {
+  // CPU score (0-100): dựa trên số nhân + tốc độ
+  const cpuScore = useMemo(() => {
+    const cores = sys.cpu_cores || 1;
+    const mhz = sys.cpu_freq_mhz || 0;
+    // 8+ cores = 100, 4 cores = 60, 2 cores = 30
+    const coreScore = Math.min(100, (cores / 8) * 60 + 20);
+    // 3GHz+ = bonus 20
+    const speedScore = Math.min(20, (mhz / 3000) * 20);
+    // Bench bonus: throughput >= 500 MB/s
+    const benchScore = cpuBench
+      ? Math.min(20, (cpuBench.throughput_mb_per_s / 500) * 20)
+      : 0;
+    return Math.round(Math.min(100, coreScore + speedScore + benchScore));
+  }, [sys.cpu_cores, sys.cpu_freq_mhz, cpuBench]);
+
+  // RAM score: 32+ GB = 100, 16 GB = 70, 8 GB = 40, 4 GB = 20
+  const ramScore = useMemo(() => {
+    const totalGB = sys.total_memory_bytes / 1024 ** 3;
+    if (totalGB >= 32) return 100;
+    if (totalGB >= 16) return 70 + ((totalGB - 16) / 16) * 30;
+    if (totalGB >= 8) return 40 + ((totalGB - 8) / 8) * 30;
+    return Math.max(10, (totalGB / 8) * 40);
+  }, [sys.total_memory_bytes]);
+  const ramScoreRounded = Math.round(ramScore);
+
+  // Disk score: dựa trên % free space của disk đầu tiên
+  const diskScore = useMemo(() => {
+    if (!sys.disks || sys.disks.length === 0) return 50;
+    const d = sys.disks[0];
+    const freePct = (d.available_bytes / d.total_bytes) * 100;
+    if (freePct >= 50) return 100;
+    if (freePct >= 30) return 70 + ((freePct - 30) / 20) * 30;
+    if (freePct >= 10) return 40 + ((freePct - 10) / 20) * 30;
+    return Math.max(10, freePct * 4);
+  }, [sys.disks]);
+  const diskScoreRounded = Math.round(diskScore);
+
+  // Memory bench bonus
+  const memBenchScore = useMemo(() => {
+    if (!memBench) return 0;
+    return Math.min(15, (memBench.throughput_mb_per_s / 8000) * 15);
+  }, [memBench]);
+
+  // Overall score: weighted average
+  const overall = Math.round(
+    cpuScore * 0.4 + ramScoreRounded * 0.3 + diskScoreRounded * 0.2 + memBenchScore * 0.1,
+  );
+
+  const tier =
+    overall >= 80
+      ? { label: 'Mạnh', color: '#10b981', emoji: '🚀' }
+      : overall >= 60
+        ? { label: 'Khá', color: '#3b82f6', emoji: '💪' }
+        : overall >= 40
+          ? { label: 'Trung bình', color: '#f59e0b', emoji: '⚡' }
+          : { label: 'Yếu', color: '#ef4444', emoji: '⚠' };
+
+  const gaugeBg = `conic-gradient(${tier.color} 0deg ${(overall / 100) * 360}deg, rgba(0,0,0,0.08) ${(overall / 100) * 360}deg 360deg)`;
+
+  return (
+    <section className="health-score-card">
+      <div className="hsc-gauge" style={{ background: gaugeBg }}>
+        <div className="hsc-gauge-hole">
+          <div className="hsc-gauge-score" style={{ color: tier.color }}>
+            {overall}
+          </div>
+          <div className="hsc-gauge-max">/ 100</div>
+        </div>
+      </div>
+      <div className="hsc-info">
+        <div className="hsc-tier">
+          <span className="hsc-tier-emoji">{tier.emoji}</span>
+          <span className="hsc-tier-label" style={{ color: tier.color }}>
+            Sức mạnh máy: {tier.label}
+          </span>
+        </div>
+        <div className="hsc-breakdown">
+          <HscScoreBar label="CPU" score={cpuScore} />
+          <HscScoreBar label="RAM" score={ramScoreRounded} />
+          <HscScoreBar label="Disk" score={diskScoreRounded} />
+        </div>
+      </div>
+    </section>
+  );
+}
+
+// ============================================================
+// Phase 67.3 — LiveResourceMonitor: mini CPU/RAM gauge + sparkline 60s history
+// ============================================================
+function LiveResourceMonitor(): JSX.Element {
+  const [history, setHistory] = useState<
+    Array<{ ts: number; cpuPct: number; ramPct: number }>
+  >([]);
+  const [latest, setLatest] = useState<{ cpuPct: number; ramPct: number; ramUsedGB: number; ramTotalGB: number } | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    async function tick(): Promise<void> {
+      try {
+        const sys = await getSysReport();
+        if (cancelled) return;
+        const ramPct = sys.total_memory_bytes > 0
+          ? (sys.used_memory_bytes / sys.total_memory_bytes) * 100
+          : 0;
+        // Phase 67.7 — Fix CPU%: sysinfo trả cpu_percent per-process là 100*N (N=core dùng)
+        // → Cộng tổng top procs CHIA cho cores để được % toàn hệ thống (giống Task Manager)
+        const top = await getTopProcesses(50).catch(() => null);
+        const cores = Math.max(1, sys.cpu_cores || 1);
+        const cpuPct = top
+          ? Math.min(100, Math.max(0, top.by_cpu.reduce((sum, p) => sum + p.cpu_percent, 0) / cores))
+          : 0;
+        const sample = {
+          ts: Date.now(),
+          cpuPct,
+          ramPct,
+        };
+        setLatest({
+          cpuPct,
+          ramPct,
+          ramUsedGB: sys.used_memory_bytes / 1024 ** 3,
+          ramTotalGB: sys.total_memory_bytes / 1024 ** 3,
+        });
+        setHistory((prev) => {
+          const next = [...prev, sample];
+          // Keep last 30 samples (60s @ 2s/sample)
+          return next.slice(-30);
+        });
+      } catch {
+        // ignore
+      }
+    }
+    void tick();
+    const id = setInterval(tick, 2000);
+    return () => {
+      cancelled = true;
+      clearInterval(id);
+    };
+  }, []);
+
+  if (!latest) {
+    return <div className="live-monitor live-monitor-loading">⏳ Đang đọc...</div>;
+  }
+
+  return (
+    <div className="live-monitor">
+      <MiniGauge
+        label="CPU"
+        pct={latest.cpuPct}
+        sub={`${Math.round(latest.cpuPct)}%`}
+        history={history.map((h) => h.cpuPct)}
+        color={latest.cpuPct >= 80 ? '#ef4444' : latest.cpuPct >= 60 ? '#f59e0b' : '#10b981'}
+      />
+      <MiniGauge
+        label="RAM"
+        pct={latest.ramPct}
+        sub={`${latest.ramUsedGB.toFixed(1)} / ${latest.ramTotalGB.toFixed(0)} GB`}
+        history={history.map((h) => h.ramPct)}
+        color={latest.ramPct >= 85 ? '#ef4444' : latest.ramPct >= 70 ? '#f59e0b' : '#3b82f6'}
+      />
+    </div>
+  );
+}
+
+function MiniGauge({
+  label,
+  pct,
+  sub,
+  history,
+  color,
+}: {
+  label: string;
+  pct: number;
+  sub: string;
+  history: number[];
+  color: string;
+}): JSX.Element {
+  // Sparkline SVG: 30 samples → 60px wide × 14px high
+  const width = 60;
+  const height = 14;
+  const points = history.length > 0
+    ? history.map((v, i) => {
+        const x = (i / Math.max(1, history.length - 1)) * width;
+        const y = height - (v / 100) * height;
+        return `${x.toFixed(1)},${y.toFixed(1)}`;
+      }).join(' ')
+    : '';
+
+  return (
+    <div className="mini-gauge">
+      <div className="mini-gauge-row">
+        <span className="mini-gauge-label">{label}</span>
+        <span className="mini-gauge-pct" style={{ color }}>
+          {Math.round(pct)}%
+        </span>
+      </div>
+      <div className="mini-gauge-track">
+        <div
+          className="mini-gauge-fill"
+          style={{ width: `${Math.min(100, pct)}%`, background: color }}
+        />
+      </div>
+      {history.length >= 2 && (
+        <svg
+          className="mini-gauge-spark"
+          width={width}
+          height={height}
+          viewBox={`0 0 ${width} ${height}`}
+        >
+          <polyline
+            fill="none"
+            stroke={color}
+            strokeWidth="1.5"
+            points={points}
+            opacity="0.6"
+          />
+        </svg>
+      )}
+      <span className="mini-gauge-sub">{sub}</span>
+    </div>
+  );
+}
+
+function HscScoreBar({ label, score }: { label: string; score: number }): JSX.Element {
+  const color =
+    score >= 80 ? '#10b981' : score >= 60 ? '#3b82f6' : score >= 40 ? '#f59e0b' : '#ef4444';
+  return (
+    <div className="hsc-score-bar">
+      <span className="hsc-score-label">{label}</span>
+      <div className="hsc-score-track">
+        <div
+          className="hsc-score-fill"
+          style={{ width: `${score}%`, background: color }}
+        />
+      </div>
+      <span className="hsc-score-value" style={{ color }}>
+        {score}
+      </span>
     </div>
   );
 }

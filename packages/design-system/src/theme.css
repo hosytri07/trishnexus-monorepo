@@ -757,3 +757,43 @@ html, body, #root, button, input, textarea, select {
   from { opacity: 0; }
   to   { opacity: 1; }
 }
+
+/* ================================================================
+   Phase 46.3 — AppShellSidebar layout (topbar + sidebar + content)
+   Dùng cho TrishAdmin + TrishFinance (nhiều module → sidebar trái)
+   ================================================================ */
+
+.app-shell-sidebar {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  min-height: 0;
+  background: var(--color-surface-bg);
+}
+
+.app-shell-sidebar .module-nav {
+  flex-shrink: 0;
+}
+
+.app-shell-body {
+  flex: 1;
+  display: flex;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.app-shell-sidebar-col {
+  width: 240px;
+  flex-shrink: 0;
+  background: var(--color-surface-card);
+  border-right: 1px solid var(--color-border-subtle);
+  overflow-y: auto;
+  height: 100%;
+}
+
+.app-shell-content {
+  flex: 1;
+  overflow-y: auto;
+  background: var(--color-surface-bg);
+  min-width: 0;
+}

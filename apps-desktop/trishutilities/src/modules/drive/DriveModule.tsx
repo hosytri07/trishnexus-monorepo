@@ -16,7 +16,7 @@
  */
 
 import { useEffect, useState } from 'react';
-import { Download, BookOpen, History, HelpCircle, LogOut, Sun, Moon, Settings, Shield, WifiOff, Video } from 'lucide-react';
+import { Download, BookOpen, History, HelpCircle, LogOut, Sun, Moon, Settings, Shield, WifiOff, Video, HardDrive } from 'lucide-react';
 import { listen } from '@tauri-apps/api/event';
 import { invoke } from '@tauri-apps/api/core';
 import { useAuth } from '@trishteam/auth/react';
@@ -26,12 +26,14 @@ import { LibraryScreen } from './pages/LibraryScreen';
 import { HistoryScreen } from './pages/HistoryScreen';
 import { HelpPage } from './pages/HelpPage';
 import { MediaDownloadScreen } from './pages/MediaDownloadScreen';
+import { GoogleDriveDownloadScreen } from './pages/GoogleDriveDownloadScreen';
 import { SettingsModal, loadCloseBehavior, loadSpeedLimit } from './pages/SettingsModal';
 import { DownloadManager } from './pages/DownloadManager';
 import logoUrl from './assets/logo.png';
 
 // Phase 40.6 — Thêm tab 'mxh' (Tải video MXH: FB/TikTok/YouTube/Instagram)
-type Page = 'download' | 'mxh' | 'library' | 'history' | 'help';
+// Wave 73.2 — Thêm tab 'gdrive' (Google Drive bulk download)
+type Page = 'download' | 'mxh' | 'gdrive' | 'library' | 'history' | 'help';
 
 export function DriveModule(): JSX.Element {
   // Phase 24.3.G — wrap ts-app ở MOST OUTER để utility CSS scope đúng cho mọi child.
@@ -48,11 +50,7 @@ function AppGate(): JSX.Element {
     try { return (localStorage.getItem('trishdrive_theme') as 'light' | 'dark') || 'light'; } catch { return 'light'; }
   });
 
-  // Set data-theme cho HTML root
-  if (typeof document !== 'undefined') {
-    document.documentElement.setAttribute('data-theme', theme);
-    try { localStorage.setItem('trishdrive_theme', theme); } catch { /* ignore */ }
-  }
+  // Phase 51.1: Theme do App.tsx single-source-of-truth, KHÔNG override ở module
 
   if (loading) {
     return (
@@ -105,6 +103,15 @@ function MainShell({ theme, setTheme }: { theme: 'light' | 'dark'; setTheme: (t:
   const [version, setVersion] = useState('1.0.0');
   const [isOnline, setIsOnline] = useState<boolean>(typeof navigator !== 'undefined' ? navigator.onLine : true);
 
+  // Phase 55.1 — Listen for "open drive settings" event từ UtilitiesSettingsModal
+  useEffect(() => {
+    function onOpenSettings(): void {
+      setShowSettings(true);
+    }
+    window.addEventListener('trishutilities:open-drive-settings', onOpenSettings);
+    return () => window.removeEventListener('trishutilities:open-drive-settings', onOpenSettings);
+  }, []);
+
   // Phase 26.4.B — listen online/offline events
   useEffect(() => {
     const onOnline = () => setIsOnline(true);
@@ -131,7 +138,7 @@ function MainShell({ theme, setTheme }: { theme: 'light' | 'dark'; setTheme: (t:
   useEffect(() => {
     const unlisten = listen<string>('nav-to-tab', (e) => {
       const tab = e.payload as Page;
-      if (['download', 'mxh', 'library', 'history', 'help'].includes(tab)) {
+      if (['download', 'mxh', 'gdrive', 'library', 'history', 'help'].includes(tab)) {
         setPage(tab);
       }
     });
@@ -163,64 +170,11 @@ function MainShell({ theme, setTheme }: { theme: 'light' | 'dark'; setTheme: (t:
 
   return (
     <div className="min-h-screen flex flex-col" style={{ background: 'var(--color-surface-bg)', color: 'var(--color-text-primary)' }}>
-      {/* Top header — logo + title + user info + theme toggle */}
-      <header style={{ padding: '14px 22px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16, borderBottom: '1px solid var(--color-border-subtle)', background: 'var(--color-surface-bg-elevated)' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12, minWidth: 0 }}>
-          <img
-            src={logoUrl}
-            alt="TrishDrive"
-            style={{ width: 40, height: 40, borderRadius: 10, objectFit: 'cover', flexShrink: 0, background: '#fff', padding: 2 }}
-          />
-          <div>
-            <div style={{ fontSize: 18, fontWeight: 600, letterSpacing: '-0.02em', color: 'var(--color-text-primary)' }}>
-              TrishDrive
-            </div>
-            <div style={{ fontSize: 11, color: 'var(--color-text-muted)', marginTop: 1 }}>
-              Tải file từ Thư viện TrishTEAM · paste link share + tải về máy
-            </div>
-          </div>
-        </div>
-        <div className="flex items-center gap-3">
-          <button
-            className="btn-secondary"
-            onClick={() => setTheme(theme === 'light' ? 'dark' : 'light')}
-            title="Đổi giao diện"
-            style={{ padding: '6px 10px' }}
-          >
-            {theme === 'light' ? <Moon className="h-4 w-4" /> : <Sun className="h-4 w-4" />}
-          </button>
-          <button
-            className="btn-secondary"
-            onClick={() => setShowSettings(true)}
-            title="Cài đặt"
-            style={{ padding: '6px 10px' }}
-          >
-            <Settings className="h-4 w-4" />
-          </button>
-          <div className="flex items-center gap-2 p-2" style={{ background: 'var(--color-surface-row)', borderRadius: 10 }}>
-            <div className="w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-semibold" style={{ background: 'var(--color-accent-gradient)' }}>
-              {(profile?.display_name || firebaseUser?.email || '?').charAt(0).toUpperCase()}
-            </div>
-            <div style={{ minWidth: 0 }}>
-              <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--color-text-primary)', display: 'flex', alignItems: 'center', gap: 6 }}>
-                {profile?.display_name || firebaseUser?.email}
-                <span
-                  style={{
-                    display: 'inline-flex', alignItems: 'center', gap: 3,
-                    padding: '1px 6px', borderRadius: 5,
-                    fontSize: 10, fontWeight: 700, letterSpacing: 0.3,
-                    background: r.bg, color: r.color,
-                  }}
-                  title={`Role: ${role}`}
-                >
-                  <Shield className="h-2.5 w-2.5" /> {r.label}
-                </span>
-              </div>
-            </div>
-          </div>
-          <button className="btn-secondary" onClick={() => void signOut()} style={{ color: '#ef4444', borderColor: '#ef4444' }}>
-            <LogOut className="h-3.5 w-3.5" /> Đăng xuất
-          </button>
+      {/* Module sub-header — tiêu đề module (logo + user menu đã ở AppShell topbar) */}
+      <header className="module-subheader">
+        <div className="module-title">
+          <strong>TrishDrive</strong>
+          <div className="sub">Tải file từ Thư viện TrishTEAM · paste link share + tải về máy</div>
         </div>
       </header>
 
@@ -257,6 +211,7 @@ function MainShell({ theme, setTheme }: { theme: 'light' | 'dark'; setTheme: (t:
       <nav style={{ display: 'flex', gap: 2, padding: '0 22px', borderBottom: '1px solid var(--color-border-subtle)', background: 'var(--color-surface-bg-elevated)', overflowX: 'auto' }}>
         <TabBtn icon={Download} label="Tải file" active={page === 'download'} onClick={() => setPage('download')} />
         <TabBtn icon={Video} label="Tải video MXH" active={page === 'mxh'} onClick={() => setPage('mxh')} />
+        <TabBtn icon={HardDrive} label="Google Drive" active={page === 'gdrive'} onClick={() => setPage('gdrive')} />
         <TabBtn icon={BookOpen} label="Thư viện TrishTEAM" active={page === 'library'} onClick={() => setPage('library')} />
         <TabBtn icon={History} label="Lịch sử" active={page === 'history'} onClick={() => setPage('history')} />
         <TabBtn icon={HelpCircle} label="Hướng dẫn" active={page === 'help'} onClick={() => setPage('help')} />
@@ -267,6 +222,7 @@ function MainShell({ theme, setTheme }: { theme: 'light' | 'dark'; setTheme: (t:
         <div style={{ padding: '24px 28px', width: '100%' }}>
           {page === 'download' && <DownloadScreen onDone={() => setRefreshTick(t => t + 1)} />}
           {page === 'mxh' && <MediaDownloadScreen />}
+          {page === 'gdrive' && <GoogleDriveDownloadScreen />}
           {page === 'library' && <LibraryScreen />}
           {page === 'history' && <HistoryScreen refreshTick={refreshTick} />}
           {page === 'help' && <HelpPage />}

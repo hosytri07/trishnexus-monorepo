@@ -1,17 +1,23 @@
 /**
- * Phase 44.5 — AppAccessPanel: cấp/thu hồi quyền user vào 4 app mới.
+ * Phase 44.5 + 45.7 — AppAccessPanel: cấp/thu hồi quyền user vào 4 app.
+ * Refactor dùng AppPageHeader + AppCard + AppTable + AppInput + AppButton + AppBadge.
  *
- * Khác UsersPanel cũ:
- * - Focus 4 app mới: trishwork / trishutilities / trishfinance / trishadmin
- * - Mỗi user 1 row với 4 cột app + checkbox enable + input số ngày
- * - Thay thế cơ chế "user nhập key 16 ký tự" cũ — admin trực tiếp tick + Save
- *
- * Lưu Firestore /users/{uid}.app_keys[appId] = { key_id, activated_at, expires_at }
+ * Khác KeyGate cũ: admin trực tiếp tick + Save, không cần user nhập key.
  */
 
 import { useEffect, useMemo, useState } from 'react';
 import { useAuth } from '@trishteam/auth/react';
 import type { TrishUser } from '@trishteam/data';
+import {
+  AppPageHeader,
+  AppCard,
+  AppTable,
+  AppInput,
+  AppButton,
+  AppBadge,
+  AppEmpty,
+  type AppTableColumn,
+} from '@trishteam/design-system';
 import {
   type ActorContext,
   listUsers,
@@ -21,10 +27,10 @@ import {
 
 /** 4 app mới Phase 44. */
 const APPS = [
-  { id: 'trishwork',      label: 'TrishWork',      color: '#34D399' },
-  { id: 'trishutilities', label: 'TrishUtilities', color: '#A78BFA' },
-  { id: 'trishfinance',   label: 'TrishFinance',   color: '#FBBF24' },
-  { id: 'trishadmin',     label: 'TrishAdmin',     color: '#F87171' },
+  { id: 'trishwork',      label: 'TrishWork',      color: '#34D399', shortLabel: 'Work' },
+  { id: 'trishutilities', label: 'TrishUtilities', color: '#FBBF24', shortLabel: 'Utilities' },
+  { id: 'trishfinance',   label: 'TrishFinance',   color: '#2563EB', shortLabel: 'Finance' },
+  { id: 'trishadmin',     label: 'TrishAdmin',     color: '#F87171', shortLabel: 'Admin' },
 ] as const;
 
 const DEFAULT_DURATION_DAYS = 365;
@@ -43,7 +49,7 @@ function buildDraft(user: TrishUser): RowDraft {
     if (binding) {
       const days = binding.expires_at > 0
         ? Math.max(0, Math.ceil((binding.expires_at - now) / 86_400_000))
-        : 0; // 0 = vĩnh viễn
+        : 0;
       grants[app.id] = { enabled: true, days };
     } else {
       grants[app.id] = { enabled: false, days: DEFAULT_DURATION_DAYS };
@@ -106,10 +112,7 @@ export function AppAccessPanel(): JSX.Element {
         ...prev,
         [uid]: {
           ...row,
-          grants: {
-            ...row.grants,
-            [appId]: { ...row.grants[appId]!, ...patch },
-          },
+          grants: { ...row.grants, [appId]: { ...row.grants[appId]!, ...patch } },
         },
       };
     });
@@ -127,20 +130,15 @@ export function AppAccessPanel(): JSX.Element {
         if (!draft) continue;
         const currentBinding = user.app_keys?.[app.id];
         const currentEnabled = !!currentBinding;
-
         if (draft.enabled && !currentEnabled) {
-          // Mới enable → grant
           await grantAppAccess(uid, app.id, draft.days, actor, user.email);
         } else if (!draft.enabled && currentEnabled) {
-          // Mới disable → revoke
           await revokeAppAccess(uid, app.id, actor, user.email);
         } else if (draft.enabled && currentEnabled) {
-          // Đã có, check xem days thay đổi không
           const currentDays = currentBinding!.expires_at > 0
             ? Math.ceil((currentBinding!.expires_at - Date.now()) / 86_400_000)
             : 0;
           if (Math.abs(currentDays - draft.days) > 1) {
-            // Re-grant để update expiry
             await grantAppAccess(uid, app.id, draft.days, actor, user.email);
           }
         }
@@ -154,189 +152,162 @@ export function AppAccessPanel(): JSX.Element {
     }
   }
 
+  // Build columns dynamic
+  const columns: AppTableColumn<TrishUser>[] = [
+    {
+      key: 'user',
+      label: 'Người dùng',
+      width: 260,
+      render: (u) => (
+        <div>
+          <div style={{ fontWeight: 500, fontSize: 13, color: 'var(--color-text-primary)' }}>{u.email}</div>
+          <div style={{ fontSize: 11, color: 'var(--color-text-muted)' }}>
+            {u.display_name || u.id.slice(0, 12)}
+          </div>
+        </div>
+      ),
+    },
+    {
+      key: 'role',
+      label: 'Vai trò',
+      width: 100,
+      render: (u) => <RoleBadge role={u.role} />,
+    },
+    ...APPS.map<AppTableColumn<TrishUser>>((app) => ({
+      key: app.id,
+      label: (
+        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+          <span style={{ width: 8, height: 8, borderRadius: '50%', background: app.color, display: 'inline-block' }} />
+          {app.shortLabel}
+        </span>
+      ),
+      align: 'center' as const,
+      width: 130,
+      render: (u) => {
+        const row = drafts[u.id];
+        if (!row) return null;
+        const draft = row.grants[app.id]!;
+        const isSaving = savingUid === u.id;
+        return (
+          <label style={{ display: 'inline-flex', alignItems: 'center', gap: 6, cursor: 'pointer' }}>
+            <input
+              type="checkbox"
+              checked={draft.enabled}
+              onChange={(e) => updateGrant(u.id, app.id, { enabled: e.target.checked })}
+              disabled={isSaving}
+              style={{ width: 15, height: 15, accentColor: app.color, cursor: 'pointer' }}
+            />
+            <input
+              type="number"
+              min={0}
+              max={9999}
+              value={draft.days}
+              onChange={(e) => updateGrant(u.id, app.id, { days: Number(e.target.value) || 0 })}
+              disabled={!draft.enabled || isSaving}
+              title="Số ngày (0 = vĩnh viễn)"
+              style={{
+                width: 50,
+                padding: '3px 6px',
+                border: '1px solid var(--color-border-default)',
+                borderRadius: 4,
+                fontSize: 12,
+                background: draft.enabled ? 'var(--color-surface-card)' : 'var(--color-surface-muted)',
+              }}
+            />
+            <span style={{ fontSize: 10.5, color: 'var(--color-text-muted)' }}>ng</span>
+          </label>
+        );
+      },
+    })),
+    {
+      key: 'actions',
+      label: '',
+      align: 'right' as const,
+      width: 90,
+      render: (u) => {
+        const isSaving = savingUid === u.id;
+        return (
+          <AppButton size="sm" loading={isSaving} onClick={() => void saveRow(u.id)}>
+            💾 Lưu
+          </AppButton>
+        );
+      },
+    },
+  ];
+
   return (
-    <div style={{ padding: '20px 24px' }}>
-      <h1 style={{ fontSize: 22, fontWeight: 600, marginBottom: 6 }}>
-        🔑 Cấp quyền App (Phase 44)
-      </h1>
-      <p style={{ color: 'var(--color-text-muted, #6b6877)', fontSize: 14, marginBottom: 18 }}>
-        Tick app cho từng user + nhập số ngày (0 = vĩnh viễn). Bấm <strong>Lưu</strong> để
-        ghi Firestore. User reload app sẽ thấy quyền mới.
-      </p>
+    <div style={{ background: 'var(--color-surface-bg)', minHeight: '100%' }}>
+      <AppPageHeader
+        title="🔑 Cấp quyền App (Phase 44)"
+        subtitle="Tick app cho từng user + nhập số ngày (0 = vĩnh viễn). Bấm Lưu để ghi Firestore."
+        actions={
+          <AppButton variant="secondary" onClick={() => void reload()} loading={loading}>
+            🔄 Tải lại
+          </AppButton>
+        }
+      />
 
-      <div style={{ display: 'flex', gap: 10, marginBottom: 14 }}>
-        <input
-          type="search"
-          placeholder="🔍 Tìm theo email / tên / uid..."
-          value={filter}
-          onChange={(e) => setFilter(e.target.value)}
-          style={{
-            flex: 1,
-            padding: '8px 12px',
-            border: '1px solid var(--color-border-default, rgba(0,0,0,0.12))',
-            borderRadius: 8,
-            fontSize: 14,
-            background: 'var(--color-surface-card, white)',
-            color: 'var(--color-text-primary, #1c1b22)',
-          }}
-        />
-        <button
-          type="button"
-          onClick={() => void reload()}
-          style={{
-            padding: '8px 16px',
-            background: 'var(--color-accent-primary, #dc2626)',
-            color: 'white',
-            border: 'none',
-            borderRadius: 8,
-            cursor: 'pointer',
-            fontSize: 14,
-            fontWeight: 500,
-          }}
-        >
-          🔄 Tải lại
-        </button>
+      <div style={{ padding: '18px 24px' }}>
+        {/* Search + Status */}
+        <div style={{ display: 'flex', gap: 12, marginBottom: 14, alignItems: 'center' }}>
+          <div style={{ flex: 1, maxWidth: 400 }}>
+            <AppInput
+              type="search"
+              placeholder="Tìm theo email / tên / uid..."
+              value={filter}
+              onChange={(e) => setFilter(e.target.value)}
+              iconLeft="🔍"
+            />
+          </div>
+          <div style={{ fontSize: 12.5, color: 'var(--color-text-muted)' }}>
+            <strong>{filteredUsers.length}</strong> / {users.length} user
+          </div>
+        </div>
+
+        {/* Status message */}
+        {actionMsg && (
+          <AppCard variant="ghost" padding="sm" style={{ marginBottom: 14, background: actionMsg.startsWith('✓') ? 'rgba(16,185,129,0.08)' : 'rgba(239,68,68,0.08)', borderColor: actionMsg.startsWith('✓') ? '#10b981' : '#ef4444' }}>
+            <div style={{ fontSize: 13, color: actionMsg.startsWith('✓') ? '#047857' : '#b91c1c' }}>
+              {actionMsg}
+            </div>
+          </AppCard>
+        )}
+
+        {error && (
+          <AppCard variant="ghost" padding="sm" style={{ marginBottom: 14, background: 'rgba(239,68,68,0.08)', borderColor: '#ef4444' }}>
+            <div style={{ fontSize: 13, color: '#b91c1c' }}>⚠ {error}</div>
+          </AppCard>
+        )}
+
+        {/* Table */}
+        {!loading && filteredUsers.length === 0 ? (
+          <AppEmpty
+            icon="👥"
+            title={filter ? 'Không có user nào khớp' : 'Chưa có user nào'}
+            description={filter ? `Không tìm thấy user khớp "${filter}". Thử từ khóa khác.` : 'Khi user tạo tài khoản, họ sẽ xuất hiện ở đây.'}
+          />
+        ) : (
+          <AppTable
+            data={filteredUsers}
+            columns={columns}
+            keyField="id"
+            loading={loading}
+            density="normal"
+          />
+        )}
       </div>
-
-      {actionMsg && (
-        <div
-          style={{
-            padding: '10px 14px',
-            background: 'var(--color-surface-muted, #ebe9e3)',
-            borderRadius: 8,
-            marginBottom: 14,
-            fontSize: 13,
-          }}
-        >
-          {actionMsg}
-        </div>
-      )}
-
-      {loading && <p style={{ color: 'var(--color-text-muted, #6b6877)' }}>⏳ Đang tải users...</p>}
-      {error && <p style={{ color: 'var(--color-text-danger, #ef4444)' }}>⚠ {error}</p>}
-
-      {!loading && !error && (
-        <div style={{ overflowX: 'auto' }}>
-          <table
-            style={{
-              width: '100%',
-              borderCollapse: 'collapse',
-              fontSize: 13,
-              background: 'var(--color-surface-card, white)',
-              borderRadius: 10,
-            }}
-          >
-            <thead>
-              <tr style={{ background: 'var(--color-surface-muted, #ebe9e3)' }}>
-                <th style={th}>User</th>
-                <th style={th}>Role</th>
-                {APPS.map((app) => (
-                  <th key={app.id} style={{ ...th, borderBottom: `3px solid ${app.color}` }}>
-                    {app.label}
-                  </th>
-                ))}
-                <th style={th}>Lưu</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filteredUsers.map((user) => {
-                const row = drafts[user.id];
-                if (!row) return null;
-                const isSaving = savingUid === user.id;
-                return (
-                  <tr key={user.id} style={{ borderBottom: '1px solid var(--color-border-subtle, rgba(0,0,0,0.06))' }}>
-                    <td style={td}>
-                      <div style={{ fontWeight: 500 }}>{user.email}</div>
-                      <div style={{ fontSize: 11, color: 'var(--color-text-muted, #6b6877)' }}>
-                        {user.display_name || user.id.slice(0, 12)}
-                      </div>
-                    </td>
-                    <td style={td}>{user.role}</td>
-                    {APPS.map((app) => {
-                      const draft = row.grants[app.id]!;
-                      return (
-                        <td key={app.id} style={td}>
-                          <label style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                            <input
-                              type="checkbox"
-                              checked={draft.enabled}
-                              onChange={(e) =>
-                                updateGrant(user.id, app.id, { enabled: e.target.checked })
-                              }
-                              disabled={isSaving}
-                            />
-                            <input
-                              type="number"
-                              min={0}
-                              max={9999}
-                              value={draft.days}
-                              onChange={(e) =>
-                                updateGrant(user.id, app.id, { days: Number(e.target.value) || 0 })
-                              }
-                              disabled={!draft.enabled || isSaving}
-                              title="Số ngày (0 = vĩnh viễn)"
-                              style={{
-                                width: 56,
-                                padding: '4px 6px',
-                                border: '1px solid var(--color-border-default, rgba(0,0,0,0.12))',
-                                borderRadius: 4,
-                                fontSize: 12,
-                              }}
-                            />
-                            <span style={{ fontSize: 11, color: 'var(--color-text-muted, #6b6877)' }}>
-                              ng
-                            </span>
-                          </label>
-                        </td>
-                      );
-                    })}
-                    <td style={td}>
-                      <button
-                        type="button"
-                        onClick={() => void saveRow(user.id)}
-                        disabled={isSaving}
-                        style={{
-                          padding: '6px 12px',
-                          background: isSaving ? '#aaa' : 'var(--color-accent-primary, #dc2626)',
-                          color: 'white',
-                          border: 'none',
-                          borderRadius: 6,
-                          cursor: isSaving ? 'wait' : 'pointer',
-                          fontSize: 12,
-                          fontWeight: 500,
-                        }}
-                      >
-                        {isSaving ? '⏳' : '💾 Lưu'}
-                      </button>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-
-          {filteredUsers.length === 0 && (
-            <p style={{ color: 'var(--color-text-muted, #6b6877)', padding: '20px', textAlign: 'center' }}>
-              Không có user nào khớp filter.
-            </p>
-          )}
-        </div>
-      )}
     </div>
   );
 }
 
-const th: React.CSSProperties = {
-  textAlign: 'left',
-  padding: '10px 12px',
-  fontWeight: 500,
-  fontSize: 12,
-  color: 'var(--color-text-secondary, #3f3d4a)',
-  borderBottom: '1px solid var(--color-border-default, rgba(0,0,0,0.12))',
-};
-
-const td: React.CSSProperties = {
-  padding: '10px 12px',
-  verticalAlign: 'middle',
-  color: 'var(--color-text-primary, #1c1b22)',
-};
+// Small helper: render role badge
+function RoleBadge({ role }: { role: string }): JSX.Element {
+  const map: Record<string, { tone: 'warning' | 'info' | 'success' | 'danger' | 'neutral'; label: string }> = {
+    trial: { tone: 'warning', label: 'Trial' },
+    demo:  { tone: 'info',    label: 'Demo' },
+    user:  { tone: 'success', label: 'User' },
+    admin: { tone: 'danger',  label: 'Admin' },
+  };
+  const m = map[role] ?? { tone: 'neutral' as const, label: role };
+  return <AppBadge tone={m.tone} dot>{m.label}</AppBadge>;
+}

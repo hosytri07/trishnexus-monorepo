@@ -26,8 +26,9 @@ const DATA_FILE_PATTERNS = ['library-', 'notes-']; // include any file starting 
 
 async function getDataDir(): Promise<string | null> {
   try {
-    const loc = await invoke<{ path: string }>('default_store_location');
-    return loc.path.replace(/[\\/][^\\/]+$/, '');
+    // Phase 51.5: Rust trả { dataDir, exists } (camelCase)
+    const loc = await invoke<{ dataDir: string }>('default_store_location');
+    return loc.dataDir;
   } catch {
     return null;
   }

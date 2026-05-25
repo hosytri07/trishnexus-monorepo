@@ -61,6 +61,12 @@ export { AuthApp, type AuthAppProps } from './auth-app.js';
 // UserMenu — avatar + dropdown (email, role, signout). Đặt ở topbar app.
 export { UserMenu } from './user-menu.js';
 
+// Phase 47.2 — AppTopbar: full panel (avatar + name + role badge + theme + settings + signout)
+export { AppTopbar, type AppTopbarProps } from './app-topbar.js';
+
+// Phase 50.3 — AppSettingsModal: modal cài đặt app-wide (theme + user + signout)
+export { AppSettingsModal, type AppSettingsModalProps } from './app-settings-modal.js';
+
 // Phase 44.2 — AuthGate replace KeyGate cũ. Check role + app_keys, không nhập key tay.
 export { AuthGate, type AuthGateProps } from './auth-gate.js';
 
