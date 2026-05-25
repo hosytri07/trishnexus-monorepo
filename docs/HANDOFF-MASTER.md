@@ -110,20 +110,38 @@ Thử lần lượt:
 4. **Tab Font** → empty state mới với icon + actions
 5. **Tab Shortcut** → Dashboard widget với 4 stat card
 
-### 🆕 Workflow máy mới (cơ quan)
+### 🆕 Workflow chuyển máy
 
-Trí copy file `SETUP-MAY-MOI.bat` qua USB sang máy mới rồi:
-```
-Right-click → Run as administrator
-```
+**Trí đang dùng**: máy nhà → chuyển sang máy CƠ QUAN (đã có project sẵn từ đợt trước).
 
-Script tự cài 13 thứ + clone repo + pnpm install. Mất 25-60 phút tổng. Sau đó:
+**Bước trước khi rời máy nhà** (làm BÂY GIỜ):
+```
+cd C:\Users\TRI\Documents\Claude\Projects\TrishTEAM\trishnexus-monorepo
+scripts\END.bat
+```
+→ Commit + push toàn bộ thay đổi Phase 65-77 + handoff lên GitHub.
+
+**Bước khi đến máy cơ quan** (ngày mai):
 ```
 cd C:\Users\TRI\Documents\Claude\Projects\TrishTEAM\trishnexus-monorepo
 scripts\START.bat
 ```
+→ Tự `git pull` + `pnpm install` (sẽ pick up deps mới nếu Phase 65-77 thêm package).
 
-Xem chi tiết: `docs/COWORK-MAY-MOI.md`.
+Sau đó mở **Cowork Desktop** → chat mới → gõ:
+```
+tiếp tục
+```
+
+Claude (tức là tôi) sẽ đọc `CLAUDE.md` + section `📍 PHIÊN HIỆN TẠI` này → biết đang ở đâu.
+
+**KHÔNG cần** `SETUP-MAY-MOI.bat` vì máy cơ quan đã cài toolchain rồi. File `.bat` đó chỉ dùng khi máy hoàn toàn trắng (mua mới / format). Xem `docs/COWORK-MAY-MOI.md` cho cả 2 trường hợp.
+
+### ⚠ Lưu ý cho phiên kế tiếp (máy cơ quan)
+
+1. Lần đầu `pnpm tauri:dev` sau khi pull Phase 65-77 code mới sẽ build Rust 5-15 phút (vì có command mới: `network_speed_test`, `list_gdrive_folder_items`, `download_gdrive_file` trong `check.rs`/`lib.rs` + thay đổi GPU detection). Cache lại sau lần đầu.
+2. Capability mới (`opener:allow-open-path` scope `**`) yêu cầu rebuild Tauri — không phải hot-reload được.
+3. Wave 73.3 lazy-load module có thể làm `pnpm tauri:dev` cần restart 1 lần để Vite re-chunk.
 
 ### 📦 Files trong phiên này
 

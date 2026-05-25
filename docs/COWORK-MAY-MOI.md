@@ -1,208 +1,213 @@
-# 🎯 COWORK-MAY-MOI.md — Hướng dẫn dùng Cowork trên máy mới
+# 🎯 COWORK-MAY-MOI.md — Hướng dẫn chuyển máy / mở phiên mới
 
-> Khi Trí chuyển sang máy cơ quan (hoặc bất kỳ máy mới nào chưa có gì), đây là quy trình từ 0 đến chạy được TrishTEAM + chat với Claude qua Cowork.
-
----
-
-## 📋 Checklist nhanh
-
-```
-[ ] 1. Copy SETUP-MAY-MOI.bat qua USB / Drive sang máy mới
-[ ] 2. Run as administrator → chờ 25-60 phút
-[ ] 3. Cài Claude Desktop (Cowork app)
-[ ] 4. Mở Cowork → chọn folder TrishTEAM
-[ ] 5. Gõ "tiếp tục" → Claude đọc HANDOFF + làm tiếp
-```
+> File này cover **CẢ HAI tình huống**:
+>
+> - **TH1** — Máy đã có project sẵn (case phổ biến: chuyển nhà↔cơ quan): chỉ cần `START.bat` + Cowork "tiếp tục". Đi tới [Section A](#-th1--máy-đã-có-project-sẵn-thường-dùng) bên dưới.
+> - **TH2** — Máy trắng hoàn toàn (lần đầu setup máy mới): cần `SETUP-MAY-MOI.bat` để cài full toolchain. Đi tới [Section B](#-th2--máy-trắng-hoàn-toàn).
 
 ---
 
-## 🚀 Bước 1 — Bootstrap toolchain (1-click)
+## 🟢 TH1 — Máy đã có project sẵn (thường dùng)
 
-### Cách lấy file `SETUP-MAY-MOI.bat` qua máy mới
+### Trước khi rời máy hiện tại (ví dụ: máy nhà)
 
-**Option A — USB**:
-1. Trên máy cũ, copy file `C:\Users\TRI\Documents\Claude\Projects\TrishTEAM\SETUP-MAY-MOI.bat` vào USB.
-2. Cắm USB vào máy mới, copy bat ra Desktop.
+**1.** Đảm bảo tất cả thay đổi đã commit + push:
 
-**Option B — Google Drive / OneDrive**:
-1. Upload `SETUP-MAY-MOI.bat` lên Drive.
-2. Trên máy mới, mở Drive web, tải về Desktop.
-
-**Option C — GitHub Gist hoặc raw URL**: ít dùng vì repo private.
-
-### Chạy script
-
-1. **Right-click → Run as administrator** (BẮT BUỘC — winget cần admin để cài VS Build Tools).
-2. Đọc message, bấm Enter để bắt đầu.
-3. Chờ script tự cài 13 thứ:
-   - Git, GitHub CLI (gh), Node.js LTS, pnpm (qua corepack)
-   - Rust toolchain + target windows-msvc
-   - **Visual Studio 2022 Build Tools** với workload VCTools + Windows 11 SDK (lâu nhất, 5-15 phút, ~4 GB)
-   - Edge WebView2 Runtime
-   - VS Code
-   - Firebase CLI + Vercel CLI (npm globals)
-4. Khi tới bước **auth**, script sẽ pause + mở browser:
-   - `gh auth login` → dùng web browser, paste code → đăng nhập GitHub của Trí (`hosytri77@gmail.com`).
-   - `firebase login` → dùng Google account `trishteam.official@gmail.com` (chủ project `trishteam-17c2d`).
-   - `vercel login` → tài khoản Vercel.
-5. Sau auth, script tự `git clone` repo về `%USERPROFILE%\Documents\Claude\Projects\TrishTEAM\trishnexus-monorepo` + chạy `pnpm install` (3-8 phút, ~500 MB).
-
-### Sau khi xong
-
-**Restart máy** (để PATH ổn định + VS Build Tools nhận đủ env vars).
-
----
-
-## 🤖 Bước 2 — Cài Cowork (Claude Desktop)
-
-Cowork là chế độ trong app **Claude Desktop**. Trí cần cài Claude Desktop nếu chưa có:
-
-1. Vào https://claude.ai/download.
-2. Tải bản Windows .exe.
-3. Cài đặt theo wizard mặc định.
-4. Đăng nhập tài khoản Anthropic của Trí.
-5. Trong Claude Desktop, bật **Cowork mode** (Settings → Beta features).
-
-Nếu Cowork chưa available cho tài khoản, đợi Anthropic mở quyền. Trong lúc đó vẫn có thể dùng Claude Code (CLI) hoặc Claude trên web.
-
----
-
-## 📂 Bước 3 — Cấu hình Cowork cho TrishTEAM
-
-Khi mở Cowork lần đầu:
-
-1. **Add folder** (hoặc nút "+"): chọn `C:\Users\TRI\Documents\Claude\Projects\TrishTEAM\trishnexus-monorepo`.
-   - Cowork sẽ scan toàn bộ folder, hiển thị danh sách file.
-2. Cowork sẽ tự đọc `CLAUDE.md` (memory) → biết context dự án + quy ước.
-3. Gõ "**tiếp tục**" trong chat đầu tiên → Claude:
-   - Đọc `docs/HANDOFF-MASTER.md` section `PHIÊN HIỆN TẠI`
-   - Biết đang ở Phase 65-77 (TrishUtilities polish xong, Drive bulk downloader, setup script).
-   - Hỏi Trí muốn làm gì tiếp.
-
----
-
-## 🔌 Bước 4 — Plugins / MCP / connectors
-
-Nếu Trí có dùng MCP servers hoặc connectors, cài lại trên máy mới:
-
-| Plugin / MCP | Mục đích | Cài cách nào |
-|---|---|---|
-| Firebase MCP | Quản lý Firestore từ Claude | Chưa cài / optional |
-| GitHub MCP | Tạo issue/PR từ Claude | Chưa cài / optional |
-| `claude_in_chrome` | Browser automation | Cài extension Chrome riêng |
-
-Hiện tại workflow đơn giản nhất là chỉ dùng folder access — không cần MCP gì thêm.
-
----
-
-## 🧪 Bước 5 — Smoke test app
-
-Trong VS Code (đã cài ở bước 1), mở folder repo:
-
-```powershell
-cd C:\Users\TRI\Documents\Claude\Projects\TrishTEAM\trishnexus-monorepo
-code .
-```
-
-Test 1 app dev (vd TrishUtilities):
-
-```powershell
-cd apps-desktop\trishutilities
-pnpm tauri:dev
-```
-
-Lần đầu mất 5-15 phút (Rust compile). Sau đó hiện cửa sổ app. Login bằng Google → vào.
-
-Test 3 app còn lại:
-```powershell
-cd ..\trishwork && pnpm tauri:dev
-cd ..\trishfinance && pnpm tauri:dev
-cd ..\trishadmin && pnpm tauri:dev
-```
-
----
-
-## 🔄 Workflow hằng ngày 2 máy (sync qua GitHub)
-
-Sau khi setup xong, Trí dùng 2 script có sẵn:
-
-**Đầu phiên (mỗi sáng)**:
-```
-scripts\START.bat
-```
-→ `git pull origin main` để lấy code mới từ máy cũ + chuẩn bị env.
-
-**Cuối phiên (mỗi tối)**:
 ```
 scripts\END.bat
 ```
-→ commit tất cả thay đổi + push lên GitHub. Sáng hôm sau máy kia `START.bat` sẽ thấy.
 
-**Quy ước "phép thuật" với Claude**:
-- `tiếp tục` → Claude đọc HANDOFF + tiếp tục dở dang.
-- `chốt` / `xong rồi` / `để mai` / `bấm END.bat` → Claude update HANDOFF rồi chào.
+→ Script tự `git add -A` + `git commit` + `git push origin main`. Nếu có conflict thì hỏi Claude fix.
 
-Đây là cách 2 máy không bao giờ làm trùng việc — HANDOFF là nguồn duy nhất giữa các phiên.
+**2.** Báo Claude "chốt" hoặc "xong rồi" để Claude update `docs/HANDOFF-MASTER.md` trước khi commit cuối cùng — đảm bảo máy bên kia biết đang làm dở gì.
+
+### Khi tới máy đích (ví dụ: máy cơ quan)
+
+**1.** Mở `C:\Users\TRI\Documents\Claude\Projects\TrishTEAM\trishnexus-monorepo` trong File Explorer.
+
+**2.** Double-click `scripts\START.bat`. Script tự làm 3 bước:
+
+- `git pull origin main` — kéo code mới nhất
+- `pnpm install` — cập nhật dependencies (nếu có thay đổi `package.json`)
+- `git status` — show file đang dở (nếu có)
+
+Lần đầu chạy trên máy này, script sẽ hỏi "Máy NHÀ hay CƠ QUAN?" → chọn `2` → ghi vào `.machine-label` (chỉ hỏi 1 lần).
+
+**3.** Mở **Claude Desktop** → **Cowork** mode → chat mới → gõ:
+
+```
+tiếp tục
+```
+
+Claude sẽ:
+- Đọc `CLAUDE.md` (memory)
+- Đọc section `📍 PHIÊN HIỆN TẠI` trong `docs/HANDOFF-MASTER.md`
+- Biết đang ở đâu (vd Phase 65-77, chờ test Wave 44.8 polyline)
+- Hỏi Trí muốn làm gì tiếp.
+
+**Vậy là xong**. Không cần install gì thêm vì toolchain đã có sẵn từ lần setup trước.
+
+### ⚠ Nếu `pnpm install` lỗi sau khi pull
+
+Phổ biến nhất: máy bên kia thêm dependency mới và lockfile bị conflict. Fix:
+```
+pnpm install --frozen-lockfile=false
+```
+Hoặc xoá `node_modules` + `pnpm-lock.yaml` rồi cài lại (cẩn thận, mất 5 phút):
+```
+rmdir /s /q node_modules
+pnpm install
+```
+
+### ⚠ Nếu Rust compile lỗi sau khi pull (vd command mới trong `lib.rs`)
+
+Lần đầu `pnpm tauri:dev` sẽ build Rust 5-15 phút. Sau đó cache lại, nhanh hơn. Nếu lỗi:
+```
+cd apps-desktop\trishutilities\src-tauri
+cargo clean
+cd ..
+pnpm tauri:dev
+```
+
+---
+
+## 🆕 TH2 — Máy trắng hoàn toàn
+
+(Chỉ áp dụng khi mua máy mới / format máy / lần đầu setup. Bình thường không cần.)
+
+### Checklist 5 bước
+
+```
+[ ] 1. Copy SETUP-MAY-MOI.bat qua USB / Drive sang máy mới
+[ ] 2. Right-click → Run as administrator → chờ 25-60 phút
+[ ] 3. Cài Claude Desktop (Cowork app)
+[ ] 4. Mở Cowork → Add folder TrishTEAM
+[ ] 5. Gõ "tiếp tục" → Claude đọc HANDOFF + làm tiếp
+```
+
+### Bước 1 — Lấy `SETUP-MAY-MOI.bat`
+
+File ở `C:\Users\TRI\Documents\Claude\Projects\TrishTEAM\SETUP-MAY-MOI.bat` (folder cha của repo, hoặc copy từ `scripts/SETUP-MAY-MOI.bat` trong repo).
+
+3 cách lấy sang máy mới:
+- **USB**: copy file ra Desktop máy mới.
+- **Google Drive / OneDrive**: upload → tải về máy mới.
+- **GitHub raw**: ít dùng vì repo private.
+
+### Bước 2 — Chạy script
+
+**Right-click → Run as administrator** (BẮT BUỘC để cài VS Build Tools).
+
+Bấm Enter, script tự cài:
+
+| # | Thứ | Mục đích |
+|---|---|---|
+| 1 | Git | Version control |
+| 2 | GitHub CLI (gh) | Auth + repo helpers |
+| 3 | Node.js LTS 22 | Vite + React |
+| 4 | pnpm | Workspace manager |
+| 5 | Rust + rustup | Compile Tauri backend |
+| 6 | VS 2022 Build Tools (C++) | **Bắt buộc cho Rust** (lâu nhất 5-15 phút, ~4 GB) |
+| 7 | Edge WebView2 | Tauri renderer |
+| 8 | VS Code | Editor |
+| 9 | Firebase CLI | Deploy rules / functions |
+| 10 | Vercel CLI | Deploy website |
+| 11 | `gh auth login` | Browser → đăng nhập GitHub |
+| 12 | `firebase login` | Browser → Google account `trishteam.official@gmail.com` |
+| 13 | `vercel login` | Browser → Vercel account |
+| 14 | `git clone` | Repo về `~/Documents/Claude/Projects/TrishTEAM/` |
+| 15 | `pnpm install` | Dependencies (~500 MB, 3-8 phút) |
+
+Sau khi xong, **RESTART máy** để PATH ổn định.
+
+### Bước 3 — Cài Claude Desktop
+
+1. https://claude.ai/download → tải Windows .exe
+2. Cài đặt + đăng nhập tài khoản Anthropic.
+3. Settings → bật **Cowork mode** (nếu có trong Beta features).
+
+### Bước 4 — Add folder vào Cowork
+
+1. Cowork → nút "+" hoặc "Add folder".
+2. Chọn `C:\Users\TRI\Documents\Claude\Projects\TrishTEAM\trishnexus-monorepo`.
+3. Cowork scan + tự đọc `CLAUDE.md`.
+
+### Bước 5 — Gõ "tiếp tục"
+
+Y hệt TH1.
+
+---
+
+## 🔄 Workflow ngày-ngày sau khi setup (2 máy đồng bộ qua GitHub)
+
+| Lệnh | Khi nào | Tác dụng |
+|---|---|---|
+| `scripts\START.bat` | Đầu mỗi phiên | Pull code + pnpm install |
+| `scripts\END.bat` | Cuối mỗi phiên | Commit + push + nhắc eject USB nếu có |
+| Gõ "tiếp tục" | Mở Cowork mỗi sáng | Claude đọc HANDOFF + làm tiếp |
+| Gõ "chốt" / "xong rồi" / "để mai" | Trước khi tắt máy | Claude update HANDOFF trước khi chào |
+
+**Quy tắc vàng**: Không bao giờ tắt máy mà không update HANDOFF. Nếu không, máy bên kia mai sẽ làm trùng hoặc miss context.
+
+---
+
+## 📚 Files quan trọng (cùng chia sẻ giữa 2 máy qua GitHub)
+
+| File | Nội dung |
+|---|---|
+| `CLAUDE.md` | Memory chính — Claude đọc đầu tiên |
+| `docs/HANDOFF-MASTER.md` | Nhật ký progress, section "PHIÊN HIỆN TẠI" trên cùng là current state |
+| `docs/COWORK-MAY-MOI.md` | File này — guide chuyển máy |
+| `scripts/SETUP-MAY-MOI.bat` | Bootstrap (chỉ dùng TH2) |
+| `scripts/START.bat` | Đầu phiên |
+| `scripts/END.bat` | Cuối phiên |
+| `.machine-label` | (auto-tạo) ghi `home` / `office` để biết đang ở đâu |
 
 ---
 
 ## 🩹 Troubleshoot
 
-### "Cannot find pnpm" sau khi script chạy xong
-→ Đóng cmd, mở cmd mới. Hoặc restart máy. PATH cần refresh.
+### `git pull` lỗi conflict
 
-### `pnpm tauri:dev` lỗi "link.exe not found"
-→ VS Build Tools chưa cài xong workload C++. Mở **Visual Studio Installer** (search Start) → "Modify" → Workloads → tick "Desktop development with C++" → Modify.
+Máy này có thay đổi local chưa commit đụng với code mới. Xem `git status`, hoặc nhờ Claude:
+```
+Tôi git pull bị conflict ở file X, fix giúp
+```
 
-### `cargo build` lỗi "Microsoft C++ Build Tools is required"
-→ Same as above.
+### `pnpm install` lỗi sau pull
 
-### `gh auth login` mở browser nhưng không xong
-→ Chạy lại trong cmd: `gh auth login`. Chọn HTTPS + Login with web browser.
+Thường do lockfile changed. Xem section "TH1 ⚠".
+
+### `pnpm tauri:dev` chạy được nhưng app trắng / blank
+
+Có thể WebView2 lỗi. Cài lại: https://developer.microsoft.com/en-us/microsoft-edge/webview2/
+
+### `cargo build` lỗi "link.exe not found" / "Microsoft C++ Build Tools required"
+
+VS Build Tools workload C++ chưa cài. Mở **Visual Studio Installer** (Start menu) → Modify → Workloads → tick "Desktop development with C++" → Modify.
 
 ### `firebase deploy` lỗi quyền
-→ `firebase login --reauth` để đăng nhập lại. Đảm bảo dùng Google account `trishteam.official@gmail.com` (owner project `trishteam-17c2d`).
 
-### `vercel` lỗi
-→ `vercel login` lại. Hoặc xoá `.vercel/` trong folder repo và `vercel link` để link lại.
+```
+firebase login --reauth
+```
+Đảm bảo dùng Google `trishteam.official@gmail.com`.
 
-### Tauri build lỗi WebView2 / icon
-→ Cài Edge WebView2 Runtime thủ công: https://developer.microsoft.com/en-us/microsoft-edge/webview2/
+### Cowork không thấy folder mới sau khi `git pull`
 
-### "Tải quá lâu" pnpm install
-→ Bình thường 3-8 phút. Nếu lâu hơn 15 phút, network slow hoặc registry vấn đề. Thử `pnpm config set registry https://registry.npmjs.org/`.
+Cowork cache file list. Restart Cowork hoặc bấm Refresh.
 
----
+### Nếu hỏng hoàn toàn — wipe + clone lại
 
-## 📚 Files quan trọng
-
-| File | Nội dung |
-|---|---|
-| `CLAUDE.md` | Memory chính — Claude đọc đầu tiên mỗi session |
-| `docs/HANDOFF-MASTER.md` | Nhật ký progress, section "PHIÊN HIỆN TẠI" trên cùng |
-| `docs/COWORK-MAY-MOI.md` | File này — guide setup máy mới |
-| `scripts/SETUP-MAY-MOI.bat` | Bootstrap 1-click |
-| `scripts/START.bat` | Đầu phiên: pull + prepare |
-| `scripts/END.bat` | Cuối phiên: commit + push |
-| `.firebaserc` | Firebase project: `trishteam-17c2d` |
-| `package.json` | Workspace root, pnpm config |
-| `pnpm-workspace.yaml` | Định nghĩa workspaces (apps-desktop/* + packages/*) |
-
----
-
-## 🆘 Nếu hỏng hoàn toàn
-
-Trên máy mới, xoá folder repo + clone lại:
-```powershell
+```
 cd C:\Users\TRI\Documents\Claude\Projects\TrishTEAM
 rmdir /s /q trishnexus-monorepo
 git clone https://github.com/hosytri07/trishnexus-monorepo.git
 cd trishnexus-monorepo
 pnpm install
 ```
-
-Không bị mất gì vì commits ở GitHub. Chỉ mất file chưa push (gõ `git status` ở máy cũ kiểm tra trước khi clean).
+Không mất gì vì code đã ở GitHub. Chỉ mất file local chưa push (check `git status` trước nếu lo).
 
 ---
 
-**Cập nhật**: 2026-05-25 — Phase 77 (setup script). Xem `HANDOFF-MASTER.md` cho trạng thái mới nhất.
+**Cập nhật**: 2026-05-25 — Phase 65-77. Xem `HANDOFF-MASTER.md` cho trạng thái mới nhất.
