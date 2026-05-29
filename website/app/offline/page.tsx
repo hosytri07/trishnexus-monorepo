@@ -1,95 +1,50 @@
 /**
- * /offline — Phase 11.9.4.
- *
- * Fallback page khi service worker phát hiện navigation request fail.
- * Server-rendered (no client state) để SW có thể precache sẵn ở bước
- * install. Không import widget nào để tránh phụ thuộc Firestore/network.
+ * /offline — Phase 78 Brutalist PWA offline fallback.
  */
-import Link from 'next/link';
-import { WifiOff, RefreshCw, Home } from 'lucide-react';
+'use client';
 
-export const metadata = {
-  title: 'Offline — TrishTEAM',
-  description:
-    'Bạn đang offline. TrishTEAM vẫn hiển thị app shell và một vài tính năng cơ bản.',
-};
+import Link from 'next/link';
+import { WifiOff, ArrowRight } from 'lucide-react';
 
 export default function OfflinePage() {
   return (
-    <main
-      className="max-w-[44rem] mx-auto px-6 py-16 flex flex-col items-center text-center"
-      style={{ color: 'var(--color-text)' }}
-    >
-      <div
-        className="rounded-full p-6 mb-6"
+    <main className="bru">
+      <section
+        className="bru-section"
         style={{
-          background: 'var(--color-accent-soft)',
-          color: 'var(--color-accent)',
+          paddingTop: 'clamp(80px, 12vw, 200px)',
+          minHeight: '80vh',
+          display: 'flex',
+          alignItems: 'center',
         }}
       >
-        <WifiOff size={48} strokeWidth={1.75} />
-      </div>
-
-      <h1
-        className="text-3xl font-bold mb-3"
-        style={{ color: 'var(--color-text)' }}
-      >
-        Không có kết nối Internet
-      </h1>
-
-      <p
-        className="text-base mb-8 max-w-md"
-        style={{ color: 'var(--color-text-muted)' }}
-      >
-        Bạn đang offline nên TrishTEAM không thể tải dữ liệu mới. Một số nội
-        dung đã cache có thể vẫn xem được — thử quay lại trang chủ hoặc
-        reload sau khi có mạng trở lại.
-      </p>
-
-      <div className="flex flex-wrap items-center justify-center gap-3">
-        <Link
-          href="/"
-          className="inline-flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition"
-          style={{
-            background: 'var(--color-accent)',
-            color: '#0b1220',
-          }}
-        >
-          <Home size={16} />
-          Về dashboard
-        </Link>
-        <ReloadButton />
-      </div>
-
-      <div
-        className="mt-12 text-xs"
-        style={{ color: 'var(--color-text-muted)' }}
-      >
-        TrishTEAM lưu ghi chú QuickNotes ở localStorage nên bạn vẫn xem được
-        nội dung đã nhập gần đây khi offline.
-      </div>
+        <div className="bru-container-narrow" style={{ textAlign: 'center', margin: '0 auto' }}>
+          <WifiOff
+            size={80}
+            strokeWidth={1.5}
+            style={{ color: 'var(--bru-accent)', margin: '0 auto 32px' }}
+          />
+          <h1 className="bru-display-xl" style={{ marginBottom: 32 }}>
+            BẠN ĐANG <span className="bru-accent">OFFLINE.</span>
+          </h1>
+          <p className="bru-body-lg" style={{ marginBottom: 48, maxWidth: 520, marginInline: 'auto' }}>
+            Không kết nối được internet. Kiểm tra Wi-Fi / mobile data, rồi reload trang.
+          </p>
+          <div style={{ display: 'flex', gap: 16, justifyContent: 'center', flexWrap: 'wrap' }}>
+            <button
+              type="button"
+              onClick={() => window.location.reload()}
+              className="bru-btn bru-btn-primary bru-btn-lg"
+            >
+              Thử lại
+              <ArrowRight size={18} strokeWidth={2.5} />
+            </button>
+            <Link href="/" className="bru-btn bru-btn-lg">
+              Trang chủ
+            </Link>
+          </div>
+        </div>
+      </section>
     </main>
-  );
-}
-
-/**
- * Client island riêng cho nút reload — tránh mark cả page 'use client'.
- */
-function ReloadButton() {
-  return (
-    <form action="/" method="get">
-      <button
-        type="submit"
-        className="inline-flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium border transition"
-        style={{
-          borderColor: 'var(--color-border)',
-          color: 'var(--color-text)',
-          background: 'transparent',
-        }}
-      >
-        <RefreshCw size={16} />
-        Thử lại
-      </button>
-    </form>
   );
 }

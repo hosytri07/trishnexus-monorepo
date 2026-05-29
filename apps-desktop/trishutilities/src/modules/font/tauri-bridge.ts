@@ -112,6 +112,23 @@ export async function pickFontDirectory(): Promise<string | null> {
   return null;
 }
 
+// Phase 78.8 — Pick 1 hoac nhieu file .dwg/.dxf
+export async function pickDwgFiles(): Promise<string[]> {
+  if (!isInTauri()) return [];
+  const res = await openDialog({
+    directory: false,
+    multiple: true,
+    title: 'Chọn file .dwg / .dxf',
+    filters: [
+      { name: 'AutoCAD Drawing', extensions: ['dwg', 'dxf'] },
+      { name: 'Tất cả file', extensions: ['*'] },
+    ],
+  });
+  if (Array.isArray(res)) return res;
+  if (typeof res === 'string') return [res];
+  return [];
+}
+
 export async function getAppVersion(): Promise<string> {
   if (!isInTauri()) return 'dev';
   try {
@@ -149,6 +166,47 @@ export async function getPacksFolderInfo(): Promise<PacksFolderInfo> {
     };
   }
   return invoke<PacksFolderInfo>('get_packs_folder_info');
+}
+
+// Phase 78.6 — DWG Font Detector types + bridge
+export interface DwgScanResult {
+  file_path: string;
+  file_name: string;
+  size_bytes: number;
+  fonts_referenced: string[];
+  fonts_missing: string[];
+  scan_error: string | null;
+  /** Phase 78.9 — DWG version detected (R14, R2000, R2004, R2007, R2010, R2013, R2018, DXF text, ...) */
+  dwg_version: string;
+  /** R2004+ uses LZ77 compressed strings — heuristic miss most refs */
+  compressed_strings: boolean;
+}
+
+export interface DwgScanSummary {
+  folder: string;
+  total_dwg: number;
+  installed_shx_count: number;
+  unique_missing_fonts: string[];
+  results: DwgScanResult[];
+}
+
+// Phase 78.8 — Accept mix file/folder paths
+export async function scanDwgPaths(paths: string[]): Promise<DwgScanSummary> {
+  if (!isInTauri()) {
+    return {
+      folder: paths[0] ?? '',
+      total_dwg: 0,
+      installed_shx_count: 0,
+      unique_missing_fonts: [],
+      results: [],
+    };
+  }
+  return invoke<DwgScanSummary>('scan_dwg_paths', { paths });
+}
+
+/** @deprecated — use scanDwgPaths */
+export async function scanDwgFolder(folder: string): Promise<DwgScanSummary> {
+  return scanDwgPaths([folder]);
 }
 
 export async function clearAllPacks(): Promise<void> {
@@ -246,6 +304,9 @@ export interface FontPack {
   preview_image: string;
   download_url: string;
   sha256: string;
+  // Phase 78.13.9 — Release notes admin set qua TrishAdmin FontPacksPanel
+  release_notes?: string;
+  release_date?: number;
 }
 
 export interface PackManifest {
@@ -281,10 +342,34 @@ const DEV_FALLBACK_MANIFEST: PackManifest = {
   ],
 };
 
+/**
+ * Phase 78.13.4 — Source priority:
+ *   1. Firestore `fontpacks/{id}` (admin manage qua TrishAdmin FontPacksPanel)
+ *   2. GitHub raw manifest.json (legacy, fallback nếu Firestore rỗng/lỗi)
+ *   3. DEV_FALLBACK_MANIFEST (dev mode hoặc cả 2 nguồn đều fail)
+ *
+ * Firestore là source of truth — admin edit xong là user thấy ngay,
+ * không cần commit/push lên repo trishnexus-fontpacks nữa.
+ */
 export async function fetchManifest(
   url: string = MANIFEST_URL,
 ): Promise<PackManifest> {
+  // Try Firestore first (works ở cả dev + production)
+  try {
+    const firestorePacks = await fetchFontpacksFromFirestore();
+    if (firestorePacks.length > 0) {
+      return {
+        schema_version: 1,
+        updated_at: new Date().toISOString(),
+        packs: firestorePacks,
+      };
+    }
+  } catch (err) {
+    console.warn('[trishfont] Firestore fontpacks fetch fail:', err);
+  }
+
   if (!isInTauri()) return DEV_FALLBACK_MANIFEST;
+  // Fallback: GitHub raw manifest.json (legacy workflow)
   try {
     const text = await invoke<string>('fetch_text', { url });
     return JSON.parse(text) as PackManifest;
@@ -292,6 +377,37 @@ export async function fetchManifest(
     console.warn('[trishfont] fetchManifest fail, using dev fallback:', err);
     return DEV_FALLBACK_MANIFEST;
   }
+}
+
+/** Phase 78.13.4 — Đọc tất cả fontpacks từ Firestore. */
+async function fetchFontpacksFromFirestore(): Promise<FontPack[]> {
+  // Dynamic import để tránh circular dep + giảm bundle khi unused
+  const [{ getFirebaseDb }, firestoreLib] = await Promise.all([
+    import('@trishteam/auth'),
+    import('firebase/firestore'),
+  ]);
+  const db = getFirebaseDb();
+  const snap = await firestoreLib.getDocs(firestoreLib.collection(db, 'fontpacks'));
+  if (snap.empty) return [];
+  return snap.docs.map((d) => {
+    const data = d.data() as Partial<FontPack>;
+    return {
+      id: data.id ?? d.id,
+      name: data.name ?? d.id,
+      version: data.version ?? '1.0.0',
+      description: data.description ?? '',
+      kind: data.kind ?? 'mixed',
+      size_bytes: data.size_bytes ?? 0,
+      file_count: data.file_count ?? 0,
+      tags: data.tags ?? [],
+      preview_image: data.preview_image ?? '',
+      download_url: data.download_url ?? '',
+      sha256: data.sha256 ?? '',
+      // Phase 78.13.9 — Pass-through release notes
+      release_notes: data.release_notes,
+      release_date: data.release_date,
+    };
+  }).filter((p) => p.download_url); // Bỏ pack chưa có download_url
 }
 
 export async function installPack(

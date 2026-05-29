@@ -23,6 +23,8 @@ import {
   LogOut,
   Lock,
 } from 'lucide-react';
+import { BruPageHeader } from '@/components/bru/bru-page-header';
+import { User as UserIcon } from 'lucide-react';
 import {
   doc,
   collection,
@@ -262,11 +264,15 @@ export default function ProfilePage() {
   if (!user) return null;
 
   return (
-    <div className="profile-page">
-      <Link href="/" className="profile-back" aria-label="Về dashboard">
-        <ArrowLeft size={18} />
-      </Link>
-
+    <main className="bru">
+      <BruPageHeader
+        eyebrow="// Tài khoản"
+        title="HỒ SƠ"
+        titleAccent="CÁ NHÂN."
+        subtitle="Quản lý thông tin tài khoản, avatar, mật khẩu và kích hoạt key."
+        icon={UserIcon}
+      />
+    <div className="profile-page" style={{ alignItems: 'center', paddingTop: 32 }}>
       <div className="profile-card">
         <div className="profile-header">
           <AvatarUploader uid={user.id} avatarId={user.cloudinary_avatar_id} photoUrl={user.photo_url} size={88} />
@@ -639,6 +645,7 @@ export default function ProfilePage() {
         }
       `}</style>
     </div>
+    </main>
   );
 }
 

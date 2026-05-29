@@ -316,13 +316,11 @@ service cloud.firestore {
     }
 
     // --- Phase 41 — /apps_catalog/{appId} (TrishAdmin Firestore-backed app catalog) ---
-    // Source of truth mới cho TrishLauncher app list (replace static apps-registry.json).
-    // Khác với /apps_meta (dùng cho website /downloads) — /apps_catalog là dataset
-    // riêng cho Launcher fetch, cho phép admin add app NGOÀI hệ sinh thái
-    // (Photoshop, AutoCAD, OBS, VLC, etc.) với logo + link tải.
+    // Phase 78.13 update: TrishLauncher đã bỏ (4 app standalone). Catalog giờ
+    // dùng cho website /apps + future "ecosystem overview" pages — admin có thể
+    // add app NGOÀI hệ sinh thái (Photoshop, AutoCAD, OBS, VLC, etc.) với logo + link.
     //
-    // Public read (Launcher fetch không cần signed-in để render catalog).
-    // Admin write only.
+    // Public read (không cần signed-in). Admin write only.
     match /apps_catalog/{appId} {
       allow read: if true;
       allow create, update, delete: if isAdmin();
@@ -435,6 +433,57 @@ service cloud.firestore {
     // User khác: deny.
     match /trishoffice_companies/{ownerUid}/{collection}/{docId} {
       allow read, write: if signedIn() && (request.auth.uid == ownerUid || isAdmin());
+    }
+
+    // --- Phase 78.13 — /scheduled_tasks/{taskId} (TrishUtilities scheduled background tasks) ---
+    // Doc ID = `${uid}_${timestamp}_${rand}` — owner derive từ field uid, không phải doc path.
+    // User: CRUD task của chính mình. Admin: full read + disable/delete.
+    match /scheduled_tasks/{taskId} {
+      // Read: owner hoặc admin
+      allow read: if isAdmin()
+        || (signedIn() && resource.data.uid == request.auth.uid);
+      // Create: user tạo task cho chính mình (uid phải match)
+      allow create: if signedIn() && request.resource.data.uid == request.auth.uid;
+      // Update: owner update task của mình hoặc admin (toggle enabled, delete)
+      allow update: if isAdmin()
+        || (signedIn() && resource.data.uid == request.auth.uid
+            && request.resource.data.uid == request.auth.uid);
+      // Delete: owner hoặc admin
+      allow delete: if isAdmin()
+        || (signedIn() && resource.data.uid == request.auth.uid);
+    }
+
+    // --- Phase 78.13 — /synced_configs/{uid_deviceId} (TrishUtilities settings sync) ---
+    // Doc ID = `${uid}_${deviceId}`. Owner derive từ field uid.
+    // User: CRUD config của máy mình. Admin: full read + delete.
+    match /synced_configs/{configId} {
+      allow read: if isAdmin()
+        || (signedIn() && resource.data.uid == request.auth.uid);
+      allow create: if signedIn() && request.resource.data.uid == request.auth.uid;
+      allow update: if signedIn() && resource.data.uid == request.auth.uid
+        && request.resource.data.uid == request.auth.uid;
+      allow delete: if isAdmin()
+        || (signedIn() && resource.data.uid == request.auth.uid);
+    }
+
+    // --- Phase 78.13 — /fontpacks/{packId} (Firestore-backed font packs manifest) ---
+    // Public read — TrishUtilities user fetch manifest không cần signed-in.
+    // Admin CRUD via TrishAdmin FontPacksPanel.
+    match /fontpacks/{packId} {
+      allow read: if true;
+      allow create, update, delete: if isAdmin();
+    }
+
+    // --- Phase 78.13.12 — /user_notifications/{uid} (NotificationCenter lastSeen sync) ---
+    // Mỗi user 1 doc chứa `last_seen` epoch ms — sync giữa các máy.
+    // Doc ID = uid, không sub-collection. Schema:
+    //   { last_seen: number, updated_at: serverTimestamp }
+    //
+    // Owner CRUD doc của mình. Admin có thể đọc all (debug) + xoá (cleanup).
+    match /user_notifications/{uid} {
+      allow read: if isSelf(uid) || isAdmin();
+      allow create, update: if isSelf(uid);
+      allow delete: if isSelf(uid) || isAdmin();
     }
 
     // --- Default deny ---

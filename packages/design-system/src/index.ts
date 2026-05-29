@@ -19,6 +19,9 @@ export { AppShellSidebar } from './AppShellSidebar.js';
 export type { AppShellSidebarProps } from './AppShellSidebar.js';
 export type { AppShellProps, ModuleDef } from './AppShell.js';
 export { AppLogo, getAppAccentColor } from './AppLogo.js';
+// Phase 78.13.11 — Shared NotificationCenter cho topbar 4 app
+export { NotificationCenter } from './NotificationCenter.js';
+export type { NotificationCenterProps } from './NotificationCenter.js';
 export type { AppShellId, AppLogoProps } from './AppLogo.js';
 export { APP_LOGO_PNG_URLS } from './logos.js';
 export {

@@ -2597,6 +2597,7 @@ pub fn run() {
             font::export_fonts_to_folder,
             font::clear_all_packs,
             font::get_packs_folder_info,
+            font::scan_dwg_paths,
             // ---- Shortcut ----
             shortcut::scan_desktop,
             shortcut::scan_start_menu,

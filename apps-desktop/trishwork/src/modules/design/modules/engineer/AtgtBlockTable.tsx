@@ -331,6 +331,25 @@ export function AtgtBlockTable({ segment, onChange }: Props): JSX.Element {
                         </span>
                       )}
                       {b && <span className="atgt-block-meta">{b.category}</span>}
+                      {b?.release_notes && (
+                        <span
+                          title={`📝 Ghi chú admin: ${b.release_notes}${b.release_date ? '\n📅 ' + new Date(b.release_date).toLocaleDateString('vi-VN') : ''}`}
+                          style={{
+                            display: 'inline-flex',
+                            marginLeft: 4,
+                            fontSize: 11,
+                            padding: '0 4px',
+                            borderRadius: 99,
+                            background: 'rgba(52,211,153,0.18)',
+                            color: '#34d399',
+                            fontWeight: 700,
+                            cursor: 'help',
+                            verticalAlign: 'middle',
+                          }}
+                        >
+                          📝
+                        </span>
+                      )}
                     </td>
                     <td><input className="atgt-block-input" type="number" step={0.1} value={pl.station} onChange={(e) => patch(pl.id, { station: Number(e.target.value) || 0 })} /></td>
                     <td><input className="atgt-block-input" type="number" step={0.1} value={pl.cachTim ?? 0} onChange={(e) => patch(pl.id, { cachTim: Number(e.target.value) || 0 })} /></td>

@@ -145,6 +145,9 @@ html, body {
 .ts-app .btn-ghost { background: transparent; color: var(--text); border-color: var(--border); }
 .ts-app .btn-ghost:hover:not(:disabled) { background: var(--surface-raised); border-color: var(--border-strong); }
 .ts-app .btn-small { padding: 4px 10px; font-size: 12px; }
+/* Phase 78 — btn-lg: primary action button (eg "Tai pack") cho ro to */
+.ts-app .btn-lg { padding: 10px 22px; font-size: 14px; font-weight: 600; }
+.ts-app .btn-lg.btn-primary { box-shadow: 0 2px 8px var(--accent-soft); }
 .ts-app .btn-done { background: var(--status-ok-soft); border-color: var(--status-ok); color: var(--status-ok); }
 .ts-app .btn-danger-solid { background: var(--danger); color: #fff; }
 .ts-app .btn-danger-solid:hover:not(:disabled) { background: var(--danger-hover); }
@@ -212,11 +215,11 @@ html, body {
 .ts-app .pill:hover { border-color: var(--border-strong); }
 .ts-app .pill-active { background: var(--accent); color: #fff; border-color: var(--accent); }
 
-/* Main + empty */
+/* Main + empty — Phase 78: giam padding-top 16→8 cho sat tab-bar */
 .main-content {
   flex: 1;
   overflow-y: auto;
-  padding: 16px 20px;
+  padding: 8px 20px 16px;
 }
 
 .empty-state {
@@ -235,18 +238,27 @@ html, body {
   flex-wrap: wrap;
 }
 
-/* Font card grid — Phase 15.1.j: compact, 3-col responsive */
+/* Font card grid — Phase 15.1.j: 3-col responsive cho preview mode */
 .font-grid { display: grid; grid-template-columns: 1fr; gap: 8px; }
 
 @media (min-width: 800px) {
-  .font-grid { grid-template-columns: repeat(2, 1fr); }
+  .font-grid:not(.font-grid-compact) { grid-template-columns: repeat(2, 1fr); }
 }
 @media (min-width: 1300px) {
-  .font-grid { grid-template-columns: repeat(3, 1fr); }
+  .font-grid:not(.font-grid-compact) { grid-template-columns: repeat(3, 1fr); }
 }
 
-/* Phase 15.1.k — Compact mode (System fonts tab): single row, no preview */
-.font-grid-compact { gap: 4px; }
+/* Phase 78.5 — Compact mode (library + system): single col 1 dong moi font,
+ * vertical list giong Pack file list. Bo all media queries. */
+.font-grid-compact {
+  grid-template-columns: 1fr !important;
+  gap: 2px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--bg);
+  padding: 0;
+  overflow: hidden;
+}
 
 .font-card-selected {
   border-color: var(--accent);
@@ -258,24 +270,47 @@ html, body {
   flex-shrink: 0;
   margin-right: 4px;
 }
+/* Phase 78.5 — Compact row: checkbox + name (flex) + badges (right), no install btn */
 .font-grid-compact .font-card {
   flex-direction: row;
   align-items: center;
-  padding: 6px 12px;
-  gap: 12px;
+  padding: 5px 10px;
+  gap: 10px;
+  border: none;
+  border-radius: 0;
+  border-bottom: 1px solid var(--border);
+  background: transparent;
+  font-size: 12px;
 }
+.font-grid-compact .font-card:last-child { border-bottom: none; }
+.font-grid-compact .font-card:hover { background: var(--surface-raised); border-color: var(--border); }
+.font-grid-compact .font-card-selected {
+  background: var(--accent-soft);
+  border-color: var(--accent);
+}
+
 .font-grid-compact .font-card-head {
   flex: 1;
   flex-wrap: nowrap;
+  gap: 8px;
 }
-.font-grid-compact .font-card-name { flex: 1; min-width: 0; }
+.font-grid-compact .font-card-name { flex: 1; min-width: 0; font-size: 12px; }
 .font-grid-compact .font-card-name strong {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  font-weight: 600;
 }
-.font-grid-compact .font-card-foot { flex-shrink: 0; gap: 8px; }
-.font-grid-compact .font-card-path { display: none; }
+.font-grid-compact .font-card-badges {
+  flex-shrink: 0;
+  gap: 3px;
+}
+.font-grid-compact .badge {
+  font-size: 9px;
+  padding: 1px 5px;
+}
+/* Hide foot (path + install button) entirely in compact mode */
+.font-grid-compact .font-card-foot { display: none; }
 
 .font-card {
   display: flex;
@@ -481,42 +516,44 @@ html, body {
 
 .settings-update-new strong { color: var(--accent); }
 
-/* Packs (FontPack tab) */
+/* Packs (FontPack tab) — Phase 78: chat gap + title to ro hon */
 .packs-section {
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 12px;
 }
 
 .section-head-row {
   display: flex;
   justify-content: space-between;
   align-items: flex-start;
-  gap: 16px;
+  gap: 12px;
+  margin-bottom: 4px;
 }
 
 .packs-title {
-  margin: 0 0 4px;
-  font-size: 16px;
-  font-weight: 600;
+  margin: 0 0 2px;
+  font-size: 17px;
+  font-weight: 700;
   color: var(--text);
+  letter-spacing: -0.01em;
 }
 
-/* Pack 2-column layout */
+/* Pack 2-column layout — Phase 78: ha breakpoint 1000→800px */
 .packs-layout {
   display: grid;
   grid-template-columns: 1fr;
   gap: 16px;
 }
 
-@media (min-width: 1000px) {
-  .packs-layout { grid-template-columns: minmax(280px, 360px) 1fr; }
+@media (min-width: 800px) {
+  .packs-layout { grid-template-columns: minmax(260px, 320px) 1fr; }
 }
 
 .pack-list-col {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 10px;
   align-self: start;
 }
 
@@ -527,21 +564,22 @@ html, body {
   align-self: start;
 }
 
-@media (max-width: 999px) {
+@media (max-width: 799px) {
   .pack-detail-col { border-left: none; padding-left: 0; border-top: 1px solid var(--border); padding-top: 16px; }
 }
 
 .pack-detail-empty {
   text-align: center;
-  padding: 48px 20px;
-  font-size: 13px;
+  padding: 28px 20px;
+  font-size: 12.5px;
 }
 
+/* Phase 78.4 — pack card compact (de sau co nhieu pack van nhin duoc) */
 .pack-card {
   display: flex;
   flex-direction: column;
-  gap: 10px;
-  padding: 16px;
+  gap: 6px;
+  padding: 10px 12px;
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
   background: var(--surface);
@@ -560,16 +598,22 @@ html, body {
 
 .pack-card-name {
   margin: 0;
-  font-size: 15px;
-  font-weight: 600;
+  font-size: 14px;
+  font-weight: 700;
   color: var(--text);
+  letter-spacing: -0.01em;
 }
 
 .pack-card-desc {
   margin: 0;
-  font-size: 13px;
-  line-height: 1.5;
+  font-size: 11.5px;
+  line-height: 1.45;
   color: var(--text-secondary);
+  /* Phase 78.4 — clamp 2 line max */
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
 }
 
 .pack-card-tags {
@@ -579,8 +623,8 @@ html, body {
 }
 
 .pack-tag {
-  padding: 2px 8px;
-  font-size: 10px;
+  padding: 1px 7px;
+  font-size: 9.5px;
   font-weight: 500;
   background: var(--surface-raised);
   border: 1px solid var(--border);
@@ -599,23 +643,24 @@ html, body {
   margin-top: 4px;
 }
 
-/* Pack detail panel */
+/* Pack detail panel — Phase 78: chat gap 12→8, head bottom 4→2 */
 .pack-detail {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 8px;
 }
 
 .pack-detail-head {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 2px;
 }
 
 .pack-detail-head h3 {
   margin: 0;
-  font-size: 16px;
-  font-weight: 600;
+  font-size: 17px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
 }
 
 .pack-subtabs {
@@ -639,6 +684,72 @@ html, body {
 .subtab:hover { color: var(--text); }
 .subtab-active { color: var(--accent); border-bottom-color: var(--accent); }
 
+/* Phase 78.6 — Search + filter chip trong pack detail */
+.pack-search-filter {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 0;
+  flex-wrap: wrap;
+}
+
+.pack-search-input {
+  flex: 1;
+  min-width: 200px;
+  padding: 6px 10px;
+  font-size: 12.5px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  color: var(--text);
+  transition: border-color 120ms ease;
+}
+.pack-search-input:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px var(--accent-soft);
+}
+.pack-search-input::placeholder {
+  color: var(--muted);
+}
+
+.pack-filter-chips {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+
+.pack-filter-chips .pill {
+  font-size: 11px;
+  padding: 3px 10px;
+}
+
+.pack-search-result {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-variant-numeric: tabular-nums;
+}
+.pack-search-result strong {
+  color: var(--accent);
+  font-weight: 700;
+}
+
+.pack-search-clear {
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  color: var(--muted);
+  font-size: 12px;
+  padding: 2px 4px;
+  border-radius: 4px;
+  margin-left: 2px;
+}
+.pack-search-clear:hover {
+  background: var(--surface-raised);
+  color: var(--text);
+}
+
 .pack-action-bar {
   display: flex;
   align-items: center;
@@ -649,6 +760,8 @@ html, body {
 
 .actions-spacer { flex: 1; }
 
+/* Phase 78 — bo max-height fixed, de pack-file-list grow theo content
+ * (main-content tu lo overflow). Min-height = de tranh empty list nhin gay. */
 .pack-file-list {
   list-style: none;
   margin: 0;
@@ -656,8 +769,7 @@ html, body {
   display: flex;
   flex-direction: column;
   gap: 2px;
-  max-height: 38vh;
-  overflow-y: auto;
+  min-height: 200px;
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
   background: var(--bg);
@@ -767,6 +879,583 @@ html, body {
 .pack-file-status-failed { color: var(--status-fail); }
 .pack-file-status-pending { color: var(--muted); }
 
+/* ============================================================
+ * Phase 78.6 — DWG Scanner screen
+ * ============================================================ */
+.dwg-scanner-screen {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.dwg-summary-card {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 14px 18px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  flex-wrap: wrap;
+}
+
+.dwg-summary-stat {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0;
+  min-width: 80px;
+}
+
+.dwg-summary-num {
+  font-size: 22px;
+  font-weight: 800;
+  color: var(--accent);
+  font-variant-numeric: tabular-nums;
+  line-height: 1.1;
+  letter-spacing: -0.02em;
+}
+
+.dwg-summary-stat-warn .dwg-summary-num {
+  color: var(--status-fail);
+}
+.dwg-summary-stat-ok .dwg-summary-num {
+  color: var(--status-ok);
+}
+
+.dwg-summary-label {
+  font-size: 11.5px;
+  color: var(--text-secondary);
+  font-weight: 500;
+  margin-top: 2px;
+}
+
+.dwg-summary-folder {
+  padding: 4px 4px;
+  font-family: 'SF Mono', Monaco, 'Cascadia Code', monospace;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.dwg-missing-section {
+  padding: 12px 14px;
+  background: var(--status-fail-soft);
+  border: 1px solid var(--status-fail);
+  border-radius: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.dwg-missing-head {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--status-fail);
+}
+
+.dwg-missing-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+
+.dwg-missing-chip {
+  font-family: 'SF Mono', Monaco, monospace;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 3px 8px;
+  background: var(--surface);
+  border: 1px solid var(--status-fail);
+  border-radius: 4px;
+  color: var(--status-fail);
+}
+
+.dwg-all-ok {
+  padding: 12px 14px;
+  background: var(--status-ok-soft);
+  border: 1px solid var(--status-ok);
+  border-radius: 8px;
+  color: var(--status-ok);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.dwg-files-list {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+}
+
+.dwg-files-head {
+  padding: 8px 14px;
+  border-bottom: 1px solid var(--border);
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text);
+  background: var(--surface-raised);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.dwg-file-filters {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+
+.dwg-file-filters .pill {
+  font-size: 10.5px;
+  padding: 2px 8px;
+  font-weight: 600;
+}
+.dwg-file-filters .pill.pill-danger:not(.pill-active) {
+  color: var(--status-fail);
+  border-color: rgba(239, 68, 68, 0.4);
+}
+.dwg-file-filters .pill.pill-danger.pill-active {
+  background: var(--status-fail);
+  color: #fff;
+  border-color: var(--status-fail);
+}
+
+/* === Phase 78.7 — Scanning progress card === */
+.dwg-scanning-card {
+  padding: 18px 22px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.dwg-scanning-head {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.dwg-scanning-spin {
+  font-size: 28px;
+  animation: pulse 1.2s ease-in-out infinite;
+  color: var(--accent);
+}
+
+.dwg-scanning-body {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.dwg-scanning-title {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.dwg-scanning-meta {
+  font-variant-numeric: tabular-nums;
+  font-size: 11.5px;
+}
+
+.dwg-scanning-current {
+  font-family: 'SF Mono', Monaco, monospace;
+  opacity: 0.7;
+}
+
+.dwg-file-row-warn {
+  background: rgba(239, 68, 68, 0.04);
+}
+
+.dwg-file-missing-count {
+  color: var(--status-fail);
+  font-weight: 700;
+}
+
+/* Phase 78.9 — Version badge + compressed warning */
+.dwg-version-badge {
+  display: inline-block;
+  font-family: 'SF Mono', Monaco, monospace;
+  font-size: 9.5px;
+  font-weight: 700;
+  padding: 1px 6px;
+  border-radius: 4px;
+  background: var(--accent-soft);
+  color: var(--accent);
+  border: 1px solid var(--border);
+  margin-left: 2px;
+  letter-spacing: 0.02em;
+}
+
+.dwg-file-compressed-hint {
+  padding-left: 18px;
+  font-size: 11px;
+  color: var(--status-warn);
+  line-height: 1.5;
+  margin-top: 2px;
+}
+
+.dwg-file-compressed-hint ol {
+  color: var(--text-secondary);
+  font-size: 10.5px;
+}
+
+.dwg-file-compressed-hint strong {
+  color: var(--text);
+}
+
+.dwg-file-rows {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.dwg-file-row {
+  padding: 8px 14px;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.dwg-file-row:last-child {
+  border-bottom: none;
+}
+
+.dwg-file-row-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+}
+
+.dwg-file-name {
+  font-family: 'SF Mono', Monaco, monospace;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 1;
+}
+
+.dwg-file-fonts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  padding-left: 18px;
+}
+
+.dwg-font-chip {
+  font-family: 'SF Mono', Monaco, monospace;
+  font-size: 10.5px;
+  padding: 2px 6px;
+  border-radius: 3px;
+  border: 1px solid transparent;
+}
+
+.dwg-font-chip-ok {
+  background: var(--status-ok-soft);
+  color: var(--status-ok);
+  border-color: rgba(16, 185, 129, 0.3);
+}
+
+.dwg-font-chip-missing {
+  background: var(--status-fail-soft);
+  color: var(--status-fail);
+  border-color: var(--status-fail);
+  font-weight: 700;
+}
+
+.dwg-file-error {
+  color: var(--status-fail);
+  font-size: 11px;
+  padding-left: 18px;
+}
+
+/* ============================================================
+ * Phase 78 — InstallProgressBar (live progress + summary card)
+ * Phase 78.3 — Compact: giam padding 14→10, gap 10→6, font giam ~10%
+ * ============================================================ */
+.install-progress-bar {
+  flex-shrink: 0;
+  padding: 10px 16px;
+  background: var(--surface);
+  border-top: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.install-progress-bar-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 13px;
+  flex-wrap: wrap;
+}
+
+.install-progress-bar-title {
+  font-weight: 700;
+  color: var(--text);
+  font-size: 13px;
+}
+
+.install-progress-bar-count {
+  font-variant-numeric: tabular-nums;
+  color: var(--text);
+  font-size: 13px;
+}
+
+.install-progress-bar-count strong {
+  font-size: 16px;
+  color: var(--accent);
+  font-weight: 800;
+  letter-spacing: -0.01em;
+}
+
+.install-progress-bar-pct {
+  font-weight: 700;
+  color: var(--accent);
+  font-size: 14px;
+  margin-left: 2px;
+}
+
+.install-progress-bar-eta {
+  font-variant-numeric: tabular-nums;
+  font-size: 11.5px;
+}
+
+.install-progress-bar-stat {
+  font-size: 12px;
+  font-weight: 700;
+  padding: 2px 10px;
+  border-radius: 999px;
+  font-variant-numeric: tabular-nums;
+  border: 1px solid transparent;
+}
+
+.install-progress-bar-ok {
+  color: var(--status-ok);
+  background: var(--status-ok-soft);
+  border-color: var(--status-ok);
+}
+
+.install-progress-bar-fail {
+  color: var(--status-fail);
+  background: var(--status-fail-soft);
+  border-color: var(--status-fail);
+}
+
+/* Track: dark thay vi border-color de tang contrast voi fill */
+.install-progress-bar-track {
+  height: 10px;
+  background: rgba(0, 0, 0, 0.35);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  overflow: hidden;
+  position: relative;
+}
+:root[data-theme='light'] .install-progress-bar-track {
+  background: rgba(0, 0, 0, 0.08);
+}
+
+.install-progress-bar-fill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--accent) 0%, var(--accent-hover) 100%);
+  border-radius: 999px;
+  transition: width 200ms ease;
+  box-shadow:
+    0 0 12px var(--accent),
+    inset 0 1px 0 rgba(255, 255, 255, 0.3);
+  position: relative;
+  overflow: hidden;
+  min-width: 2px; /* always show even at 0% */
+}
+
+/* Stripe animation cho fill khi installing — manh hon */
+.install-progress-bar-fill::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(255, 255, 255, 0.45) 50%,
+    transparent 100%
+  );
+  animation: install-progress-shimmer 1.2s linear infinite;
+}
+
+@keyframes install-progress-shimmer {
+  from { transform: translateX(-100%); }
+  to { transform: translateX(100%); }
+}
+
+/* ===== Phase 78.4 — Failures collapsible, COMPACT MAX ===== */
+.install-progress-bar-failures {
+  margin-top: 2px;
+  background: rgba(0, 0, 0, 0.12);
+  border: 1px solid rgba(239, 68, 68, 0.25);
+  border-radius: 5px;
+  overflow: hidden;
+}
+:root[data-theme='light'] .install-progress-bar-failures {
+  background: rgba(0, 0, 0, 0.025);
+}
+
+.install-progress-bar-failures-head {
+  cursor: pointer;
+  user-select: none;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--status-fail);
+  padding: 4px 8px;
+  list-style: none;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.install-progress-bar-failures-head::-webkit-details-marker {
+  display: none;
+}
+.install-progress-bar-failures-head::before {
+  content: '▸';
+  font-size: 8px;
+  transition: transform 150ms ease;
+  display: inline-block;
+}
+.install-progress-bar-failures[open] .install-progress-bar-failures-head::before {
+  transform: rotate(90deg);
+}
+.install-progress-bar-failures[open] .install-progress-bar-failures-head {
+  border-bottom: 1px solid rgba(239, 68, 68, 0.18);
+}
+
+/* Tight rows, no box per item, monospace single-line truncate */
+.install-progress-bar-failures-list {
+  list-style: none;
+  margin: 0;
+  padding: 4px 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  font-family: 'SF Mono', Monaco, 'Cascadia Code', 'Roboto Mono', monospace;
+  max-height: 120px;
+  overflow-y: auto;
+}
+
+.install-progress-bar-failures-item {
+  display: grid;
+  grid-template-columns: minmax(80px, 140px) 12px 1fr;
+  align-items: baseline;
+  gap: 4px;
+  font-size: 10px;
+  padding: 1px 0;
+  line-height: 1.45;
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+.install-progress-bar-failures-name {
+  font-weight: 700;
+  color: var(--text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.install-progress-bar-failures-arrow {
+  font-size: 8px;
+  text-align: center;
+}
+
+.install-progress-bar-failures-reason {
+  color: var(--status-fail);
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* === Summary card khi xong — Phase 78.5 ULTRA compact === */
+.install-progress-bar-done {
+  padding: 6px 12px;
+  gap: 2px;
+  animation: install-progress-pop 300ms ease-out;
+}
+
+@keyframes install-progress-pop {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.install-progress-bar-done.install-progress-bar-success {
+  background: var(--status-ok-soft);
+  border-top-color: var(--status-ok);
+}
+
+.install-progress-bar-done.install-progress-bar-mixed {
+  background: var(--status-warn-soft);
+  border-top-color: var(--status-warn);
+}
+
+.install-progress-bar-summary {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.install-progress-bar-summary-icon {
+  font-size: 14px;
+  flex-shrink: 0;
+  width: 22px;
+  height: 22px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: var(--surface);
+  font-weight: 700;
+}
+
+.install-progress-bar-success .install-progress-bar-summary-icon {
+  color: var(--status-ok);
+}
+
+.install-progress-bar-mixed .install-progress-bar-summary-icon {
+  color: var(--status-warn);
+}
+
+.install-progress-bar-summary-body {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 10px;
+}
+
+.install-progress-bar-summary-title {
+  font-size: 12.5px;
+  font-weight: 700;
+  color: var(--text);
+  line-height: 1.3;
+}
+
+.install-progress-bar-summary-meta {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+  align-items: center;
+  font-variant-numeric: tabular-nums;
+  font-size: 11px;
+}
+
 /* Phase 15.1.k/o — Install log fixed bottom của shell (always visible) */
 .install-log-section {
   flex-shrink: 0;
@@ -776,26 +1465,44 @@ html, body {
   flex-direction: column;
 }
 
+/* Phase 78 — Khi 0 entries: thu collapsed con 36px (header only, khong show body) */
+.install-log-section-empty {
+  /* khong can them gi - body khong render */
+}
+
 .install-log-head {
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 6px 16px;
+  padding: 8px 16px;
   border-bottom: 1px solid var(--border);
   background: var(--surface-raised);
+}
+
+.install-log-section-empty .install-log-head {
+  border-bottom: none;
+}
+
+.install-log-empty-hint {
+  font-style: italic;
+  opacity: 0.7;
 }
 
 .install-log {
   font-family: 'SF Mono', Monaco, 'Cascadia Code', 'Roboto Mono', monospace;
   font-size: 11px;
   line-height: 1.5;
-  padding: 8px 16px;
-  /* Phase 15.1.o — height đủ cho ~7 dòng, scroll xem thêm */
-  height: 140px;
-  max-height: 140px;
+  padding: 6px 14px;
+  /* Phase 78.4 — giam 220→150 (~10 dong) de bot che font list */
+  height: 150px;
+  max-height: 150px;
   overflow-y: auto;
-  background: var(--bg);
-  color: var(--text-secondary);
+  background: #0a0e10;
+  color: #d4d4d4;
+}
+:root[data-theme='light'] .install-log {
+  background: #f7f8fa;
+  color: #2a2a2a;
 }
 
 .log-entry {

@@ -1,13 +1,13 @@
 /**
  * Phase 41 — AppCatalogPanel.
+ * Phase 78.13 update: TrishLauncher đã bỏ (4 app standalone). Catalog giờ
+ * dùng cho website /apps + future ecosystem pages.
  *
- * Quản lý app catalog Firestore-backed cho TrishLauncher.
- * Thay vì edit static JSON tay (RegistryPanel cũ), panel này:
+ * Quản lý app catalog Firestore-backed.
  *   - List app ở /apps_catalog/{appId} Firestore
  *   - Add/Edit/Delete với form structured (logo URL, version, download, category)
  *   - Cho phép add app NGOÀI hệ sinh thái (Photoshop, AutoCAD, OBS, VLC, etc.)
- *     → TrishLauncher sẽ render chúng cùng các app TrishTEAM
- *   - Seed 1 lần từ apps-registry.json hiện tại
+ *   - Seed 4 app TrishTEAM hiện tại (lần đầu) + nút "Clean legacy apps".
  */
 import { useEffect, useState } from 'react';
 import { getFirebaseDb } from '@trishteam/auth';
@@ -134,33 +134,100 @@ export function AppCatalogPanel(): JSX.Element {
     }
   }
 
+  // Phase 78.13.7 — 4 app thật hiện tại (sau Phase 65 consolidation).
+  // 10 app cũ (TrishCheck/Clean/Shortcut/Font/Library/ISO/Office/Drive standalone)
+  // ĐÃ ĐƯỢC GỘP vào 4 app này, không còn standalone nữa.
+  const SEED_APPS_V2: CatalogApp[] = [
+    {
+      id: 'trishwork',
+      name: 'TrishWork',
+      tagline: 'Kỹ sư hạ tầng: Design + Library + ISO',
+      category: 'ecosystem',
+      logo_url: 'https://www.trishteam.io.vn/logos/trishwork.png',
+      version: '1.0.0',
+      status: 'released',
+      login_required: 'trishteam',
+      display_order: 1,
+    },
+    {
+      id: 'trishutilities',
+      name: 'TrishUtilities',
+      tagline: 'Dọn dẹp · Kiểm tra · Tải · Font · Shortcut',
+      category: 'ecosystem',
+      logo_url: 'https://www.trishteam.io.vn/logos/trishutilities.png',
+      version: '1.0.0',
+      status: 'released',
+      login_required: 'trishteam',
+      display_order: 2,
+    },
+    {
+      id: 'trishfinance',
+      name: 'TrishFinance',
+      tagline: '12 business: POS · Nhà trọ · F&B · Spa · Gym...',
+      category: 'ecosystem',
+      logo_url: 'https://www.trishteam.io.vn/logos/trishfinance.png',
+      version: '1.0.0',
+      status: 'released',
+      login_required: 'trishteam',
+      display_order: 3,
+    },
+    {
+      id: 'trishadmin',
+      name: 'TrishAdmin',
+      tagline: 'Console quản trị hệ sinh thái (admin-only)',
+      category: 'ecosystem',
+      logo_url: 'https://www.trishteam.io.vn/logos/trishadmin.png',
+      version: '1.0.0',
+      status: 'released',
+      login_required: 'trishteam',
+      display_order: 4,
+    },
+  ];
+
+  // App ID cũ đã consolidate → nên xoá khỏi catalog.
+  const LEGACY_APP_IDS = [
+    'trishlauncher', 'trishoffice', 'trishdrive', 'trishiso', 'trishlibrary',
+    'trishcheck', 'trishclean', 'trishshortcut', 'trishfont',
+  ];
+
   async function handleSeedFromRegistry(): Promise<void> {
-    if (!window.confirm('Seed 10 app TrishTEAM mặc định vào Firestore (chỉ chạy 1 lần đầu)? Không ghi đè app đã tồn tại.')) return;
-    const seed: CatalogApp[] = [
-      { id: 'trishlauncher', name: 'TrishLauncher', tagline: 'Hub trung tâm hệ sinh thái', category: 'ecosystem', logo_url: 'https://www.trishteam.io.vn/logos/trishlauncher.png', version: '1.0.0', status: 'released', login_required: 'trishteam', display_order: 1 },
-      { id: 'trishoffice', name: 'TrishOffice', tagline: 'HRM/ERP-light cho công ty', category: 'ecosystem', logo_url: 'https://www.trishteam.io.vn/logos/trishoffice.png', version: '1.0.0', status: 'released', login_required: 'trishteam', display_order: 2 },
-      { id: 'trishdrive', name: 'TrishDrive', tagline: 'File manager + Cloud sync + Media downloader', category: 'ecosystem', logo_url: 'https://www.trishteam.io.vn/logos/trishdrive.png', version: '1.0.0', status: 'released', login_required: 'trishteam', display_order: 3 },
-      { id: 'trishfinance', name: 'TrishFinance', tagline: 'Quản lý tài chính & POS đa ngành', category: 'ecosystem', logo_url: 'https://www.trishteam.io.vn/logos/trishfinance.png', version: '1.0.0', status: 'released', login_required: 'trishteam', display_order: 4 },
-      { id: 'trishiso', name: 'TrishISO', tagline: 'Quản lý ISO 9001 + checklist', category: 'ecosystem', logo_url: 'https://www.trishteam.io.vn/logos/trishiso.png', version: '1.0.0', status: 'released', login_required: 'trishteam', display_order: 5 },
-      { id: 'trishlibrary', name: 'TrishLibrary', tagline: 'Tủ sách + OCR + chuyển đổi tài liệu', category: 'ecosystem', logo_url: 'https://www.trishteam.io.vn/logos/trishlibrary.png', version: '1.0.0', status: 'released', login_required: 'trishteam', display_order: 6 },
-      { id: 'trishcheck', name: 'TrishCheck', tagline: 'Kiểm tra phần cứng máy tính', category: 'ecosystem', logo_url: 'https://www.trishteam.io.vn/logos/trishcheck.png', version: '1.0.0', status: 'released', login_required: 'none', display_order: 7 },
-      { id: 'trishclean', name: 'TrishClean', tagline: 'Dọn rác hệ thống', category: 'ecosystem', logo_url: 'https://www.trishteam.io.vn/logos/trishclean.png', version: '1.0.0', status: 'released', login_required: 'none', display_order: 8 },
-      { id: 'trishshortcut', name: 'TrishShortcut', tagline: 'Phím tắt Windows', category: 'ecosystem', logo_url: 'https://www.trishteam.io.vn/logos/trishshortcut.png', version: '1.0.0', status: 'released', login_required: 'none', display_order: 9 },
-      { id: 'trishfont', name: 'TrishFont', tagline: 'Quản lý font chữ', category: 'ecosystem', logo_url: 'https://www.trishteam.io.vn/logos/trishfont.png', version: '1.0.0', status: 'released', login_required: 'none', display_order: 10 },
-    ];
+    if (!window.confirm('Seed 4 app TrishTEAM hiện tại vào Firestore? Không ghi đè app đã tồn tại.')) return;
     try {
       const db = getFirebaseDb();
       const existing = new Set(apps.map((a) => a.id));
       let added = 0;
-      for (const a of seed) {
+      for (const a of SEED_APPS_V2) {
         if (existing.has(a.id)) continue;
         await setDoc(doc(db, COLLECTION, a.id), { ...a, updated_at: Date.now() });
         added += 1;
       }
-      setToast({ msg: `✅ Seed ${added} app mới (skip ${seed.length - added} đã có)`, kind: 'ok' });
+      setToast({ msg: `✅ Seed ${added} app mới (skip ${SEED_APPS_V2.length - added} đã có)`, kind: 'ok' });
       await reload();
     } catch (err) {
       setToast({ msg: `Seed fail: ${err instanceof Error ? err.message : String(err)}`, kind: 'err' });
+    }
+  }
+
+  /** Phase 78.13.7 — Xoá các app legacy đã consolidate. */
+  async function handleCleanLegacy(): Promise<void> {
+    const legacyInCatalog = apps.filter((a) => LEGACY_APP_IDS.includes(a.id));
+    if (legacyInCatalog.length === 0) {
+      setToast({ msg: '✅ Không có app legacy nào trong catalog. Đã clean rồi.', kind: 'ok' });
+      return;
+    }
+    const names = legacyInCatalog.map((a) => a.name).join(', ');
+    if (!window.confirm(`Xoá ${legacyInCatalog.length} app legacy đã gộp vào TrishWork/TrishUtilities?\n\n${names}`)) return;
+    try {
+      const db = getFirebaseDb();
+      let removed = 0;
+      for (const a of legacyInCatalog) {
+        await deleteDoc(doc(db, COLLECTION, a.id));
+        removed += 1;
+      }
+      setToast({ msg: `🗑 Đã xoá ${removed} app legacy.`, kind: 'ok' });
+      await reload();
+    } catch (err) {
+      setToast({ msg: `Clean fail: ${err instanceof Error ? err.message : String(err)}`, kind: 'err' });
     }
   }
 
@@ -187,7 +254,12 @@ export function AppCatalogPanel(): JSX.Element {
         </button>
         <button type="button" onClick={() => void handleSeedFromRegistry()}
           style={{ padding: '8px 14px', background: 'transparent', color: 'var(--color-text-primary)', border: '1px solid var(--color-border-default)', borderRadius: 8, fontSize: 13, cursor: 'pointer' }}>
-          🌱 Seed 10 app TrishTEAM (lần đầu)
+          🌱 Seed 4 app TrishTEAM hiện tại
+        </button>
+        <button type="button" onClick={() => void handleCleanLegacy()}
+          title="Xoá các app cũ đã gộp (TrishCheck/Clean/Shortcut/Font/Drive standalone, TrishOffice/ISO/Library...)"
+          style={{ padding: '8px 14px', background: 'transparent', color: '#fca5a5', border: '1px solid rgba(239,68,68,0.3)', borderRadius: 8, fontSize: 13, cursor: 'pointer' }}>
+          🗑 Clean legacy apps
         </button>
         <button type="button" onClick={() => void reload()} style={{ padding: '8px 14px', background: 'transparent', color: 'var(--color-text-primary)', border: '1px solid var(--color-border-default)', borderRadius: 8, fontSize: 13, cursor: 'pointer' }}>
           🔄 Refresh

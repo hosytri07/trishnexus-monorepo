@@ -25,6 +25,7 @@ import {
   Sun,
   UserCircle2,
 } from 'lucide-react';
+import { BruPageHeader } from '@/components/bru/bru-page-header';
 import { useTheme } from '@/components/theme-provider';
 import { useAuth } from '@/lib/auth-context';
 import { useConfirm } from '@/components/confirm-modal';
@@ -130,55 +131,19 @@ export default function SettingsPage() {
   }
 
   return (
-    <main className="max-w-3xl mx-auto px-6 py-10">
+    <main className="bru">
       <ConfirmDialog />
-      <Link
-        href="/"
-        className="inline-flex items-center gap-2 mb-6 text-sm transition-opacity hover:opacity-80"
-        style={{ color: 'var(--color-text-muted)' }}
-      >
-        <ArrowLeft size={15} /> Quay lại Dashboard
-      </Link>
-
-      <header className="mb-8 flex items-center gap-3">
-        <SettingsIcon size={28} strokeWidth={1.75} style={{ color: 'var(--color-accent-primary)' }} />
-        <h1 className="text-3xl md:text-4xl font-bold" style={{ color: 'var(--color-text-primary)' }}>
-          Cài đặt
-        </h1>
-      </header>
-
-      <div className="space-y-5">
-        {/* Theme */}
-        <Section icon={<Moon size={18} />} title="Giao diện">
-          <div className="grid grid-cols-2 gap-2">
-            <ThemeButton
-              active={theme === 'dark'}
-              onClick={() => setTheme('dark')}
-              icon={<Moon size={16} />}
-              label="Tối"
-            />
-            <ThemeButton
-              active={theme === 'light'}
-              onClick={() => setTheme('light')}
-              icon={<Sun size={16} />}
-              label="Sáng"
-            />
-          </div>
-          <p className="text-xs mt-3" style={{ color: 'var(--color-text-muted)' }}>
-            Theme đồng bộ với desktop apps qua attribute <code>data-theme</code>.
-          </p>
-        </Section>
-
-        {/* Language */}
-        <Section icon={<Globe size={18} />} title="Ngôn ngữ">
-          <div className="grid grid-cols-2 gap-2">
-            <PillButton active={lang === 'vi'} onClick={() => setLang('vi')} label="🇻🇳 Tiếng Việt" />
-            <PillButton active={lang === 'en'} onClick={() => setLang('en')} label="🇬🇧 English" />
-          </div>
-          <p className="text-xs mt-3" style={{ color: 'var(--color-text-muted)' }}>
-            Hiện chỉ lưu preference. Bản dịch tiếng Anh sẽ được wire sau (Phase 20).
-          </p>
-        </Section>
+      <BruPageHeader
+        eyebrow="// Tài khoản"
+        title="CÀI"
+        titleAccent="ĐẶT."
+        subtitle="Giao diện, ngôn ngữ, thông báo, tài khoản, dữ liệu local."
+        icon={SettingsIcon}
+      />
+      <div className="bru-container" style={{ padding: '20px var(--bru-page-px)' }}>
+      <div className="space-y-5" style={{ maxWidth: 760, margin: '0 auto' }}>
+        {/* Phase 78.9 — Bỏ Theme section (single dark palette) + Language (placeholder).
+            Giữ chỉ Notification, Tài khoản, Dữ liệu, Về ứng dụng. */}
 
         {/* Notifications — Phase 19.22 multi-topic */}
         <Section icon={<Bell size={18} />} title="Thông báo">
@@ -353,6 +318,7 @@ export default function SettingsPage() {
             <p>© 2026 TrishTEAM — Hệ sinh thái năng suất cá nhân</p>
           </div>
         </Section>
+      </div>
       </div>
     </main>
   );

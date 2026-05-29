@@ -31,6 +31,9 @@ import { SettingsModal, loadCloseBehavior, loadSpeedLimit } from './pages/Settin
 import { DownloadManager } from './pages/DownloadManager';
 import logoUrl from './assets/logo.png';
 
+// Phase 78 — Import CSS file local (Vite chunk theo lazy module).
+import './index.css';
+
 // Phase 40.6 — Thêm tab 'mxh' (Tải video MXH: FB/TikTok/YouTube/Instagram)
 // Wave 73.2 — Thêm tab 'gdrive' (Google Drive bulk download)
 type Page = 'download' | 'mxh' | 'gdrive' | 'library' | 'history' | 'help';

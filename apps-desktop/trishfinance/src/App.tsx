@@ -64,8 +64,9 @@ export default function App(): JSX.Element {
   );
 }
 
-// Phase 23.10 — TrishFinance off-ecosystem: chỉ admin hoặc user được cấp finance_user mới vào được.
-// Trial / user thường (chưa được cấp finance_user) đều bị block.
+// Phase 78.13.16 — TrishFinance ecosystem app: role=user|admin auto-access.
+// Trial / chưa login bị block. Bỏ kiểm tra `finance_user` flag legacy
+// (Phase 23.10) vì sau consolidation TrishFinance là 1 trong 4 app chính.
 function AppGate(): JSX.Element {
   const { firebaseUser, profile, loading } = useAuth();
   if (loading) {
@@ -77,9 +78,9 @@ function AppGate(): JSX.Element {
   }
   if (!firebaseUser) return <LoginScreen appName="TrishFinance" appShellId="finance" tagline="Quản lý nhà trọ · Tài chính cá nhân · Bán hàng" />;
   const role = (profile as any)?.role;
+  // Phase 78.13.16 — role=user hoặc admin → access. Legacy finance_user flag vẫn honor cho backward compat.
   const financeUser = (profile as any)?.finance_user === true;
-  // Admin luôn vào được. User thường cần finance_user=true. Trial/no-role/missing flag → block.
-  if (role === 'admin' || financeUser) return <MainShell />;
+  if (role === 'admin' || role === 'user' || financeUser) return <MainShell />;
   return <NoPermissionBlocked />;
 }
 

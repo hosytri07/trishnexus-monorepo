@@ -28,6 +28,9 @@ export interface AtgtBlock {
   hatchName?: string;   // Hatch pattern (optional)
   defaultScale?: number;
   updated_at?: number;
+  // Phase 78.13.11 — Release notes admin set qua TrishAdmin AtgtBlocksPanel
+  release_notes?: string;
+  release_date?: number;
 }
 
 const CACHE_KEY = 'trishdesign:atgt-blocks-cache';

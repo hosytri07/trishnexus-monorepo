@@ -616,30 +616,31 @@
   justify-content: center;
 }
 
-/* Pack detail empty (FontModule.PacksTab) */
+/* Pack detail empty (FontModule.PacksTab) — Phase 78 tighten: padding 32, min-h 140 */
 :root[data-app="utilities"] .module-content .pack-detail-empty {
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  padding: 48px 20px;
+  padding: 28px 20px;
   background: var(--color-surface-muted);
   border: 1px dashed var(--color-border-subtle);
   border-radius: 12px;
   gap: 6px;
-  min-height: 220px;
+  min-height: 140px;
 }
 :root[data-app="utilities"] .module-content .pack-detail-empty-icon {
-  font-size: 36px;
+  font-size: 28px;
   opacity: 0.55;
+  margin-bottom: 4px;
 }
 :root[data-app="utilities"] .module-content .pack-detail-empty-title {
-  font-size: 13.5px;
+  font-size: 13px;
   font-weight: 700;
   color: var(--color-text-primary);
 }
 :root[data-app="utilities"] .module-content .pack-detail-empty-sub {
-  font-size: 12px;
+  font-size: 11.5px;
   color: var(--color-text-secondary);
   text-align: center;
   max-width: 320px;

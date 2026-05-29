@@ -17,7 +17,9 @@ import { DashboardPanel } from './components/DashboardPanel.js';
 import { UsersPanel } from './components/UsersPanel.js';
 import { AppAccessPanel } from './components/AppAccessPanel.js';
 // Phase 46.3 — AppShellSidebar layout chung topbar + sidebar
-import { AppShellSidebar, AppSidebar, AppButton, type AppSidebarGroup } from '@trishteam/design-system';
+// Phase 78.12 — Dùng AdminSidebar local (collapsible + searchable) thay vì AppSidebar
+import { AppShellSidebar, AppButton } from '@trishteam/design-system';
+import { AdminSidebar, type AdminSidebarGroup } from './components/AdminSidebar.js';
 import { KeysPanel } from './components/KeysPanel.js';
 import { PromoCodesPanel } from './components/PromoCodesPanel.js';
 import { ActiveSessionsPanel } from './components/ActiveSessionsPanel.js';
@@ -44,6 +46,9 @@ import { AppCatalogPanel } from './components/AppCatalogPanel.js';
 import { OfficeAdminPanel } from './components/OfficeAdminPanel.js';
 import { ISOAdminPanel } from './components/ISOAdminPanel.js';
 import { FinanceAdminPanel } from './components/FinanceAdminPanel.js';
+import { SchedulesPanel } from './components/SchedulesPanel.js';
+import { DevicesPanel } from './components/DevicesPanel.js';
+import { FontPacksPanel } from './components/FontPacksPanel.js';
 import { getAppVersion } from './tauri-bridge.js';
 import logoUrl from './assets/logo.png';
 
@@ -76,79 +81,94 @@ type Panel =
   | 'office_admin'
   | 'iso_admin'
   | 'finance_admin'
+  | 'schedules'
+  | 'devices'
+  | 'fontpacks'
   | 'settings';
 
 interface NavGroup {
+  id: string;
   label: string;
-  items: Array<{ id: Panel; label: string }>;
+  items: Array<{ id: Panel; label: string; keywords?: string[] }>;
 }
 
 const NAV_GROUPS: NavGroup[] = [
   {
+    id: 'overview',
     label: 'Tổng quan',
-    items: [{ id: 'dashboard', label: 'Dashboard' }],
+    items: [{ id: 'dashboard', label: 'Dashboard', keywords: ['home', 'overview', 'thống kê'] }],
   },
   {
+    id: 'users',
     label: 'Người dùng',
     items: [
-      { id: 'users', label: 'Users' },
-      { id: 'app_access', label: '🔑 Cấp quyền App (Phase 44)' },
-      { id: 'keys', label: 'Keys (legacy)' },
-      { id: 'promo_codes', label: '🎟 Promo Codes' },
-      { id: 'sessions', label: 'Active Sessions' },
-      { id: 'session_history', label: '📜 Session History' },
-      { id: 'alerts', label: '🚨 Security Alerts' },
+      { id: 'users', label: 'Users', keywords: ['account', 'tài khoản'] },
+      { id: 'app_access', label: '🔑 Cấp quyền App', keywords: ['permission', 'role', 'phase 44'] },
+      { id: 'keys', label: 'Keys (legacy)', keywords: ['license'] },
+      { id: 'promo_codes', label: '🎟 Promo Codes', keywords: ['discount', 'voucher'] },
+      { id: 'sessions', label: 'Active Sessions', keywords: ['login', 'device'] },
+      { id: 'session_history', label: '📜 Session History', keywords: ['log', 'lịch sử'] },
+      { id: 'devices', label: '🖥 Synced Devices', keywords: ['device', 'config', 'sync', 'máy'] },
+      { id: 'alerts', label: '🚨 Security Alerts', keywords: ['bảo mật', 'cảnh báo'] },
     ],
   },
   {
+    id: 'content',
     label: 'Nội dung',
     items: [
-      { id: 'library_curator', label: 'TrishTEAM Library' },
-      { id: 'posts', label: 'Posts / News' },
-      { id: 'broadcasts', label: 'Broadcasts' },
-      { id: 'database_vn', label: '🇻🇳 Database VN' },
+      { id: 'library_curator', label: 'TrishTEAM Library', keywords: ['thư viện'] },
+      { id: 'posts', label: 'Posts / News', keywords: ['bài viết', 'tin tức'] },
+      { id: 'broadcasts', label: 'Broadcasts', keywords: ['thông báo', 'announcement'] },
+      { id: 'database_vn', label: '🇻🇳 Database VN', keywords: ['địa danh', 'vietnam'] },
+      { id: 'fontpacks', label: '🔤 Font Packs', keywords: ['font', 'pack', 'manifest', 'utilities'] },
     ],
   },
   {
+    id: 'inbox',
     label: 'Inbox',
     items: [
-      { id: 'feedback', label: 'Feedback' },
-      { id: 'audit', label: 'Audit log' },
+      { id: 'feedback', label: 'Feedback', keywords: ['góp ý', 'phản hồi'] },
+      { id: 'audit', label: 'Audit log', keywords: ['nhật ký'] },
     ],
   },
   {
+    id: 'observe',
     label: 'Quan sát',
     items: [
-      { id: 'errors', label: '🐞 Errors' },
-      { id: 'vitals', label: '📊 Vitals' },
+      { id: 'errors', label: '🐞 Errors', keywords: ['bug', 'lỗi'] },
+      { id: 'vitals', label: '📊 Vitals', keywords: ['metrics', 'performance'] },
     ],
   },
   {
+    id: 'cloud',
     label: 'Cloud',
     items: [
-      { id: 'drive', label: '☁ Drive Cloud Telegram' },
+      { id: 'drive', label: '☁ Drive Cloud Telegram', keywords: ['storage', 'lưu trữ'] },
     ],
   },
   {
+    id: 'apps_manage',
     label: 'Apps quản lý',
     items: [
-      { id: 'app_catalog', label: '📦 App Catalog (Firestore)' },
-      { id: 'office_admin', label: '🏢 Office Multi-tenant' },
-      { id: 'iso_admin', label: '📋 ISO Projects' },
-      { id: 'finance_admin', label: '💵 Finance Telemetry' },
+      { id: 'app_catalog', label: '📦 App Catalog', keywords: ['firestore', 'registry app'] },
+      { id: 'office_admin', label: '🏢 Office Multi-tenant', keywords: ['tổ chức', 'tenant'] },
+      { id: 'iso_admin', label: '📋 ISO Projects', keywords: ['hồ sơ', 'dự án'] },
+      { id: 'finance_admin', label: '💵 Finance Telemetry', keywords: ['tài chính'] },
     ],
   },
   {
+    id: 'system',
     label: 'Hệ thống',
     items: [
-      { id: 'registry', label: 'Apps Registry' },
-      { id: 'bulk_import', label: '📥 Bulk Import' },
-      { id: 'storage', label: '☁ Storage' },
-      { id: 'backup', label: '💾 Backup / Restore' },
-      { id: 'api_keys', label: '🔐 API Keys' },
-      { id: 'lisp_library', label: '🧩 AutoLISP Library' },
-      { id: 'atgt_blocks', label: '🚸 ATGT Blocks (DB + ZIP)' },
-      { id: 'settings', label: 'Cài đặt' },
+      { id: 'registry', label: 'Apps Registry', keywords: ['phiên bản', 'version'] },
+      { id: 'bulk_import', label: '📥 Bulk Import', keywords: ['nhập', 'import'] },
+      { id: 'storage', label: '☁ Storage', keywords: ['lưu trữ', 'firebase'] },
+      { id: 'backup', label: '💾 Backup / Restore', keywords: ['sao lưu', 'khôi phục'] },
+      { id: 'schedules', label: '⏰ Schedule Manager', keywords: ['lịch', 'cron', 'tự động', 'scheduled'] },
+      { id: 'api_keys', label: '🔐 API Keys', keywords: ['token', 'secret'] },
+      { id: 'lisp_library', label: '🧩 AutoLISP Library', keywords: ['autocad', 'script'] },
+      { id: 'atgt_blocks', label: '🚸 ATGT Blocks', keywords: ['biển báo', 'an toàn giao thông'] },
+      { id: 'settings', label: 'Cài đặt', keywords: ['config'] },
     ],
   },
 ];
@@ -170,10 +190,39 @@ function loadActivePanel(): Panel {
   return 'dashboard';
 }
 
+const THEME_KEY = 'trishadmin.theme';
+
+function loadTheme(): 'light' | 'dark' {
+  try {
+    const v = window.localStorage.getItem(THEME_KEY);
+    if (v === 'light' || v === 'dark') return v;
+  } catch {
+    /* ignore */
+  }
+  return 'dark';
+}
+
 export function App(): JSX.Element {
   const { firebaseUser, profile } = useAuth();
   const [active, setActive] = useState<Panel>(() => loadActivePanel());
   const [version, setVersion] = useState('dev');
+  // Phase 78.13.8 — theme toggle với localStorage persistence
+  const [theme, setTheme] = useState<'light' | 'dark'>(() => {
+    const t = loadTheme();
+    if (typeof document !== 'undefined') {
+      document.documentElement.setAttribute('data-theme', t);
+    }
+    return t;
+  });
+
+  useEffect(() => {
+    try {
+      window.localStorage.setItem(THEME_KEY, theme);
+      document.documentElement.setAttribute('data-theme', theme);
+    } catch {
+      /* ignore */
+    }
+  }, [theme]);
 
   useEffect(() => {
     try {
@@ -212,10 +261,11 @@ export function App(): JSX.Element {
     return () => window.removeEventListener('keydown', onKey);
   }, []);
 
-  // Phase 46.3 — Convert NAV_GROUPS sang AppSidebarGroup format
-  const sidebarGroups: AppSidebarGroup[] = NAV_GROUPS.map((g) => ({
+  // Phase 78.12 — Convert NAV_GROUPS sang AdminSidebarGroup format
+  const sidebarGroups: AdminSidebarGroup[] = NAV_GROUPS.map((g) => ({
+    id: g.id,
     label: g.label,
-    items: g.items.map((it) => ({ id: it.id, label: it.label })),
+    items: g.items.map((it) => ({ id: it.id, label: it.label, keywords: it.keywords })),
   }));
 
   const sidebarFooter = (
@@ -247,9 +297,29 @@ export function App(): JSX.Element {
           </div>
         </div>
       </div>
-      <AppButton variant="ghost" size="sm" fullWidth onClick={() => void signOut()}>
-        🚪 Đăng xuất
-      </AppButton>
+      <div style={{ display: 'flex', gap: 6 }}>
+        <button
+          type="button"
+          onClick={() => setTheme((t) => (t === 'dark' ? 'light' : 'dark'))}
+          title={`Chuyển sang ${theme === 'dark' ? 'Light' : 'Dark'} mode`}
+          style={{
+            flex: '0 0 auto',
+            padding: '6px 10px',
+            background: 'var(--color-surface-muted)',
+            border: '1px solid var(--color-border-subtle)',
+            borderRadius: 4,
+            color: 'var(--color-text-primary)',
+            fontSize: 13,
+            cursor: 'pointer',
+            fontFamily: 'inherit',
+          }}
+        >
+          {theme === 'dark' ? '☀' : '🌙'}
+        </button>
+        <AppButton variant="ghost" size="sm" fullWidth onClick={() => void signOut()}>
+          🚪 Đăng xuất
+        </AppButton>
+      </div>
     </div>
   );
 
@@ -258,7 +328,7 @@ export function App(): JSX.Element {
       appId="admin"
       version={version}
       sidebar={
-        <AppSidebar
+        <AdminSidebar
           groups={sidebarGroups}
           activeId={active}
           onSelect={(id) => setActive(id as Panel)}
@@ -306,6 +376,9 @@ export function App(): JSX.Element {
         {active === 'office_admin' && <OfficeAdminPanel />}
         {active === 'iso_admin' && <ISOAdminPanel />}
         {active === 'finance_admin' && <FinanceAdminPanel />}
+        {active === 'schedules' && <SchedulesPanel />}
+        {active === 'devices' && <DevicesPanel />}
+        {active === 'fontpacks' && <FontPacksPanel />}
         {active === 'settings' && <SettingsPanel />}
       </main>
     </AppShellSidebar>

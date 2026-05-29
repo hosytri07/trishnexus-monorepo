@@ -40,8 +40,8 @@ const VI: Dict = {
   'packs.clear_selection': 'Bỏ chọn',
   'packs.selected': 'đã tick',
   'packs.install_selected': '⬇ Cài đã tick',
-  'packs.delete': 'Xóa pack',
-  'packs.delete_tooltip': 'Xóa folder pack đã giải nén để tải lại',
+  'packs.delete': 'Gỡ khỏi máy',
+  'packs.delete_tooltip': 'Gỡ pack khỏi máy này (chỉ xóa folder local + cache, không xóa pack trên cloud — vẫn tải lại được sau)',
   'packs.select_folder': 'Chọn folder này',
 
   // Install log
@@ -160,8 +160,8 @@ const EN: Dict = {
   'packs.clear_selection': 'Clear',
   'packs.selected': 'selected',
   'packs.install_selected': '⬇ Install selected',
-  'packs.delete': 'Delete pack',
-  'packs.delete_tooltip': 'Delete extracted pack folder to re-download',
+  'packs.delete': 'Uninstall',
+  'packs.delete_tooltip': 'Uninstall from this machine (local folder + cache only; pack stays on cloud — can re-download anytime)',
   'packs.select_folder': 'Select this folder',
 
   'log.title': 'Install progress',

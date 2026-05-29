@@ -19,42 +19,15 @@ import {
 
 type Mode = 'signin' | 'signup' | 'forgot';
 
-// Phase 44 — AppLogo SVG inline (chữ T + swoosh). Không import design-system
-// để tránh circular dep (design-system import auth, không ngược lại).
-const APP_LOGO_COLORS = {
-  work:      '#34D399',
-  utilities: '#FBBF24',
-  finance:   '#2563EB',
-  admin:     '#F87171',
-} as const;
+// Phase 78 (2026-05-26 máy cơ quan):
+// Comment cu noi co circular dep voi design-system — SAI.
+// Thuc te auth -> design-system (xem package.json), design-system khong import auth.
+// → Import AppLogo truc tiep tu design-system de dung dung 4 file PNG that Tri da gui.
+import { AppLogo } from '@trishteam/design-system/AppLogo';
+import type { AppShellId } from '@trishteam/design-system/AppLogo';
 
-function AppLogoInline({ appShellId, size = 72 }: { appShellId: keyof typeof APP_LOGO_COLORS; size?: number }): JSX.Element {
-  const fg = APP_LOGO_COLORS[appShellId];
-  return (
-    <span
-      style={{
-        display: 'inline-flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        width: size,
-        height: size,
-        background: '#0E1A1A',
-        borderRadius: Math.round(size * 0.22),
-        boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
-      }}
-      role="img"
-    >
-      <svg
-        viewBox="0 0 64 64"
-        width={Math.round(size * 0.75)}
-        height={Math.round(size * 0.75)}
-        aria-hidden="true"
-      >
-        <path d="M16 14 L48 14 L48 22 L36 22 L36 50 L28 50 L28 22 L16 22 Z" fill={fg} />
-        <path d="M40 30 Q48 36 54 50" stroke={fg} strokeWidth="4" fill="none" strokeLinecap="round" />
-      </svg>
-    </span>
-  );
+function AppLogoInline({ appShellId, size = 72 }: { appShellId: AppShellId; size?: number }): JSX.Element {
+  return <AppLogo appId={appShellId} size={size} />;
 }
 
 interface LoginScreenProps {

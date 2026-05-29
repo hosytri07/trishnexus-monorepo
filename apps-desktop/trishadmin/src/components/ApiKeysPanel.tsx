@@ -15,6 +15,13 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useAuth } from '@trishteam/auth/react';
 import {
+  clearGithubPat,
+  getCachedPatUser,
+  getGithubPat,
+  setGithubPat,
+  testGithubPat,
+} from '../lib/github-uploader.js';
+import {
   ALL_PROVIDERS,
   DEFAULT_PROVIDERS,
   FEEDBACK_PROVIDERS,
@@ -319,6 +326,9 @@ export function ApiKeysPanel(): JSX.Element {
         </section>
       )}
 
+      {/* GitHub PAT — Phase 78.13.6 */}
+      <GithubPatSection />
+
       {/* Audit log */}
       {!loading && (
         <section style={{ padding: 16, background: 'var(--surface, #1a1a1a)', border: '1px solid var(--border, #2a2a2a)', borderRadius: 8 }}>
@@ -352,5 +362,133 @@ export function ApiKeysPanel(): JSX.Element {
         </section>
       )}
     </div>
+  );
+}
+
+
+// ============================================================
+// Phase 78.13.6 — GitHub PAT section
+// ============================================================
+
+function GithubPatSection(): JSX.Element {
+  const [pat, setPat] = useState<string>(() => getGithubPat() ?? "");
+  const [draft, setDraft] = useState<string>("");
+  const [show, setShow] = useState(false);
+  const [user, setUser] = useState<string | null>(() => getCachedPatUser());
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState<{ type: "success" | "error" | "info"; text: string } | null>(null);
+
+  const hasPat = pat.length > 0;
+
+  async function handleSave(): Promise<void> {
+    if (!draft.trim()) {
+      setMsg({ type: "error", text: "PAT trống." });
+      return;
+    }
+    setBusy(true);
+    setMsg(null);
+    try {
+      const u = await testGithubPat(draft.trim());
+      setGithubPat(draft.trim());
+      setPat(draft.trim());
+      setUser(u.login);
+      setDraft("");
+      setMsg({ type: "success", text: `✓ Lưu OK — đăng nhập với @${u.login}` });
+    } catch (e) {
+      setMsg({ type: "error", text: e instanceof Error ? e.message : String(e) });
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleTest(): Promise<void> {
+    if (!pat) return;
+    setBusy(true);
+    setMsg(null);
+    try {
+      const u = await testGithubPat(pat);
+      setUser(u.login);
+      setMsg({ type: "success", text: `✓ PAT hợp lệ — @${u.login}${u.name ? " (" + u.name + ")" : ""}` });
+    } catch (e) {
+      setMsg({ type: "error", text: e instanceof Error ? e.message : String(e) });
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  function handleClear(): void {
+    if (!window.confirm("Xoá GitHub PAT? Các tính năng upload sẽ ngừng hoạt động.")) return;
+    clearGithubPat();
+    setPat("");
+    setUser(null);
+    setDraft("");
+    setMsg({ type: "info", text: "Đã xoá PAT khỏi máy này." });
+  }
+
+  return (
+    <section style={{ padding: 16, background: "var(--surface, #1a1a1a)", border: "1px solid var(--border, #2a2a2a)", borderRadius: 8 }}>
+      <h2 style={{ fontSize: 14, fontWeight: 600, marginBottom: 4 }}>🐙 GitHub Personal Access Token</h2>
+      <p className="muted small" style={{ marginBottom: 12, fontSize: 11.5 }}>
+        Token cá nhân để TrishAdmin upload file (.zip fontpack, ATGT block, .lsp, ...) tới GitHub Release tự động.
+        Lưu trong <code>localStorage</code> máy này — KHÔNG sync Firestore.{" "}
+        <a
+          href="https://github.com/settings/tokens?type=beta"
+          target="_blank"
+          rel="noopener noreferrer"
+          style={{ color: "var(--color-accent-primary)" }}
+        >
+          Tạo PAT
+        </a>{" "}
+        với scope <code>Contents: Read and write</code> cho các repo cần upload.
+      </p>
+
+      {hasPat ? (
+        <div style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 10, flexWrap: "wrap" }}>
+          <code style={{ fontSize: 12, padding: "4px 10px", background: "var(--color-surface-bg, #111)", borderRadius: 4 }}>
+            {show ? pat : `${pat.slice(0, 6)}...${pat.slice(-4)}`}
+          </code>
+          <button type="button" className="btn btn-sm" onClick={() => setShow(!show)}>
+            {show ? "🙈" : "👁"}
+          </button>
+          {user && (
+            <span style={{ fontSize: 12, color: "#34d399" }}>✓ @{user}</span>
+          )}
+          <button type="button" className="btn btn-sm" onClick={() => void handleTest()} disabled={busy}>
+            {busy ? "⏳" : "🧪 Test"}
+          </button>
+          <button type="button" className="btn btn-sm" onClick={handleClear} style={{ color: "#fca5a5" }}>
+            🗑 Xoá
+          </button>
+        </div>
+      ) : (
+        <div style={{ display: "flex", gap: 8, marginBottom: 10 }}>
+          <input
+            type="password"
+            value={draft}
+            onChange={(e) => setDraft(e.target.value)}
+            placeholder="github_pat_..."
+            style={{ flex: 1, padding: "6px 10px", background: "var(--color-surface-bg, #111)", border: "1px solid var(--border, #2a2a2a)", borderRadius: 4, color: "var(--color-text-primary, #fff)", fontSize: 12.5, fontFamily: "ui-monospace, monospace" }}
+            onKeyDown={(e) => { if (e.key === "Enter") void handleSave(); }}
+          />
+          <button type="button" className="btn btn-primary btn-sm" onClick={() => void handleSave()} disabled={busy}>
+            {busy ? "⏳ Đang test" : "💾 Lưu + Test"}
+          </button>
+        </div>
+      )}
+
+      {msg && (
+        <div
+          style={{
+            padding: "6px 10px",
+            fontSize: 12,
+            borderRadius: 4,
+            background: msg.type === "success" ? "rgba(52,211,153,0.12)" : msg.type === "error" ? "rgba(239,68,68,0.12)" : "rgba(251,191,36,0.12)",
+            color: msg.type === "success" ? "#34d399" : msg.type === "error" ? "#fca5a5" : "#fbbf24",
+          }}
+        >
+          {msg.text}
+        </div>
+      )}
+    </section>
   );
 }

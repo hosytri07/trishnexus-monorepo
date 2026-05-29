@@ -69,17 +69,15 @@ export default function NotFound() {
         <QuickLink href="/search" icon={<Search size={20} />} label="Tìm kiếm" />
       </div>
 
-      {/* Database links */}
+      {/* Phase 78 — Quick links to core routes (gọn lại) */}
       <p className="text-xs uppercase tracking-wider mb-3" style={{ color: 'var(--color-text-muted)' }}>
-        Database VN
+        Đi tới
       </p>
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3 max-w-3xl mx-auto mb-8">
-        <QuickLink href="/bien-bao" icon={<Signpost size={20} />} label="Biển báo" />
-        <QuickLink href="/cau-vn" icon={<Waypoints size={20} />} label="Cầu VN" />
-        <QuickLink href="/quy-chuan" icon={<BookMarked size={20} />} label="Quy chuẩn" />
-        <QuickLink href="/dinh-muc" icon={<Calculator size={20} />} label="Định mức" />
-        <QuickLink href="/on-thi-lai-xe" icon={<Compass size={20} />} label="Ôn lái xe" />
-        <QuickLink href="/on-thi-chung-chi" icon={<FileBadge size={20} />} label="Ôn chứng chỉ XD" />
+        <QuickLink href="/apps" icon={<Signpost size={20} />} label="Ứng dụng" />
+        <QuickLink href="/downloads" icon={<Calculator size={20} />} label="Tải về" />
+        <QuickLink href="/blog" icon={<BookMarked size={20} />} label="Blog" />
+        <QuickLink href="/qr" icon={<Compass size={20} />} label="QR Code" />
       </div>
 
       <p className="text-xs" style={{ color: 'var(--color-text-muted)' }}>

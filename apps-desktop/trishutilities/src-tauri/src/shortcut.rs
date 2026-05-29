@@ -276,38 +276,64 @@ pub fn scan_installed_apps() -> Result<Vec<InstalledApp>, String> {
 
 #[cfg(target_os = "windows")]
 fn parse_lnk_internal(lnk_path: &Path) -> Result<LnkParsed, String> {
-    let link = lnk::ShellLink::open(lnk_path)
-        .map_err(|e| format!("ShellLink::open {:?}: {:?}", lnk_path, e))?;
+    use std::panic::{catch_unwind, AssertUnwindSafe};
 
-    // Target path: ưu tiên local_base_path từ link_info, fallback relative_path
-    let target = link
-        .link_info()
-        .as_ref()
-        .and_then(|i| i.local_base_path().clone())
-        .or_else(|| {
-            link.relative_path()
-                .clone()
-                .and_then(|rel| {
-                    lnk_path
+    // Phase 78.10 — Validate file size truoc khi parse de tranh panic.
+    // Min .lnk header la 76 bytes. File qua nho/qua lon → skip.
+    let metadata = std::fs::metadata(lnk_path)
+        .map_err(|e| format!("metadata {:?}: {}", lnk_path, e))?;
+    let size = metadata.len();
+    if size < 76 {
+        return Err(format!("File quá nhỏ ({} bytes), không phải .lnk hợp lệ", size));
+    }
+    if size > 10 * 1024 * 1024 {
+        return Err(format!("File .lnk quá lớn ({}MB), bỏ qua", size / 1024 / 1024));
+    }
+
+    // Phase 78.10 — Wrap toan bo parse trong catch_unwind. Crate lnk-0.5.1 co
+    // bug panic khi gap file .lnk format la ('range start index ... out of range').
+    // Panic propagate qua FFI boundary se crash app (STATUS_STACK_BUFFER_OVERRUN).
+    let lnk_path_owned = lnk_path.to_path_buf();
+    let parse_result: Result<Result<LnkParsed, String>, _> = catch_unwind(AssertUnwindSafe(|| {
+        let link = lnk::ShellLink::open(&lnk_path_owned)
+            .map_err(|e| format!("ShellLink::open: {:?}", e))?;
+
+        // Target path: ưu tiên local_base_path từ link_info, fallback relative_path
+        let target = link
+            .link_info()
+            .as_ref()
+            .and_then(|i| i.local_base_path().clone())
+            .or_else(|| {
+                link.relative_path().clone().and_then(|rel| {
+                    lnk_path_owned
                         .parent()
                         .map(|p| p.join(&rel).to_string_lossy().into_owned())
                 })
+            })
+            .unwrap_or_else(|| lnk_path_owned.to_string_lossy().into_owned());
+
+        let args = link.arguments().clone().unwrap_or_default();
+        let working_dir = link.working_dir().clone().unwrap_or_default();
+        let icon_path = link.icon_location().clone();
+        let description = link.name().clone();
+
+        Ok::<_, String>(LnkParsed {
+            target,
+            args,
+            working_dir,
+            icon_path,
+            description,
         })
-        .unwrap_or_else(|| lnk_path.to_string_lossy().into_owned());
+    }));
 
-    let args = link.arguments().clone().unwrap_or_default();
-    let working_dir = link.working_dir().clone().unwrap_or_default();
-    let icon_path = link.icon_location().clone();
-    // Phase 32.3 — `name_string` field không public; dùng accessor `name()`.
-    let description = link.name().clone();
-
-    Ok(LnkParsed {
-        target,
-        args,
-        working_dir,
-        icon_path,
-        description,
-    })
+    match parse_result {
+        Ok(Ok(parsed)) => Ok(parsed),
+        Ok(Err(e)) => Err(format!("Parse fail {:?}: {}", lnk_path.file_name(), e)),
+        Err(_) => Err(format!(
+            "Crate lnk panic khi parse {:?} (file format không chuẩn — đã bắt panic, app vẫn chạy)",
+            lnk_path.file_name()
+        )),
+    }
 }
 
 #[cfg(not(target_os = "windows"))]

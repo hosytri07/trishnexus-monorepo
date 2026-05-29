@@ -61,6 +61,12 @@ import { ConfirmDialog } from './components/ConfirmDialog';
 import { GroupManager } from './components/GroupManager';
 import { Scanner } from './components/Scanner';
 
+// Phase 78 — Import CSS file local (Vite chunk theo lazy module).
+// Truoc day cac file CSS nay khong duoc import o dau → CSS khong apply,
+// layout fall back ve default browser.
+import './styles.css';
+import './theme-bridge.css';
+
 export function ShortcutModule(): JSX.Element {
   const [shortcuts, setShortcuts] = useState<Shortcut[]>(() => loadShortcuts());
   const [groups, setGroups] = useState<ShortcutGroup[]>(() => loadGroups());

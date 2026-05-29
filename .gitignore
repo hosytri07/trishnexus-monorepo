@@ -55,3 +55,6 @@ internal-tools/
 
 # Phase 38.2.0 — Tessdata best (~70MB) tải lúc build qua scripts/fetch-tessdata.ps1
 apps-desktop/trishlibrary/src-tauri/resources/tessdata_best/*.traineddata
+
+.vercel
+.env*

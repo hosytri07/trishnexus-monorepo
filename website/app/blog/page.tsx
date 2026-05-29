@@ -1,191 +1,155 @@
 /**
- * /blog — Blog index (Phase 19.2).
- *
- * Server component fetch posts published từ Firestore qua `lib/blog.ts`.
- * Layout:
- *   - Header: title + tagline + tag filter chips (top tags)
- *   - Feature post: bài mới nhất (variant 'feature')
- *   - Grid: các bài còn lại (3 cột desktop / 2 cột tablet / 1 cột mobile)
- *   - Empty state: nếu chưa có bài thì hiện hint cho admin
- *
- * ISR: revalidate 60s — admin publish bài xong tối đa 1 phút sau là live.
+ * /blog — Phase 78 Brutalist blog index.
+ * Server component fetch posts từ Firestore qua lib/blog.ts.
+ * ISR: revalidate 60s.
  */
 import Link from 'next/link';
-import { ArrowLeft, Newspaper, Tag } from 'lucide-react';
+import { Newspaper, ArrowUpRight } from 'lucide-react';
 import { listPublishedPosts, getAllTags } from '@/lib/blog';
-import { PostCard } from '@/components/blog/PostCard';
+import { BruFooter } from '@/components/bru/bru-footer';
 
 export const revalidate = 60;
 
 export const metadata = {
   title: 'Blog — TrishTEAM',
-  description: 'Bài viết về kỹ thuật cầu đường, hướng dẫn dùng app TrishTEAM, kinh nghiệm thi chứng chỉ.',
-  openGraph: {
-    title: 'Blog — TrishTEAM',
-    description: 'Bài viết về kỹ thuật cầu đường, hướng dẫn dùng app TrishTEAM.',
-  },
+  description:
+    'Bài viết kỹ thuật, hướng dẫn dùng app TrishTEAM, release notes, ghi chú dev.',
 };
 
 export default async function BlogPage() {
   const [posts, tags] = await Promise.all([listPublishedPosts(30), getAllTags()]);
-
   const featured = posts[0];
   const rest = posts.slice(1);
 
   return (
-    <main className="max-w-6xl mx-auto px-6 py-10">
-      <Link
-        href="/"
-        className="inline-flex items-center gap-2 mb-6 text-sm transition-opacity hover:opacity-80"
-        style={{ color: 'var(--color-text-muted)' }}
-      >
-        <ArrowLeft size={15} />
-        Quay lại Dashboard
-      </Link>
-
-      {/* Header */}
-      <header className="mb-10">
-        <div className="flex items-start gap-4 mb-4">
-          <div
-            className="shrink-0 inline-flex items-center justify-center rounded-xl"
-            style={{
-              width: 56,
-              height: 56,
-              background: 'var(--color-accent-soft)',
-              border: '1px solid var(--color-border-subtle)',
-            }}
-          >
-            <Newspaper
-              size={28}
-              strokeWidth={1.75}
-              style={{ color: 'var(--color-accent-primary)' }}
-            />
+    <main className="bru">
+      {/* HERO */}
+      <section className="bru-section" style={{ paddingTop: 'clamp(64px, 10vw, 160px)' }}>
+        <div className="bru-container">
+          <div className="bru-eyebrow" style={{ marginBottom: 16 }}>
+            // {posts.length} bài viết
           </div>
-          <div>
-            <h1
-              className="text-3xl md:text-5xl font-bold mb-2 tracking-tight"
-              style={{ color: 'var(--color-text-primary)' }}
-            >
-              Blog · Tin tức · Kiến thức
-            </h1>
-            <p
-              className="text-base md:text-lg max-w-2xl"
-              style={{ color: 'var(--color-text-secondary)' }}
-            >
-              Bài viết về kỹ thuật cầu đường, hướng dẫn ecosystem TrishTEAM,
-              kinh nghiệm thi lái xe và chứng chỉ XD.
-            </p>
-          </div>
-        </div>
+          <h1 className="bru-display-xl" style={{ marginBottom: 32 }}>
+            BLOG.
+          </h1>
+          <p className="bru-body-lg" style={{ maxWidth: 720 }}>
+            Bài viết kỹ thuật, hướng dẫn, release notes, ghi chú dev cho ecosystem TrishTEAM.
+          </p>
 
-        {/* Tag chips */}
-        {tags.length > 0 && (
-          <div className="flex flex-wrap items-center gap-2 mt-6">
-            <span
-              className="inline-flex items-center gap-1 text-xs uppercase font-bold tracking-wider"
-              style={{ color: 'var(--color-text-muted)' }}
-            >
-              <Tag size={12} strokeWidth={2.5} />
-              Chủ đề
-            </span>
-            {tags.slice(0, 8).map((t) => (
-              <Link
-                key={t.tag}
-                href={`/blog/tag/${encodeURIComponent(t.tag)}`}
-                className="inline-flex items-center gap-1.5 px-3 h-7 rounded-full text-xs font-medium transition-colors hover:opacity-90"
-                style={{
-                  background: 'var(--color-surface-muted)',
-                  color: 'var(--color-text-secondary)',
-                  border: '1px solid var(--color-border-subtle)',
-                }}
-              >
-                {t.tag}
-                <span
-                  className="text-[10px] opacity-70"
-                  style={{ color: 'var(--color-text-muted)' }}
-                >
-                  {t.count}
+          {tags.length > 0 && (
+            <div style={{ marginTop: 32, display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+              {tags.slice(0, 10).map((t) => (
+                <span key={t} className="bru-tag">
+                  {t}
                 </span>
-              </Link>
-            ))}
-          </div>
-        )}
-      </header>
+              ))}
+            </div>
+          )}
+        </div>
+      </section>
 
-      {/* Empty state */}
-      {posts.length === 0 && <EmptyState />}
+      {/* POSTS GRID */}
+      <section className="bru-section bru-section-sm">
+        <div className="bru-container">
+          {posts.length === 0 ? (
+            <div
+              style={{
+                padding: 80,
+                textAlign: 'center',
+                border: '2px dashed var(--bru-border)',
+              }}
+            >
+              <Newspaper size={48} strokeWidth={1.5} style={{ color: 'var(--bru-fg-muted)', margin: '0 auto 24px' }} />
+              <h2 className="bru-display-sm" style={{ marginBottom: 16 }}>Chưa có bài viết</h2>
+              <p className="bru-body" style={{ color: 'var(--bru-fg-dim)' }}>
+                Admin có thể tạo bài mới qua /admin/posts.
+              </p>
+            </div>
+          ) : (
+            <>
+              {/* Featured post (largest card) */}
+              {featured && (
+                <Link
+                  href={`/blog/${featured.slug}`}
+                  className="bru-card"
+                  style={{
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: 16,
+                    textDecoration: 'none',
+                    marginBottom: 48,
+                    padding: 'clamp(24px, 4vw, 56px)',
+                  }}
+                >
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                    <span className="bru-eyebrow">// Bài mới nhất</span>
+                    <ArrowUpRight size={24} strokeWidth={2} style={{ color: 'var(--bru-accent)' }} />
+                  </div>
+                  <h2 className="bru-display-md" style={{ marginTop: 8 }}>
+                    {featured.title}
+                  </h2>
+                  {featured.excerpt && (
+                    <p className="bru-body-lg" style={{ maxWidth: 720, marginTop: 8 }}>
+                      {featured.excerpt}
+                    </p>
+                  )}
+                  <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 8 }}>
+                    {(featured.tags ?? []).slice(0, 4).map((t: string) => (
+                      <span key={t} className="bru-tag">
+                        {t}
+                      </span>
+                    ))}
+                  </div>
+                </Link>
+              )}
 
-      {/* Featured post */}
-      {featured && (
-        <section className="mb-10">
-          <div
-            className="text-[10px] font-bold uppercase tracking-widest mb-3"
-            style={{ color: 'var(--color-accent-primary)' }}
-          >
-            ★ Bài nổi bật
-          </div>
-          <PostCard post={featured} variant="feature" />
-        </section>
-      )}
+              {/* Rest */}
+              <div className="bru-grid-3">
+                {rest.map((p) => (
+                  <Link
+                    key={p.slug}
+                    href={`/blog/${p.slug}`}
+                    className="bru-card"
+                    style={{
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: 12,
+                      textDecoration: 'none',
+                    }}
+                  >
+                    <ArrowUpRight size={18} strokeWidth={2} style={{ color: 'var(--bru-accent)' }} />
+                    <h3
+                      style={{
+                        fontSize: 20,
+                        fontWeight: 800,
+                        letterSpacing: '-0.02em',
+                        color: 'var(--bru-fg)',
+                        lineHeight: 1.25,
+                      }}
+                    >
+                      {p.title}
+                    </h3>
+                    {p.excerpt && (
+                      <p className="bru-body-sm" style={{ flex: 1 }}>
+                        {p.excerpt}
+                      </p>
+                    )}
+                    <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', marginTop: 'auto' }}>
+                      {(p.tags ?? []).slice(0, 3).map((t: string) => (
+                        <span key={t} className="bru-tag" style={{ fontSize: 9 }}>
+                          {t}
+                        </span>
+                      ))}
+                    </div>
+                  </Link>
+                ))}
+              </div>
+            </>
+          )}
+        </div>
+      </section>
 
-      {/* Grid của các bài còn lại */}
-      {rest.length > 0 && (
-        <section>
-          <h2
-            className="text-sm font-bold uppercase tracking-wider mb-4"
-            style={{ color: 'var(--color-text-muted)' }}
-          >
-            Bài viết mới nhất
-          </h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {rest.map((p) => (
-              <PostCard key={p.id} post={p} />
-            ))}
-          </div>
-        </section>
-      )}
+      <BruFooter />
     </main>
-  );
-}
-
-function EmptyState() {
-  return (
-    <div
-      className="rounded-xl border p-10 text-center"
-      style={{
-        background: 'var(--color-surface-card)',
-        borderColor: 'var(--color-border-default)',
-      }}
-    >
-      <Newspaper
-        size={40}
-        strokeWidth={1.5}
-        className="mx-auto mb-3"
-        style={{ color: 'var(--color-text-muted)' }}
-      />
-      <h2
-        className="text-xl font-bold mb-2"
-        style={{ color: 'var(--color-text-primary)' }}
-      >
-        Chưa có bài viết nào
-      </h2>
-      <p
-        className="text-sm mb-4 max-w-md mx-auto"
-        style={{ color: 'var(--color-text-secondary)' }}
-      >
-        Admin sẽ post bài đầu tiên qua trang quản trị. Quay lại sau hoặc
-        đăng ký nhận thông báo qua email khi có bài mới.
-      </p>
-      <Link
-        href="/"
-        className="inline-flex items-center gap-2 px-4 h-9 rounded-md text-sm font-semibold transition-opacity hover:opacity-90"
-        style={{
-          background: 'var(--color-accent-gradient)',
-          color: '#ffffff',
-        }}
-      >
-        Về Dashboard
-      </Link>
-    </div>
   );
 }

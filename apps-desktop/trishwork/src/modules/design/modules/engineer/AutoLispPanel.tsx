@@ -693,9 +693,51 @@ function CloudLibraryTab({ flash, sendLisp }: {
               {filtered.map((e, i) => (
                 <tr key={e.id}>
                   <td>{i + 1}</td>
-                  <td><strong>{e.name}</strong><br /><span className="muted small">{e.filename} · {(e.size / 1024).toFixed(1)} KB</span></td>
+                  <td>
+                    <strong>{e.name}</strong>
+                    {/* Phase 78.13.11 — Badge release_notes nếu admin có set */}
+                    {e.release_notes && (
+                      <span
+                        title={`📝 Ghi chú admin: ${e.release_notes}${e.release_date ? '\n📅 ' + new Date(e.release_date).toLocaleDateString('vi-VN') : ''}`}
+                        style={{
+                          display: 'inline-block',
+                          marginLeft: 6,
+                          fontSize: 10,
+                          padding: '1px 5px',
+                          borderRadius: 99,
+                          background: 'rgba(52,211,153,0.2)',
+                          color: '#34d399',
+                          fontWeight: 700,
+                          cursor: 'help',
+                          verticalAlign: 'middle',
+                        }}
+                      >
+                        📝 NOTE
+                      </span>
+                    )}
+                    <br />
+                    <span className="muted small">{e.filename} · {(e.size / 1024).toFixed(1)} KB</span>
+                  </td>
                   <td><code>{e.command || '—'}</code></td>
-                  <td>{e.description || '—'}</td>
+                  <td>
+                    {e.description || '—'}
+                    {e.release_notes && (
+                      <div
+                        style={{
+                          marginTop: 4,
+                          fontSize: 11,
+                          padding: '4px 8px',
+                          background: 'rgba(52,211,153,0.08)',
+                          borderLeft: '2px solid #34d399',
+                          borderRadius: 2,
+                          whiteSpace: 'pre-wrap',
+                          color: 'var(--color-text-secondary)',
+                        }}
+                      >
+                        {e.release_notes}
+                      </div>
+                    )}
+                  </td>
                   <td><span className="muted small">{e.category || 'Khác'}</span></td>
                   <td>{e.note || '—'}</td>
                   <td>

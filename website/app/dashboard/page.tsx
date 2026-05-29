@@ -33,6 +33,8 @@ import {
 import { db, firebaseReady } from '@/lib/firebase';
 import { useAuth } from '@/lib/auth-context';
 import { PromoCodeCard } from '@/components/PromoCodeCard';
+import { BruPageHeader } from '@/components/bru/bru-page-header';
+import { LayoutDashboard, Download, User, Settings as SettingsIcon, Shield, Activity } from 'lucide-react';
 
 interface AppKeyEntry {
   appId: string;
@@ -88,7 +90,7 @@ function formatDate(ts: number): string {
 }
 
 export default function DashboardPage(): JSX.Element {
-  const { user, role, loading: authLoading } = useAuth();
+  const { user, role, isAdmin, loading: authLoading } = useAuth();
   const [sessions, setSessions] = useState<SessionRow[]>([]);
   const [loadingSessions, setLoadingSessions] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -186,19 +188,99 @@ export default function DashboardPage(): JSX.Element {
   }
 
   return (
-    <div className="max-w-5xl mx-auto p-6">
-      <div className="mb-4">
-        <Link href="/" className="inline-flex items-center gap-1 text-sm text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 dark:text-slate-200">
-          <ArrowLeft size={14} /> Trang chủ
-        </Link>
+    <main className="bru">
+      <BruPageHeader
+        eyebrow="// Tài khoản"
+        title="DASH"
+        titleAccent="BOARD."
+        subtitle={`Xin chào, ${user.name ?? user.email}.`}
+        icon={LayoutDashboard}
+      />
+    <div className="bru-container" style={{ padding: '16px var(--bru-page-px) 48px', maxWidth: 1100 }}>
+
+      {/* Phase 78.10 — Hero stats 4 cards */}
+      <div
+        className="bru-grid-4"
+        style={{ marginBottom: 24, gap: 12 }}
+      >
+        {[
+          { label: 'Apps active', num: appKeys.length, icon: KeyRound, color: 'var(--bru-accent)' },
+          { label: 'Sessions', num: sessions.length, icon: Laptop, color: '#34D399' },
+          { label: 'Role', num: role.toUpperCase(), icon: Shield, color: role === 'admin' ? '#F87171' : 'var(--bru-fg-dim)' },
+          {
+            label: 'Activated',
+            num: user.key_activated_at && user.key_activated_at > 0
+              ? new Date(user.key_activated_at).toLocaleDateString('vi-VN').slice(3)
+              : '—',
+            icon: Activity,
+            color: 'var(--bru-fg-dim)',
+          },
+        ].map((s, i) => {
+          const Icon = s.icon;
+          return (
+            <div
+              key={i}
+              style={{
+                border: '1px solid var(--bru-border)',
+                padding: '14px 16px',
+                background: 'var(--bru-bg-elevated)',
+                borderRadius: 4,
+                display: 'flex',
+                flexDirection: 'column',
+                gap: 6,
+              }}
+            >
+              <Icon size={16} strokeWidth={2} style={{ color: s.color }} />
+              <div
+                style={{
+                  fontSize: 'clamp(20px, 2.4vw, 28px)',
+                  fontWeight: 900,
+                  letterSpacing: '-0.02em',
+                  color: 'var(--bru-fg)',
+                  fontVariantNumeric: 'tabular-nums',
+                  lineHeight: 1,
+                }}
+              >
+                {s.num}
+              </div>
+              <div
+                className="bru-mono"
+                style={{ fontSize: 10, color: 'var(--bru-fg-muted)' }}
+              >
+                {s.label}
+              </div>
+            </div>
+          );
+        })}
       </div>
 
-      <div className="mb-6">
-        <h1 className="text-3xl font-bold">Dashboard</h1>
-        <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
-          {user.name ?? user.email}
-          {role && <span className="ml-2 text-xs uppercase tracking-wider px-2 py-0.5 bg-emerald-100 dark:bg-emerald-900 text-emerald-700 dark:text-emerald-300 rounded">{role}</span>}
-        </p>
+      {/* Quick Actions */}
+      <div
+        style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
+          gap: 10,
+          marginBottom: 24,
+        }}
+      >
+        <Link href="/downloads" className="bru-btn" style={{ justifyContent: 'center' }}>
+          <Download size={14} strokeWidth={2.5} />
+          Tải app
+        </Link>
+        <Link href="/profile" className="bru-btn" style={{ justifyContent: 'center' }}>
+          <User size={14} strokeWidth={2.5} />
+          Hồ sơ
+        </Link>
+        <Link href="/settings" className="bru-btn" style={{ justifyContent: 'center' }}>
+          <SettingsIcon size={14} strokeWidth={2.5} />
+          Cài đặt
+        </Link>
+        {isAdmin && (
+          <Link href="/admin" className="bru-btn bru-btn-primary" style={{ justifyContent: 'center' }}>
+            <Shield size={14} strokeWidth={2.5} />
+            Admin Panel
+          </Link>
+        )}
       </div>
 
       {actionMsg && (
@@ -314,5 +396,6 @@ export default function DashboardPage(): JSX.Element {
         Nếu bạn login máy khác, máy cũ sẽ tự động đăng xuất sau 5 giây.
       </div>
     </div>
+    </main>
   );
 }

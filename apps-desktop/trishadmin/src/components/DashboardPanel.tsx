@@ -33,9 +33,20 @@ import {
   type AuditEntry,
 } from '../lib/firestore-admin.js';
 import type { TrishUser, ActivationKey, SecurityAlert } from '@trishteam/data';
+import { getFirebaseDb } from '@trishteam/auth';
+import { collection, getDocs } from 'firebase/firestore';
 
 // Phase 24.2 — Giảm chiều cao chart để dashboard compact, đỡ chiếm screen
 const CHART_HEIGHT = 180;
+
+interface Phase78Stats {
+  scheduledTasks: number;
+  scheduledTasksActive: number;
+  scheduledTasksError: number;
+  syncedDevices: number;
+  syncedUsers: number;
+  fontpacks: number;
+}
 
 export function DashboardPanel(): JSX.Element {
   const [stats, setStats] = useState<AdminStats | null>(null);
@@ -43,6 +54,8 @@ export function DashboardPanel(): JSX.Element {
   const [keys, setKeys] = useState<ActivationKey[]>([]);
   const [audits, setAudits] = useState<AuditEntry[]>([]);
   const [alerts, setAlerts] = useState<SecurityAlert[]>([]);
+  // Phase 78.13.5 — Stats cho 3 collection mới
+  const [phase78, setPhase78] = useState<Phase78Stats | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [lastFetch, setLastFetch] = useState<number>(0);
@@ -51,24 +64,46 @@ export function DashboardPanel(): JSX.Element {
     setLoading(true);
     setError(null);
     try {
-      const [s, u, k, a, al] = await Promise.all([
+      const [s, u, k, a, al, p78] = await Promise.all([
         fetchStats(),
         listUsers(1000),
         listKeys(1000),
         listAudit(100),
         listAlerts(50, false).catch(() => [] as SecurityAlert[]),
+        fetchPhase78Stats().catch(() => null),
       ]);
       setStats(s);
       setUsers(u);
       setKeys(k);
       setAudits(a);
       setAlerts(al);
+      setPhase78(p78);
       setLastFetch(Date.now());
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     } finally {
       setLoading(false);
     }
+  }
+
+  /** Phase 78.13.5 — Đếm docs trong 3 collection mới. */
+  async function fetchPhase78Stats(): Promise<Phase78Stats> {
+    const db = getFirebaseDb();
+    const [tasksSnap, devicesSnap, packsSnap] = await Promise.all([
+      getDocs(collection(db, 'scheduled_tasks')),
+      getDocs(collection(db, 'synced_configs')),
+      getDocs(collection(db, 'fontpacks')),
+    ]);
+    const tasks = tasksSnap.docs.map((d) => d.data() as { enabled?: boolean; lastStatus?: string; uid?: string });
+    const devices = devicesSnap.docs.map((d) => d.data() as { uid?: string });
+    return {
+      scheduledTasks: tasks.length,
+      scheduledTasksActive: tasks.filter((t) => t.enabled).length,
+      scheduledTasksError: tasks.filter((t) => t.lastStatus === 'error').length,
+      syncedDevices: devices.length,
+      syncedUsers: new Set(devices.map((d) => d.uid).filter(Boolean)).size,
+      fontpacks: packsSnap.size,
+    };
   }
 
   useEffect(() => {
@@ -272,6 +307,38 @@ export function DashboardPanel(): JSX.Element {
             />
           </section>
 
+          {/* Phase 78.13 — TrishUtilities ecosystem stats */}
+          {phase78 && (
+            <section className="stats-grid" style={{ marginTop: 12 }}>
+              <StatCard
+                icon="⏰"
+                label="Scheduled tasks"
+                value={phase78.scheduledTasks}
+                accent={phase78.scheduledTasksError > 0 ? 'orange' : 'blue'}
+                hint={`${phase78.scheduledTasksActive} đang bật · ${phase78.scheduledTasksError} lỗi`}
+              />
+              <StatCard
+                icon="🖥"
+                label="Synced devices"
+                value={phase78.syncedDevices}
+                accent="purple"
+                hint={`${phase78.syncedUsers} user`}
+              />
+              <StatCard
+                icon="🔤"
+                label="Font packs"
+                value={phase78.fontpacks}
+                accent="green"
+              />
+              <StatCard
+                icon="🌐"
+                label="Ecosystem health"
+                value={phase78.scheduledTasksError === 0 ? '✓ OK' : `${phase78.scheduledTasksError} lỗi`}
+                accent={phase78.scheduledTasksError === 0 ? 'green' : 'orange'}
+              />
+            </section>
+          )}
+
           {/* Charts grid — 2x2 */}
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginTop: 24 }}>
             {/* Users growth chart */}
@@ -467,17 +534,18 @@ export function DashboardPanel(): JSX.Element {
 interface StatCardProps {
   icon: string;
   label: string;
-  value: number;
+  value: number | string;
   accent: 'blue' | 'green' | 'purple' | 'orange';
   hint?: string;
 }
 
 function StatCard({ icon, label, value, accent, hint }: StatCardProps): JSX.Element {
+  const display = typeof value === 'number' ? value.toLocaleString() : value;
   return (
     <div className={`stat-card stat-card-${accent}`}>
       <span className="stat-icon">{icon}</span>
       <div className="stat-content">
-        <strong className="stat-value">{value.toLocaleString()}</strong>
+        <strong className="stat-value">{display}</strong>
         <span className="stat-label">{label}</span>
         {hint && <span className="muted small stat-hint">{hint}</span>}
       </div>

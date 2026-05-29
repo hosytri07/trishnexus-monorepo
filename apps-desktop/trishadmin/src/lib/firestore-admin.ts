@@ -1027,6 +1027,12 @@ export async function deleteKey(
 
 export type BroadcastSeverity = 'info' | 'warning' | 'critical';
 export type BroadcastAudience = 'all' | 'paid' | 'trial' | 'admin';
+/** Phase 78.13.13 — Nơi hiển thị broadcast.
+ *  - website-banner: chỉ banner đầu trang trishteam.io.vn (hành vi cũ Phase 24)
+ *  - desktop-bell: chỉ chuông NotificationCenter trong 4 desktop app
+ *  - both: cả hai (default cho doc cũ)
+ */
+export type BroadcastSurface = 'website-banner' | 'desktop-bell' | 'both';
 
 export interface Broadcast {
   id: string;
@@ -1034,6 +1040,10 @@ export interface Broadcast {
   body: string;
   severity: BroadcastSeverity;
   audience: BroadcastAudience;
+  /** Phase 78.13.13 — default 'both' cho doc cũ không có field. */
+  surface?: BroadcastSurface;
+  /** Phase 78.13.14 — Pin lên đầu NotificationCenter dropdown. */
+  pinned?: boolean;
   created_at: number;
   expires_at: number;
   created_by_uid: string;
@@ -1065,6 +1075,10 @@ export interface CreateBroadcastInput {
   audience: BroadcastAudience;
   expiresAt: number;
   createdByUid: string;
+  /** Phase 78.13.13 — default 'both'. */
+  surface?: BroadcastSurface;
+  /** Phase 78.13.14 — Pin lên đầu NotificationCenter. */
+  pinned?: boolean;
 }
 
 export async function createBroadcast(
@@ -1079,6 +1093,8 @@ export async function createBroadcast(
     body: input.body,
     severity: input.severity,
     audience: input.audience,
+    surface: input.surface ?? 'both',
+    pinned: input.pinned ?? false,
     expires_at: input.expiresAt,
     created_at: Date.now(),
     created_by_uid: input.createdByUid,

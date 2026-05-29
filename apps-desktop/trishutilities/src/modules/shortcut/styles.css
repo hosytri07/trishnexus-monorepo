@@ -209,7 +209,7 @@ input, select, textarea {
   flex-direction: column;
   align-items: center;
   text-align: center;
-  padding: 14px 12px;
+  padding: 18px 12px 14px;
   background: var(--color-surface-card);
   border: 1px solid var(--color-border-subtle);
   border-radius: 12px;
@@ -224,17 +224,18 @@ input, select, textarea {
   box-shadow: var(--shadow-sm);
 }
 
+/* Phase 78.11 — Icon to ro hon (48→72px) cho de nhin */
 .shortcut-card .icon {
-  width: 48px;
-  height: 48px;
-  margin-bottom: 10px;
-  border-radius: 10px;
+  width: 72px;
+  height: 72px;
+  margin-bottom: 12px;
+  border-radius: 12px;
   display: flex;
   align-items: center;
   justify-content: center;
   background: var(--color-accent-soft);
   color: var(--color-accent-primary);
-  font-size: 24px;
+  font-size: 36px;
   overflow: hidden;
 }
 
@@ -242,6 +243,8 @@ input, select, textarea {
   width: 100%;
   height: 100%;
   object-fit: contain;
+  /* Slight smoothing cho icon nho upscale */
+  image-rendering: auto;
 }
 
 .shortcut-card .name {

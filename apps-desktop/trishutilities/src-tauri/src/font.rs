@@ -1220,3 +1220,465 @@ pub fn clear_all_packs() -> Result<(), String> {
     }
     Ok(())
 }
+
+// ============================================================
+// Phase 78.6 — DWG Font Detector
+// Scan folder .dwg → extract font references (.shx names) qua heuristic binary
+// search → so sanh voi AutoCAD\Fonts → list missing fonts.
+//
+// LIMITATION: .dwg la binary proprietary. Heuristic: scan bytes tim substring
+// ".shx" + ".SHX", walk back tim ASCII filename. False positives co the xay ra
+// nhung du dung cho engineer biet truoc khi mo file dwg.
+// ============================================================
+
+#[derive(Debug, Serialize)]
+pub struct DwgScanResult {
+    pub file_path: String,
+    pub file_name: String,
+    pub size_bytes: u64,
+    pub fonts_referenced: Vec<String>,
+    pub fonts_missing: Vec<String>,
+    pub scan_error: Option<String>,
+    /// Phase 78.9 — DWG version detected from header magic (vd "R2013", "R14")
+    /// hoac "DXF text" hoac "Unknown". Empty cho non-cad files.
+    pub dwg_version: String,
+    /// Co bi compressed strings (R2004+ AC1018+)?
+    pub compressed_strings: bool,
+}
+
+#[derive(Debug, Serialize)]
+pub struct DwgScanSummary {
+    pub folder: String,
+    pub total_dwg: usize,
+    pub installed_shx_count: usize,
+    pub unique_missing_fonts: Vec<String>,
+    pub results: Vec<DwgScanResult>,
+}
+
+/// Scan multi paths (mix file/folder) tim font references trong .dwg/.dxf,
+/// so voi AutoCAD installed fonts.
+/// Phase 78.8 — chap nhan list paths (file hoac folder), DXF text parse,
+/// parallel rayon + emit progress.
+#[tauri::command]
+pub async fn scan_dwg_paths(
+    paths: Vec<String>,
+    app: tauri::AppHandle,
+) -> Result<DwgScanSummary, String> {
+    use rayon::prelude::*;
+    use std::sync::atomic::{AtomicUsize, Ordering};
+    use std::sync::Mutex;
+    use tauri::Emitter;
+
+    if paths.is_empty() {
+        return Err("Khong co path nao".into());
+    }
+
+    // 1) Lay danh sach AutoCAD installed .shx fonts (lowercase de compare)
+    let installed_shx: std::collections::HashSet<String> = {
+        let mut set = std::collections::HashSet::new();
+        #[cfg(target_os = "windows")]
+        {
+            for ac in detect_autocad_windows() {
+                let fdir = Path::new(&ac.fonts_dir);
+                if let Ok(entries) = std::fs::read_dir(fdir) {
+                    for entry in entries.flatten() {
+                        if let Some(name) = entry.file_name().to_str() {
+                            if name.to_lowercase().ends_with(".shx") {
+                                set.insert(name.to_lowercase());
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        set
+    };
+    let installed_count = installed_shx.len();
+
+    // 2) Expand input paths: file → add directly, folder → walk
+    const MAX_FILE_BYTES: u64 = 50 * 1024 * 1024; // skip files > 50MB
+    let mut cad_paths: Vec<std::path::PathBuf> = Vec::new();
+    let is_cad_ext = |p: &Path| -> bool {
+        p.extension()
+            .and_then(|s| s.to_str())
+            .map(|s| {
+                let lower = s.to_lowercase();
+                lower == "dwg" || lower == "dxf"
+            })
+            .unwrap_or(false)
+    };
+    for input_path in &paths {
+        let p = Path::new(input_path);
+        if p.is_file() && is_cad_ext(p) {
+            cad_paths.push(p.to_path_buf());
+        } else if p.is_dir() {
+            for entry in WalkDir::new(p).max_depth(5).into_iter().flatten() {
+                let ep = entry.path();
+                if ep.is_file() && is_cad_ext(ep) {
+                    cad_paths.push(ep.to_path_buf());
+                }
+            }
+        }
+    }
+
+    // Use first input as "folder" label
+    let folder_label = paths
+        .first()
+        .map(|p| {
+            let pp = Path::new(p);
+            if pp.is_file() {
+                pp.parent()
+                    .map(|x| x.to_string_lossy().to_string())
+                    .unwrap_or_else(|| p.clone())
+            } else {
+                p.clone()
+            }
+        })
+        .unwrap_or_default();
+
+    let total = cad_paths.len();
+    let dwg_paths = cad_paths;
+    let counter = AtomicUsize::new(0);
+    let last_emit = Mutex::new(std::time::Instant::now());
+
+    // 3) Parallel scan voi rayon
+    let results: Vec<DwgScanResult> = dwg_paths
+        .par_iter()
+        .map(|p| {
+            let file_name = p.file_name().unwrap().to_string_lossy().to_string();
+            let size_bytes = std::fs::metadata(p).map(|m| m.len()).unwrap_or(0);
+
+            // Skip oversize files de tranh OOM/lag
+            let result = if size_bytes > MAX_FILE_BYTES {
+                DwgScanResult {
+                    file_path: p.to_string_lossy().to_string(),
+                    file_name: file_name.clone(),
+                    size_bytes,
+                    fonts_referenced: Vec::new(),
+                    fonts_missing: Vec::new(),
+                    scan_error: Some(format!(
+                        "Skip (file >{}MB)",
+                        MAX_FILE_BYTES / 1024 / 1024
+                    )),
+                    dwg_version: String::new(),
+                    compressed_strings: false,
+                }
+            } else {
+                match std::fs::read(p) {
+                    Ok(bytes) => {
+                        // Phase 78.8 — DXF text parse (more accurate), DWG binary heuristic
+                        let is_dxf = p
+                            .extension()
+                            .and_then(|s| s.to_str())
+                            .map(|s| s.eq_ignore_ascii_case("dxf"))
+                            .unwrap_or(false);
+                        let (fonts, version, compressed) = if is_dxf {
+                            (extract_dxf_font_refs(&bytes), "DXF text".to_string(), false)
+                        } else {
+                            let ver = detect_dwg_version(&bytes);
+                            let comp = is_dwg_compressed(&ver);
+                            (extract_dwg_font_refs(&bytes), ver, comp)
+                        };
+                        let missing: Vec<String> = fonts
+                            .iter()
+                            .filter(|f| !installed_shx.contains(&f.to_lowercase()))
+                            .cloned()
+                            .collect();
+                        DwgScanResult {
+                            file_path: p.to_string_lossy().to_string(),
+                            file_name: file_name.clone(),
+                            size_bytes,
+                            fonts_referenced: fonts,
+                            fonts_missing: missing,
+                            scan_error: None,
+                            dwg_version: version,
+                            compressed_strings: compressed,
+                        }
+                    }
+                    Err(e) => DwgScanResult {
+                        file_path: p.to_string_lossy().to_string(),
+                        file_name: file_name.clone(),
+                        size_bytes,
+                        fonts_referenced: Vec::new(),
+                        fonts_missing: Vec::new(),
+                        scan_error: Some(format!("Read fail: {e}")),
+                        dwg_version: String::new(),
+                        compressed_strings: false,
+                    },
+                }
+            };
+
+            // Throttle progress emit (max 5 events/sec)
+            let done = counter.fetch_add(1, Ordering::SeqCst) + 1;
+            let should_emit = {
+                let mut last = last_emit.lock().unwrap();
+                if last.elapsed() >= std::time::Duration::from_millis(200) || done == total {
+                    *last = std::time::Instant::now();
+                    true
+                } else {
+                    false
+                }
+            };
+            if should_emit {
+                let _ = app.emit(
+                    "dwg:scan-progress",
+                    serde_json::json!({
+                        "done": done,
+                        "total": total,
+                        "current": file_name,
+                    }),
+                );
+            }
+            result
+        })
+        .collect();
+
+    let mut all_missing: std::collections::HashSet<String> = std::collections::HashSet::new();
+    for r in &results {
+        for m in &r.fonts_missing {
+            all_missing.insert(m.to_lowercase());
+        }
+    }
+    let mut unique_missing: Vec<String> = all_missing.into_iter().collect();
+    unique_missing.sort();
+
+    Ok(DwgScanSummary {
+        folder: folder_label,
+        total_dwg: results.len(),
+        installed_shx_count: installed_count,
+        unique_missing_fonts: unique_missing,
+        results,
+    })
+}
+
+/// Extract font references from DXF text format (1 cot, accurate).
+/// DXF la text-based, font name nam o group code 3 trong STYLE table:
+///   0 STYLE \n 100 AcDbSymbolTableRecord ... \n 3 romans.shx \n ...
+/// Hoac trong text style: 1001 ACAD \n 1000 ttf_file_name.ttf
+fn extract_dxf_font_refs(bytes: &[u8]) -> Vec<String> {
+    use std::collections::HashSet;
+    let mut found: HashSet<String> = HashSet::new();
+    let text = match std::str::from_utf8(bytes) {
+        Ok(s) => s,
+        Err(_) => return Vec::new(),
+    };
+
+    // DXF is line-pairs: code\nvalue\ncode\nvalue\n...
+    // Look for STYLE record, then group code 3 (primary font file)
+    let lines: Vec<&str> = text.lines().map(|l| l.trim()).collect();
+    let mut i = 0;
+    let mut in_style_section = false;
+    while i + 1 < lines.len() {
+        let code = lines[i];
+        let value = lines[i + 1];
+
+        // Track STYLE section
+        if code == "2" && value == "STYLE" {
+            in_style_section = true;
+        } else if code == "0" && (value == "ENDTAB" || value == "ENDSEC") {
+            in_style_section = false;
+        }
+
+        // Group code 3 = primary font file (only in STYLE records)
+        // Or even outside, any code "3" followed by *.shx/*.ttf can be font ref
+        if code == "3" || code == "4" {
+            let v_lower = value.to_lowercase();
+            if v_lower.ends_with(".shx") || v_lower.ends_with(".ttf") || v_lower.ends_with(".otf") {
+                found.insert(v_lower);
+            } else if !value.is_empty() && in_style_section {
+                // STYLE record group 3 = font without extension sometimes
+                let cleaned = value.trim().to_lowercase();
+                if cleaned.len() >= 2 && cleaned.chars().all(|c| c.is_ascii_alphanumeric() || c == '_' || c == '-') {
+                    found.insert(format!("{cleaned}.shx"));
+                }
+            }
+        }
+
+        // Also catch xdata 1000 strings with .shx/.ttf
+        if code == "1000" {
+            let v_lower = value.to_lowercase();
+            if v_lower.ends_with(".shx") || v_lower.ends_with(".ttf") || v_lower.ends_with(".otf") {
+                found.insert(v_lower);
+            }
+        }
+
+        i += 2;
+    }
+
+    let mut sorted: Vec<String> = found.into_iter().collect();
+    sorted.sort();
+    sorted
+}
+
+/// Common AutoCAD SHX font names — use de detect khi DWG bị compressed.
+const KNOWN_SHX_FONTS: &[&str] = &[
+    // Standard AutoCAD
+    "txt", "simplex", "complex", "italic", "italicc", "italict",
+    "monotxt", "romans", "romand", "romanc", "romant",
+    "scripts", "scriptc", "gothice", "gothicg", "gothici",
+    "isocp", "isocp2", "isocp3", "isocpeur", "isoct", "isoct2", "isoct3",
+    // Vietnamese AutoCAD
+    "vnsimplex", "vnromans", "vnromand", "vncomplex",
+    "vhtxt", "vhsimplex", "vhromans", "vhromand", "vhcomplex",
+    "vnarial", "vntimes",
+    // Symbol/special
+    "symath", "symap", "symeteo", "sysastro", "symusic",
+    // Asian
+    "bigfont", "chineset", "extfont", "extfont2",
+];
+
+/// Phase 78.9 — Detect DWG version tu header magic (first 6 bytes ASCII).
+/// Mapping: https://en.wikipedia.org/wiki/AutoCAD_DXF#Versions
+fn detect_dwg_version(bytes: &[u8]) -> String {
+    if bytes.len() < 6 {
+        return "Unknown".into();
+    }
+    let magic = match std::str::from_utf8(&bytes[..6]) {
+        Ok(s) => s,
+        Err(_) => return "Unknown".into(),
+    };
+    match magic {
+        "MC0.0" | "AC1.2" | "AC1.4" | "AC1.50" | "AC1.40" => "Pre-R2.x".into(),
+        "AC2.10" | "AC1002" => "R2.5".into(),
+        "AC1003" => "R2.6".into(),
+        "AC1004" => "R9".into(),
+        "AC1006" => "R10".into(),
+        "AC1009" => "R11/R12".into(),
+        "AC1012" => "R13".into(),
+        "AC1014" => "R14".into(),
+        "AC1015" => "R2000".into(),
+        "AC1018" => "R2004".into(),
+        "AC1021" => "R2007".into(),
+        "AC1024" => "R2010".into(),
+        "AC1027" => "R2013".into(),
+        "AC1032" => "R2018".into(),
+        _ if magic.starts_with("AC") => format!("Unknown ({magic})"),
+        _ => "Not a DWG".into(),
+    }
+}
+
+/// R2004+ (AC1018+) compress object section strings using LZ77. Heuristic byte
+/// scan se MISS most font references trong cac file nay.
+fn is_dwg_compressed(version: &str) -> bool {
+    matches!(
+        version,
+        "R2004" | "R2007" | "R2010" | "R2013" | "R2018"
+    )
+}
+
+/// Heuristic extract font filenames (.shx) from DWG binary bytes.
+/// Phase 78.7 — 2 method, Phase 78.9 — them method 3 scan all ASCII strings.
+///   1. Grep substring ".shx" -> walk back ASCII filename
+///   2. Scan for known font names directly
+///   3. Walk all printable ASCII strings, check ending .shx/.ttf/.otf
+fn extract_dwg_font_refs(bytes: &[u8]) -> Vec<String> {
+    use std::collections::HashSet;
+    let mut found: HashSet<String> = HashSet::new();
+
+    // Method 1: Walk back tu ".shx" / ".SHX" / ".Shx"
+    for needle in &[b".shx".as_slice(), b".SHX".as_slice(), b".Shx".as_slice()] {
+        let mut i: usize = 0;
+        while i + needle.len() <= bytes.len() {
+            if let Some(pos) = bytes[i..]
+                .windows(needle.len())
+                .position(|w| w == *needle)
+            {
+                let abs = i + pos;
+                let mut start = abs;
+                while start > 0 {
+                    let c = bytes[start - 1];
+                    if !c.is_ascii_alphanumeric() && c != b'_' && c != b'-' {
+                        break;
+                    }
+                    if abs.saturating_sub(start) >= 32 {
+                        break;
+                    }
+                    start -= 1;
+                }
+                if start < abs {
+                    let name_bytes = &bytes[start..abs];
+                    if let Ok(s) = std::str::from_utf8(name_bytes) {
+                        if s.len() >= 2
+                            && s.chars().any(|c| c.is_ascii_alphabetic())
+                            && !s.starts_with(|c: char| c.is_ascii_digit())
+                        {
+                            found.insert(format!("{}.shx", s.to_lowercase()));
+                        }
+                    }
+                }
+                i = abs + needle.len();
+            } else {
+                break;
+            }
+        }
+    }
+
+    // Method 2: Scan known SHX font names directly (handle compressed DWG)
+    let bytes_lower: Vec<u8> = bytes.iter().map(|b| b.to_ascii_lowercase()).collect();
+    for font_name in KNOWN_SHX_FONTS {
+        let needle = font_name.as_bytes();
+        let mut i: usize = 0;
+        while i + needle.len() <= bytes_lower.len() {
+            if let Some(pos) = bytes_lower[i..]
+                .windows(needle.len())
+                .position(|w| w == needle)
+            {
+                let abs = i + pos;
+                // Validate boundary: prev byte not ASCII letter (so "romans" not match "romansX")
+                let prev_ok = abs == 0 || !bytes_lower[abs - 1].is_ascii_alphanumeric();
+                let next_pos = abs + needle.len();
+                let next_ok = next_pos >= bytes_lower.len()
+                    || !bytes_lower[next_pos].is_ascii_alphanumeric()
+                    || bytes_lower[next_pos] == b'.';
+                if prev_ok && next_ok {
+                    found.insert(format!("{font_name}.shx"));
+                }
+                i = next_pos;
+            } else {
+                break;
+            }
+        }
+    }
+
+    // Phase 78.9 — Method 3: walk all printable ASCII strings (length 4-32)
+    // catch font references trong sections khong bi compressed (header, summary info, ...).
+    let mut i: usize = 0;
+    while i < bytes.len() {
+        // Find start of printable ASCII run
+        if bytes[i].is_ascii_graphic() || bytes[i] == b' ' {
+            let start = i;
+            while i < bytes.len()
+                && (bytes[i].is_ascii_graphic() || bytes[i] == b' ')
+                && i - start < 64
+            {
+                i += 1;
+            }
+            let len = i - start;
+            if len >= 4 && len <= 64 {
+                if let Ok(s) = std::str::from_utf8(&bytes[start..i]) {
+                    let lower = s.to_lowercase();
+                    // Match anything ending in .shx/.ttf/.otf
+                    if lower.ends_with(".shx") || lower.ends_with(".ttf") || lower.ends_with(".otf")
+                    {
+                        // Validate: filename part should be alphanumeric
+                        let fname = lower.split(['\\', '/']).next_back().unwrap_or(&lower);
+                        if fname.len() >= 5
+                            && fname
+                                .chars()
+                                .all(|c| c.is_ascii_alphanumeric() || c == '_' || c == '-' || c == '.')
+                            && fname.chars().any(|c| c.is_ascii_alphabetic())
+                        {
+                            found.insert(fname.to_string());
+                        }
+                    }
+                }
+            }
+        } else {
+            i += 1;
+        }
+    }
+
+    let mut sorted: Vec<String> = found.into_iter().collect();
+    sorted.sort();
+    sorted
+}

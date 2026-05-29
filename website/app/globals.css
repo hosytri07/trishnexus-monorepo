@@ -4,6 +4,7 @@
  * khi Tailwind base styles chạy.
  */
 @import url('../assets/tokens.css');
+@import url('./brutalist.css');
 
 @tailwind base;
 @tailwind components;

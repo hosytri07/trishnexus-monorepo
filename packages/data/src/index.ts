@@ -652,6 +652,17 @@ export function isKeyValid(key: ActivationKey, now: number = Date.now()): boolea
 }
 
 /** Helper: check user có quyền dùng app không */
+/**
+ * Phase 78.13.16 — Sau consolidation, role=user tự động access 3 app user-facing
+ * (TrishWork / TrishUtilities / TrishFinance) không cần per-app key. TrishAdmin
+ * vẫn admin-only. Demo/trial vẫn cần app_keys binding (giới hạn).
+ *
+ * Reason: Phase 78.13 đã gộp 10 app cũ thành 4 — không còn workflow "activate key
+ * per-app" nữa. User trả phí 1 lần (qua key activation chuyển trial→user) là
+ * dùng được toàn ecosystem.
+ */
+const ADMIN_ONLY_APPS: ReadonlySet<AppId> = new Set<AppId>(['trishadmin']);
+
 export function userHasAppAccess(
   user: TrishUser | null,
   appId: AppId,
@@ -660,10 +671,17 @@ export function userHasAppAccess(
   if (!user) return false;
   if (user.role === 'admin') return true;
 
+  // TrishAdmin chỉ admin được vào (đã bypass ở trên cho role=admin)
+  if (ADMIN_ONLY_APPS.has(appId)) return false;
+
+  // Phase 78.13.16 — role=user truy cập toàn bộ ecosystem (trừ admin app)
+  if (user.role === 'user') return true;
+
+  // demo / trial / guest: vẫn check binding như cũ
   const binding = user.app_keys?.[appId] ?? user.app_keys?.all;
   if (!binding) return false;
   if (binding.expires_at > 0 && now >= binding.expires_at) return false;
   return true;
 }
 
-export const DATA_VERSION = '0.4.0'; // bump cho Phase 24.3 — IP rules + alerts + session history
+export const DATA_VERSION = '0.5.0'; // Phase 78.13.16 — role=user auto-access 3 user app

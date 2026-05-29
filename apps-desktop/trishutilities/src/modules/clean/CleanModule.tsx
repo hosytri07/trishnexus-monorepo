@@ -43,6 +43,10 @@ import {
 import { SettingsModal } from './SettingsModal.js';
 import { loadSettings, saveSettings, applyTheme, type AppSettings } from './settings.js';
 
+// Phase 78 — Import CSS file local (Vite chunk theo lazy module).
+import './styles.css';
+import './theme-bridge.css';
+
 type Tab = 'quick' | 'scan' | 'history';
 type Status = 'idle' | 'scanning' | 'cleaning' | 'done' | 'error';
 type ToastKind = 'ok' | 'err' | 'info';

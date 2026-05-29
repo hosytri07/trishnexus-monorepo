@@ -3,8 +3,10 @@ import { Plus_Jakarta_Sans } from 'next/font/google';
 import './globals.css';
 import { ThemeProvider } from '@/components/theme-provider';
 import { AuthProvider } from '@/lib/auth-context';
-import { TopNav } from '@/components/nav/top-nav';
-import { SideNav } from '@/components/nav/side-nav';
+// Phase 78 — Replace TopNav + SideNav cũ bằng BruNav minimal brutalist.
+// Bo dark/light toggle, single palette (dark).
+import { BruNav } from '@/components/bru/bru-nav';
+import { BruCmdK } from '@/components/bru/bru-cmdk';
 import { OverlayHost } from '@/components/overlay-host';
 import { PwaRegister } from '@/components/pwa-register';
 import { WebVitalsReporter } from '@/components/web-vitals-reporter';
@@ -126,110 +128,18 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       className={plusJakartaSans.variable}
       suppressHydrationWarning
     >
-      <body className="font-display min-h-screen relative overflow-x-hidden">
-        {/* Phase 38 — Ambient effects mở rộng: 4 orbs + animation pulse nhẹ
-            + emerald accent dominant để giống landing page. */}
-        <style>{`
-          @keyframes ambient-pulse {
-            0%, 100% { opacity: 0.6; transform: scale(1); }
-            50% { opacity: 1.0; transform: scale(1.08); }
-          }
-          @keyframes ambient-drift {
-            0%, 100% { transform: translate(0, 0); }
-            50% { transform: translate(30px, -20px); }
-          }
-        `}</style>
-        <div
-          aria-hidden
-          data-ambient-decor
-          className="pointer-events-none fixed inset-0 -z-10 overflow-hidden"
-        >
-          {/* Top-left emerald (chính, accent dominant) */}
-          <div
-            className="absolute"
-            style={{
-              top: '8%',
-              left: '-12%',
-              width: '38rem',
-              height: '38rem',
-              background:
-                'radial-gradient(closest-side, rgba(16,185,129,0.30), transparent 70%)',
-              filter: 'blur(80px)',
-              opacity: 0.85,
-              animation: 'ambient-pulse 8s ease-in-out infinite',
-            }}
-          />
-          {/* Bottom-right emerald (đối xứng) */}
-          <div
-            className="absolute"
-            style={{
-              bottom: '-15%',
-              right: '-12%',
-              width: '40rem',
-              height: '40rem',
-              background:
-                'radial-gradient(closest-side, rgba(16,185,129,0.25), transparent 70%)',
-              filter: 'blur(90px)',
-              opacity: 0.75,
-              animation: 'ambient-pulse 10s ease-in-out infinite reverse',
-            }}
-          />
-          {/* Top-right amber accent nhẹ */}
-          <div
-            className="absolute"
-            style={{
-              top: '40%',
-              right: '-8%',
-              width: '32rem',
-              height: '32rem',
-              background:
-                'radial-gradient(closest-side, rgba(245,158,11,0.12), transparent 70%)',
-              filter: 'blur(70px)',
-              opacity: 0.65,
-              animation: 'ambient-drift 15s ease-in-out infinite',
-            }}
-          />
-          {/* Center cyan đốm */}
-          <div
-            className="absolute"
-            style={{
-              top: '60%',
-              left: '20%',
-              width: '28rem',
-              height: '28rem',
-              background:
-                'radial-gradient(closest-side, rgba(56,189,248,0.10), transparent 70%)',
-              filter: 'blur(70px)',
-              opacity: 0.55,
-              animation: 'ambient-drift 12s ease-in-out infinite reverse',
-            }}
-          />
-          {/* Center small accent firefly */}
-          <div
-            className="absolute"
-            style={{
-              top: '20%',
-              left: '50%',
-              width: '14rem',
-              height: '14rem',
-              background:
-                'radial-gradient(closest-side, rgba(52,211,153,0.18), transparent 70%)',
-              filter: 'blur(40px)',
-              opacity: 0.7,
-              animation: 'ambient-pulse 6s ease-in-out infinite',
-            }}
-          />
-        </div>
-
+      <body
+        className="font-display min-h-screen relative overflow-x-hidden"
+        style={{ background: '#0A0E0E', color: '#FAFAF7' }}
+      >
+        {/* Phase 78 — Brutalist flat bg. Bỏ ambient orbs (no glow). */}
         <ThemeProvider>
           <AuthProvider>
-            <TopNav />
-            <div className="flex items-start relative">
-              <SideNav />
-              <div className="flex-1 min-w-0">
-                {/* Phase 16.5: Bắt React render error, show fallback + report. */}
-                <ErrorBoundary>{children}</ErrorBoundary>
-              </div>
+            {/* Phase 78 — Brutalist layout: top nav minimal, no sidebar, full-width content. */}
+            <BruNav />
+            <BruCmdK />
+            <div className="bru">
+              <ErrorBoundary>{children}</ErrorBoundary>
             </div>
             {/* Global overlays (Phase 11.5.12-14): Command Palette · Keyboard
                 Help · Focus Mode. Render cuối để nằm trên mọi content. */}

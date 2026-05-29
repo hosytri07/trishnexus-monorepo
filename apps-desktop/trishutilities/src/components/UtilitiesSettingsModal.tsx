@@ -38,8 +38,17 @@ import {
   saveSettings as saveShortcutSettings,
 } from '../modules/shortcut/storage.js';
 import type { AppSettings as ShortcutSettings } from '../modules/shortcut/types.js';
+// Phase 78.13 — Tab Lịch tự động
+import { ScheduledTasksPanel } from './ScheduledTasksModal.js';
+// Phase 78.13 — Cloud sync
+import {
+  listSyncedDevices,
+  restoreFromCloud,
+  syncToCloud,
+  type SyncedConfig,
+} from '../lib/config-sync/sync.js';
 
-type TabId = 'general' | 'clean' | 'check' | 'drive' | 'font' | 'shortcut' | 'account';
+type TabId = 'general' | 'clean' | 'check' | 'drive' | 'font' | 'shortcut' | 'schedule' | 'account';
 
 const TABS: Array<{ id: TabId; icon: string; label: string }> = [
   { id: 'general',  icon: '🎨', label: 'Giao diện' },
@@ -48,6 +57,7 @@ const TABS: Array<{ id: TabId; icon: string; label: string }> = [
   { id: 'drive',    icon: '☁',  label: 'Cloud' },
   { id: 'font',     icon: '🔤', label: 'Font' },
   { id: 'shortcut', icon: '⚡', label: 'Shortcut' },
+  { id: 'schedule', icon: '⏰', label: 'Lịch tự động' },
   { id: 'account',  icon: '👤', label: 'Tài khoản' },
 ];
 
@@ -227,6 +237,7 @@ export function UtilitiesSettingsModal({
           {active === 'drive' && <DriveSettingsTab />}
           {active === 'font' && <FontSettingsTab />}
           {active === 'shortcut' && <ShortcutSettingsTab />}
+          {active === 'schedule' && <ScheduledTasksPanel />}
 
           {active === 'account' && (
             <div>
@@ -235,6 +246,11 @@ export function UtilitiesSettingsModal({
                 <InfoRow label="Email" value={email} />
                 <InfoRow label="Vai trò" value={roleLabel} bold />
               </Section>
+              {firebaseUser?.uid && (
+                <Section label="Sync cài đặt lên Cloud">
+                  <CloudSyncControls uid={firebaseUser.uid} version={version} />
+                </Section>
+              )}
               <button
                 type="button"
                 onClick={() => { onClose(); void signOut(); }}
@@ -578,6 +594,161 @@ function ThemeOption({
     </button>
   );
 }
+
+function CloudSyncControls({ uid, version }: { uid: string; version: string }): JSX.Element {
+  const [devices, setDevices] = useState<SyncedConfig[]>([]);
+  const [busy, setBusy] = useState<'push' | 'pull' | 'list' | null>(null);
+  const [status, setStatus] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  async function loadDevices(): Promise<void> {
+    setBusy('list');
+    setError(null);
+    try {
+      const list = await listSyncedDevices(uid);
+      setDevices(list);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  useEffect(() => {
+    void loadDevices();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [uid]);
+
+  async function handlePush(): Promise<void> {
+    setBusy('push');
+    setError(null);
+    setStatus(null);
+    try {
+      await syncToCloud(uid, version);
+      setStatus('Đã sync lên cloud cho máy hiện tại.');
+      await loadDevices();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function handlePull(deviceId?: string): Promise<void> {
+    setBusy('pull');
+    setError(null);
+    setStatus(null);
+    try {
+      const r = await restoreFromCloud(uid, deviceId);
+      if (!r) {
+        setStatus('Chưa có bản sync nào trên cloud.');
+        return;
+      }
+      setStatus(`Đã khôi phục settings từ ${r.deviceName} (${new Date(r.lastSyncedAt).toLocaleString('vi-VN')}).`);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  return (
+    <div>
+      <p style={{ fontSize: 12, color: 'var(--color-text-muted)', margin: '0 0 10px', lineHeight: 1.5 }}>
+        Backup cài đặt 5 module lên Firestore. Mỗi máy lưu 1 doc riêng — cài máy mới chỉ cần Pull để clone settings.
+      </p>
+      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 12 }}>
+        <button
+          type="button"
+          onClick={() => void handlePush()}
+          disabled={busy != null}
+          style={primaryBtn}
+        >
+          {busy === 'push' ? '⟳ Đang push…' : '↑ Push lên cloud'}
+        </button>
+        <button
+          type="button"
+          onClick={() => void handlePull()}
+          disabled={busy != null}
+          style={ghostBtn}
+        >
+          {busy === 'pull' ? '⟳ Đang pull…' : '↓ Pull mới nhất'}
+        </button>
+      </div>
+      {status && (
+        <div style={{ padding: '6px 10px', background: 'rgba(52,211,153,0.12)', color: '#34d399', fontSize: 11.5, borderRadius: 4, marginBottom: 10 }}>
+          ✓ {status}
+        </div>
+      )}
+      {error && (
+        <div style={{ padding: '6px 10px', background: 'rgba(239,68,68,0.12)', color: '#fca5a5', fontSize: 11.5, borderRadius: 4, marginBottom: 10 }}>
+          ⚠ {error}
+        </div>
+      )}
+      {devices.length > 0 && (
+        <>
+          <div style={{ fontSize: 11, color: 'var(--color-text-muted)', marginBottom: 6, fontWeight: 600 }}>
+            Máy đã sync ({devices.length}):
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+            {devices.map((d) => (
+              <div
+                key={d.deviceId}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  padding: '6px 10px',
+                  fontSize: 12,
+                  border: '1px solid var(--color-border-subtle)',
+                  borderRadius: 4,
+                }}
+              >
+                <div style={{ minWidth: 0, flex: 1 }}>
+                  <div style={{ fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    🖥 {d.deviceName}
+                  </div>
+                  <div style={{ fontSize: 10.5, color: 'var(--color-text-muted)' }}>
+                    {new Date(d.lastSyncedAt).toLocaleString('vi-VN')} · v{d.appVersion}
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => void handlePull(d.deviceId)}
+                  disabled={busy != null}
+                  style={{ ...ghostBtn, padding: '3px 9px', fontSize: 11 }}
+                >
+                  Khôi phục
+                </button>
+              </div>
+            ))}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+const primaryBtn: React.CSSProperties = {
+  padding: '7px 14px',
+  background: 'var(--color-accent-primary)',
+  color: 'white',
+  border: 'none',
+  borderRadius: 4,
+  fontWeight: 600,
+  fontSize: 12.5,
+  cursor: 'pointer',
+};
+
+const ghostBtn: React.CSSProperties = {
+  padding: '7px 14px',
+  background: 'transparent',
+  color: 'var(--color-text-primary)',
+  border: '1px solid var(--color-border-default)',
+  borderRadius: 4,
+  fontSize: 12.5,
+  cursor: 'pointer',
+};
 
 function Hint({ children }: { children: React.ReactNode }): JSX.Element {
   return (

@@ -22,6 +22,10 @@ interface AtgtBlock {
   hatchName?: string;
   defaultScale?: number;
   updated_at?: number;
+  // Phase 78.13.10 — Ghi chú release admin set qua TrishAdmin
+  release_notes?: string;        // text user thấy trong TrishWork
+  release_date?: number;          // epoch ms, auto-set khi save
+  author_note?: string;           // ghi chú internal admin-only
 }
 
 interface ZipConfig {
@@ -734,9 +738,36 @@ function EditDialog({ value, isNew, categories, onSave, onCancel }: {
               onChange={(e) => patch({ colorIndex: Number(e.target.value) || 7 })} />
           </Field>
         </div>
+
+        {/* Phase 78.13.10 — Release notes hiển thị cho user trong TrishWork */}
+        <div style={{ marginTop: 12 }}>
+          <label style={{ fontSize: 11.5, color: 'var(--color-text-muted)', fontWeight: 600, display: 'block', marginBottom: 4 }}>
+            📝 Release notes (hiển thị cho user trong TrishWork)
+          </label>
+          <textarea
+            value={v.release_notes ?? ''}
+            onChange={(e) => patch({ release_notes: e.target.value })}
+            rows={2}
+            placeholder="VD: Block mới theo QCVN 41:2024. Bổ sung biển hạn chế tốc độ vùng dân cư."
+            style={{ ...input, resize: 'vertical', fontFamily: 'inherit', width: '100%' }}
+          />
+        </div>
+        <div style={{ marginTop: 8 }}>
+          <label style={{ fontSize: 11.5, color: 'var(--color-text-muted)', fontWeight: 600, display: 'block', marginBottom: 4 }}>
+            🔒 Ghi chú nội bộ (admin-only)
+          </label>
+          <textarea
+            value={v.author_note ?? ''}
+            onChange={(e) => patch({ author_note: e.target.value })}
+            rows={2}
+            placeholder="VD: Source CAD: /raw/atgt/Q41/. License: TrishTEAM internal."
+            style={{ ...input, resize: 'vertical', fontFamily: 'inherit', width: '100%' }}
+          />
+        </div>
+
         <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 20 }}>
           <button type="button" onClick={onCancel} style={btnGhost}>Hủy</button>
-          <button type="button" onClick={() => onSave(v)} style={btnPrimary}>Lưu</button>
+          <button type="button" onClick={() => onSave({ ...v, release_date: v.release_date ?? Date.now() })} style={btnPrimary}>Lưu</button>
         </div>
       </div>
     </div>

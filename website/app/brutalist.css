@@ -1,0 +1,571 @@
+/*
+ * brutalist.css — Phase 78 redesign tokens.
+ *
+ * Modern Brutalist-Minimalist: XL typography, asymmetric layout,
+ * high-contrast colors (đen + vàng + trắng), sharp edges, generous whitespace.
+ *
+ * Override các CSS var tokens cũ + add new vars specific brutalist style.
+ * Import sau tokens.css trong globals.css.
+ */
+
+:root {
+  /* === Brutalist palette refined (Phase 78 — Dark Cyber) === */
+  --bru-bg: #0A0E0E;
+  --bru-bg-elevated: #1A2424;
+  --bru-bg-deep: #050808;
+  --bru-fg: #FAFAF7;
+  --bru-fg-dim: rgba(250, 250, 247, 0.62);
+  --bru-fg-muted: rgba(250, 250, 247, 0.38);
+  --bru-fg-faint: rgba(250, 250, 247, 0.18);
+
+  --bru-accent: #FBBF24;
+  --bru-accent-dark: #F59E0B;
+  --bru-accent-soft: rgba(251, 191, 36, 0.14);
+  --bru-accent-fg: #0A0E0E;
+
+  --bru-mint: #34D399;
+  --bru-mint-soft: rgba(52, 211, 153, 0.14);
+
+  --bru-border: rgba(250, 250, 247, 0.14);
+  --bru-border-strong: rgba(250, 250, 247, 0.36);
+  --bru-border-accent: #FBBF24;
+
+  /* === Phase 78 — Override token cũ để pages heavy (auth/profile/etc) auto follow brutalist === */
+  --color-surface-bg: #0A0E0E !important;
+  --color-surface-card: #1A2424 !important;
+  --color-surface-muted: #131818 !important;
+  --color-surface-overlay: rgba(0, 0, 0, 0.6) !important;
+  --color-text-primary: #FAFAF7 !important;
+  --color-text-secondary: rgba(250, 250, 247, 0.62) !important;
+  --color-text-muted: rgba(250, 250, 247, 0.38) !important;
+  --color-text-inverse: #0A0E0E !important;
+  --color-text-link: #FBBF24 !important;
+  --color-border-subtle: rgba(250, 250, 247, 0.10) !important;
+  --color-border-default: rgba(250, 250, 247, 0.18) !important;
+  --color-border-strong: rgba(250, 250, 247, 0.36) !important;
+  --color-border-focus: #FBBF24 !important;
+  --color-accent-primary: #FBBF24 !important;
+  --color-accent-secondary: #F59E0B !important;
+  --color-accent-soft: rgba(251, 191, 36, 0.16) !important;
+  --color-brand-bg: #0A0E0E !important;
+  --color-brand-bgElevated: #1A2424 !important;
+  --color-surface-bg_elevated: rgba(10, 14, 14, 0.85) !important;
+
+  /* === Typography scale — Phase 78.2 reduced (fit viewport better) === */
+  --bru-display-xxl: clamp(48px, 8vw, 120px);
+  --bru-display-xl: clamp(40px, 6vw, 88px);
+  --bru-display-lg: clamp(32px, 4.5vw, 64px);
+  --bru-display-md: clamp(26px, 3.5vw, 48px);
+  --bru-display-sm: clamp(22px, 2.8vw, 36px);
+  --bru-h1: clamp(26px, 3.2vw, 44px);
+  --bru-h2: clamp(20px, 2.4vw, 32px);
+  --bru-h3: clamp(18px, 1.8vw, 24px);
+  --bru-body-lg: 18px;
+  --bru-body: 15px;
+  --bru-body-sm: 13px;
+  --bru-mono: 12.5px;
+
+  --bru-weight-black: 900;
+  --bru-weight-bold: 800;
+  --bru-weight-semibold: 600;
+  --bru-weight-regular: 400;
+
+  --bru-tracking-tight: -0.04em;
+  --bru-tracking-display: -0.03em;
+  --bru-tracking-normal: 0;
+  --bru-tracking-wide: 0.08em;
+
+  --bru-leading-tight: 0.95;
+  --bru-leading-display: 1.05;
+  --bru-leading-snug: 1.25;
+  --bru-leading-normal: 1.6;
+
+  /* === Spacing — Phase 78.2 tighter để fit viewport === */
+  --bru-section-gap-xl: 120px;
+  --bru-section-gap: 80px;
+  --bru-section-gap-sm: 56px;
+  --bru-block-gap: 40px;
+  --bru-inline-gap: 20px;
+
+  --bru-page-px: clamp(24px, 5vw, 80px);
+  --bru-page-py: clamp(40px, 6vw, 96px);
+  --bru-max-width: 1480px;
+  --bru-max-width-narrow: 960px;
+  --bru-max-width-prose: 720px;
+
+  /* === Radius — sharp === */
+  --bru-radius-0: 0px;
+  --bru-radius-1: 2px;
+  --bru-radius-2: 4px;
+  --bru-radius-pill: 999px;
+
+  /* === Transitions — snap === */
+  --bru-ease: cubic-bezier(0.22, 1, 0.36, 1);
+  --bru-snap: cubic-bezier(0.83, 0, 0.17, 1);
+  --bru-fast: 120ms;
+  --bru-mid: 200ms;
+  --bru-slow: 320ms;
+}
+
+/* === Reset + body defaults === */
+html.bru,
+body.bru {
+  background: var(--bru-bg);
+  color: var(--bru-fg);
+  font-family: var(--font-display), 'Plus Jakarta Sans', system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* === Typography utility classes === */
+.bru-display-xxl {
+  font-size: var(--bru-display-xxl);
+  font-weight: var(--bru-weight-black);
+  letter-spacing: var(--bru-tracking-tight);
+  line-height: var(--bru-leading-tight);
+  color: var(--bru-fg);
+}
+.bru-display-xl {
+  font-size: var(--bru-display-xl);
+  font-weight: var(--bru-weight-black);
+  letter-spacing: var(--bru-tracking-tight);
+  line-height: var(--bru-leading-tight);
+  color: var(--bru-fg);
+}
+.bru-display-lg {
+  font-size: var(--bru-display-lg);
+  font-weight: var(--bru-weight-bold);
+  letter-spacing: var(--bru-tracking-display);
+  line-height: var(--bru-leading-display);
+  color: var(--bru-fg);
+}
+.bru-display-md {
+  font-size: var(--bru-display-md);
+  font-weight: var(--bru-weight-bold);
+  letter-spacing: var(--bru-tracking-display);
+  line-height: var(--bru-leading-display);
+}
+.bru-display-sm {
+  font-size: var(--bru-display-sm);
+  font-weight: var(--bru-weight-bold);
+  letter-spacing: var(--bru-tracking-display);
+  line-height: var(--bru-leading-snug);
+}
+.bru-h1 {
+  font-size: var(--bru-h1);
+  font-weight: var(--bru-weight-bold);
+  letter-spacing: var(--bru-tracking-display);
+  line-height: var(--bru-leading-snug);
+}
+.bru-h2 {
+  font-size: var(--bru-h2);
+  font-weight: var(--bru-weight-bold);
+  line-height: var(--bru-leading-snug);
+}
+.bru-h3 {
+  font-size: var(--bru-h3);
+  font-weight: var(--bru-weight-semibold);
+  line-height: var(--bru-leading-snug);
+}
+.bru-body-lg {
+  font-size: var(--bru-body-lg);
+  font-weight: var(--bru-weight-regular);
+  line-height: var(--bru-leading-normal);
+  color: var(--bru-fg-dim);
+}
+.bru-body {
+  font-size: var(--bru-body);
+  font-weight: var(--bru-weight-regular);
+  line-height: var(--bru-leading-normal);
+  color: var(--bru-fg-dim);
+}
+.bru-body-sm {
+  font-size: var(--bru-body-sm);
+  font-weight: var(--bru-weight-regular);
+  line-height: var(--bru-leading-normal);
+  color: var(--bru-fg-muted);
+}
+.bru-mono {
+  font-family: var(--font-family-mono, 'JetBrains Mono'), monospace;
+  font-size: var(--bru-mono);
+  letter-spacing: var(--bru-tracking-wide);
+  text-transform: uppercase;
+}
+.bru-eyebrow {
+  font-family: var(--font-family-mono, 'JetBrains Mono'), monospace;
+  font-size: 11px;
+  font-weight: var(--bru-weight-semibold);
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--bru-accent);
+}
+
+/* Highlight text với accent yellow */
+.bru-accent {
+  color: var(--bru-accent);
+}
+.bru-stroke {
+  -webkit-text-stroke: 2px var(--bru-fg);
+  color: transparent;
+}
+
+/* === Section + container === */
+.bru-section {
+  padding-top: var(--bru-section-gap);
+  padding-bottom: var(--bru-section-gap);
+  padding-left: var(--bru-page-px);
+  padding-right: var(--bru-page-px);
+  position: relative;
+}
+.bru-section-sm {
+  padding-top: var(--bru-section-gap-sm);
+  padding-bottom: var(--bru-section-gap-sm);
+}
+.bru-container {
+  max-width: var(--bru-max-width);
+  margin-inline: auto;
+}
+.bru-container-narrow {
+  max-width: var(--bru-max-width-narrow);
+  margin-inline: auto;
+}
+.bru-container-prose {
+  max-width: var(--bru-max-width-prose);
+  margin-inline: auto;
+}
+
+/* === Button styles === */
+.bru-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 16px 28px;
+  font-size: 14px;
+  font-weight: var(--bru-weight-bold);
+  letter-spacing: var(--bru-tracking-wide);
+  text-transform: uppercase;
+  border: 2px solid var(--bru-fg);
+  border-radius: var(--bru-radius-2);
+  background: transparent;
+  color: var(--bru-fg);
+  cursor: pointer;
+  transition: background var(--bru-fast) var(--bru-snap),
+    color var(--bru-fast) var(--bru-snap),
+    transform var(--bru-fast) var(--bru-snap);
+  text-decoration: none;
+  white-space: nowrap;
+}
+.bru-btn:hover {
+  background: var(--bru-fg);
+  color: var(--bru-bg);
+  transform: translate(-2px, -2px);
+  box-shadow: 4px 4px 0 var(--bru-accent);
+}
+.bru-btn:active {
+  transform: translate(0, 0);
+  box-shadow: 0 0 0 var(--bru-accent);
+}
+.bru-btn-primary {
+  background: var(--bru-accent);
+  color: var(--bru-accent-fg);
+  border-color: var(--bru-accent);
+}
+.bru-btn-primary:hover {
+  background: var(--bru-fg);
+  color: var(--bru-bg);
+  border-color: var(--bru-fg);
+}
+.bru-btn-ghost {
+  border-color: var(--bru-border-strong);
+  color: var(--bru-fg-dim);
+}
+.bru-btn-ghost:hover {
+  background: var(--bru-fg);
+  color: var(--bru-bg);
+  border-color: var(--bru-fg);
+}
+.bru-btn-lg {
+  padding: 22px 36px;
+  font-size: 15px;
+}
+.bru-btn-sm {
+  padding: 10px 18px;
+  font-size: 12px;
+}
+
+/* === Card === */
+.bru-card {
+  border: 2px solid var(--bru-border);
+  background: var(--bru-bg-elevated);
+  padding: 32px;
+  border-radius: var(--bru-radius-2);
+  transition: border-color var(--bru-fast) var(--bru-snap),
+    transform var(--bru-fast) var(--bru-snap);
+}
+.bru-card:hover {
+  border-color: var(--bru-accent);
+  transform: translate(-3px, -3px);
+  box-shadow: 6px 6px 0 var(--bru-accent);
+}
+.bru-card-accent {
+  border-color: var(--bru-accent);
+  background: var(--bru-accent-soft);
+}
+
+/* === Divider === */
+.bru-divider {
+  border: none;
+  border-top: 2px solid var(--bru-border);
+  margin: 0;
+}
+.bru-divider-accent {
+  border-top-color: var(--bru-accent);
+  border-top-width: 4px;
+}
+
+/* === Marquee animation === */
+@keyframes bru-marquee {
+  from { transform: translateX(0); }
+  to { transform: translateX(-50%); }
+}
+.bru-marquee {
+  display: flex;
+  gap: 48px;
+  animation: bru-marquee 30s linear infinite;
+  white-space: nowrap;
+  width: max-content;
+}
+
+/* === Glitch effect (subtle) === */
+@keyframes bru-blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.7; }
+}
+.bru-blink {
+  animation: bru-blink 1.5s ease-in-out infinite;
+}
+
+/* === Mouse spotlight (used trên hero) === */
+.bru-spotlight {
+  position: relative;
+  overflow: hidden;
+  isolation: isolate;
+}
+.bru-spotlight::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(
+    circle at var(--mx, 50%) var(--my, 50%),
+    var(--bru-accent-soft) 0%,
+    transparent 40%
+  );
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity var(--bru-mid) var(--bru-ease);
+  z-index: 1;
+}
+.bru-spotlight:hover::before {
+  opacity: 1;
+}
+
+/* === Tag === */
+.bru-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border: 1px solid var(--bru-border-strong);
+  border-radius: var(--bru-radius-pill);
+  font-family: var(--font-family-mono, 'JetBrains Mono'), monospace;
+  font-size: 11px;
+  font-weight: var(--bru-weight-semibold);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--bru-fg-dim);
+}
+.bru-tag-accent {
+  border-color: var(--bru-accent);
+  color: var(--bru-accent);
+}
+
+/* === Big number stat === */
+.bru-stat {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.bru-stat-num {
+  font-size: clamp(48px, 6vw, 96px);
+  font-weight: var(--bru-weight-black);
+  letter-spacing: var(--bru-tracking-tight);
+  line-height: 0.95;
+  font-variant-numeric: tabular-nums;
+  color: var(--bru-fg);
+}
+.bru-stat-label {
+  font-size: 12px;
+  font-weight: var(--bru-weight-semibold);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--bru-fg-muted);
+}
+
+/* === Asymmetric grid === */
+.bru-grid-2 {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: var(--bru-block-gap);
+}
+@media (min-width: 900px) {
+  .bru-grid-2 {
+    grid-template-columns: 1fr 1fr;
+  }
+  .bru-grid-2-asym {
+    grid-template-columns: 1.5fr 1fr;
+  }
+  .bru-grid-2-rev-asym {
+    grid-template-columns: 1fr 1.5fr;
+  }
+}
+
+.bru-grid-3 {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: var(--bru-block-gap);
+}
+@media (min-width: 700px) {
+  .bru-grid-3 {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+@media (min-width: 1100px) {
+  .bru-grid-3 {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+.bru-grid-4 {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: var(--bru-inline-gap);
+}
+@media (min-width: 700px) {
+  .bru-grid-4 {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+@media (min-width: 1100px) {
+  .bru-grid-4 {
+    grid-template-columns: repeat(4, 1fr);
+  }
+}
+
+/* === Phase 78.4 — bo snap scroll. Homepage chi 1 hero + about/feedback compact. === */
+.bru-snap-section {
+  position: relative;
+}
+
+/* === Fade-in scroll trigger animation === */
+@keyframes bru-fade-up {
+  from { opacity: 0; transform: translateY(24px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.bru-fade-up {
+  animation: bru-fade-up 600ms var(--bru-ease) both;
+}
+.bru-fade-up-delay-1 { animation-delay: 100ms; }
+.bru-fade-up-delay-2 { animation-delay: 200ms; }
+.bru-fade-up-delay-3 { animation-delay: 300ms; }
+
+/* ============================================================
+ * Phase 78.9 — Override profile/settings/dashboard/admin legacy CSS
+ * Sharpen radius + giảm visible border + match palette
+ * ============================================================ */
+.profile-card,
+.settings-section,
+.dashboard-card,
+[class*="profile-section"] {
+  border-radius: 4px !important;
+  box-shadow: none !important;
+  border: 1px solid var(--bru-border) !important; /* subtle, ko phải 2px sharp */
+  background: var(--bru-bg-elevated) !important;
+}
+
+.profile-back {
+  display: none !important; /* hide cu, dung BruPageHeader thay the */
+}
+
+.profile-page,
+.settings-page,
+.dashboard-page {
+  padding: 12px var(--bru-page-px) !important;
+}
+
+/* Avatar in profile: subtle ring accent */
+.profile-avatar,
+.profile-avatar-fallback {
+  border: 2px solid var(--bru-accent) !important;
+}
+
+/* Buttons inside profile/settings: match brutalist */
+.profile-card button:not([class*="bru-btn"]),
+.settings-page button:not([class*="bru-btn"]),
+.dashboard-card button:not([class*="bru-btn"]) {
+  border-radius: 4px !important;
+}
+
+/* Inputs */
+.profile-card input,
+.settings-page input,
+.dashboard-card input {
+  border-radius: 4px !important;
+}
+
+/* Headings */
+.profile-name {
+  font-weight: 900 !important;
+  letter-spacing: -0.02em !important;
+}
+
+/* Admin page: dark + sharp consistent */
+[class*="admin-shell"],
+[class*="admin-sidebar"],
+[class*="admin-main"],
+[class*="admin-card"] {
+  background: var(--bru-bg-elevated) !important;
+  border-color: var(--bru-border) !important;
+  border-radius: 4px !important;
+  box-shadow: none !important;
+}
+
+[class*="admin-nav-item"] {
+  border-radius: 4px !important;
+}
+
+[class*="admin-nav-item"][class*="active"] {
+  background: var(--bru-accent-soft) !important;
+  color: var(--bru-accent) !important;
+  border-left: 3px solid var(--bru-accent) !important;
+}
+
+/* === Selection style === */
+::selection {
+  background: var(--bru-accent);
+  color: var(--bru-accent-fg);
+}
+
+/* === Scrollbar (dark + accent) === */
+.bru * {
+  scrollbar-color: var(--bru-border-strong) transparent;
+  scrollbar-width: thin;
+}
+.bru *::-webkit-scrollbar { width: 8px; height: 8px; }
+.bru *::-webkit-scrollbar-track { background: transparent; }
+.bru *::-webkit-scrollbar-thumb {
+  background: var(--bru-border-strong);
+  border-radius: var(--bru-radius-pill);
+}
+.bru *::-webkit-scrollbar-thumb:hover {
+  background: var(--bru-accent);
+}

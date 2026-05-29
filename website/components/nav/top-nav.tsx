@@ -57,12 +57,12 @@ export function TopNav() {
             </span>
           </Link>
 
-          {/* Quick action buttons — md+ */}
+          {/* Phase 78 — Quick action buttons (bỏ Ủng hộ tôi) */}
           <div className="hidden md:flex items-center gap-1.5">
+            <NavCta href="/apps" icon={<Sparkles size={14} strokeWidth={2.25} />} label="Ứng dụng" />
             <NavCta href="/downloads" icon={<Download size={14} strokeWidth={2.25} />} label="Tải về" primary />
-            <NavCta href="/huong-dan" icon={<BookOpen size={14} strokeWidth={2.25} />} label="Hướng dẫn" />
             <NavCta href="/blog" icon={<Newspaper size={14} strokeWidth={2.25} />} label="Blog" />
-            <NavCta href="/ung-ho" icon={<Heart size={14} strokeWidth={2.25} />} label="Ủng hộ tôi" accent="#EC4899" />
+            <NavCta href="/huong-dan" icon={<BookOpen size={14} strokeWidth={2.25} />} label="Hướng dẫn" />
           </div>
 
           {/* Spacer */}

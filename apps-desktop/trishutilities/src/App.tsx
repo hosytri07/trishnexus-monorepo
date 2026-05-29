@@ -16,10 +16,14 @@ import {
   applyTheme,
   loadActiveModule,
   loadTheme,
+  NotificationCenter,
   type ModuleDef,
 } from '@trishteam/design-system';
-import { AuthGate, AppTopbar } from '@trishteam/auth/react';
+import { AuthGate, AppTopbar, useAuth } from '@trishteam/auth/react';
+import { getFirebaseDb } from '@trishteam/auth';
 import { UtilitiesSettingsModal } from './components/UtilitiesSettingsModal.js';
+// Phase 78.13 — Background scheduler runner
+import { useScheduledTasksRunner } from './lib/scheduled-tasks/runner.js';
 
 // Wave 73.3 — Lazy-load modules. Mỗi module thành chunk riêng.
 const CleanModule = lazy(() =>
@@ -55,6 +59,25 @@ function ModuleLoading(): JSX.Element {
     <div className="module-content" style={{ padding: 32, textAlign: 'center' }}>
       <div className="muted small">⟳ Đang tải module...</div>
     </div>
+  );
+}
+
+/** Inner shell — phải nằm trong AuthGate để useAuth (qua runner hook) hoạt động. */
+function AppShellInner(): JSX.Element {
+  // Mỗi phút check tasks tới hạn của user hiện tại, chạy nếu deviceId khớp.
+  useScheduledTasksRunner();
+  return <></>;
+}
+
+/** Wrapper Bell trong AuthGate — đọc uid từ useAuth, pass db + uid xuống NotificationCenter. */
+function TopbarBell(): JSX.Element {
+  const { firebaseUser } = useAuth();
+  return (
+    <NotificationCenter
+      db={getFirebaseDb()}
+      currentUid={firebaseUser?.uid ?? null}
+      appHint="utilities"
+    />
   );
 }
 
@@ -96,6 +119,7 @@ export function App(): JSX.Element {
   const topbarRight = useMemo(
     () => (
       <AppTopbar
+        extras={<TopbarBell />}
         theme={theme}
         onThemeToggle={() => setTheme((t) => (t === 'light' ? 'dark' : 'light'))}
         onSettings={() => setShowSettings(true)}
@@ -111,9 +135,10 @@ export function App(): JSX.Element {
       appName="TrishUtilities"
       appTagline="Tiện ích · Downloader · Font"
     >
+      <AppShellInner />
       <AppShell
         appId="utilities"
-        version="2.0.0"
+        version="1.0.0"
         modules={MODULES}
         active={active}
         onActiveChange={setActive}
@@ -149,7 +174,7 @@ export function App(): JSX.Element {
       </AppShell>
       {showSettings && (
         <UtilitiesSettingsModal
-          version="2.0.0"
+          version="1.0.0"
           theme={theme}
           onThemeChange={setTheme}
           onClose={() => setShowSettings(false)}

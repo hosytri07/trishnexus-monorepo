@@ -30,10 +30,14 @@ interface UploadDraft {
   description: string;
   category: string;
   note: string;
+  // Phase 78.13.10 — Release notes hiển thị cho user TrishWork
+  release_notes: string;
+  author_note: string;
 }
 
 const EMPTY_DRAFT: UploadDraft = {
   name: '', command: '', description: '', category: 'Khác', note: '',
+  release_notes: '', author_note: '',
 };
 
 function fmtTime(ms: number): string {
@@ -124,7 +128,7 @@ export function LispLibraryPanel(): JSX.Element {
         },
       });
 
-      // 3. Save metadata to Firestore
+      // 3. Save metadata to Firestore (Phase 78.13.10 — include release notes)
       await addLispLibraryEntry({
         name: draft.name.trim(),
         command: draft.command.trim().toUpperCase(),
@@ -138,6 +142,9 @@ export function LispLibraryPanel(): JSX.Element {
         uploadedBy: firebaseUser?.uid ?? '',
         uploadedByEmail: firebaseUser?.email ?? '',
         note: draft.note.trim(),
+        release_notes: draft.release_notes.trim() || undefined,
+        release_date: Date.now(),
+        author_note: draft.author_note.trim() || undefined,
       });
 
       flash(`✓ Đã upload "${draft.name}" lên cloud library.`);
@@ -224,6 +231,21 @@ export function LispLibraryPanel(): JSX.Element {
         <input className="td-input" placeholder="Ghi chú (optional)"
           value={draft.note} onChange={(e) => setDraft({ ...draft, note: e.target.value })}
           style={{ width: '100%', marginBottom: 8 }} />
+
+        {/* Phase 78.13.10 — Release notes hiển thị cho user TrishWork */}
+        <textarea className="td-input"
+          placeholder="📝 Release notes (hiển thị cho user — VD: Sửa bug command line crash khi >100 đối tượng)"
+          value={draft.release_notes}
+          onChange={(e) => setDraft({ ...draft, release_notes: e.target.value })}
+          rows={2}
+          style={{ width: '100%', marginBottom: 8, resize: 'vertical', fontFamily: 'inherit' }} />
+        <textarea className="td-input"
+          placeholder="🔒 Ghi chú nội bộ (chỉ admin thấy — VD: Source: /raw/lisp/Q41/)"
+          value={draft.author_note}
+          onChange={(e) => setDraft({ ...draft, author_note: e.target.value })}
+          rows={2}
+          style={{ width: '100%', marginBottom: 8, resize: 'vertical', fontFamily: 'inherit' }} />
+
         <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginTop: 8 }}>
           <button type="button" className="btn btn-ghost" onClick={() => void handlePickFile()}>📎 Chọn file .lsp</button>
           <span className="muted small" style={{ flex: 1 }}>{filePath ?? 'Chưa chọn'}</span>

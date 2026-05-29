@@ -23,9 +23,11 @@ import {
   applyTheme,
   loadActiveModule,
   loadTheme,
+  NotificationCenter,
   type ModuleDef,
 } from '@trishteam/design-system';
-import { AuthGate, AppTopbar } from '@trishteam/auth/react';
+import { AuthGate, AppTopbar, useAuth } from '@trishteam/auth/react';
+import { getFirebaseDb } from '@trishteam/auth';
 import { WorkSettingsModal } from './components/WorkSettingsModal.js';
 import { DesignModule } from './modules/design/DesignModule.js';
 import { LibraryModule } from './modules/library/LibraryModule.js';
@@ -40,6 +42,18 @@ const MODULES: ReadonlyArray<ModuleDef<WorkModuleId>> = [
 ];
 
 const THEME_KEY = 'trishwork.theme';
+
+/** Wrapper Bell trong AuthGate — đọc uid từ useAuth, pass db + uid xuống NotificationCenter. */
+function TopbarBell(): JSX.Element {
+  const { firebaseUser } = useAuth();
+  return (
+    <NotificationCenter
+      db={getFirebaseDb()}
+      currentUid={firebaseUser?.uid ?? null}
+      appHint="work"
+    />
+  );
+}
 
 export function App(): JSX.Element {
   const [active, setActive] = useState<WorkModuleId>(() =>
@@ -74,6 +88,7 @@ export function App(): JSX.Element {
         onActiveChange={setActive}
         topbarRight={
           <AppTopbar
+            extras={<TopbarBell />}
             theme={theme}
             onThemeToggle={() => setTheme((t) => (t === 'light' ? 'dark' : 'light'))}
             onSettings={() => setShowSettings(true)}

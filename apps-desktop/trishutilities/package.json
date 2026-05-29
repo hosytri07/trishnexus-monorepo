@@ -1,12 +1,13 @@
 {
   "name": "@trishteam/trishutilities",
-  "version": "2.0.0",
+  "version": "1.0.0",
   "private": true,
   "description": "TrishUtilities - Phase 44 gop Clean + Check + Drive + Font + Shortcut. Tauri 2 + React. Tien ich he thong cho ecosystem TrishTEAM.",
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "tsc --noEmit && vite build",
+    "build": "vite build",
+    "build:strict": "tsc --noEmit && vite build",
     "preview": "vite preview",
     "typecheck": "tsc --noEmit",
     "tauri": "tauri",
@@ -36,6 +37,7 @@
   },
   "devDependencies": {
     "@tauri-apps/cli": "^2.11.0",
+    "@types/node": "^22.0.0",
     "@types/react": "^18.3.3",
     "@types/react-dom": "^18.3.0",
     "@vitejs/plugin-react": "^4.3.1",

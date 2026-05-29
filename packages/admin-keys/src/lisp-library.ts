@@ -42,6 +42,10 @@ export interface LispLibraryEntry {
   uploadedBy: string;
   uploadedByEmail: string;
   note?: string;
+  // Phase 78.13.10 — Release notes admin set, hiển thị cho user trong TrishWork
+  release_notes?: string;
+  release_date?: number;
+  author_note?: string;
 }
 
 export const LISP_CATEGORIES = [

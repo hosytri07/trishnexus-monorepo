@@ -22,6 +22,7 @@ import {
   type Broadcast,
   type BroadcastAudience,
   type BroadcastSeverity,
+  type BroadcastSurface,
   createBroadcast,
   deleteBroadcast,
   formatRelative,
@@ -382,6 +383,10 @@ function ComposeBroadcastModal({ adminUid, onClose, onDone }: ComposeProps): JSX
   const [body, setBody] = useState('');
   const [severity, setSeverity] = useState<BroadcastSeverity>('info');
   const [audience, setAudience] = useState<BroadcastAudience>('all');
+  // Phase 78.13.13 — surface: cả website banner + desktop bell mặc định
+  const [surface, setSurface] = useState<BroadcastSurface>('both');
+  // Phase 78.13.14 — pin lên đầu NotificationCenter
+  const [pinned, setPinned] = useState(false);
   const [expireHours, setExpireHours] = useState(24);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -402,6 +407,8 @@ function ComposeBroadcastModal({ adminUid, onClose, onDone }: ComposeProps): JSX
         body: body.trim(),
         severity,
         audience,
+        surface,
+        pinned,
         expiresAt,
         createdByUid: adminUid,
       });
@@ -487,6 +494,31 @@ function ComposeBroadcastModal({ adminUid, onClose, onDone }: ComposeProps): JSX
               />
             </label>
           </div>
+          {/* Phase 78.13.13 — Surface: nơi xuất hiện */}
+          <label className="form-label">
+            <span>Hiển thị ở đâu</span>
+            <select
+              value={surface}
+              onChange={(e) => setSurface(e.target.value as BroadcastSurface)}
+              disabled={busy}
+            >
+              <option value="both">🌐 Cả website banner + 🔔 chuông desktop (mặc định)</option>
+              <option value="website-banner">🌐 Chỉ website banner (homepage)</option>
+              <option value="desktop-bell">🔔 Chỉ chuông NotificationCenter trong 4 app desktop</option>
+            </select>
+          </label>
+
+          {/* Phase 78.13.14 — Pin lên đầu NotificationCenter */}
+          <label className="form-label" style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}>
+            <input
+              type="checkbox"
+              checked={pinned}
+              onChange={(e) => setPinned(e.target.checked)}
+              disabled={busy}
+              style={{ accentColor: 'var(--color-accent-primary)', width: 16, height: 16 }}
+            />
+            <span>📌 Pin lên đầu chuông NotificationCenter (dùng cho announcement quan trọng)</span>
+          </label>
           {error && <div className="error-banner">⚠ {error}</div>}
           <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 12 }}>
             <button type="button" className="btn btn-ghost" onClick={onClose} disabled={busy}>

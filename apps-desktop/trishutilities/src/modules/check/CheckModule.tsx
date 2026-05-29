@@ -55,6 +55,10 @@ import {
 } from './data/min-specs.js';
 import { useAuth } from '@trishteam/auth/react';
 
+// Phase 78 — Import CSS file local (Vite chunk theo lazy module).
+import './styles.css';
+import './theme-bridge.css';
+
 /**
  * Phase 15.0 — TrishCheck v2 root component.
  *
