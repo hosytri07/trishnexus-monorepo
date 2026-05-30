@@ -1,102 +1,118 @@
-{
-  "schema_version": 7,
-  "updated_at": "2026-05-28T08:00:00+07:00",
-  "ecosystem": {
-    "name": "TrishTEAM",
-    "tagline": "Hệ sinh thái phần mềm + tri thức + công cụ cho kỹ sư xây dựng / giao thông Việt Nam",
-    "logo_url": "https://trishteam.io.vn/logo.svg",
-    "website": "https://trishteam.io.vn"
-  },
-  "release_at_default": "2026-05-28T09:00:00+07:00",
-  "_note": "Phase 78.13 — Schema v7: chỉ còn 4 app consolidated. TrishLauncher (hub) đã bỏ vì user mở trực tiếp 4 desktop app riêng. TrishCheck/Clean/Drive/Font/Shortcut → gộp TrishUtilities. TrishDesign/Library/ISO → gộp TrishWork. TrishOffice/IsoStandalone đã bỏ (chưa release). Role-based: trial (block) / demo (timed) / user / admin. login_required='trishteam' = AuthGate qua Firebase + role>=user.",
-  "apps": [
-    {
-      "id": "trishwork",
-      "name": "TrishWork",
-      "tagline": "Bộ công cụ kỹ sư hạ tầng — Design + Library + ISO cho giao thông Việt Nam",
-      "logo_url": "https://trishteam.io.vn/logos/trishwork.png",
-      "version": "1.0.0",
-      "size_bytes": 48000000,
-      "status": "released",
-      "login_required": "trishteam",
-      "platforms": [
-        "windows_x64"
-      ],
-      "screenshots": [],
-      "changelog_url": "https://github.com/hosytri07/trishnexus-monorepo/releases/tag/trishwork-v1.0.0",
-      "download": {
-        "windows_x64": {
-          "url": "https://github.com/hosytri07/trishnexus-monorepo/releases/download/trishwork-v1.0.0/TrishWork_1.0.0_x64-setup.exe",
-          "sha256": "PENDING",
-          "installer_args": []
-        }
-      }
-    },
-    {
-      "id": "trishutilities",
-      "name": "TrishUtilities",
-      "tagline": "5 tiện ích hệ thống: Dọn dẹp · Kiểm tra · Downloader · Font · Shortcut",
-      "logo_url": "https://trishteam.io.vn/logos/trishutilities.png",
-      "version": "1.0.0",
-      "size_bytes": 52000000,
-      "status": "released",
-      "login_required": "trishteam",
-      "platforms": [
-        "windows_x64"
-      ],
-      "screenshots": [],
-      "changelog_url": "https://github.com/hosytri07/trishnexus-monorepo/releases/tag/trishutilities-v1.0.0",
-      "download": {
-        "windows_x64": {
-          "url": "https://github.com/hosytri07/trishnexus-monorepo/releases/download/trishutilities-v1.0.0/TrishUtilities_1.0.0_x64-setup.exe",
-          "sha256": "PENDING",
-          "installer_args": []
-        }
-      }
-    },
-    {
-      "id": "trishfinance",
-      "name": "TrishFinance",
-      "tagline": "12 loại business — POS · Nhà trọ · Cafe · Gym · Karaoke · Photocopy · Spa · Bank import + Dashboard",
-      "logo_url": "https://trishteam.io.vn/logos/trishfinance.png",
-      "version": "1.0.0",
-      "size_bytes": 38500000,
-      "status": "released",
-      "login_required": "trishteam",
-      "platforms": [
-        "windows_x64"
-      ],
-      "screenshots": [],
-      "changelog_url": "https://github.com/hosytri07/trishnexus-monorepo/releases/tag/trishfinance-v1.0.0",
-      "download": {
-        "windows_x64": {
-          "url": "https://github.com/hosytri07/trishnexus-monorepo/releases/download/trishfinance-v1.0.0/TrishFinance_1.0.0_x64-setup.exe",
-          "sha256": "PENDING",
-          "installer_args": []
-        }
-      }
-    },
-    {
-      "id": "trishadmin",
-      "name": "TrishAdmin",
-      "tagline": "Console quản trị hệ sinh thái — admin-only (Trí + co-admin được cấp quyền)",
-      "logo_url": "https://trishteam.io.vn/logos/trishadmin.png",
-      "version": "1.0.0",
-      "size_bytes": 45000000,
-      "status": "released",
-      "login_required": "admin",
-      "platforms": [
-        "windows_x64"
-      ],
-      "screenshots": [],
-      "changelog_url": "https://github.com/hosytri07/trishnexus-monorepo/releases/tag/trishadmin-v1.0.0",
-      "download": {
-        "windows_x64": {
-          "url": "https://github.com/hosytri07/trishnexus-monorepo/releases/download/trishadmin-v1.0.0/TrishAdmin_1.0.0_x64-setup.exe",
-          "sha256": "PENDING",
-          "installer_args": []
-        }
-      }
-    }
-  ]
+﻿{
+    "schema_version":  7,
+    "updated_at":  "2026-05-30T20:02:11+07:00",
+    "ecosystem":  {
+                      "name":  "TrishTEAM",
+                      "tagline":  "Há»‡ sinh thÃ¡i pháº§n má»m + tri thá»©c + cÃ´ng cá»¥ cho ká»¹ sÆ° xÃ¢y dá»±ng / giao thÃ´ng Viá»‡t Nam",
+                      "logo_url":  "https://trishteam.io.vn/logo.svg",
+                      "website":  "https://trishteam.io.vn"
+                  },
+    "release_at_default":  "2026-05-28T09:00:00+07:00",
+    "_note":  "Phase 78.13 â€” Schema v7: chá»‰ cÃ²n 4 app consolidated. TrishLauncher (hub) Ä‘Ã£ bá» vÃ¬ user má»Ÿ trá»±c tiáº¿p 4 desktop app riÃªng. TrishCheck/Clean/Drive/Font/Shortcut â†’ gá»™p TrishUtilities. TrishDesign/Library/ISO â†’ gá»™p TrishWork. TrishOffice/IsoStandalone Ä‘Ã£ bá» (chÆ°a release). Role-based: trial (block) / demo (timed) / user / admin. login_required=\u0027trishteam\u0027 = AuthGate qua Firebase + role\u003e=user.",
+    "apps":  [
+                 {
+                     "id":  "trishwork",
+                     "name":  "TrishWork",
+                     "tagline":  "Bá»™ cÃ´ng cá»¥ ká»¹ sÆ° háº¡ táº§ng â€” Design + Library + ISO cho giao thÃ´ng Viá»‡t Nam",
+                     "logo_url":  "https://trishteam.io.vn/logos/trishwork.png",
+                     "version":  "1.0.0",
+                     "size_bytes":  48000000,
+                     "status":  "released",
+                     "login_required":  "trishteam",
+                     "platforms":  [
+                                       "windows_x64"
+                                   ],
+                     "screenshots":  [
+
+                                     ],
+                     "changelog_url":  "https://github.com/hosytri07/trishnexus-monorepo/releases/tag/trishwork-v1.0.0",
+                     "download":  {
+                                      "windows_x64":  {
+                                                          "url":  "https://github.com/hosytri07/trishnexus-monorepo/releases/download/trishwork-v1.0.0/TrishWork_1.0.0_x64-setup.exe",
+                                                          "sha256":  "PENDING",
+                                                          "installer_args":  [
+
+                                                                             ]
+                                                      }
+                                  }
+                 },
+                 {
+                     "id":  "trishutilities",
+                     "name":  "TrishUtilities",
+                     "tagline":  "5 tiá»‡n Ã­ch há»‡ thá»‘ng: Dá»n dáº¹p Â· Kiá»ƒm tra Â· Downloader Â· Font Â· Shortcut",
+                     "logo_url":  "https://trishteam.io.vn/logos/trishutilities.png",
+                     "version":  "1.0.0",
+                     "size_bytes":  4636586,
+                     "status":  "released",
+                     "login_required":  "trishteam",
+                     "platforms":  [
+                                       "windows_x64"
+                                   ],
+                     "screenshots":  [
+
+                                     ],
+                     "changelog_url":  "https://github.com/hosytri07/trishnexus-monorepo/releases/tag/trishutilities-v1.0.0",
+                     "download":  {
+                                      "windows_x64":  {
+                                                          "url":  "https://github.com/hosytri07/trishnexus-monorepo/releases/download/trishutilities-v1.0.0/TrishUtilities_1.0.0_x64-setup.exe",
+                                                          "sha256":  "e3276c1d883248c5082d8bddbd0a755d5fb06b3547c11e6084e11fda31a89892",
+                                                          "installer_args":  [
+
+                                                                             ]
+                                                      }
+                                  }
+                 },
+                 {
+                     "id":  "trishfinance",
+                     "name":  "TrishFinance",
+                     "tagline":  "12 loáº¡i business â€” POS Â· NhÃ  trá» Â· Cafe Â· Gym Â· Karaoke Â· Photocopy Â· Spa Â· Bank import + Dashboard",
+                     "logo_url":  "https://trishteam.io.vn/logos/trishfinance.png",
+                     "version":  "1.0.0",
+                     "size_bytes":  3523126,
+                     "status":  "released",
+                     "login_required":  "trishteam",
+                     "platforms":  [
+                                       "windows_x64"
+                                   ],
+                     "screenshots":  [
+
+                                     ],
+                     "changelog_url":  "https://github.com/hosytri07/trishnexus-monorepo/releases/tag/trishfinance-v1.0.0",
+                     "download":  {
+                                      "windows_x64":  {
+                                                          "url":  "https://github.com/hosytri07/trishnexus-monorepo/releases/download/trishfinance-v1.0.0/TrishFinance_1.0.0_x64-setup.exe",
+                                                          "sha256":  "a317745d7f371c85594abb2887c8721c627e7bb90ec65403cd8d7374c8fd5d4e",
+                                                          "installer_args":  [
+
+                                                                             ]
+                                                      }
+                                  }
+                 },
+                 {
+                     "id":  "trishadmin",
+                     "name":  "TrishAdmin",
+                     "tagline":  "Console quáº£n trá»‹ há»‡ sinh thÃ¡i â€” admin-only (TrÃ­ + co-admin Ä‘Æ°á»£c cáº¥p quyá»n)",
+                     "logo_url":  "https://trishteam.io.vn/logos/trishadmin.png",
+                     "version":  "1.0.0",
+                     "size_bytes":  45000000,
+                     "status":  "released",
+                     "login_required":  "admin",
+                     "platforms":  [
+                                       "windows_x64"
+                                   ],
+                     "screenshots":  [
+
+                                     ],
+                     "changelog_url":  "https://github.com/hosytri07/trishnexus-monorepo/releases/tag/trishadmin-v1.0.0",
+                     "download":  {
+                                      "windows_x64":  {
+                                                          "url":  "https://github.com/hosytri07/trishnexus-monorepo/releases/download/trishadmin-v1.0.0/TrishAdmin_1.0.0_x64-setup.exe",
+                                                          "sha256":  "PENDING",
+                                                          "installer_args":  [
+
+                                                                             ]
+                                                      }
+                                  }
+                 }
+             ]
 }

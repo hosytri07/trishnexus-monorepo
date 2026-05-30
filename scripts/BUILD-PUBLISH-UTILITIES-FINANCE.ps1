@@ -1,4 +1,4 @@
-# =============================================================================
+﻿# =============================================================================
 # Phase 78.13.18 — Build + Publish TrishUtilities + TrishFinance v1.0.0
 # =============================================================================
 #
@@ -108,7 +108,7 @@ foreach ($app in $Apps) {
 # ============================================================
 Write-Host "`n=== STEP 3/5: Update apps-registry.json ===" -ForegroundColor Cyan
 $registryPath = Join-Path $RepoRoot "website\public\apps-registry.json"
-$registry = Get-Content $registryPath -Raw | ConvertFrom-Json -Depth 10
+$registry = Get-Content $registryPath -Raw | ConvertFrom-Json
 $updated = $false
 foreach ($r in $Results) {
     foreach ($entry in $registry.apps) {
@@ -140,10 +140,12 @@ if (-not $SkipUpload) {
         Write-Host "  Hoac upload manual lên https://github.com/hosytri07/trishnexus-monorepo/releases" -ForegroundColor Yellow
         Write-Host "  Skip upload, tiep tuc..." -ForegroundColor Yellow
     } else {
+        $prevEAP = $ErrorActionPreference
+        $ErrorActionPreference = 'Continue'
         foreach ($r in $Results) {
             $tag = $r.App.Tag
             Write-Host "`n  [$($r.App.Name)] Checking release $tag..." -ForegroundColor Yellow
-            $releaseExists = gh release view $tag --repo hosytri07/trishnexus-monorepo 2>$null
+            gh release view $tag --repo hosytri07/trishnexus-monorepo *> $null
             if ($LASTEXITCODE -ne 0) {
                 Write-Host "  Tao release moi $tag..." -ForegroundColor Yellow
                 gh release create $tag --repo hosytri07/trishnexus-monorepo `
@@ -158,6 +160,7 @@ if (-not $SkipUpload) {
                 Write-Host "  [$($r.App.Name)] Upload FAILED" -ForegroundColor Red
             }
         }
+        $ErrorActionPreference = $prevEAP
     }
 } else {
     Write-Host "`n=== STEP 4/5: SKIPPED (--SkipUpload) ===" -ForegroundColor DarkGray
@@ -178,7 +181,7 @@ if (-not $SkipDeploy) {
         if ($LASTEXITCODE -eq 0) {
             Write-Host "  Website deployed" -ForegroundColor Green
         } else {
-            Write-Host "  Deploy FAILED — check vercel CLI output" -ForegroundColor Red
+            Write-Host "  Deploy FAILED -- check vercel CLI output" -ForegroundColor Red
         }
     }
 } else {
