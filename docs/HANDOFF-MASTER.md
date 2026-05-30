@@ -4,8 +4,30 @@
 >
 > **🔴 ĐỌC SECTION `🏠 RESUME TẠI MÁY NHÀ` NGAY DƯỚI TRƯỚC TIÊN. Section `📍 PHIÊN HIỆN TẠI` là lịch sử Phase 78 dài. Sections cũ hơn là archive.**
 >
-> **Cập nhật:** 2026-05-29 — **Phase 78.13: NotificationCenter + FontPacks Admin + Schedule Manager + GitHub uploader + 4-app access fix + build unblock**. Sẵn sàng build TrishUtilities + TrishFinance v1.0.0.
+> **Cập nhật:** 2026-05-30 — **Phase 78.13.18: ĐÃ PUBLISH TrishUtilities + TrishFinance v1.0.0** (máy nhà). Firestore rules deployed, 2 .exe lên GitHub Release, registry cập nhật SHA thật. Còn lại: xác nhận Vercel deploy website + (tùy chọn) build TrishWork/TrishAdmin.
 > **Chủ dự án:** Trí (hosytri77@gmail.com / trishteam.official@gmail.com) — kỹ sư hạ tầng giao thông Đà Nẵng. Không phải dev. Giao tiếp tiếng Việt, tránh jargon.
+
+---
+
+## ✅ PHIÊN 2026-05-30 (máy nhà) — PUBLISH v1.0.0 + fix build pipeline
+
+**Đã hoàn thành:**
+1. `firebase deploy --only firestore:rules` — OK (4 collection mới: scheduled_tasks, synced_configs, fontpacks, user_notifications).
+2. Build + publish **TrishUtilities v1.0.0** + **TrishFinance v1.0.0** qua `scripts\BUILD-PUBLISH-UTILITIES-FINANCE.ps1`:
+   - TrishUtilities: SHA256 `e3276c1d883248c5082d8bddbd0a755d5fb06b3547c11e6084e11fda31a89892`, 4.42 MB → release `trishutilities-v1.0.0`.
+   - TrishFinance: SHA256 `a317745d7f371c85594abb2887c8721c627e7bb90ec65403cd8d7374c8fd5d4e`, 3.36 MB → release `trishfinance-v1.0.0`.
+   - `website/public/apps-registry.json` đã cập nhật SHA thật.
+
+**Các fix đã làm trong phiên (đề phòng tái diễn):**
+- `BUILD-PUBLISH-UTILITIES-FINANCE.ps1`: thêm **UTF-8 BOM** (PS 5.1 đọc non-BOM theo ANSI → vỡ chuỗi tiếng Việt/em-dash → parse error dây chuyền). Đổi em-dash trong string → `--`. Bỏ `ConvertFrom-Json -Depth 10` (param `-Depth` không có trên PS 5.1). STEP 4 set `$ErrorActionPreference='Continue'` quanh vòng `gh` (stderr của gh làm script Stop terminate).
+- `trishutilities/src-tauri/tauri.conf.json`: bundle MSI fail vì `icon` chỉ có `.png` → thêm full mảng icon (png + icns + ico). Installer NSIS ra **icon generic** vì thiếu `bundle.windows.nsis.installerIcon` → đã thêm `"installerIcon": "icons/icon.ico"` (giống TrishFinance). **Lưu ý:** Tauri cache bundle, phải `Remove-Item -Recurse -Force <app>\src-tauri\target\release\bundle` rồi build lại mới regenerate icon.
+
+**Việc còn lại:**
+- [ ] Xác nhận Vercel deploy website (SHA mới trên trishteam.io.vn/downloads phải khớp `e3276c1d…`). STEP 5 phiên này bị skip vì thiếu vercel CLI. Nếu Vercel nối GitHub → push là auto-deploy; nếu không → `npm i -g vercel` + `vercel login` rồi chạy script `-OnlyApp utilities -SkipBuild -SkipUpload`.
+- [ ] (Tùy chọn) Build + publish TrishWork + TrishAdmin nếu cần.
+- [ ] Test user-end: bell NotificationCenter + filter + snooze + quiet hours + sound chime; gửi broadcast test từ TrishAdmin.
+
+**⚠ Bài học:** KHÔNG chạy `git add/commit` từ Cowork sandbox — `.git/objects` bị chặn quyền ghi → corrupt index (status "MM" nhưng "nothing to commit"). Fix: `git reset --mixed HEAD`. Mọi thao tác git làm trên Windows (END.bat hoặc git trực tiếp).
 
 ---
 
