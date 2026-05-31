@@ -22,9 +22,15 @@
 - `BUILD-PUBLISH-UTILITIES-FINANCE.ps1`: thêm **UTF-8 BOM** (PS 5.1 đọc non-BOM theo ANSI → vỡ chuỗi tiếng Việt/em-dash → parse error dây chuyền). Đổi em-dash trong string → `--`. Bỏ `ConvertFrom-Json -Depth 10` (param `-Depth` không có trên PS 5.1). STEP 4 set `$ErrorActionPreference='Continue'` quanh vòng `gh` (stderr của gh làm script Stop terminate).
 - `trishutilities/src-tauri/tauri.conf.json`: bundle MSI fail vì `icon` chỉ có `.png` → thêm full mảng icon (png + icns + ico). Installer NSIS ra **icon generic** vì thiếu `bundle.windows.nsis.installerIcon` → đã thêm `"installerIcon": "icons/icon.ico"` (giống TrishFinance). **Lưu ý:** Tauri cache bundle, phải `Remove-Item -Recurse -Force <app>\src-tauri\target\release\bundle` rồi build lại mới regenerate icon.
 
+**Website downloads — ĐÃ FIX + deploy (quan trọng, đọc kỹ):**
+- ✅ Đã sửa `website/app/downloads/page.tsx` + `vercel --prod`. Web hiện đúng: TrishUtilities 4.42 MB / `e3276c1d…`, TrishFinance 3.36 MB / `a317745d…`.
+- ⚠ **Trang downloads dùng mảng HARDCODE `const APPS` trong `app/downloads/page.tsx`** — KHÔNG đọc `apps-registry.json` cũng KHÔNG đọc Firestore. Mỗi lần release mới PHẢI sửa tay `size_mb` + `sha256` + `url` trong mảng này rồi commit + `vercel --prod`. (Nãy mất nhiều thời gian vì tưởng web đọc registry/Firestore — sai. Script BUILD-PUBLISH update JSON tĩnh chỉ phục vụ desktop launcher fallback.)
+- 📌 TODO refactor: cho `app/downloads/page.tsx` đọc thẳng `apps-registry.json` để khỏi sửa 2 nơi.
+
 **Việc còn lại:**
-- [ ] Xác nhận Vercel deploy website (SHA mới trên trishteam.io.vn/downloads phải khớp `e3276c1d…`). STEP 5 phiên này bị skip vì thiếu vercel CLI. Nếu Vercel nối GitHub → push là auto-deploy; nếu không → `npm i -g vercel` + `vercel login` rồi chạy script `-OnlyApp utilities -SkipBuild -SkipUpload`.
-- [ ] (Tùy chọn) Build + publish TrishWork + TrishAdmin nếu cần.
+- [ ] **Dọn Firestore `apps_meta`**: trang `/admin/apps` còn 15 app CŨ (TrishCheck/Clean/Design/Drive/Font/Image/ISO/Launcher/Library/Note/Office/Search/Shortcut) từ thời trước khi gộp, và THIẾU TrishUtilities/TrishWork/TrishAdmin. Cần xoá doc cũ + nạp 4 app mới. Nút "Reset từ registry" (overwrite=true) nạp từ JSON nhưng KHÔNG xoá doc thừa (seed-apps chỉ add/overwrite, không delete) → phải xoá tay từng app cũ. Chỉ ảnh hưởng màn admin, web công khai không dùng.
+- [ ] TrishWork: để placeholder 48.1MB/404 (Trí chọn). Khi nào build TrishWork v1.0.0 thì sửa lại mảng APPS.
+- [ ] (Tùy chọn) Build + publish TrishWork + TrishAdmin.
 - [ ] Test user-end: bell NotificationCenter + filter + snooze + quiet hours + sound chime; gửi broadcast test từ TrishAdmin.
 
 **⚠ Bài học:** KHÔNG chạy `git add/commit` từ Cowork sandbox — `.git/objects` bị chặn quyền ghi → corrupt index (status "MM" nhưng "nothing to commit"). Fix: `git reset --mixed HEAD`. Mọi thao tác git làm trên Windows (END.bat hoặc git trực tiếp).
