@@ -1,0 +1,519 @@
+/* WorkShell — dashboard + browser tabs. Dùng CSS vars của design-system. */
+
+.work-shell {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  background: var(--color-surface-bg);
+  color: var(--color-text-primary);
+  overflow: hidden;
+}
+
+/* ---------- Topbar ---------- */
+.ws-topbar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  height: 52px;
+  padding: 0 16px;
+  background: var(--color-surface-bg-elevated);
+  border-bottom: 1px solid var(--color-border-subtle);
+  flex: 0 0 auto;
+}
+.ws-brand {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.ws-appname {
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: 0.2px;
+}
+.ws-version {
+  font-size: 11px;
+  color: var(--color-text-muted);
+  opacity: 0.7;
+}
+.ws-spacer {
+  flex: 1 1 auto;
+}
+.ws-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* ---------- Tab bar (browser style) ---------- */
+.ws-tabbar {
+  display: flex;
+  align-items: flex-end;
+  gap: 4px;
+  height: 40px;
+  padding: 0 10px;
+  background: var(--color-surface-bg);
+  border-bottom: 1px solid var(--color-border-subtle);
+  flex: 0 0 auto;
+  overflow-x: auto;
+  scrollbar-width: thin;
+}
+.ws-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  max-width: 220px;
+  height: 32px;
+  padding: 0 10px;
+  border: 1px solid transparent;
+  border-bottom: none;
+  border-radius: 9px 9px 0 0;
+  background: transparent;
+  color: var(--color-text-secondary);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.16s ease, color 0.16s ease;
+}
+.ws-tab:hover {
+  background: var(--color-surface-hover);
+  color: var(--color-text-primary);
+}
+.ws-tab.active {
+  background: var(--color-surface-card);
+  color: var(--color-text-primary);
+  border-color: var(--color-border-default);
+  box-shadow: var(--shadow-xs);
+  position: relative;
+}
+.ws-tab.active::after {
+  /* gạch nhấn màu module phía trên tab active */
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 8px;
+  right: 8px;
+  height: 2px;
+  border-radius: 2px;
+  background: var(--ws-tab-accent, var(--color-accent-primary));
+}
+.ws-tab-ico {
+  display: inline-flex;
+  align-items: center;
+}
+.ws-tab-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.ws-tab-close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  margin-left: 2px;
+  border-radius: 5px;
+  color: var(--color-text-muted);
+  transition: background 0.14s ease, color 0.14s ease;
+}
+.ws-tab-close:hover {
+  background: var(--color-surface-muted);
+  color: var(--color-text-primary);
+}
+.ws-tab-home .ws-tab-label {
+  font-weight: 600;
+}
+
+/* ---------- Content ---------- */
+.ws-content {
+  flex: 1 1 auto;
+  position: relative;
+  overflow: hidden;
+}
+.ws-pane {
+  position: absolute;
+  inset: 0;
+  overflow: auto;
+}
+.ws-module-pane {
+  overflow: hidden;
+}
+.ws-module-anim,
+.ws-dashboard {
+  height: 100%;
+  animation: ws-fade-in 0.22s ease;
+}
+@keyframes ws-fade-in {
+  from {
+    opacity: 0;
+    transform: scale(0.985) translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+/* ---------- Dashboard ---------- */
+.ws-dashboard {
+  max-width: none;
+  margin: 0;
+  padding: 40px clamp(28px, 3vw, 56px) 64px;
+  box-sizing: border-box;
+  overflow: auto;
+}
+.ws-dash-head {
+  margin-bottom: 32px;
+}
+.ws-dash-title {
+  font-size: 28px;
+  font-weight: 800;
+  margin: 0 0 6px;
+  letter-spacing: -0.3px;
+}
+.ws-dash-sub {
+  margin: 0;
+  font-size: 14px;
+  color: var(--color-text-secondary);
+}
+.ws-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(296px, 1fr));
+  gap: 16px;
+}
+.ws-card {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 22px 22px;
+  text-align: left;
+  border: 1px solid var(--color-border-default);
+  border-radius: 16px;
+  background: var(--color-surface-card);
+  color: var(--color-text-primary);
+  cursor: pointer;
+  overflow: hidden;
+  transition: transform 0.18s ease, box-shadow 0.18s ease,
+    border-color 0.18s ease;
+}
+.ws-card:hover {
+  transform: translateY(-4px);
+  border-color: var(--ws-card-accent);
+  box-shadow: 0 12px 32px -12px var(--ws-card-accent);
+}
+.ws-card:active {
+  transform: translateY(-1px);
+}
+.ws-card-shimmer {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: var(--ws-card-accent);
+  opacity: 0.85;
+}
+.ws-card-ico {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 60px;
+  height: 60px;
+  flex: 0 0 auto;
+  border-radius: 15px;
+  color: var(--ws-card-accent);
+  background: color-mix(in srgb, var(--ws-card-accent) 14%, transparent);
+}
+.ws-card-body {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  min-width: 0;
+}
+.ws-card-title {
+  font-size: 16px;
+  font-weight: 700;
+}
+.ws-card-desc {
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--color-text-secondary);
+}
+.ws-card-kbd {
+  position: absolute;
+  bottom: 14px;
+  right: 16px;
+  font-size: 10.5px;
+  font-family: var(--font-mono, ui-monospace, monospace);
+  color: var(--color-text-muted);
+  opacity: 0;
+  transition: opacity 0.18s ease;
+}
+.ws-card:hover .ws-card-kbd {
+  opacity: 0.7;
+}
+
+/* ===== Redesign v2: search, quick row, groups, palette, pin ===== */
+
+.ws-cmdk-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 28px;
+  padding: 0 10px;
+  margin-right: 4px;
+  font-size: 12px;
+  color: var(--color-text-muted);
+  background: var(--color-surface-muted);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+.ws-cmdk-btn:hover {
+  color: var(--color-text-primary);
+  background: var(--color-surface-hover);
+}
+
+/* Dashboard search */
+.ws-dash-search,
+.ws-palette-search {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  border-radius: 12px;
+  background: var(--color-surface-card);
+  border: 1px solid var(--color-border-default);
+  color: var(--color-text-muted);
+  margin-bottom: 24px;
+}
+.ws-dash-search input,
+.ws-palette-search input {
+  flex: 1;
+  border: none;
+  outline: none;
+  background: transparent;
+  color: var(--color-text-primary);
+  font-size: 14px;
+  font-family: inherit;
+}
+.ws-dash-sub kbd {
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 11px;
+  background: var(--color-surface-muted);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: 5px;
+  padding: 1px 5px;
+}
+
+/* Quick (pinned / recent) */
+.ws-quick {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 22px;
+  margin-bottom: 28px;
+}
+.ws-quick-block {
+  min-width: 220px;
+}
+.ws-quick-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11.5px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--color-text-muted);
+  margin-bottom: 8px;
+}
+.ws-chiprow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.ws-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 6px 12px;
+  font-size: 12.5px;
+  color: var(--color-text-primary);
+  background: var(--color-surface-card);
+  border: 1px solid var(--color-border-default);
+  border-radius: 999px;
+  cursor: pointer;
+  transition: border-color 0.15s ease, transform 0.15s ease;
+}
+.ws-chip:hover {
+  transform: translateY(-1px);
+  border-color: var(--color-accent-primary);
+}
+.ws-chip-ico {
+  display: inline-flex;
+}
+
+/* Group section */
+.ws-group {
+  margin-bottom: 26px;
+}
+.ws-group-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 6px 2px;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  text-align: left;
+  margin-bottom: 12px;
+  border-bottom: 1px solid var(--color-border-subtle);
+}
+.ws-group-ico {
+  display: inline-flex;
+}
+.ws-group-label {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--color-text-primary);
+}
+.ws-group-count {
+  font-size: 12px;
+  color: var(--color-text-muted);
+}
+.ws-group-chev {
+  margin-left: auto;
+  font-size: 16px;
+  color: var(--color-text-muted);
+  transition: transform 0.18s ease;
+}
+.ws-group-chev.collapsed {
+  transform: rotate(-90deg);
+}
+
+/* Card pin button (thay cho kbd) */
+.ws-card-pin {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 7px;
+  color: var(--color-text-muted);
+  opacity: 0;
+  transition: opacity 0.15s ease, background 0.15s ease, color 0.15s ease;
+}
+.ws-card:hover .ws-card-pin {
+  opacity: 0.6;
+}
+.ws-card-pin:hover {
+  opacity: 1;
+  background: var(--color-surface-muted);
+}
+.ws-card-pin.pinned {
+  opacity: 1;
+  color: var(--ws-card-accent);
+}
+
+/* Command palette */
+.ws-palette-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  background: rgba(0, 0, 0, 0.4);
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding-top: 12vh;
+  animation: ws-fade-in 0.14s ease;
+}
+.ws-palette {
+  width: min(620px, 92vw);
+  max-height: 64vh;
+  display: flex;
+  flex-direction: column;
+  background: var(--color-surface-bg-elevated);
+  border: 1px solid var(--color-border-default);
+  border-radius: 14px;
+  box-shadow: 0 24px 60px -16px rgba(0, 0, 0, 0.5);
+  overflow: hidden;
+}
+.ws-palette-search {
+  margin: 0;
+  border: none;
+  border-bottom: 1px solid var(--color-border-subtle);
+  border-radius: 0;
+  background: transparent;
+}
+.ws-palette-list {
+  overflow-y: auto;
+  padding: 6px;
+}
+.ws-palette-empty {
+  padding: 18px;
+  text-align: center;
+  font-size: 13px;
+  color: var(--color-text-muted);
+}
+.ws-palette-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 10px 12px;
+  background: transparent;
+  border: none;
+  border-radius: 9px;
+  cursor: pointer;
+  text-align: left;
+  color: var(--color-text-primary);
+  font-size: 13.5px;
+}
+.ws-palette-item:hover {
+  background: var(--color-surface-hover);
+}
+.ws-palette-ico {
+  display: inline-flex;
+}
+.ws-palette-label {
+  flex: 1;
+}
+.ws-palette-group {
+  font-size: 11.5px;
+  color: var(--color-text-muted);
+}
+
+/* ===== Module pane: ép module lấp đúng chiều cao khung tab ===== */
+.ws-module-pane {
+  overflow: auto;
+}
+.ws-module-anim {
+  min-height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+.ws-module-anim > * {
+  flex: 1 1 auto;
+  min-height: 0;
+}
+/* Module cũ dùng 100vh / min-h-screen → tràn quá khung (đã trừ topbar+tabbar).
+   Trong WorkShell, ép về 100% chiều cao pane. */
+.ws-module-pane .min-h-screen {
+  min-height: 100% !important;
+}
+.ws-module-pane .td-shell,
+.ws-module-pane .app-shell {
+  height: 100%;
+  min-height: 100% !important;
+}
+/* Design: grid 240px 1fr → khi hideNav (ẩn aside) ép 1 cột để td-main full width */
+.ws-module-pane .td-shell-nonav {
+  grid-template-columns: 1fr !important;
+}
+/* ISO: aside là position:fixed nên main đã paddingLeft=0 khi hideNav (xử lý ở JSX) */

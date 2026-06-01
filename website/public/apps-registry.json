@@ -1,6 +1,6 @@
 ﻿{
     "schema_version":  7,
-    "updated_at":  "2026-05-30T20:02:11+07:00",
+    "updated_at":  "2026-05-31T19:18:59+07:00",
     "ecosystem":  {
                       "name":  "TrishTEAM",
                       "tagline":  "Há»‡ sinh thÃ¡i pháº§n má»m + tri thá»©c + cÃ´ng cá»¥ cho ká»¹ sÆ° xÃ¢y dá»±ng / giao thÃ´ng Viá»‡t Nam",
@@ -16,7 +16,7 @@
                      "tagline":  "Bá»™ cÃ´ng cá»¥ ká»¹ sÆ° háº¡ táº§ng â€” Design + Library + ISO cho giao thÃ´ng Viá»‡t Nam",
                      "logo_url":  "https://trishteam.io.vn/logos/trishwork.png",
                      "version":  "1.0.0",
-                     "size_bytes":  48000000,
+                     "size_bytes":  5901084,
                      "status":  "released",
                      "login_required":  "trishteam",
                      "platforms":  [
@@ -29,7 +29,7 @@
                      "download":  {
                                       "windows_x64":  {
                                                           "url":  "https://github.com/hosytri07/trishnexus-monorepo/releases/download/trishwork-v1.0.0/TrishWork_1.0.0_x64-setup.exe",
-                                                          "sha256":  "PENDING",
+                                                          "sha256":  "2d7c8fef6a3407a9de86e7771a4d6de9fc77ca564e7df7ab37f905f2329a5fec",
                                                           "installer_args":  [
 
                                                                              ]
@@ -94,7 +94,7 @@
                      "tagline":  "Console quáº£n trá»‹ há»‡ sinh thÃ¡i â€” admin-only (TrÃ­ + co-admin Ä‘Æ°á»£c cáº¥p quyá»n)",
                      "logo_url":  "https://trishteam.io.vn/logos/trishadmin.png",
                      "version":  "1.0.0",
-                     "size_bytes":  45000000,
+                     "size_bytes":  4412655,
                      "status":  "released",
                      "login_required":  "admin",
                      "platforms":  [
@@ -107,7 +107,7 @@
                      "download":  {
                                       "windows_x64":  {
                                                           "url":  "https://github.com/hosytri07/trishnexus-monorepo/releases/download/trishadmin-v1.0.0/TrishAdmin_1.0.0_x64-setup.exe",
-                                                          "sha256":  "PENDING",
+                                                          "sha256":  "7524af5fc4dd3e3c68b7de53e01d4e27b4f6a33656f47f206fa578134accf8a4",
                                                           "installer_args":  [
 
                                                                              ]

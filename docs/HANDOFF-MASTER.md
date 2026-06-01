@@ -2,7 +2,7 @@
 
 > **ĐỌC FILE NÀY ĐẦU TIÊN MỌI PHIÊN MỚI.** Đây là file handoff DUY NHẤT của hệ sinh thái.
 >
-> **🔴 ĐỌC SECTION `🏠 RESUME TẠI MÁY NHÀ` NGAY DƯỚI TRƯỚC TIÊN. Section `📍 PHIÊN HIỆN TẠI` là lịch sử Phase 78 dài. Sections cũ hơn là archive.**
+> **🔴 PHIÊN MỚI NHẤT (2026-06-02): đọc `docs/HANDOFF-2026-06-02-TRISHWORK.md` TRƯỚC TIÊN** — port backend Library + redesign UI TrishWork. Đang chuyển máy nhà → cơ quan. Section `📍 PHIÊN HIỆN TẠI` bên dưới là lịch sử cũ hơn (archive).
 >
 > **Cập nhật:** 2026-05-30 — **Phase 78.13.18: ĐÃ PUBLISH TrishUtilities + TrishFinance v1.0.0** (máy nhà). Firestore rules deployed, 2 .exe lên GitHub Release, registry cập nhật SHA thật. Còn lại: xác nhận Vercel deploy website + (tùy chọn) build TrishWork/TrishAdmin.
 > **Chủ dự án:** Trí (hosytri77@gmail.com / trishteam.official@gmail.com) — kỹ sư hạ tầng giao thông Đà Nẵng. Không phải dev. Giao tiếp tiếng Việt, tránh jargon.

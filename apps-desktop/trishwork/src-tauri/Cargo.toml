@@ -1,6 +1,6 @@
 [package]
 name = "trishwork"
-version = "2.1.0"
+version = "1.0.0"
 description = "TrishDesign Phase 28 — Bộ công cụ Khảo sát & Thiết kế (vẽ hư hỏng mặt đường lên AutoCAD)"
 authors = ["TrishTEAM <hosytri77@gmail.com>"]
 edition = "2021"
@@ -19,7 +19,7 @@ path = "src/lib.rs"
 tauri-build = { version = "2.0", features = [] }
 
 [dependencies]
-tauri = { version = "2.0", features = ["tray-icon"] }
+tauri = { version = "2.0", features = ["tray-icon", "protocol-asset"] }
 tauri-plugin-dialog = "2.0"
 tauri-plugin-opener = "2.0"
 serde = { version = "1", features = ["derive"] }
@@ -32,7 +32,19 @@ base64 = "0.22"
 urlencoding = "2"
 # Phase 28.5 — Chatbot proxy → Claude API
 reqwest = { version = "0.12", features = ["json", "rustls-tls", "multipart"], default-features = false }
-tokio = { version = "1", features = ["rt", "rt-multi-thread", "macros"] }
+tokio = { version = "1", features = ["rt", "rt-multi-thread", "macros", "sync"] }
+
+# === Library module migration (gộp từ TrishLibrary cũ — Wave 44.3.B) ===
+walkdir = "2.5"
+tantivy = "0.22"                # full-text search index
+ttf-parser = "0.24"            # system fonts cho editor
+image = { version = "0.25", default-features = false, features = ["jpeg", "png", "webp", "gif", "bmp"] }
+lopdf = "0.34"                 # PDF tools (merge/split/extract/rotate)
+printpdf = "0.6"               # images → PDF
+pdf-extract = "0.7"            # trích text PDF cho Tantivy index
+kamadak-exif = "0.5"           # EXIF metadata ảnh
+similar = "2.6"                # PDF revision compare (text diff)
+trishteam-machine-id = { path = "../../../packages/machine-id" }
 
 # Phase 28.4.E — AutoCAD COM automation (Windows-only)
 [target.'cfg(windows)'.dependencies]

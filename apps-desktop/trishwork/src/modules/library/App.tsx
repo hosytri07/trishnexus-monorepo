@@ -118,9 +118,9 @@ export function App(): JSX.Element {
   const [editingLink, setEditingLink] = useState<OnlineLink | null>(null);
   const [showAddLink, setShowAddLink] = useState(false);
 
-  useEffect(() => {
-    applyTheme(settings.theme);
-  }, [settings.theme]);
+  // Phase 45.x: KHÔNG applyTheme ở đây — theme do WorkShell/App.tsx single-source.
+  // (Trước đây áp settings.theme của Library làm đè theme global khi nhúng TrishWork.)
+  // useEffect(() => { applyTheme(settings.theme); }, [settings.theme]);
 
   useEffect(() => {
     void getAppVersion().then(setVersion);

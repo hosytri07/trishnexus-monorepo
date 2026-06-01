@@ -261,11 +261,18 @@ const emptyEquipment: ThietBi = { id: '', maThietBi: '', tenThietBi: '', nhomThi
 const emptyIsoFolder: IsoFolder = { id: '', parentId: 'fld-root', tenFolder: '', maFolder: '', moTa: '', nguoiQuanLy: '', duongDanLuu: '', createdAt: '', updatedAt: '' };
 const emptyBieuMauIso: BieuMauIso = { id: '', folderId: 'fld-bm', maBieuMau: '', tenBieuMau: '', phienBan: '01', ngayBanHanh: today(), fileName: '', ghiChu: '', updatedAt: now() };
 
-export function IsoModule(): JSX.Element {
+export interface IsoModuleProps {
+  /** Mở thẳng 1 trang ISO (dùng khi nhúng trong WorkShell tab). */
+  initialPage?: PageKey;
+  /** Ẩn sidebar nav nội bộ (WorkShell đã có tab + dashboard). */
+  hideNav?: boolean;
+}
+
+export function IsoModule({ initialPage, hideNav = false }: IsoModuleProps = {}): JSX.Element {
   // Phase 22.5 — wrap ts-app + AuthProvider để LoginScreen / MainApp dùng useAuth.
   return (
     <div className="ts-app" style={{ minHeight: '100vh' }}>
-      <AppGate />
+      <AppGate initialPage={initialPage} hideNav={hideNav} />
 </div>
   );
 }
@@ -288,7 +295,7 @@ function hasIsoAccess(profile: any): { allowed: boolean; reason?: string } {
   return { allowed: false, reason: 'Tài khoản này chưa được cấp quyền dùng TrishISO. Liên hệ admin để được mở quyền chỉnh sửa app.' };
 }
 
-function AppGate(): JSX.Element {
+function AppGate({ initialPage, hideNav }: { initialPage?: PageKey; hideNav?: boolean }): JSX.Element {
   const { firebaseUser, profile, loading, signOut } = useAuth();
   if (loading) {
     return (
@@ -325,7 +332,7 @@ function AppGate(): JSX.Element {
       </div>
     );
   }
-  return <MainApp />;
+  return <MainApp initialPage={initialPage} hideNav={hideNav} />;
 }
 
 // Phase 22.6.G — Migration: clear localStorage data demo nếu db_version khác.
@@ -345,12 +352,12 @@ function migrateLocalStorage(): void {
   } catch {}
 }
 
-function MainApp() {
+function MainApp({ initialPage, hideNav = false }: { initialPage?: PageKey; hideNav?: boolean }) {
   // Phase 22.6.G — chạy migration ngay khi mount lần đầu
   useEffect(() => { migrateLocalStorage(); }, []);
 
   const { profile, firebaseUser, signOut } = useAuth();
-  const [page, setPage] = useState<PageKey>('dashboard');
+  const [page, setPage] = useState<PageKey>(initialPage ?? 'dashboard');
   const [showSettings, setShowSettings] = useState(false);
   const [theme, setTheme] = useState<'light' | 'dark'>(() => {
     try { return (localStorage.getItem('iso_theme') as 'light' | 'dark') || 'light'; } catch { return 'light'; }
@@ -971,6 +978,7 @@ function MainApp() {
   const role = isAdmin ? 'admin' : isIsoAdmin ? 'iso_editor' : 'user';
 
   return <div className="min-h-screen" style={{ background: 'var(--color-surface-bg)', color: 'var(--color-text-primary)' }}>
+    {!hideNav && (
     <aside className="fixed inset-y-0 left-0 w-64" style={{ background: 'var(--color-surface-card)', borderRight: '1px solid var(--color-border-subtle)', padding: '16px', overflowY: 'auto' }}>
       <nav className="space-y-1">
         {[
@@ -999,8 +1007,9 @@ function MainApp() {
         })}
       </nav>
     </aside>
+    )}
 
-    <main style={{ paddingLeft: 256 }}>
+    <main style={{ paddingLeft: hideNav ? 0 : 256 }}>
       <header className="sticky top-0 z-10" style={{ background: 'var(--color-surface-bg-elevated)', borderBottom: '1px solid var(--color-border-subtle)', padding: '12px 22px', backdropFilter: 'blur(8px)' }}>
         <div className="flex items-center justify-between gap-3">
           <div style={{ minWidth: 0 }}>

@@ -1,6 +1,6 @@
 {
   "name": "@trishteam/trishwork",
-  "version": "2.0.0",
+  "version": "1.0.0",
   "private": true,
   "description": "TrishWork - Phase 44 gop Design + Library + ISO. Tauri 2 + React. Cho ky su cau duong: ve hu hong + ATGT + thu vien tai lieu + ho so ISO.",
   "type": "module",

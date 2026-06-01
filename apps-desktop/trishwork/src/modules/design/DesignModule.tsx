@@ -89,8 +89,15 @@ function loadCollapsed(): boolean {
   }
 }
 
-export function DesignModule(): JSX.Element {
-  const [active, setActive] = useState<ModuleId>(() => loadActive());
+export interface DesignModuleProps {
+  /** Mở thẳng 1 panel (dùng khi nhúng trong WorkShell tab). */
+  initialPanel?: ModuleId;
+  /** Ẩn sidebar nav nội bộ (WorkShell đã có tab + dashboard). */
+  hideNav?: boolean;
+}
+
+export function DesignModule({ initialPanel, hideNav = false }: DesignModuleProps = {}): JSX.Element {
+  const [active, setActive] = useState<ModuleId>(() => initialPanel ?? loadActive());
   const [collapsed, setCollapsed] = useState<boolean>(() => loadCollapsed());
   const { role } = useAuth();
   const isAdmin = role === 'admin';
@@ -158,7 +165,8 @@ export function DesignModule(): JSX.Element {
   };
 
   return (
-    <div className={`td-shell${collapsed ? ' td-shell-collapsed' : ''}`}>
+    <div className={`td-shell${collapsed ? ' td-shell-collapsed' : ''}${hideNav ? ' td-shell-nonav' : ''}`}>
+      {!hideNav && (
       <aside className="td-sidebar">
         <header className="td-sidebar-head">
           <button
@@ -221,6 +229,7 @@ export function DesignModule(): JSX.Element {
           )}
         </div>
       </aside>
+      )}
 
       <main className="td-main">
         {/* CadPlugin 4 modules có header riêng → ẩn breadcrumb để không lặp */}

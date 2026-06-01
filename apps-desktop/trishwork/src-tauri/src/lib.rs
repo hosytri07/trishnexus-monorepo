@@ -12,6 +12,7 @@
 //! Không dùng fs plugin — IO thuần `std::fs` để kiểm soát hard cap.
 
 mod acad_com;
+mod library; // Wave 44.3.B — gộp backend TrishLibrary (PDF/OCR/search/convert/image)
 
 // ============================================================
 // Phase 28.4 Turn 10 — Custom hatch pattern (.pat) deployment
@@ -1344,6 +1345,63 @@ pub fn run() {
             read_text_string,
             write_text_string,
             list_system_fonts,
+            // === Wave 44.3.B — Library module backend (gộp từ TrishLibrary) ===
+            // (4 lệnh trùng tên default_store_location/list_system_fonts/
+            //  read_text_string/write_text_string dùng bản TrishWork ở trên)
+            library::app_version,
+            library::attach_file,
+            library::check_external_tools,
+            library::check_folder_exists,
+            library::check_libreoffice,
+            library::check_msword,
+            library::check_qpdf,
+            library::check_tessdata_best,
+            library::check_tesseract,
+            library::convert_via_libreoffice,
+            library::convert_via_msword,
+            library::copy_file,
+            library::download_tessdata_best,
+            library::ensure_tessdata_first_run,
+            library::fetch_text,
+            library::get_device_id,
+            library::get_temp_dir,
+            library::get_tessdata_best_dir,
+            library::get_thumbnail,
+            library::images_to_pdf,
+            library::library_index_build,
+            library::library_index_clear,
+            library::library_index_status,
+            library::library_search,
+            library::list_image_files,
+            library::load_library,
+            library::merge_pdf_pages_bytes,
+            library::ocr_image_bytes,
+            library::ocr_image_to_hocr,
+            library::ocr_image_to_pdf_page,
+            library::open_install_tools_wizard,
+            library::open_local_path,
+            library::pdf_add_image_stamp,
+            library::pdf_add_page_numbers,
+            library::pdf_add_watermark,
+            library::pdf_binder,
+            library::pdf_delete_pages,
+            library::pdf_extract_images,
+            library::pdf_extract_pages,
+            library::pdf_info,
+            library::pdf_merge,
+            library::pdf_ocr,
+            library::pdf_remove_password,
+            library::pdf_rotate_pages,
+            library::pdf_set_password,
+            library::pdf_split,
+            library::read_binary_file,
+            library::read_image_exif,
+            library::remove_attached_file,
+            library::save_library,
+            library::save_qr_file,
+            library::scan_library,
+            library::text_diff_html,
+            library::write_binary_file,
         ])
         .run(tauri::generate_context!())
         .expect("error while running TrishDesign");

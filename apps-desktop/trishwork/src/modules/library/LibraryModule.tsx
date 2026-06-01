@@ -70,9 +70,16 @@ function saveActiveModule(id: ModuleId): void {
   }
 }
 
-export function LibraryModule(): JSX.Element {
+export interface LibraryModuleProps {
+  /** Mở thẳng 1 sub-module (dùng khi nhúng trong WorkShell tab). */
+  initialPanel?: ModuleId;
+  /** Ẩn thanh tab nav nội bộ (WorkShell đã có tab + dashboard). */
+  hideNav?: boolean;
+}
+
+export function LibraryModule({ initialPanel, hideNav = false }: LibraryModuleProps = {}): JSX.Element {
   const { profile } = useAuth();
-  const [active, setActive] = useState<ModuleId>(() => loadActiveModule());
+  const [active, setActive] = useState<ModuleId>(() => initialPanel ?? loadActiveModule());
   const [showSettings, setShowSettings] = useState(false);
   const [showGlobalSearch, setShowGlobalSearch] = useState(false);
   const [showShortcuts, setShowShortcuts] = useState(false);
@@ -276,6 +283,7 @@ export function LibraryModule(): JSX.Element {
     <DialogProvider>
     <div className="app-shell">
       {/* Phase 47.3 / 51.3 — Sub-nav module (logo + tên TrishLibrary đã chuyển lên AppShell topbar) */}
+      {!hideNav && (
       <nav className="module-subnav">
         <div className="module-nav-tabs">
           {MODULE_DEFS.map((m) => (
@@ -329,6 +337,7 @@ export function LibraryModule(): JSX.Element {
           </button>
         </div>
       </nav>
+      )}
 
       <main className="module-content">
         {active === 'library' && <LibraryRoot />}
