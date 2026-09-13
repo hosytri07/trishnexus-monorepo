@@ -1,7 +1,7 @@
 {
   "name": "@trishteam/trishfinance",
   "private": true,
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "TrishFinance — Quản lý nhà trọ + Tài chính cá nhân + Bán hàng. Part of TrishTEAM ecosystem.",
   "type": "module",
   "scripts": {
@@ -18,9 +18,9 @@
   },
   "dependencies": {
     "@tauri-apps/api": "^2.11.0",
-    "@tauri-apps/plugin-process": "^2.0.0",
-    "@tauri-apps/plugin-updater": "^2.0.0",
-    "@tauri-apps/plugin-opener": "^2.0.0",
+    "@tauri-apps/plugin-opener": "^2.5.5",
+    "@tauri-apps/plugin-process": "^2.3.1",
+    "@tauri-apps/plugin-updater": "^2.11.0",
     "@trishteam/auth": "workspace:*",
     "@trishteam/data": "workspace:*",
     "@trishteam/design-system": "workspace:*",
