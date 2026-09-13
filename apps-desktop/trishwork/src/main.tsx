@@ -53,3 +53,15 @@ if (isStickyWindow) {
     </StrictMode>,
   );
 }
+
+// Ẩn splash tĩnh (index.html). Gọi khi UI thật sự sẵn sàng (sau auth) — xem
+// GatedWorkShell trong App.tsx. Có timeout dự phòng để không bao giờ kẹt splash.
+function hideSplash(): void {
+  const sp = document.getElementById('app-splash');
+  if (!sp) return;
+  sp.classList.add('sp-hide');
+  setTimeout(() => sp.remove(), 400);
+}
+(window as unknown as { __hideSplash?: () => void }).__hideSplash = hideSplash;
+// Dự phòng: nếu sau 20s vẫn chưa ai gọi (vd màn đăng nhập) thì tự ẩn.
+setTimeout(hideSplash, 20000);

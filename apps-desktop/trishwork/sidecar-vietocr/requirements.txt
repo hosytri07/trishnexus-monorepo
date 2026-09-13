@@ -1,0 +1,17 @@
+# TrishWork VietOCR sidecar — Python deps
+# Cài trong venv riêng để PyInstaller đóng gói (xem README.md).
+#
+# torch: bản CPU cho gọn (~200MB). Nếu máy có NVIDIA GPU và muốn nhanh,
+# cài bản CUDA theo hướng dẫn pytorch.org rồi chạy sidecar với --device cuda.
+torch>=2.0 ; platform_system == "Windows"
+vietocr>=0.3.13
+pillow>=10.0
+numpy>=1.24
+opencv-python-headless>=4.8
+# PyInstaller để build .exe standalone
+pyinstaller>=6.0
+
+# (TUỲ CHỌN — nâng cấp detector về sau) bộ dò dòng học sâu, chính xác hơn cho
+# layout phức tạp. Bỏ comment nếu muốn dùng PaddleOCR DB trong detect_lines():
+# paddlepaddle>=2.6
+# paddleocr>=2.7

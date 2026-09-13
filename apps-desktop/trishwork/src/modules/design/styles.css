@@ -1998,8 +1998,16 @@ body {
 .td-select:focus,
 .td-input:focus {
   border-color: var(--color-accent-primary);
-  background: var(--color-surface-bg-elevated);
+  /* dùng background-color, KHÔNG dùng shorthand `background` để khỏi xoá chevron SVG */
+  background-color: var(--color-surface-bg-elevated);
   box-shadow: 0 0 0 3px var(--color-accent-soft);
+}
+
+/* Chống lỗi chevron SVG bị lặp (tile) phủ lên chữ ở select chọn dự án/đoạn ATGT */
+.td-select {
+  background-repeat: no-repeat !important;
+  background-position: right 10px center !important;
+  background-size: 12px !important;
 }
 
 .td-select option {
@@ -2336,10 +2344,18 @@ body {
   border-color: var(--color-accent-primary);
 }
 .atgt-tab-active {
-  background: var(--color-accent-soft);
-  color: var(--color-accent-primary);
+  /* Nền đặc + chữ trắng đậm + viền + bóng → nổi rõ tab đang chọn */
+  background: var(--color-accent-primary);
+  color: #fff;
   border-color: var(--color-accent-primary);
-  font-weight: 600;
+  font-weight: 700;
+  box-shadow: 0 2px 10px -2px var(--color-accent-primary),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.25);
+  transform: translateY(-1px);
+}
+.atgt-tab-active:hover {
+  background: var(--color-accent-primary);
+  color: #fff;
 }
 
 .atgt-table-wrap {

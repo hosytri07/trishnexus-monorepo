@@ -55,6 +55,17 @@ Thumbs.db
 .env.test.local
 .env.production.local
 
+# Archive cũ + Python venv + cache nặng (không liên quan website)
+_archive
+**/_archive
+docs/_archive
+**/.venv
+**/.venv-sidecar
+**/__pycache__
+packaging
+releases
+**/*.tpack
+
 # Test artifacts
 coverage
 **/coverage

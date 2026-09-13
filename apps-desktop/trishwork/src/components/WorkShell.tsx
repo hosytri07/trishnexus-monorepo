@@ -12,6 +12,7 @@
  */
 
 import {
+  Suspense,
   useCallback,
   useEffect,
   useMemo,
@@ -21,7 +22,7 @@ import {
   type MouseEvent as ReactMouseEvent,
   type ReactNode,
 } from 'react';
-import { AppLogo, type AppShellId } from '@trishteam/design-system';
+import { AppLogo, AppFooterCredit, type AppShellId } from '@trishteam/design-system';
 import { Home, X, Search, Command, Star, Clock } from 'lucide-react';
 import './work-shell.css';
 
@@ -39,6 +40,8 @@ export interface WorkFeature {
   icon: ReactNode;
   /** từ khoá phụ cho search/palette */
   keywords?: string;
+  /** Đánh dấu tính năng "Sắp có" — hiện badge, vẫn mở được. */
+  comingSoon?: boolean;
   render: () => ReactNode;
 }
 export interface WorkShellProps {
@@ -50,6 +53,8 @@ export interface WorkShellProps {
   topbarRight?: ReactNode;
   /** Theme global — WorkShell re-assert sau khi mở tab để module con không đè. */
   theme: 'light' | 'dark';
+  /** Firestore db để footer credit đọc config (admin sửa được). */
+  footerDb?: import('firebase/firestore').Firestore | null;
 }
 
 const LS_PINNED = 'trishwork:dash:pinned';
@@ -80,6 +85,7 @@ export function WorkShell({
   features,
   topbarRight,
   theme,
+  footerDb = null,
 }: WorkShellProps): JSX.Element {
   const [openIds, setOpenIds] = useState<string[]>([]);
   const [active, setActive] = useState<string>('home');
@@ -180,6 +186,17 @@ export function WorkShell({
   useEffect(() => {
     if (paletteOpen) setTimeout(() => paletteInputRef.current?.focus(), 30);
   }, [paletteOpen]);
+
+  // Cho phép module con yêu cầu mở 1 feature khác (vd widget Chuyển đổi mở file
+  // sang widget Soạn thảo). Dispatch: window CustomEvent('trishwork:open-feature', {detail: featureId})
+  useEffect(() => {
+    function onOpenFeature(e: Event): void {
+      const id = (e as CustomEvent<string>).detail;
+      if (typeof id === 'string' && featById.has(id)) openFeature(id);
+    }
+    window.addEventListener('trishwork:open-feature', onOpenFeature);
+    return () => window.removeEventListener('trishwork:open-feature', onOpenFeature);
+  }, [featById, openFeature]);
 
   // Re-assert theme global sau khi đổi tab (module con mount có thể đã ghi
   // data-theme theo setting riêng → khôi phục về theme của shell).
@@ -299,7 +316,15 @@ export function WorkShell({
               style={{ display: isActive ? 'block' : 'none' }}
             >
               <div className="ws-module-anim" key={isActive ? `${id}-${animKey}` : id}>
-                {f.render()}
+                <Suspense
+                  fallback={
+                    <div style={{ padding: 40, textAlign: 'center', opacity: 0.6 }}>
+                      Đang tải công cụ…
+                    </div>
+                  }
+                >
+                  {f.render()}
+                </Suspense>
               </div>
             </div>
           );
@@ -348,6 +373,8 @@ export function WorkShell({
           </div>
         </div>
       )}
+
+      <AppFooterCredit db={footerDb} />
     </div>
   );
 }
@@ -398,14 +425,6 @@ function Dashboard({
 
   return (
     <div className="ws-dashboard">
-      <div className="ws-dash-head">
-        <h1 className="ws-dash-title">{appName}</h1>
-        <p className="ws-dash-sub">
-          Chọn công cụ để bắt đầu — mỗi mục mở trong một tab riêng. Nhấn{' '}
-          <kbd>Ctrl</kbd>+<kbd>K</kbd> để mở nhanh.
-        </p>
-      </div>
-
       <div className="ws-dash-search">
         <Search size={16} />
         <input
@@ -445,6 +464,7 @@ function Dashboard({
         </div>
       )}
 
+      <div className="ws-groups-cols">
       {groups.map((g) => {
         const feats = features.filter((f) => f.groupId === g.id && matches(f));
         if (feats.length === 0) return null;
@@ -477,7 +497,10 @@ function Dashboard({
                     <span className="ws-card-shimmer" />
                     <span className="ws-card-ico">{f.icon}</span>
                     <span className="ws-card-body">
-                      <span className="ws-card-title">{f.label}</span>
+                      <span className="ws-card-title">
+                        {f.label}
+                        {f.comingSoon && <span className="ws-card-soon">Sắp có</span>}
+                      </span>
                       {f.description && <span className="ws-card-desc">{f.description}</span>}
                     </span>
                     <span
@@ -495,6 +518,7 @@ function Dashboard({
           </section>
         );
       })}
+      </div>
     </div>
   );
 }

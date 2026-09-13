@@ -29,6 +29,7 @@ import {
   type CongNgangItem,
   type TieuPQItem,
   type GuongCauItem,
+  type DuongNgangItem,
   type AtgtTextPrefs,
   ATGT_CATEGORIES,
   BIENBAO_GROUPS,
@@ -1052,6 +1053,33 @@ function renderCategoryFields(
         </>
       );
     }
+    case 'DUONGNGANG': {
+      const it = draft as DuongNgangItem;
+      return (
+        <>
+          <label className="td-field">
+            <span className="td-field-label">Bề rộng đường ngang (m)</span>
+            <input type="number" className="td-input" step={0.5} value={it.width} onChange={(e) => update({ width: Number(e.target.value) || 4 })} />
+          </label>
+          <label className="td-field">
+            <span className="td-field-label">Bề rộng vuốt nối (m)</span>
+            <input type="number" className="td-input" step={0.5} value={it.taperWidth} onChange={(e) => update({ taperWidth: Number(e.target.value) || 2 })} />
+          </label>
+          <label className="td-field">
+            <span className="td-field-label">Kết cấu mặt</span>
+            <input className="td-input" value={it.structure} onChange={(e) => update({ structure: e.target.value })} placeholder="VD: BTXM, BTN, cấp phối…" />
+          </label>
+          <label className="td-field" style={{ gridColumn: '1 / -1' }}>
+            <span className="td-field-label">Bố trí vạch sơn</span>
+            <input className="td-input" value={it.markingNote} onChange={(e) => update({ markingNote: e.target.value })} placeholder="VD: vạch 7.1 dừng xe, vạch 9.3 người đi bộ…" />
+          </label>
+          <label className="td-field" style={{ gridColumn: '1 / -1' }}>
+            <span className="td-field-label">Bố trí biển báo</span>
+            <input className="td-input" value={it.signNote} onChange={(e) => update({ signNote: e.target.value })} placeholder="VD: W.207, R.122…" />
+          </label>
+        </>
+      );
+    }
   }
 }
 
@@ -1119,6 +1147,7 @@ function describeItem(it: AtgtItem): string {
     case 'CONGNGANG': return `${it.congType} · Ø${it.diameter}m · L=${it.length}m`;
     case 'TIEUPQ': return `${it.count} tiêu × ${it.spacing}m · màu ${it.color}`;
     case 'GUONGCAU': return `Ø${it.diameter}m · cột ${it.poleHeight}m`;
+    case 'DUONGNGANG': return `Rộng ${it.width}m · vuốt ${it.taperWidth}m · ${it.structure}${it.markingNote ? ` · vạch: ${it.markingNote}` : ''}${it.signNote ? ` · biển: ${it.signNote}` : ''}`;
   }
 }
 

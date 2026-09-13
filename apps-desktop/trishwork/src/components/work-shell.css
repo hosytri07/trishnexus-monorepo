@@ -178,19 +178,65 @@
 }
 .ws-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(296px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(248px, 1fr));
+  gap: 12px;
+}
+
+/* Bố trí 3 cột side-by-side — mỗi module 1 cột, card xếp dọc & nhỏ gọn */
+.ws-groups-cols {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(380px, 1fr));
   gap: 16px;
+  align-items: start;
+}
+/* Mỗi nhóm = 2 cột card → nhóm nhiều mục bớt cao */
+.ws-groups-cols .ws-grid {
+  grid-template-columns: repeat(2, 1fr);
+  gap: 9px;
+}
+.ws-groups-cols .ws-card {
+  padding: 17px 13px;
+  gap: 11px;
+  border-radius: 11px;
+}
+.ws-card-soon {
+  display: inline-block;
+  margin-left: 7px;
+  padding: 1px 7px;
+  font-size: 9.5px;
+  font-weight: 600;
+  letter-spacing: 0.3px;
+  border-radius: 10px;
+  vertical-align: middle;
+  color: #d6b24a;
+  background: rgba(214, 178, 74, 0.16);
+  border: 1px solid rgba(214, 178, 74, 0.4);
+}
+.ws-groups-cols .ws-card-ico {
+  width: 38px;
+  height: 38px;
+  border-radius: 10px;
+}
+.ws-groups-cols .ws-card-ico > svg {
+  width: 20px;
+  height: 20px;
+}
+.ws-groups-cols .ws-card-title {
+  font-size: 13px;
 }
 .ws-card {
   position: relative;
   display: flex;
   align-items: center;
-  gap: 16px;
-  padding: 22px 22px;
+  gap: 12px;
+  padding: 12px 14px;
   text-align: left;
-  border: 1px solid var(--color-border-default);
-  border-radius: 16px;
+  /* Viền màu theo nhóm + nền nổi nhẹ để card rõ ngay cả khi chưa hover */
+  border: 1px solid color-mix(in srgb, var(--ws-card-accent) 28%, var(--color-border-default));
+  border-radius: 12px;
   background: var(--color-surface-card);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.16),
+    inset 0 0 0 9999px color-mix(in srgb, var(--ws-card-accent) 5%, transparent);
   color: var(--color-text-primary);
   cursor: pointer;
   overflow: hidden;
@@ -198,12 +244,37 @@
     border-color 0.18s ease;
 }
 .ws-card:hover {
-  transform: translateY(-4px);
+  transform: translateY(-3px);
   border-color: var(--ws-card-accent);
-  box-shadow: 0 12px 32px -12px var(--ws-card-accent);
+  box-shadow: 0 12px 28px -12px var(--ws-card-accent),
+    inset 0 0 0 9999px color-mix(in srgb, var(--ws-card-accent) 10%, transparent);
 }
 .ws-card:active {
   transform: translateY(-1px);
+}
+/* Effect mới: vệt sáng quét chéo + icon nảy nhẹ khi hover */
+.ws-card::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    115deg,
+    transparent 35%,
+    color-mix(in srgb, var(--ws-card-accent) 24%, transparent) 50%,
+    transparent 65%
+  );
+  transform: translateX(-130%);
+  transition: transform 0.6s ease;
+  pointer-events: none;
+}
+.ws-card:hover::after {
+  transform: translateX(130%);
+}
+.ws-card-ico {
+  transition: transform 0.22s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+.ws-card:hover .ws-card-ico {
+  transform: scale(1.14) rotate(-4deg);
 }
 .ws-card-shimmer {
   position: absolute;
@@ -218,12 +289,16 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 60px;
-  height: 60px;
+  width: 40px;
+  height: 40px;
   flex: 0 0 auto;
-  border-radius: 15px;
+  border-radius: 11px;
   color: var(--ws-card-accent);
-  background: color-mix(in srgb, var(--ws-card-accent) 14%, transparent);
+  background: color-mix(in srgb, var(--ws-card-accent) 16%, transparent);
+}
+.ws-card-ico > svg {
+  width: 22px;
+  height: 22px;
 }
 .ws-card-body {
   display: flex;
@@ -232,8 +307,8 @@
   min-width: 0;
 }
 .ws-card-title {
-  font-size: 16px;
-  font-weight: 700;
+  font-size: 14px;
+  font-weight: 650;
 }
 .ws-card-desc {
   font-size: 12.5px;

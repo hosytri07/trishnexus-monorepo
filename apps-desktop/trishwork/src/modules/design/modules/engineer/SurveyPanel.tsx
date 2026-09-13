@@ -17,6 +17,8 @@ import { useEffect, useRef, useState } from 'react';
 import * as XLSX from 'xlsx';
 import { save, open } from '@tauri-apps/plugin-dialog';
 import { invoke, convertFileSrc } from '@tauri-apps/api/core';
+import { useAuth } from '@trishteam/auth/react';
+import { LibraryModule } from '../../../library/LibraryModule.js';
 import {
   type MultiSheetParse,
   type SheetType,
@@ -110,6 +112,10 @@ function saveSession(s: OcrSession): void {
 }
 
 export function SurveyPanel(): JSX.Element {
+  const { profile } = useAuth();
+  const isAdmin = profile?.role === 'admin';
+  // Tab chính: 'scan' = quét sổ hiện trạng (OCR), 'pdf' = tiện ích PDF (convert/merge/split).
+  const [mainTab, setMainTab] = useState<'scan' | 'pdf'>('scan');
   const [s, setSession] = useState<OcrSession>(() => {
     const loaded = loadSession();
     // Backward compat — loadSession có thể không có multiSheet (session cũ)
@@ -119,6 +125,26 @@ export function SurveyPanel(): JSX.Element {
   const [statusMsg, setStatusMsg] = useState<string>('');
   const [ocrProgress, setOcrProgress] = useState<number>(0);
   const [ocrRunning, setOcrRunning] = useState(false);
+  // VietOCR sidecar (offline, đọc chữ viết tay tốt hơn Tesseract).
+  const [vietOcrAvail, setVietOcrAvail] = useState(false);
+  const [vietOcrRunning, setVietOcrRunning] = useState(false);
+
+  // Engine OCR cục bộ đang chọn. Ưu tiên VietOCR nếu đã cài.
+  const [ocrEngine, setOcrEngine] = useState<'vietocr' | 'tesseract'>('tesseract');
+
+  useEffect(() => {
+    void invoke<boolean>('vietocr_available')
+      .then((a) => {
+        setVietOcrAvail(a);
+        if (a) setOcrEngine('vietocr');
+      })
+      .catch(() => setVietOcrAvail(false));
+  }, []);
+
+  async function handleRunSelectedOcr(): Promise<void> {
+    if (ocrEngine === 'vietocr') await handleRunVietOcr();
+    else await handleRunOcr();
+  }
   const [aiVisionRunning, setAiVisionRunning] = useState(false);
   const [activeSheet, setActiveSheet] = useState<SheetType>('mat_duong');
   const [showAdvanced, setShowAdvanced] = useState(false);
@@ -183,6 +209,28 @@ export function SurveyPanel(): JSX.Element {
     finally {
       setOcrRunning(false);
       setOcrProgress(0);
+    }
+  }
+
+  // OCR bằng VietOCR sidecar (offline, chữ viết tay tiếng Việt tốt hơn Tesseract).
+  async function handleRunVietOcr(): Promise<void> {
+    if (!s.imageBase64) {
+      flash('Chưa chọn ảnh.');
+      return;
+    }
+    setVietOcrRunning(true);
+    update('ocrText', '');
+    try {
+      flash('⏳ Đang khởi động VietOCR (lần đầu hơi lâu)…');
+      const res = await invoke<{ text: string; lines: string[]; count: number }>(
+        'vietocr_ocr',
+        { imageBase64: s.imageBase64 },
+      );
+      update('ocrText', res.text ?? '');
+      flash(`✓ VietOCR hoàn tất (${res.count} dòng)`);
+    } catch (e) { flash(`✗ VietOCR: ${String(e)}`); }
+    finally {
+      setVietOcrRunning(false);
     }
   }
 
@@ -668,13 +716,38 @@ Rows là array of array of string (giữ nguyên text gốc).`;
   return (
     <div className="td-panel">
       <header className="td-panel-head" style={{ paddingBottom: 8 }}>
-        <h1 style={{ marginBottom: 4 }}>🔍 Khảo sát (OCR + AI Vision)</h1>
-        <p className="td-lead" style={{ fontSize: 12, marginBottom: 0 }}>
-          Upload ảnh sổ khảo sát → AI Vision tự đọc & phân loại 8 sheet → sửa → xuất Excel multi-sheet.
+        <h1 style={{ marginBottom: 4 }}>🛠 Tiện ích PDF · Quét sổ hiện trạng</h1>
+        <p className="td-lead" style={{ fontSize: 12, marginBottom: 8 }}>
+          Quét sổ khảo sát (OCR + AI Vision) và các tiện ích PDF (chuyển đổi, gộp/tách, OCR) — gộp chung vì cùng dùng OCR.
         </p>
+        {/* Tab chính */}
+        <div style={{ display: 'flex', gap: 6 }}>
+          <button
+            type="button"
+            className={`btn btn-sm ${mainTab === 'scan' ? 'btn-primary' : 'btn-ghost'}`}
+            onClick={() => setMainTab('scan')}
+          >
+            🔍 Quét sổ hiện trạng
+          </button>
+          <button
+            type="button"
+            className={`btn btn-sm ${mainTab === 'pdf' ? 'btn-primary' : 'btn-ghost'}`}
+            onClick={() => setMainTab('pdf')}
+          >
+            📄 Tiện ích PDF
+          </button>
+        </div>
         {statusMsg && <span className="td-saved-flash">{statusMsg}</span>}
       </header>
 
+      {/* Tab Tiện ích PDF — tái dùng module Thư viện ở chế độ chuyển đổi */}
+      {mainTab === 'pdf' && (
+        <div style={{ minHeight: 400 }}>
+          <LibraryModule initialPanel="document" documentTab="convert" hideNav />
+        </div>
+      )}
+
+      {mainTab === 'scan' && (<>
       {/* Compact image upload + AI Vision actions trong 1 card */}
       <section className="td-section" style={sectionStyle}>
         <h2 className="td-section-title" style={{ fontSize: 13 }}>① Ảnh nguồn + 🚀 AI Vision (workflow 2 bước)</h2>
@@ -737,6 +810,48 @@ Rows là array of array of string (giữ nguyên text gốc).`;
                 >
                   ⚡ 1-bước (nhanh)
                 </button>
+              </div>
+
+              {/* OCR cục bộ (offline) — thay cho Bước 1 khi không dùng AI Vision */}
+              <div style={{ marginTop: 10, paddingTop: 10, borderTop: '1px dashed var(--color-border-soft, #2a2a2a)', display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                <span className="muted small">Hoặc đọc offline:</span>
+                {([
+                  { id: 'vietocr' as const, label: '🇻🇳 VietOCR', recommended: true, disabled: !vietOcrAvail },
+                  { id: 'tesseract' as const, label: '🔠 Tesseract', recommended: false, disabled: false },
+                ]).map((eng) => {
+                  const selected = ocrEngine === eng.id;
+                  return (
+                    <button
+                      key={eng.id}
+                      type="button"
+                      onClick={() => !eng.disabled && setOcrEngine(eng.id)}
+                      disabled={eng.disabled}
+                      title={eng.disabled ? 'Chưa cài VietOCR (xem README sidecar)' : ''}
+                      style={{
+                        padding: '4px 10px', borderRadius: 16, fontSize: 12,
+                        cursor: eng.disabled ? 'not-allowed' : 'pointer',
+                        opacity: eng.disabled ? 0.45 : 1,
+                        border: selected ? '2px solid var(--color-accent, #34D399)' : '1px solid var(--color-border, #3a3a3a)',
+                        background: selected ? 'var(--color-accent-soft, rgba(52,211,153,0.12))' : 'transparent',
+                      }}
+                    >
+                      {selected ? '✓ ' : ''}{eng.label}{eng.recommended ? ' ·KN' : ''}
+                    </button>
+                  );
+                })}
+                <button
+                  type="button"
+                  className="btn btn-ghost"
+                  onClick={() => void handleRunSelectedOcr()}
+                  disabled={!s.imageBase64 || ocrRunning || vietOcrRunning}
+                >
+                  {ocrRunning ? `⏳ ${ocrProgress}%` : vietOcrRunning ? '⏳ VietOCR…' : '▶ Chạy OCR offline'}
+                </button>
+                {ocrRunning && (
+                  <div className="ocr-progress-bar" style={{ flex: 1, minWidth: 80 }}>
+                    <div className="ocr-progress-fill" style={{ width: `${ocrProgress}%` }} />
+                  </div>
+                )}
               </div>
 
               {/* Text VN thô — editable sau bước 1 */}
@@ -845,42 +960,20 @@ Rows là array of array of string (giữ nguyên text gốc).`;
         </div>
       </section>
 
-      {/* Advanced fallback toggle */}
+      {/* Khu vực ADMIN — user thường KHÔNG thấy (prompt AI + công cụ legacy) */}
+      {isAdmin && (
       <section className="td-section" style={sectionStyle}>
         <h2 className="td-section-title" style={{ fontSize: 13, cursor: 'pointer' }} onClick={() => setShowAdvanced((v) => !v)}>
-          {showAdvanced ? '▾' : '▸'} Advanced (Tesseract OCR + AI prompt thủ công + bảng cũ 1-sheet)
+          {showAdvanced ? '▾' : '▸'} 🔒 Công cụ Admin (prompt AI + bảng cũ 1-sheet)
         </h2>
         {showAdvanced && (
           <div className="td-section-body" style={sectionBodyStyle}>
             <p className="muted small" style={{ marginTop: 0 }}>
-              💡 Phần dưới chỉ dùng khi AI Vision không đọc được ảnh. Tesseract.js đọc rất kém với chữ tay tiếng Việt.
+              🔒 Khu vực quản trị — tinh chỉnh prompt AI và công cụ legacy. User thường không thấy phần này.
             </p>
-            {/* Tesseract OCR */}
-            <div style={{ marginTop: 8 }}>
-              <strong style={{ fontSize: 12 }}>OCR Tesseract.js (engine ~3.5 MB lần đầu)</strong>
-              <div className="dos-action-bar" style={{ gap: 6, marginTop: 6 }}>
-                <button type="button" className="btn btn-ghost btn-sm"
-                  onClick={() => void handleRunOcr()}
-                  disabled={!s.imageBase64 || ocrRunning}>
-                  {ocrRunning ? `⏳ ${ocrProgress}%` : '🔠 Chạy Tesseract'}
-                </button>
-                {ocrRunning && (
-                  <div className="ocr-progress-bar" style={{ flex: 1 }}>
-                    <div className="ocr-progress-fill" style={{ width: `${ocrProgress}%` }} />
-                  </div>
-                )}
-              </div>
-              <textarea
-                className="lisp-editor"
-                value={s.ocrText}
-                onChange={(e) => update('ocrText', e.target.value)}
-                placeholder="Text OCR raw (sửa được)..."
-                style={{ minHeight: 100, marginTop: 6, fontSize: 11 }}
-                spellCheck={false}
-              />
-            </div>
+            {/* (Bộ chọn OCR + kết quả đã chuyển lên phần ① cho cả user dùng) */}
 
-            {/* AI prompt copy */}
+            {/* AI prompt copy — admin tinh chỉnh prompt */}
             <div style={{ marginTop: 12 }}>
               <strong style={{ fontSize: 12 }}>Copy text + prompt → ChatGPT/Claude.ai bên ngoài</strong>
               <textarea
@@ -942,6 +1035,8 @@ Rows là array of array of string (giữ nguyên text gốc).`;
           </div>
         )}
       </section>
+      )}
+      </>)}
     </div>
   );
 }

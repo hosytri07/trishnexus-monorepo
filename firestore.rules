@@ -106,6 +106,12 @@ service cloud.firestore {
     }
 
     // --- /notes/{uid}/items/{noteId} ---
+    // 02-09 — TrishFinance đồng bộ đám mây: mỗi phần dữ liệu một tài liệu
+    // finance_sync/{uid}/parts/{tên phần}. CHỈ chính chủ đọc/ghi.
+    match /finance_sync/{uid}/parts/{part} {
+      allow read, write: if isSelf(uid);
+    }
+
     match /notes/{uid}/items/{noteId} {
       allow read, write: if isSelf(uid);
     }
@@ -470,6 +476,24 @@ service cloud.firestore {
     // Public read — TrishUtilities user fetch manifest không cần signed-in.
     // Admin CRUD via TrishAdmin FontPacksPanel.
     match /fontpacks/{packId} {
+      allow read: if true;
+      allow create, update, delete: if isAdmin();
+    }
+
+    // --- Cấu hình app dùng chung (vd footer_credit). Public read, admin write. ---
+    match /app_config/{docId} {
+      allow read: if true;
+      allow create, update, delete: if isAdmin();
+    }
+
+    // --- Thư viện bản vẽ (chi tiết điển hình + bản vẽ mẫu). Public read, admin write. ---
+    match /drawing_library/{itemId} {
+      allow read: if true;
+      allow create, update, delete: if isAdmin();
+    }
+
+    // --- Thông tư · Văn bản mới (văn bản/quyết định/tiêu chuẩn). Public read, admin write. ---
+    match /legal_docs/{docId} {
       allow read: if true;
       allow create, update, delete: if isAdmin();
     }

@@ -13,14 +13,18 @@
 import { useEffect, useMemo, useState } from 'react';
 import { getAppVersion, openUrl } from './lib/platform';
 import { AuthProvider, useAuth } from '@trishteam/auth/react';
-import { Building2, Wallet, ShoppingCart, LogOut, Sun, Moon, Settings as SettingsIcon, Shield, ExternalLink, Bell, Menu, Trophy, Package, Printer, Home, Mic, Sparkles, Coffee, Dumbbell, CreditCard } from 'lucide-react';
+import { getFirebaseDb } from '@trishteam/auth';
+import { Building2, Wallet, ShoppingCart, LogOut, Sun, Moon, Settings as SettingsIcon, Shield, ExternalLink, Bell, Menu, Trophy, Package, Printer, Home, Mic, Sparkles, Coffee, Dumbbell, CreditCard, Briefcase } from 'lucide-react';
 import { LoginScreen } from '@trishteam/auth/react';
 import { SettingsModal } from './pages/SettingsModal';
 import { NhaTroModule } from './modules/nhatro/NhaTroModule';
 import { TaiChinhModule } from './modules/taichinh/TaiChinhModule';
+import { CongTacModule } from './modules/congtac/CongTacModule';
+import { pullFinanceFromCloud } from './lib/cloud-sync';
 import { BanHangModule } from './modules/banhang/BanHangModule';
 import { DialogProvider } from './components/DialogProvider';
 import { InstallPWA } from './components/InstallPWA';
+import { UpdateButton } from './components/UpdateButton';
 import { useFinanceDb, dateVN, daysUntil, money, today } from './state';
 import logoUrl from './assets/logo.png';
 // Phase 46.4 — AppShellSidebar đồng bộ với TrishAdmin
@@ -41,6 +45,7 @@ import { BankImporter } from './modules/bank/BankImporter';
 export type ModuleId =
   | 'dashboard'
   | 'taichinh'
+  | 'congtac'
   | 'nhatro'
   | 'banhang'
   | 'santhethao'
@@ -80,8 +85,34 @@ function AppGate(): JSX.Element {
   const role = (profile as any)?.role;
   // Phase 78.13.16 — role=user hoặc admin → access. Legacy finance_user flag vẫn honor cho backward compat.
   const financeUser = (profile as any)?.finance_user === true;
-  if (role === 'admin' || role === 'user' || financeUser) return <MainShell />;
+  if (role === 'admin' || role === 'user' || financeUser) return <SyncGate />;
   return <NoPermissionBlocked />;
+}
+
+/**
+ * 02-09 — Kéo dữ liệu mây MỘT LẦN sau đăng nhập, TRƯỚC khi render MainShell.
+ * Các module đọc localStorage lúc mount, nên kéo xong mới render là mọi màn
+ * thấy ngay bản mới nhất từ máy khác. Kéo hỏng (mất mạng) → vào app như cũ
+ * với dữ liệu local; chờ tối đa vài giây, không giam người dùng ngoài cửa.
+ */
+function SyncGate(): JSX.Element {
+  const [ready, setReady] = useState(false);
+  useEffect(() => {
+    let alive = true;
+    const timeout = setTimeout(() => { if (alive) setReady(true); }, 8000);
+    pullFinanceFromCloud()
+      .catch(() => undefined)
+      .finally(() => { if (alive) { clearTimeout(timeout); setReady(true); } });
+    return () => { alive = false; clearTimeout(timeout); };
+  }, []);
+  if (!ready) {
+    return (
+      <div className="min-h-screen flex items-center justify-center" style={{ background: 'var(--color-surface-bg)', color: 'var(--color-text-muted)', fontSize: 13 }}>
+        ☁️ Đang đồng bộ dữ liệu...
+      </div>
+    );
+  }
+  return <MainShell />;
 }
 
 function NoPermissionBlocked(): JSX.Element {
@@ -193,6 +224,7 @@ function MainShell(): JSX.Element {
   const MODULES: Array<{ id: ModuleId; icon: any; label: string; sub: string }> = [
     { id: 'dashboard', icon: Home, label: 'Trang chủ', sub: 'Tổng quan · Thu chi · Cảnh báo' },
     { id: 'taichinh', icon: Wallet, label: 'Tài chính cá nhân', sub: 'Sổ thu chi · Ví · Ngân sách' },
+    { id: 'congtac', icon: Briefcase, label: 'Công tác · Công trình', sub: 'Ứng tiền · Chi chuyến · Tiền còn lại' },
     { id: 'nhatro', icon: Building2, label: 'Quản lý nhà trọ', sub: 'Phòng · Khách · Hợp đồng · Hóa đơn' },
     { id: 'banhang', icon: ShoppingCart, label: 'Quản lý bán hàng', sub: 'POS · Sản phẩm · Đơn hàng' },
     { id: 'santhethao', icon: Trophy, label: 'Sân thể thao', sub: 'Đặt sân · Lịch trống · Doanh thu' },
@@ -243,6 +275,7 @@ function MainShell(): JSX.Element {
   // Topbar right actions (notif + theme toggle + settings + user + logout)
   const topbarRight = (
     <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+      <UpdateButton />
       <div style={{ position: 'relative' }}>
         <button className="btn-secondary" onClick={() => setShowNotifs(v => !v)} title="Thông báo" style={{ padding: '6px 10px' }}>
           <Bell className="h-4 w-4" />
@@ -311,6 +344,7 @@ function MainShell(): JSX.Element {
       version={appVersion}
       sidebar={sidebarContent}
       topbarRight={topbarRight}
+      footerDb={getFirebaseDb()}
     >
       <main style={{ background: 'var(--color-surface-bg)', minHeight: '100%' }}>
         <header style={{ background: 'var(--color-surface-card)', borderBottom: '1px solid var(--color-border-subtle)', padding: '14px 22px' }}>
@@ -330,6 +364,7 @@ function MainShell(): JSX.Element {
           {active === 'dashboard' && <DashboardModule />}
           {active === 'nhatro' && <NhaTroModule />}
           {active === 'taichinh' && <TaiChinhModule />}
+          {active === 'congtac' && <CongTacModule />}
           {active === 'banhang' && <BanHangModule />}
           {active === 'santhethao' && <SanTheThaoModule />}
           {active === 'khodientu' && <KhoDienTuModule />}

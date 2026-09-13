@@ -32,6 +32,7 @@
 
 import { useEffect, type ReactNode } from 'react';
 import { AppLogo, type AppShellId } from './AppLogo.js';
+import { AppFooterCredit } from './AppFooterCredit.js';
 import { APP_DISPLAY_NAMES, applyAppAccent } from './applyAppAccent.js';
 
 export interface AppShellSidebarProps {
@@ -46,6 +47,8 @@ export interface AppShellSidebarProps {
   children: ReactNode;
   /** Auto-apply data-app attribute on mount (default true) */
   autoApplyAccent?: boolean;
+  /** Firestore db để footer credit đọc config (admin sửa được). */
+  footerDb?: import('firebase/firestore').Firestore | null;
 }
 
 export function AppShellSidebar({
@@ -56,6 +59,7 @@ export function AppShellSidebar({
   topbarRight,
   children,
   autoApplyAccent = true,
+  footerDb = null,
 }: AppShellSidebarProps): JSX.Element {
   const displayName = appName ?? APP_DISPLAY_NAMES[appId];
 
@@ -81,6 +85,8 @@ export function AppShellSidebar({
         <div className="app-shell-sidebar-col">{sidebar}</div>
         <main className="app-shell-content">{children}</main>
       </div>
+
+      <AppFooterCredit db={footerDb} />
     </div>
   );
 }

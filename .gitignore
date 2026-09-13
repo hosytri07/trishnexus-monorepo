@@ -58,3 +58,21 @@ apps-desktop/trishlibrary/src-tauri/resources/tessdata_best/*.traineddata
 
 .vercel
 .env*
+
+# 13-09 — moi truong Python cua sidecar VietOCR (TrishWork): torch/CUDA vai GB, duong dan qua dai (Windows MAX_PATH)
+# -> KHONG dua vao git. Tao lai bang: python -m venv .venv-sidecar ; pip install -r requirements.txt
+apps-desktop/trishwork/sidecar-vietocr/.venv-sidecar/
+apps-desktop/trishwork/sidecar-vietocr/.venv*/
+**/.venv/
+**/.venv-*/
+**/__pycache__/
+# Model OCR tai ve (lon) — neu co
+apps-desktop/trishwork/sidecar-vietocr/models/
+apps-desktop/trishwork/sidecar-vietocr/weights/
+*.pth
+*.onnx
+
+# 13-09 - sidecar OCR build (263 MB) qua gioi han 100 MB cua GitHub; build lai bang sidecar-vietocr/build-sidecar.ps1
+apps-desktop/trishwork/src-tauri/resources/vietocr/*.exe
+*.exe
+!scripts/**/*.exe

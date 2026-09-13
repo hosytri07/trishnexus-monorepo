@@ -225,6 +225,13 @@ export interface TrishUser {
   finance_user_updated_at?: number;
 
   /**
+   * Cờ PKTCNĐB — chỉ user có cờ này (do admin bật) mới thấy module Hồ sơ ISO
+   * trong TrishWork. Trial/demo không áp dụng; admin luôn xem được.
+   */
+  pktcndb?: boolean;
+  pktcndb_updated_at?: number;
+
+  /**
    * 🆕 Phase 38.8 — Promo codes user đã dùng (1 user / 1 code, chống nhập lại).
    * Mỗi item lưu code uppercase (vd "TRIAL2026"). Check khi user thử activate
    * lại: nếu code đã có trong array → reject với reason "already_used".

@@ -36,6 +36,12 @@ function loadDb(): FinanceDb {
 function saveDb(db: FinanceDb): void {
   try {
     localStorage.setItem(DB_KEY, JSON.stringify(db));
+    // 02-09 — lưu local xong thì hẹn đẩy mây (đồng bộ đa thiết bị: desktop +
+    // điện thoại). Dynamic import để test Node không có Firebase vẫn chạy;
+    // chưa đăng nhập / mất mạng thì cloud-sync tự im lặng bỏ qua.
+    import('./lib/cloud-sync')
+      .then((m) => m.scheduleFinancePush(db))
+      .catch(() => undefined);
   } catch (e) {
     console.warn('[trishfinance] saveDb failed:', e);
   }

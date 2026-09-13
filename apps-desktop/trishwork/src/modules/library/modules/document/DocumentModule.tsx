@@ -38,7 +38,16 @@ type SubTab = 'editor' | 'convert';
 
 interface ModuleProps {
   tr: (key: string, vars?: Record<string, string | number>) => string;
+  /** Sub-tab mở sẵn khi module nhúng làm widget độc lập. */
+  initialSubTab?: SubTab;
+  /** Ẩn thanh sub-tab nội bộ (mỗi widget Dashboard chỉ hiện 1 phần). */
+  hideSubNav?: boolean;
 }
+
+/** Feature id của widget Soạn thảo trong WorkShell — dùng cho cross-open. */
+const DOC_EDIT_FEATURE_ID = 'library:doc-edit';
+/** localStorage key: path file cần mở ở widget Soạn thảo (cross-widget). */
+const PENDING_OPEN_PATH_KEY = 'trishlibrary.doc.pending_open_path';
 
 function isInTauri(): boolean {
   return (
@@ -48,11 +57,11 @@ function isInTauri(): boolean {
   );
 }
 
-export function DocumentModule({ tr }: ModuleProps): JSX.Element {
-  const { profile } = useAuth();
-  const uid = profile?.id ?? null;
+export function DocumentModule({ tr, initialSubTab, hideSubNav = false }: ModuleProps): JSX.Element {
+  const { profile, firebaseUser } = useAuth();
+  const uid = firebaseUser?.uid ?? profile?.id ?? null;
   const { alert, confirm } = useDialogs();
-  const [subTab, setSubTab] = useState<SubTab>('editor');
+  const [subTab, setSubTab] = useState<SubTab>(initialSubTab ?? 'editor');
   const [tabs, setTabs] = useState<DocTab[]>([]);
   const [activeId, setActiveId] = useState<string | null>(null);
 
@@ -120,8 +129,14 @@ export function DocumentModule({ tr }: ModuleProps): JSX.Element {
         const pending = window.localStorage.getItem('trishlibrary.doc.pending_tab');
         if (pending) {
           window.localStorage.removeItem('trishlibrary.doc.pending_tab');
-          setSubTab('editor');
+          if (!hideSubNav) setSubTab('editor');
           setActiveId(pending);
+        }
+        // Cross-widget: widget Chuyển đổi yêu cầu mở file ở widget Soạn thảo.
+        const pendingPath = window.localStorage.getItem(PENDING_OPEN_PATH_KEY);
+        if (pendingPath && subTab === 'editor') {
+          window.localStorage.removeItem(PENDING_OPEN_PATH_KEY);
+          void openPathInTab(pendingPath);
         }
       } catch {
         /* ignore */
@@ -129,8 +144,19 @@ export function DocumentModule({ tr }: ModuleProps): JSX.Element {
     }
     checkPending();
     const onFocus = (): void => checkPending();
+    // Cross-widget: khi widget Chuyển đổi gọi mở file, widget Soạn thảo (đang
+    // mounted sẵn) nhận event này để consume pending path ngay.
+    const onOpenFeature = (e: Event): void => {
+      if ((e as CustomEvent<string>).detail === DOC_EDIT_FEATURE_ID) {
+        setTimeout(checkPending, 0);
+      }
+    };
     window.addEventListener('focus', onFocus);
-    return () => window.removeEventListener('focus', onFocus);
+    window.addEventListener('trishwork:open-feature', onOpenFeature);
+    return () => {
+      window.removeEventListener('focus', onFocus);
+      window.removeEventListener('trishwork:open-feature', onOpenFeature);
+    };
   }, []);
 
   useEffect(() => {
@@ -354,7 +380,8 @@ export function DocumentModule({ tr }: ModuleProps): JSX.Element {
 
   return (
     <div className="document-module">
-      {/* Row 1: Sub-tab nav */}
+      {/* Row 1: Sub-tab nav — ẩn khi mở như widget độc lập trên Dashboard */}
+      {!hideSubNav && (
       <div className="doc-subtab-nav">
         <button
           className={`doc-subtab ${subTab === 'editor' ? 'active' : ''}`}
@@ -372,6 +399,7 @@ export function DocumentModule({ tr }: ModuleProps): JSX.Element {
           <span>{tr('doc.tab.convert')}</span>
         </button>
       </div>
+      )}
 
       {/* Row 2: Action toolbar (chỉ hiện ở Editor) */}
       {subTab === 'editor' && (
@@ -457,8 +485,20 @@ export function DocumentModule({ tr }: ModuleProps): JSX.Element {
           tr={tr}
           onFlash={(msg) => setFlash(msg)}
           onOpenInEditor={(path) => {
-            setSubTab('editor');
-            void openPathInTab(path);
+            if (hideSubNav) {
+              // Widget Chuyển đổi độc lập → mở file ở widget Soạn thảo.
+              try {
+                window.localStorage.setItem(PENDING_OPEN_PATH_KEY, path);
+              } catch {
+                /* ignore */
+              }
+              window.dispatchEvent(
+                new CustomEvent('trishwork:open-feature', { detail: DOC_EDIT_FEATURE_ID }),
+              );
+            } else {
+              setSubTab('editor');
+              void openPathInTab(path);
+            }
           }}
         />
       )}

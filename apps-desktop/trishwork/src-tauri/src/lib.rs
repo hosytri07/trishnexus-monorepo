@@ -13,6 +13,7 @@
 
 mod acad_com;
 mod library; // Wave 44.3.B — gộp backend TrishLibrary (PDF/OCR/search/convert/image)
+mod vietocr; // Wave 45.x — sidecar VietOCR offline cho Khảo sát (OCR)
 
 // ============================================================
 // Phase 28.4 Turn 10 — Custom hatch pattern (.pat) deployment
@@ -1221,11 +1222,69 @@ fn toggle_sticky_window<R: tauri::Runtime>(app: &tauri::AppHandle<R>) {
     }
 }
 
+/// Đóng cửa sổ splash + hiện cửa sổ chính. Frontend gọi khi React đã mount.
+#[tauri::command]
+fn close_splashscreen(app: tauri::AppHandle) {
+    use tauri::Manager;
+    if let Some(sp) = app.get_webview_window("splashscreen") {
+        let _ = sp.close();
+    }
+    if let Some(main) = app.get_webview_window("main") {
+        let _ = main.show();
+        let _ = main.set_focus();
+    }
+}
+
 pub fn run() {
     tauri::Builder::default()
+        // PHẢI là plugin đầu tiên: chặn mở app nhiều lần — lần mở thứ 2 chỉ
+        // focus cửa sổ đang có (tránh user tưởng chưa mở rồi bấm nhiều lần).
+        .plugin(tauri_plugin_single_instance::init(|app, _argv, _cwd| {
+            use tauri::Manager;
+            if let Some(w) = app.get_webview_window("main") {
+                let _ = w.show();
+                let _ = w.unminimize();
+                let _ = w.set_focus();
+            } else if let Some(sp) = app.get_webview_window("splashscreen") {
+                let _ = sp.set_focus();
+            }
+        }))
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_opener::init())
+        .manage(vietocr::VietOcrState::default())
         .setup(|app| {
+            // Splash window: hiện NGAY khi app mở (data URL nội tuyến, không cần
+            // dev server) → che màn đen lúc cửa sổ chính đang nạp. Cửa sổ chính
+            // để visible:false trong tauri.conf, frontend gọi close_splashscreen.
+            {
+                use tauri::{WebviewUrl, WebviewWindowBuilder};
+                const SPLASH_URL: &str = "data:text/html;base64,PCFkb2N0eXBlIGh0bWw+PGh0bWw+PGhlYWQ+PG1ldGEgY2hhcnNldD0idXRmLTgiPjxzdHlsZT5odG1sLGJvZHl7bWFyZ2luOjA7aGVpZ2h0OjEwMCU7YmFja2dyb3VuZDojMGUxMTE2O2Rpc3BsYXk6ZmxleDtmbGV4LWRpcmVjdGlvbjpjb2x1bW47YWxpZ24taXRlbXM6Y2VudGVyO2p1c3RpZnktY29udGVudDpjZW50ZXI7Zm9udC1mYW1pbHk6c3lzdGVtLXVpLC1hcHBsZS1zeXN0ZW0sIlNlZ29lIFVJIixzYW5zLXNlcmlmfS5ye3dpZHRoOjQ2cHg7aGVpZ2h0OjQ2cHg7Ym9yZGVyLXJhZGl1czo1MCU7Ym9yZGVyOjNweCBzb2xpZCByZ2JhKDUyLDIxMSwxNTMsLjI1KTtib3JkZXItdG9wLWNvbG9yOiMzNGQzOTk7YW5pbWF0aW9uOnMgLjhzIGxpbmVhciBpbmZpbml0ZX1Aa2V5ZnJhbWVzIHN7dG97dHJhbnNmb3JtOnJvdGF0ZSgzNjBkZWcpfX0ubHttYXJnaW4tdG9wOjE4cHg7Zm9udC1zaXplOjIycHg7Zm9udC13ZWlnaHQ6NzAwO2NvbG9yOiNlNmVkZjM7bGV0dGVyLXNwYWNpbmc6LjVweH0ubCBie2NvbG9yOiMzNGQzOTl9LnR7bWFyZ2luLXRvcDo2cHg7Zm9udC1zaXplOjEzcHg7Y29sb3I6IzhiOTQ5ZX08L3N0eWxlPjwvaGVhZD48Ym9keT48ZGl2IGNsYXNzPSJyIj48L2Rpdj48ZGl2IGNsYXNzPSJsIj5UcmlzaDxiPldvcms8L2I+PC9kaXY+PGRpdiBjbGFzcz0idCI+xJBhbmcga2jhu59pIMSR4buZbmfigKY8L2Rpdj48L2JvZHk+PC9odG1sPg==";
+                if let Ok(url) = SPLASH_URL.parse() {
+                    let _ = WebviewWindowBuilder::new(app, "splashscreen", WebviewUrl::External(url))
+                        .title("TrishWork")
+                        .inner_size(460.0, 320.0)
+                        .decorations(false)
+                        .resizable(false)
+                        .center()
+                        .always_on_top(true)
+                        .build();
+                }
+
+                // An toàn: nếu sau 25s frontend chưa gọi close_splashscreen
+                // (vd lỗi nạp) thì vẫn hiện cửa sổ chính + đóng splash để app
+                // không bao giờ "tàng hình".
+                let handle = app.handle().clone();
+                std::thread::spawn(move || {
+                    std::thread::sleep(std::time::Duration::from_secs(25));
+                    if let Some(main) = handle.get_webview_window("main") {
+                        let _ = main.show();
+                    }
+                    if let Some(sp) = handle.get_webview_window("splashscreen") {
+                        let _ = sp.close();
+                    }
+                });
+            }
+
             // Phase 53.2 — Tray icon: hiện ở góc đồng hồ, menu show/hide/quit
             use tauri::menu::{Menu, MenuItem, PredefinedMenuItem};
             use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
@@ -1298,6 +1357,7 @@ pub fn run() {
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
+            close_splashscreen,
             default_store_location,
             load_design_file,
             save_design_file,
@@ -1348,6 +1408,11 @@ pub fn run() {
             // === Wave 44.3.B — Library module backend (gộp từ TrishLibrary) ===
             // (4 lệnh trùng tên default_store_location/list_system_fonts/
             //  read_text_string/write_text_string dùng bản TrishWork ở trên)
+            // === Wave 45.x — VietOCR sidecar (offline OCR tiếng Việt) ===
+            vietocr::vietocr_available,
+            vietocr::vietocr_start,
+            vietocr::vietocr_ocr,
+            vietocr::vietocr_stop,
             library::app_version,
             library::attach_file,
             library::check_external_tools,

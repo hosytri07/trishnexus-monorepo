@@ -21,6 +21,7 @@ import {
   resetUserToTrial,
   setUserIsoAdmin,
   setUserFinanceUser,
+  setUserPktcndb,
   setUserRole,
 } from '../lib/firestore-admin.js';
 import type { TrishUser, UserRole } from '@trishteam/data';
@@ -156,6 +157,24 @@ export function UsersPanel(): JSX.Element {
       onConfirm: async () => {
         await setUserFinanceUser(user.id, next, actor, user.email);
         setActionMsg(`✓ ${next ? 'Đã cấp' : 'Đã thu hồi'} quyền TrishFinance cho ${user.email}`);
+        await load();
+      },
+    });
+  }
+
+  function handleTogglePktcndb(user: TrishUser): void {
+    const next = !user.pktcndb;
+    setConfirmAction({
+      title: next ? 'Cấp quyền PKTCNĐB (xem Hồ sơ ISO)' : 'Thu hồi quyền PKTCNĐB',
+      message:
+        `${next ? 'CẤP' : 'THU HỒI'} quyền PKTCNĐB cho ${user.email}?\n\n` +
+        `Chỉ user có cờ này mới thấy module Hồ sơ ISO trong TrishWork.` +
+        (user.role !== 'user' && next ? `\n\n⚠ Lưu ý: tài khoản đang là role "${user.role}" — cờ chỉ có tác dụng khi role là "user".` : ''),
+      confirmLabel: next ? 'Cấp quyền' : 'Thu hồi',
+      danger: !next,
+      onConfirm: async () => {
+        await setUserPktcndb(user.id, next, actor, user.email);
+        setActionMsg(`✓ ${next ? 'Đã cấp' : 'Đã thu hồi'} quyền PKTCNĐB cho ${user.email}`);
         await load();
       },
     });
@@ -364,6 +383,18 @@ export function UsersPanel(): JSX.Element {
                           }}
                         >
                           {u.finance_user ? '✓ Finance' : '○ Finance'}
+                        </button>
+                        <button
+                          type="button"
+                          className="btn btn-sm btn-ghost"
+                          onClick={() => handleTogglePktcndb(u)}
+                          title={u.pktcndb ? 'Thu hồi quyền PKTCNĐB (Hồ sơ ISO)' : 'Cấp quyền PKTCNĐB — xem module Hồ sơ ISO'}
+                          style={{
+                            color: u.pktcndb ? 'var(--color-accent-primary)' : undefined,
+                            fontWeight: u.pktcndb ? 700 : undefined,
+                          }}
+                        >
+                          {u.pktcndb ? '✓ PKTCNĐB' : '○ PKTCNĐB'}
                         </button>
                         <button
                           type="button"

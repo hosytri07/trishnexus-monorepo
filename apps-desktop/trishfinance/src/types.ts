@@ -203,7 +203,7 @@ export interface LedgerEntry {
   amount: number;
   description: string;
   accountId?: string;      // ví/tài khoản
-  fromModule: 'manual' | 'nhatro' | 'banhang' | 'recurring';
+  fromModule: 'manual' | 'nhatro' | 'banhang' | 'recurring' | 'congtac';
   refId?: string;
   createdAt: string;
 }
@@ -228,6 +228,82 @@ export interface RecurringTxn {
   weekday?: number;        // 0-6 (Mon=0)
   active: boolean;
   lastTriggeredAt?: string;
+}
+
+// ==========================================================
+// MODULE CÔNG TÁC (02-09 — anh Trí): chuyến công tác + công trình ngoài.
+// Chuyến: ứng tiền → chi theo mục (ăn uống/nhà nghỉ/mua hóa đơn/vé xe/
+// phát sinh) → quyết toán còn lại. Công trình ngoài: CHỈ LÀ CÁI TÊN tự đặt
+// (không liên quan hệ Văn phòng) — các đợt nhận tiền − (chi khác + chi của
+// các chuyến gắn vào) = tiền còn lại.
+// ==========================================================
+export type TripExpenseCat = 'an_uong' | 'nha_nghi' | 'hoa_don' | 've_xe' | 'phat_sinh';
+
+export const TRIP_CATS: Array<{ key: TripExpenseCat; label: string; icon: string }> = [
+  { key: 'an_uong',   label: 'Ăn uống',      icon: '🍜' },
+  { key: 'nha_nghi',  label: 'Nhà nghỉ',     icon: '🏨' },
+  { key: 'hoa_don',   label: 'Mua hóa đơn',  icon: '🧾' },
+  { key: 've_xe',     label: 'Vé xe · đi lại', icon: '🚌' },
+  { key: 'phat_sinh', label: 'Phát sinh',    icon: '📦' },
+];
+
+/** Một lần ứng tiền trước/trong chuyến. */
+export interface TripAdvance {
+  id: string;
+  date: string;          // yyyy-mm-dd
+  amount: number;
+  note?: string;
+}
+
+/** Một khoản chi trong chuyến. */
+export interface TripExpense {
+  id: string;
+  date: string;
+  cat: TripExpenseCat;
+  desc: string;
+  amount: number;
+}
+
+export interface CongTacTrip {
+  id: string;
+  name: string;          // vd "Kiểm tra QL14B đợt 3"
+  place?: string;        // nơi đến
+  dateFrom: string;
+  dateTo?: string;
+  /** Gắn vào công trình ngoài (tuỳ chọn) — chi phí chuyến cộng vào công trình đó. */
+  jobId?: string;
+  advances: TripAdvance[];
+  expenses: TripExpense[];
+  status: 'dang_di' | 'da_quyet_toan';
+  note?: string;
+  createdAt: string;
+}
+
+/** Đợt nhận tiền của công trình ngoài. */
+export interface JobPayment {
+  id: string;
+  date: string;
+  amount: number;
+  note?: string;
+}
+
+/** Chi khác của công trình (ngoài các chuyến công tác đã gắn). */
+export interface JobCost {
+  id: string;
+  date: string;
+  desc: string;
+  amount: number;
+}
+
+export interface OutsideJob {
+  id: string;
+  name: string;          // tự đặt, không liên quan văn phòng
+  partner?: string;      // ai thuê / làm với ai (tuỳ chọn)
+  payments: JobPayment[];
+  costs: JobCost[];
+  status: 'dang_lam' | 'xong';
+  note?: string;
+  createdAt: string;
 }
 
 // ==========================================================
@@ -381,6 +457,9 @@ export interface FinanceDb {
   chiPhis: ChiPhi[];
   ledger: LedgerEntry[];
   budgets: Budget[];
+  // 02-09 — Công tác · công trình ngoài
+  congtacTrips: CongTacTrip[];
+  outsideJobs: OutsideJob[];
   recurrings: RecurringTxn[];
   // Multi-shop (Phase 23.8.C) — 1 user quản nhiều cửa hàng
   shops: ShopProfile[];
@@ -472,6 +551,8 @@ export const EMPTY_DB: FinanceDb = {
   chiPhis: [],
   ledger: [],
   budgets: [],
+  congtacTrips: [],
+  outsideJobs: [],
   recurrings: [],
   shops: [],
   activeShopId: '',

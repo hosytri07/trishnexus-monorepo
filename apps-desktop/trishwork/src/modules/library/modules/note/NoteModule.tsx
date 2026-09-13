@@ -94,8 +94,10 @@ interface ModuleProps {
 }
 
 export function NoteModule({ tr }: ModuleProps): JSX.Element {
-  const { profile } = useAuth();
-  const uid = profile?.id ?? null;
+  const { profile, firebaseUser } = useAuth();
+  // Dùng firebaseUser.uid (có ngay sau đăng nhập) thay vì chờ profile Firestore
+  // tải xong — tránh kẹt spinner "Đang load notes…" khi profile load chậm.
+  const uid = firebaseUser?.uid ?? profile?.id ?? null;
   const { alert, confirm, prompt } = useDialogs();
 
   const [store, setStore] = useState<NoteStore>(() => emptyStore());
@@ -183,7 +185,12 @@ export function NoteModule({ tr }: ModuleProps): JSX.Element {
 
   // ===== Initial load =====
   useEffect(() => {
-    if (initRef.current || !uid) return;
+    if (initRef.current) return;
+    // uid chưa sẵn sàng → thoát spinner, hiện store rỗng; effect chạy lại khi uid có.
+    if (!uid) {
+      setLoading(false);
+      return;
+    }
     initRef.current = true;
     setLoading(true);
     void (async () => {

@@ -29,7 +29,8 @@ export type AtgtCategory =
   | 'RANHDOC'      // Rãnh dọc
   | 'CONGNGANG'    // Cống ngang
   | 'TIEUPQ'       // Tiêu phản quang dẫn hướng
-  | 'GUONGCAU';    // Gương cầu lồi
+  | 'GUONGCAU'     // Gương cầu lồi
+  | 'DUONGNGANG';  // Đường ngang (giao cắt) — lý trình tại tim đường ngang
 
 export const ATGT_CATEGORIES: { id: AtgtCategory; name: string; icon: string; color: number }[] = [
   { id: 'BIENBAO',   name: 'Biển báo',                icon: '🛑', color: 1 },  // Red
@@ -41,6 +42,7 @@ export const ATGT_CATEGORIES: { id: AtgtCategory; name: string; icon: string; co
   { id: 'CONGNGANG', name: 'Cống ngang',              icon: '⬛', color: 30 }, // Orange
   { id: 'TIEUPQ',    name: 'Tiêu phản quang',         icon: '✨', color: 7 },  // White
   { id: 'GUONGCAU',  name: 'Gương cầu lồi',           icon: '🪞', color: 8 },  // Gray
+  { id: 'DUONGNGANG', name: 'Đường ngang',            icon: '🛣', color: 40 }, // Brown
 ];
 
 export function getCategoryInfo(id: AtgtCategory): { name: string; icon: string; color: number } {
@@ -146,6 +148,15 @@ export interface GuongCauItem extends AtgtItemBase {
   poleHeight: number;          // Chiều cao cột (m), default 4
 }
 
+export interface DuongNgangItem extends AtgtItemBase {
+  category: 'DUONGNGANG';
+  width: number;               // Bề rộng đường ngang (m)
+  taperWidth: number;          // Bề rộng vuốt nối (m)
+  structure: string;           // Kết cấu mặt (BTXM / BTN / cấp phối / ...)
+  markingNote: string;         // Bố trí vạch sơn trong đường ngang
+  signNote: string;            // Bố trí biển báo trong đường ngang
+}
+
 export type AtgtItem =
   | BienBaoItem
   | VachSonItem
@@ -155,7 +166,8 @@ export type AtgtItem =
   | RanhDocItem
   | CongNgangItem
   | TieuPQItem
-  | GuongCauItem;
+  | GuongCauItem
+  | DuongNgangItem;
 
 // =====================================================================
 // Segment + Project
@@ -358,6 +370,8 @@ export function defaultAtgtItem(category: AtgtCategory, station: number = 0): At
       return { ...base, category: 'TIEUPQ', spacing: 10, count: 10, color: 'yellow' };
     case 'GUONGCAU':
       return { ...base, category: 'GUONGCAU', diameter: 0.6, poleHeight: 4 };
+    case 'DUONGNGANG':
+      return { ...base, category: 'DUONGNGANG', side: 'center', cachTim: 0, width: 4, taperWidth: 2, structure: 'BTXM', markingNote: '', signNote: '' };
   }
 }
 

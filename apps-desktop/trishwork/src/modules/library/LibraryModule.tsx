@@ -75,9 +75,15 @@ export interface LibraryModuleProps {
   initialPanel?: ModuleId;
   /** Ẩn thanh tab nav nội bộ (WorkShell đã có tab + dashboard). */
   hideNav?: boolean;
+  /**
+   * Khi mở module Tài liệu như 1 widget độc lập trên Dashboard: chọn sẵn
+   * sub-tab ('editor' = Soạn thảo, 'convert' = Chuyển đổi/PDF) và ẩn thanh
+   * sub-tab nội bộ (mỗi widget chỉ hiện đúng phần của nó).
+   */
+  documentTab?: 'editor' | 'convert';
 }
 
-export function LibraryModule({ initialPanel, hideNav = false }: LibraryModuleProps = {}): JSX.Element {
+export function LibraryModule({ initialPanel, hideNav = false, documentTab }: LibraryModuleProps = {}): JSX.Element {
   const { profile } = useAuth();
   const [active, setActive] = useState<ModuleId>(() => initialPanel ?? loadActiveModule());
   const [showSettings, setShowSettings] = useState(false);
@@ -342,7 +348,13 @@ export function LibraryModule({ initialPanel, hideNav = false }: LibraryModulePr
       <main className="module-content">
         {active === 'library' && <LibraryRoot />}
         {active === 'note' && <NoteModule tr={tr} />}
-        {active === 'document' && <DocumentModule tr={tr} />}
+        {active === 'document' && (
+          <DocumentModule
+            tr={tr}
+            initialSubTab={documentTab}
+            hideSubNav={documentTab != null}
+          />
+        )}
         {active === 'image' && <ImageModule tr={tr} />}
         {active === 'trishteam' && <TrishteamModule />}
       </main>

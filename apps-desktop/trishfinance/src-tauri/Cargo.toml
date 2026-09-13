@@ -20,8 +20,10 @@ tauri-build = { version = "2.0", features = [] }
 
 [dependencies]
 tauri = { version = "2.0", features = [] }
-# Phase 23.1.A — Auto-update infrastructure (active:false tới khi release đồng loạt)
+# 13-09 — Tự cập nhật qua GitHub Releases (hosytri07/trishfinance-releases), phát hành từ S-RETC Builder & Release.
 tauri-plugin-process = "2"
+tauri-plugin-updater = "2"
+tauri-plugin-opener = "2"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 

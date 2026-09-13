@@ -20,6 +20,10 @@ import {
   CadChatbotModule,
 } from './modules/engineer/RoadDamageModule.js';
 import { SurveyPanel } from './modules/engineer/SurveyPanel.js';
+import { SignRefPanel } from './modules/engineer/SignRefPanel.js';
+import { TitleBlockPanel } from './modules/engineer/TitleBlockPanel.js';
+import { DrawingLibraryPanel } from './modules/engineer/DrawingLibraryPanel.js';
+import { LegalDocsPanel } from './modules/engineer/LegalDocsPanel.js';
 import { AutoLispPanel } from './modules/engineer/AutoLispPanel.js';
 import { StructuralPanel } from './modules/engineer/StructuralPanel.js';
 import { EstimatePanel } from './modules/engineer/EstimatePanel.js';
@@ -35,6 +39,10 @@ type ModuleId =
   | 'cross_section'
   | 'chatbot'
   | 'survey'
+  | 'signref'
+  | 'titleblock'
+  | 'drawinglib'
+  | 'legaldocs'
   | 'autolisp'
   | 'structural'
   | 'estimate'
@@ -56,7 +64,11 @@ const NAV_ITEMS: NavItem[] = [
   { id: 'cross_section', icon: '🌊', label: 'Vẽ mặt cắt hốt sạt' },
   { id: 'chatbot',       icon: '🤖', label: 'Chatbot AutoCAD' },
   // Module khác
-  { id: 'survey',        icon: '🔍', label: 'Khảo sát (OCR)' },
+  { id: 'survey',        icon: '🛠', label: 'Tiện ích PDF · Quét sổ hiện trạng' },
+  { id: 'signref',       icon: '🚸', label: 'Tra cứu biển báo (QC 41:2024)' },
+  { id: 'titleblock',    icon: '🗂', label: 'Tạo khung tên bản vẽ' },
+  { id: 'drawinglib',    icon: '📚', label: 'Thư viện bản vẽ' },
+  { id: 'legaldocs',     icon: '📋', label: 'Thông tư · Văn bản mới' },
   { id: 'autolisp',      icon: '🧩', label: 'Quản lý Autolisp' },
   { id: 'structural',    icon: '🏗', label: 'Bảng tính kết cấu' },
   { id: 'estimate',      icon: '💰', label: 'Dự toán' },
@@ -149,6 +161,10 @@ export function DesignModule({ initialPanel, hideNav = false }: DesignModuleProp
       case 'cross_section': return <CrossSectionModule />;
       case 'chatbot': return <CadChatbotModule />;
       case 'survey': return <SurveyPanel />;
+      case 'signref': return <SignRefPanel />;
+      case 'titleblock': return <TitleBlockPanel />;
+      case 'drawinglib': return <DrawingLibraryPanel />;
+      case 'legaldocs': return <LegalDocsPanel />;
       case 'autolisp': return <AutoLispPanel />;
       case 'structural':
         return isAdmin

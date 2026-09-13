@@ -41,6 +41,7 @@
 
 import { useEffect, type ReactNode } from 'react';
 import { AppLogo, type AppShellId } from './AppLogo.js';
+import { AppFooterCredit } from './AppFooterCredit.js';
 import { APP_DISPLAY_NAMES, applyAppAccent } from './applyAppAccent.js';
 
 export interface ModuleDef<TId extends string = string> {
@@ -64,6 +65,8 @@ export interface AppShellProps<TId extends string = string> {
   children: ReactNode;
   /** Auto-apply data-app attribute on mount (default true). */
   autoApplyAccent?: boolean;
+  /** Firestore db để footer credit đọc config (admin sửa được). */
+  footerDb?: import('firebase/firestore').Firestore | null;
 }
 
 const STORAGE_KEY_PREFIX = 'trishteam:appshell:active_module:';
@@ -78,6 +81,7 @@ export function AppShell<TId extends string = string>({
   topbarRight,
   children,
   autoApplyAccent = true,
+  footerDb = null,
 }: AppShellProps<TId>): JSX.Element {
   const displayName = appName ?? APP_DISPLAY_NAMES[appId];
   const storageKey = `${STORAGE_KEY_PREFIX}${appId}`;
@@ -151,6 +155,8 @@ export function AppShell<TId extends string = string>({
       </nav>
 
       <main className="module-content">{children}</main>
+
+      <AppFooterCredit db={footerDb} />
     </div>
   );
 }

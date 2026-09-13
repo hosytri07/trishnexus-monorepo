@@ -143,6 +143,7 @@ export function App(): JSX.Element {
         active={active}
         onActiveChange={setActive}
         topbarRight={topbarRight}
+        footerDb={getFirebaseDb()}
       >
         <Suspense fallback={<ModuleLoading />}>
           {activated.has('clean') && (

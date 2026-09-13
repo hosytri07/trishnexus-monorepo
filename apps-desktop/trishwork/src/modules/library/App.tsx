@@ -65,8 +65,9 @@ import {
 type ViewMode = 'local' | 'online' | 'trishteam';
 
 export function App(): JSX.Element {
-  const { profile, isAdmin, isPaid } = useAuth();
-  const uid = profile?.id ?? null;
+  const { profile, isAdmin, isPaid, firebaseUser } = useAuth();
+  // firebaseUser.uid có ngay sau đăng nhập → tránh kẹt spinner khi profile load chậm.
+  const uid = firebaseUser?.uid ?? profile?.id ?? null;
   const { alert, confirm, prompt } = useDialogs();
 
   const [settings, setSettings] = useState<Settings>(() => loadSettings());
@@ -128,7 +129,10 @@ export function App(): JSX.Element {
 
   // Phase 16.2.d — Initial load PER-UID file (đơn lẻ, không chained).
   useEffect(() => {
-    if (!uid) return;
+    if (!uid) {
+      setLoading(false);
+      return;
+    }
     let alive = true;
     setLoading(true);
     setFiles([]);

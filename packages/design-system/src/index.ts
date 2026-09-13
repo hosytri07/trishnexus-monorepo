@@ -22,6 +22,8 @@ export { AppLogo, getAppAccentColor } from './AppLogo.js';
 // Phase 78.13.11 — Shared NotificationCenter cho topbar 4 app
 export { NotificationCenter } from './NotificationCenter.js';
 export type { NotificationCenterProps } from './NotificationCenter.js';
+export { AppFooterCredit } from './AppFooterCredit.js';
+export type { AppFooterCreditProps } from './AppFooterCredit.js';
 export type { AppShellId, AppLogoProps } from './AppLogo.js';
 export { APP_LOGO_PNG_URLS } from './logos.js';
 export {

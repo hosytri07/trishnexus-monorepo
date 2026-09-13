@@ -51,8 +51,8 @@ interface Props {
 }
 
 export function ImageModule({ tr }: Props): JSX.Element {
-  const { profile } = useAuth();
-  const uid = profile?.id ?? null;
+  const { profile, firebaseUser } = useAuth();
+  const uid = firebaseUser?.uid ?? profile?.id ?? null;
   const { confirm, alert, prompt } = useDialogs();
   const [store, setStoreState] = useState<ImageStore>(() => loadImageStore(uid));
 

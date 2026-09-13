@@ -252,6 +252,37 @@ export async function setUserFinanceUser(
   }
 }
 
+/** Bật/tắt cờ PKTCNĐB — chỉ user có cờ này mới thấy module Hồ sơ ISO. */
+export async function setUserPktcndb(
+  uid: string,
+  value: boolean,
+  actor?: ActorContext,
+  targetEmail?: string,
+): Promise<void> {
+  const db = getFirebaseDb();
+  const ref = doc(db, paths.user(uid));
+  await setDoc(
+    ref,
+    {
+      id: uid,
+      pktcndb: value,
+      pktcndb_updated_at: Date.now(),
+    },
+    { merge: true },
+  );
+  if (actor) {
+    await writeAudit({
+      action: value ? 'user.pktcndb_grant' : 'user.pktcndb_revoke',
+      actor_uid: actor.uid,
+      actor_email: actor.email,
+      target_type: 'user',
+      target_id: uid,
+      target_label: targetEmail,
+      details: { pktcndb: value },
+    });
+  }
+}
+
 // ============================================================
 // Phase 44.5 — App access grant/revoke (4 app mới)
 // ============================================================

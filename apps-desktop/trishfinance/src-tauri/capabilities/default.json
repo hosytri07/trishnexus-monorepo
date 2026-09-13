@@ -1,13 +1,15 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "TrishFinance — core permissions + auto-update (Phase 23.1.A)",
+  "description": "TrishFinance — core + process + updater + opener (13-09)",
   "windows": [
     "main"
   ],
   "permissions": [
     "core:default",
     "process:default",
-    "process:allow-restart"
+    "process:allow-restart",
+    "updater:default",
+    "opener:default"
   ]
 }

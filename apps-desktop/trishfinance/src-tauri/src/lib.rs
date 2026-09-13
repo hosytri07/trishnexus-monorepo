@@ -14,6 +14,9 @@ fn app_version() -> &'static str {
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_process::init())
+        // 13-09 — updater + opener (platform.ts đã gọi @tauri-apps/plugin-updater / plugin-opener từ trước, chỉ thiếu phía Rust)
+        .plugin(tauri_plugin_updater::Builder::new().build())
+        .plugin(tauri_plugin_opener::init())
         .invoke_handler(tauri::generate_handler![app_version])
         .run(tauri::generate_context!())
         .expect("error while running TrishFinance");

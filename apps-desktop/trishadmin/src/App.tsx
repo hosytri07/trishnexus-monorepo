@@ -49,6 +49,9 @@ import { FinanceAdminPanel } from './components/FinanceAdminPanel.js';
 import { SchedulesPanel } from './components/SchedulesPanel.js';
 import { DevicesPanel } from './components/DevicesPanel.js';
 import { FontPacksPanel } from './components/FontPacksPanel.js';
+import { FooterCreditPanel } from './components/FooterCreditPanel.js';
+import { DrawingLibraryAdminPanel } from './components/DrawingLibraryAdminPanel.js';
+import { LegalDocsAdminPanel } from './components/LegalDocsAdminPanel.js';
 import { getAppVersion } from './tauri-bridge.js';
 import logoUrl from './assets/logo.png';
 
@@ -84,6 +87,9 @@ type Panel =
   | 'schedules'
   | 'devices'
   | 'fontpacks'
+  | 'drawing_library'
+  | 'legal_docs'
+  | 'footer_credit'
   | 'settings';
 
 interface NavGroup {
@@ -121,6 +127,8 @@ const NAV_GROUPS: NavGroup[] = [
       { id: 'broadcasts', label: 'Broadcasts', keywords: ['thông báo', 'announcement'] },
       { id: 'database_vn', label: '🇻🇳 Database VN', keywords: ['địa danh', 'vietnam'] },
       { id: 'fontpacks', label: '🔤 Font Packs', keywords: ['font', 'pack', 'manifest', 'utilities'] },
+      { id: 'drawing_library', label: '📚 Thư viện bản vẽ', keywords: ['ban ve', 'chi tiet', 'dwg', 'cad', 'drawing'] },
+      { id: 'legal_docs', label: '📋 Thông tư · Văn bản', keywords: ['thong tu', 'van ban', 'tieu chuan', 'qcvn', 'tcvn', 'phap luat'] },
     ],
   },
   {
@@ -168,6 +176,7 @@ const NAV_GROUPS: NavGroup[] = [
       { id: 'api_keys', label: '🔐 API Keys', keywords: ['token', 'secret'] },
       { id: 'lisp_library', label: '🧩 AutoLISP Library', keywords: ['autocad', 'script'] },
       { id: 'atgt_blocks', label: '🚸 ATGT Blocks', keywords: ['biển báo', 'an toàn giao thông'] },
+      { id: 'footer_credit', label: '📢 Footer credit', keywords: ['credit', 'footer', 'bản quyền', 'chân trang'] },
       { id: 'settings', label: 'Cài đặt', keywords: ['config'] },
     ],
   },
@@ -379,6 +388,9 @@ export function App(): JSX.Element {
         {active === 'schedules' && <SchedulesPanel />}
         {active === 'devices' && <DevicesPanel />}
         {active === 'fontpacks' && <FontPacksPanel />}
+        {active === 'drawing_library' && <DrawingLibraryAdminPanel />}
+        {active === 'legal_docs' && <LegalDocsAdminPanel />}
+        {active === 'footer_credit' && <FooterCreditPanel />}
         {active === 'settings' && <SettingsPanel />}
       </main>
     </AppShellSidebar>
